@@ -6,12 +6,12 @@
 
 ```
 wenqu-dist/
-├── cli/wenqu            # CLI 执行器 v0.3.0-fork5-maccc（stdlib-only 单文件；BSF-37 已修）
+├── cli/wenqu            # CLI 执行器 v0.3.0-fork6-maccc（stdlib-only 单文件；BSF-37 已修）
 ├── cli/test_wenqu.py    # CLI 契约测试套件（pytest）
 ├── cli/README.md        # CLI 用法（上游版）
 ├── probes/stations.json # 初始三域探测器（trap-double/guard-comment-swallow/cred-cli-expose）
-├── docs/问渠轨道规范-发行版-v1.0.6.md  # ★先读这个——轨道规范（站/档/账本/收敛/探测器规约）
-└── tests/acceptance.sh   # 回归测试件（24 项验收面；包内任何变更后跑它，全绿再发）
+├── docs/问渠轨道规范-发行版-v1.0.7.md  # ★先读这个——轨道规范（站/档/账本/收敛/探测器规约）
+└── tests/acceptance.sh   # 回归测试件（29 项验收面；包内任何变更后跑它，全绿再发）
 ```
 
 ## 新仓接入（三步）

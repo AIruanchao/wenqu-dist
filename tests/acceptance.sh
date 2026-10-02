@@ -105,6 +105,31 @@ cp "$ROOT/probes/stations.json" "$H5/stations.json"
 python3 "$WQ" --home "$H5" init --path "$R6" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" run trap-double --path "$R6" >/dev/null 2>&1; ck "空格文件名真命中" 1 $?
 
+echo "== L. fork6：四高防线（并发/非对象行/铸轮/状态机）=="
+H6="$TD/inghome"; R7="$TD/ingrepo"; mkdir -p "$R7"; echo "q=1" > "$R7/f.py"
+python3 "$WQ" --home "$H6" init --path "$R7" >/dev/null 2>&1
+echo '{"id":"X-1","sev":"HIGH","status":"OPEN","title":"dup"}' > "$TD/dup.jsonl"
+(python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & (python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & wait
+python3 "$WQ" --home "$H6" findings --path "$R7" >/dev/null 2>&1; ck "并发 ingest 后账本可用" 0 $?
+DUPN=$(grep -c '"id": "X-1"' "$H6/findings.jsonl" 2>/dev/null || echo 0)
+[ "$DUPN" -le 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 同 id 不双入账（$DUPN 条）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 双入账 $DUPN 条"; }
+echo '[1,2]' >> "$H6/findings.jsonl"
+python3 "$WQ" --home "$H6" repair >/dev/null 2>&1; ck "非对象行 repair 自愈" 0 $?
+H7="$TD/chhome"; rm -rf "$H7"
+python3 "$WQ" --home "$H7" init --path "$R7" >/dev/null 2>&1
+printf '{"t9":{"cmd":["bash","-c","exit 0"],"sev":"LOW"}}' > "$H7/stations.json"
+python3 "$WQ" --home "$H7" run t9 --path "$R7" --round 1 >/dev/null 2>&1
+python3 "$WQ" --home "$H7" charter --round 2 --name t9 --path "$R7" >/dev/null 2>&1
+python3 "$WQ" --home "$H7" charter --round 3 --name t9 --path "$R7" >/dev/null 2>&1
+python3 "$WQ" --home "$H7" verify --path "$R7" --convergence 3 >/dev/null 2>&1; ck "charter 铸轮被拒" 1 $?
+echo '{"id":"D-9","sev":"LOW","status":"OPEN","title":"t"}' > "$TD/d9.jsonl"
+H8="$TD/smhome"; rm -rf "$H8"
+python3 "$WQ" --home "$H8" init --path "$R7" >/dev/null 2>&1
+python3 "$WQ" --home "$H8" ingest "$TD/d9.jsonl" >/dev/null 2>&1
+python3 "$WQ" --home "$H8" close D-9 --to CLOSED --note x >/dev/null 2>&1
+echo '{"kind":"transition","id":"D-9","from":"OPEN","to":"FIXED"}' > "$TD/tr.jsonl"
+python3 "$WQ" --home "$H8" ingest "$TD/tr.jsonl" >/dev/null 2>&1; ck "ingest 状态机横跳被拒" 2 $?
+
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then
   (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?

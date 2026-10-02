@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork5-maccc"
+VERSION = "0.3.0-fork6-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -69,7 +69,9 @@ def _ledger_lock(home: Path):
                 pass
             time.sleep(0.1)
     else:
-        raise SystemExit(f"wenqu: 错误：账本锁被持有超 6s 且非陈锁——另一进程在写或异常，退出保护（exit 2）")
+        # fork6（#9）：原 raise SystemExit(msg) 实际退出码=1（Python 对字符串参数的
+        # SystemExit 以 1 退出）而消息自称 exit 2——契约级不一致，改 die 真 2
+        die("账本锁被持有超 6s 且非陈锁——另一进程在写或异常，退出保护（exit 2）", 2)
     try:
         os.write(fd, f"{os.getpid()},{now()}".encode())
         yield
@@ -103,11 +105,18 @@ def load_entries(home: Path):
     if not led.exists():
         return []
     entries, bad = [], []
-    for i, line in enumerate(led.read_text(encoding="utf-8").splitlines(), 1):
+    # fork6（#8）：非 UTF-8 行不再裸 crash（GBK 账本等外部写入真实存在），replace 后由
+    # JSON 解析层报「损坏」走 repair 自愈；fork6（#3）：合法 JSON 非对象行（[1,2]/"x"）
+    # 原穿透到下游 .get() 裸 AttributeError——此处与 JSON 损坏同路报错
+    for i, line in enumerate(led.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
         if not line.strip():
             continue
         try:
-            entries.append(json.loads(line))
+            d = json.loads(line)
+            if not isinstance(d, dict):
+                bad.append(f"第{i}行非对象 JSON：{type(d).__name__}")
+                continue
+            entries.append(d)
         except json.JSONDecodeError as e:
             bad.append(f"第{i}行 JSON 损坏：{e}")
     if bad:
@@ -115,30 +124,31 @@ def load_entries(home: Path):
     return entries
 
 
+def _append_unlocked(home: Path, entries) -> None:
+    """锁内批写原语（裁定#4：整账本+新行→tmp→os.replace）。
+    fork6（#1/#2/#6）：调用者必须已持 _ledger_lock——「锁外读-判定/锁内写」分离
+    是并发 ingest 双入账/repair 陈旧快照吞行/sweep 复活已关发现三缺陷的共同根因。"""
+    led = home / LEDGER
+    base = led.read_text(encoding="utf-8") if led.exists() else ""
+    tmp = home / (LEDGER + ".tmp")
+    tmp.write_text(base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries),
+                   encoding="utf-8")
+    os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
+
+
 def append(home: Path, entries) -> None:
-    """事务化批写（裁定#1#2#4）：单锁内 整账本+新行 → tmp → os.replace；锁带持有者，>30s 判陈锁。
-    entries 接受单 dict 或列表。"""
+    """事务化批写（裁定#1#2#4）：单锁内整账本+新行 → tmp → os.replace。entries 接受单 dict 或列表。"""
     if isinstance(entries, dict):
         entries = [entries]
-    led = home / LEDGER
     with _ledger_lock(home):
-        base = led.read_text(encoding="utf-8") if led.exists() else ""
-        tmp = home / (LEDGER + ".tmp")
-        tmp.write_text(base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries),
-                       encoding="utf-8")
-        os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
-
-
-_auto_seq = {}
+        _append_unlocked(home, entries)
 
 
 def _auto_id(station: str) -> str:
-    """加固①：AUTO id 防碰撞=秒+pid+station+同进程序号（同秒双 FAIL 不再自毁账本）。"""
-    key = f"{time.strftime('%Y%m%d%H%M%S')}-{os.getpid()}-{station}"
-    _auto_seq[key] = _auto_seq.get(key, 0) + 1
+    """AUTO id=时间戳+pid+station+uuid 尾（裁定#6 真防线；fork6#11：删自增序号死代码——
+    计数器 dutifully 自增但从未拼进 id，注释声称的『同进程序号』防线不存在）。"""
     import uuid
-    base = f"AUTO-{key}-{uuid.uuid4().hex[:4]}"  # 裁定#6：pid 回收碰撞兜底
-    return base
+    return f"AUTO-{time.strftime('%Y%m%d%H%M%S')}-{os.getpid()}-{station}-{uuid.uuid4().hex[:4]}"
 
 
 def validate_finding(d: dict, where: str) -> str:
@@ -191,6 +201,8 @@ def resolve(entries):
             view[fid][1] = str(e.get("to", view[fid][1])).upper()
             if view[fid][1] in ("CLOSED", "FIXED", "VERIFIED"):
                 view[fid][2] = e.get("ts")
+            else:
+                view[fid][2] = None  # fork6#12：重开（转回非终态）清残留关闭时刻
     return view
 
 
@@ -261,6 +273,8 @@ def cmd_run(args):
             die(f"stations.json 非法：{e}")
     if args.station not in stations:
         die(f"未知站位 {args.station}；可用：{', '.join(sorted(stations))}（AI 站走 charter+ingest）")
+    if not Path(args.path).resolve().is_dir():
+        die(f"--path 不存在：{args.path}（fork6#10：原误归因为『依赖命令不可用』误导排障）")
     st = stations[args.station]
     runs = home / "runs"
     runs.mkdir(exist_ok=True)
@@ -357,8 +371,47 @@ def cmd_ingest(args):
         for e in errs[:8]:
             print(f"  拒绝：{e}", file=sys.stderr)
         sys.exit(2)
-    append(home, staged_final)  # 单事务批写（裁定#4）
-    ok = len(staged_final)
+    # fork6（#1/#5，2026-10-02 加固六）：写入段全程持锁+锁内重验——
+    # 原实现查重在锁外读、append 持锁写，「读-判-写」非原子：并发 ingest 同 id 双双
+    # 通过初筛入账→账本重复 id→resolve die 砖死（25 轮实测 76% 命中）。
+    # 同段补状态机校验：外部 transition 与 close 同权受 ALLOWED_TRANSITIONS 约束
+    # （原 ingest 路径可 CLOSED→FIXED 横跳+伪造 from），--allow-any 与 close 同名逃生门。
+    late_errs = []
+    with _ledger_lock(home):
+        cur = load_entries(home)
+        cur_ids = {e["id"] for e in cur if e.get("kind", "finding") == "finding"}
+        cur_view = resolve(cur) if cur else {}
+        final = []
+        for d in staged_final:
+            if d.get("kind") == "finding" and d["id"] in cur_ids:
+                late_errs.append(f"id 重复（并发写入冲突）{d['id']}")
+                continue
+            if d.get("kind") == "transition":
+                _, st_now, _ = cur_view.get(d["id"], (None, "OPEN", None))
+                frm = str(d.get("from") or st_now).upper()
+                if not getattr(args, "allow_any", False):
+                    if frm != st_now:
+                        late_errs.append(f"转移 from 失实 {d['id']}：声明 {frm}，账本现态 {st_now}")
+                        continue
+                    if str(d["to"]).upper() not in ALLOWED_TRANSITIONS.get(st_now, set()):
+                        late_errs.append(f"状态机拒绝 {d['id']}：{st_now}→{d['to']} 不在允许集")
+                        continue
+                if d["id"] not in (cur_ids | {x["id"] for x in final if x.get("kind", "finding") == "finding"}):
+                    late_errs.append(f"孤儿转移：id {d['id']} 无对应发现")
+                    continue
+            final.append(d)
+        if final and (not late_errs or args.partial):
+            _append_unlocked(home, final)
+        elif final and late_errs and not args.partial:
+            pass  # 原子模式：任一锁内冲突→整批不写（先验后写，不吞半批）
+    if late_errs:
+        errs.extend(late_errs)
+        print(f"OK ingest：锁内重验拦截 {len(late_errs)} 条" + ("（--partial 已跳过冲突行）" if args.partial else "——整批拒绝"), file=sys.stderr)
+        for e in late_errs[:8]:
+            print(f"  拒绝：{e}", file=sys.stderr)
+        if not args.partial:
+            sys.exit(2)
+    ok = len(final)
     print(f"OK ingest：入账 {ok} 条" + (f"；拒绝 {len(errs)} 条" if errs else ""))
     for e in errs[:8]:
         print(f"  拒绝：{e}", file=sys.stderr)
@@ -367,13 +420,15 @@ def cmd_ingest(args):
 
 def cmd_findings(args):
     view = resolve(load_entries(home_of(args)))
+    # fork6（#7）：过滤/排序对 sev 归一——小写行（手工/外部工具写入）原致 verify 判
+    # schema 净而 findings 裸 ValueError crash（两命令 schema 判定不一致）
     rows = [(fid, f, st, cl) for fid, (f, st, cl) in view.items()
-            if (not args.sev or f["sev"] == args.sev.upper())
+            if (not args.sev or str(f["sev"]).upper() == args.sev.upper())
             and (not args.status or st == args.status.upper())]
-    rows.sort(key=lambda r: (SEVS.index(r[1]["sev"]), r[0]))
+    rows.sort(key=lambda r: (SEVS.index(str(r[1]["sev"]).upper()), r[0]))
     for fid, f, st, cl in rows:
         title = str(f.get("title") or f.get("decl_source") or "")[:46]
-        print(f"{fid:<24} {f['sev']:<7} {st:<9} {title}")
+        print(f"{fid:<24} {str(f['sev']).upper():<7} {st:<9} {title}")
     print(f"共 {len(rows)} 条（账本总发现 {len(view)}）")
     sys.exit(1 if (getattr(args, "gate", False) and rows)
              or (args.status and args.status.upper() == "OPEN" and rows) else 0)
@@ -430,7 +485,12 @@ def cmd_verify(args):
     if getattr(args, "convergence", 0):
         # fork2（2026-10-02 加固，BSF-20261002-38 修复）：零/不足轮次不得判 Converged——
         # 原实现 converged 初值 True，空账本直接过 exit code 门=空转假绿；并补轮次连续性检查
-        all_rounds = sorted({e.get("round") for e in entries if isinstance(e.get("round"), int)})
+        # fork6（#4，加固六）：轮次证据限定 run 行∪带 round 的 finding/transition 产物行——
+        # 原集合不过滤 kind，charter 行同权参与（charter 只打印提示词零探测，两条命令
+        # 即可铸连续轮号伪造 Converged，实测）；AI 审轮（ingest --round 产物）保留资格
+        all_rounds = sorted({e.get("round") for e in entries
+                             if isinstance(e.get("round"), int)
+                             and e.get("kind") in ("run", "finding", "transition")})
         if len(all_rounds) < args.convergence:
             converged = False
             conv_txt = f"；收敛环=证据不足（已标 {len(all_rounds)}/{args.convergence} 轮，拒绝 Converged）"
@@ -460,21 +520,26 @@ def cmd_verify(args):
 def cmd_sweep(args):
     """血统件B（v0.3）：auto-close——station 最近一次 run 为 PASS 时，其 OPEN 的 AUTO 发现转 FIXED。"""
     home = home_of(args)
-    entries = load_entries(home)
-    runs = [e for e in entries if e.get("kind") == "run" and e.get("station") == args.station]
-    if not runs or runs[-1].get("exit") != 0:
-        die(f"站位 {args.station} 无 PASS 的 run 记录，拒绝 sweep（防误关）")
-    view = resolve(entries)
-    closed = 0
-    for fid, (f, st, _) in view.items():
-        # fork5（2026-10-02 加固五，BSF-20261002-40）：站名精确匹配用账本里已有的
-        # provenance.station——原 `args.station in fid` 是 id 子串匹配，站名互为子串时
-        # 误关别家发现（实测：sweep tests 把 tests-x 的 AUTO 关成 FIXED=数据破坏级）
-        if fid.startswith("AUTO-") and st == "OPEN" \
-                and f.get("provenance", {}).get("station") == args.station:
-            append(home, {"kind": "transition", "id": fid, "from": "OPEN", "to": "FIXED",
-                          "note": "sweep：station %s 最近 run PASS" % args.station, "ts": now()})
-            closed += 1
+    # fork6（#6，加固六）：重读-判定-写入全程持锁+单事务批写——原锁外构建 view 逐条 append，
+    # 窗口内发现被 close 后仍按陈旧 OPEN 快照落 OPEN→FIXED（实测复活已关闭发现=状态机
+    # 明令禁止的 CLOSED→FIXED 横跳）；且逐条 append 中途失败留半批
+    with _ledger_lock(home):
+        entries = load_entries(home)
+        runs = [e for e in entries if e.get("kind") == "run" and e.get("station") == args.station]
+        if not runs or runs[-1].get("exit") != 0:
+            die(f"站位 {args.station} 无 PASS 的 run 记录，拒绝 sweep（防误关）")
+        view = resolve(entries)
+        trans = []
+        for fid, (f, st, _) in view.items():
+            # fork5（BSF-20261002-40）：站名精确匹配用账本里已有的 provenance.station——
+            # 原 `args.station in fid` 是 id 子串匹配，站名互为子串时误关别家发现
+            if fid.startswith("AUTO-") and st == "OPEN" \
+                    and f.get("provenance", {}).get("station") == args.station:
+                trans.append({"kind": "transition", "id": fid, "from": "OPEN", "to": "FIXED",
+                              "note": "sweep：station %s 最近 run PASS" % args.station, "ts": now()})
+        if trans:
+            _append_unlocked(home, trans)
+        closed = len(trans)
     print(f"OK sweep：{args.station} PASS → 自动关闭 {closed} 条 AUTO 发现")
 
 def cmd_charter(args):
@@ -501,51 +566,55 @@ def cmd_repair(args):
     led = home / LEDGER
     if not led.exists():
         die("无账本可修")
-    lines = led.read_text(encoding="utf-8").splitlines()
-    good, quarantine, seen = [], [], set()
-    for i, line in enumerate(lines, 1):
-        if not line.strip():
-            continue
-        try:
-            d = json.loads(line)
-            kind = d.get("kind", "finding")
-            if kind == "finding":
-                err = validate_finding(d, "第%d行" % i)
-                if err:
-                    raise ValueError(err)
-                if d["id"] in seen:
-                    raise ValueError("第%d行：重复发现 id %s" % (i, d["id"]))
-                seen.add(d["id"])
-            elif kind == "transition":
-                err = validate_transition(d, "第%d行" % i)
-                if err:
-                    raise ValueError(err)
-            elif kind in ("run", "charter"):
-                # fork4（2026-10-02 加固四，上游 BSF-20261002-39）：v0.3 行类白名单——
-                # repair 是 v0.2 件不认识 v0.3 的 run/charter 审计行，原实现当「未知 kind」
-                # 隔离（实测：一次 repair 清空全部 run 行+连锁废掉 sweep 的 PASS 依据）
-                pass
-            else:
-                raise ValueError("第%d行：未知 kind %s" % (i, kind))
-            good.append(line)
-        except (json.JSONDecodeError, ValueError) as e:
-            quarantine.append(json.dumps({"bad_line_no": i, "reason": str(e), "raw": line}, ensure_ascii=False))
-    ids = {json.loads(l)["id"] for l in good if json.loads(l).get("kind", "finding") == "finding"}
-    final = []
-    for l in good:
-        d = json.loads(l)
-        if d.get("kind") == "transition" and d["id"] not in ids:
-            quarantine.append(json.dumps({"raw": l, "reason": "孤儿转移"}, ensure_ascii=False))
-            continue
-        final.append(l)
-    # fork4（加固四）：重写账本走共用锁协议（原裸 read→write 与 append 并发竞态丢行）；
-    # 隔离件追加式防前次隔离历史被覆盖
+    # fork6（#2/#3/#8，加固六）：read→analyze→write 全程锁内（原 fork4 只把写搬进锁，
+    # 读与分析仍基于锁外陈旧快照——窗口内他进程 append 的行被 os.replace 静默吞掉）；
+    # surrogateescape 读保字节（GBK 等外部写入行隔离时原文不丢）；except 扩
+    # AttributeError/TypeError（合法 JSON 非对象行原裸 crash 打死自愈命令本身）
     with _ledger_lock(home):
+        lines = led.read_text(encoding="utf-8", errors="surrogateescape").splitlines()
+        good, quarantine, seen = [], [], set()
+        for i, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+                if not isinstance(d, dict):
+                    raise ValueError("第%d行：非对象 JSON %s" % (i, type(d).__name__))
+                kind = d.get("kind", "finding")
+                if kind == "finding":
+                    err = validate_finding(d, "第%d行" % i)
+                    if err:
+                        raise ValueError(err)
+                    if d["id"] in seen:
+                        raise ValueError("第%d行：重复发现 id %s" % (i, d["id"]))
+                    seen.add(d["id"])
+                elif kind == "transition":
+                    err = validate_transition(d, "第%d行" % i)
+                    if err:
+                        raise ValueError(err)
+                elif kind in ("run", "charter"):
+                    # fork4（2026-10-02 加固四，上游 BSF-20261002-39）：v0.3 行类白名单——
+                    # repair 是 v0.2 件不认识 v0.3 的 run/charter 审计行，原实现当「未知 kind」
+                    # 隔离（实测：一次 repair 清空全部 run 行+连锁废掉 sweep 的 PASS 依据）
+                    pass
+                else:
+                    raise ValueError("第%d行：未知 kind %s" % (i, kind))
+                good.append(line)
+            except (json.JSONDecodeError, ValueError, AttributeError, TypeError) as e:
+                quarantine.append(json.dumps({"bad_line_no": i, "reason": f"{type(e).__name__}: {e}", "raw": line}, ensure_ascii=False))
+        ids = {json.loads(l)["id"] for l in good if json.loads(l).get("kind", "finding") == "finding"}
+        final = []
+        for l in good:
+            d = json.loads(l)
+            if d.get("kind") == "transition" and d["id"] not in ids:
+                quarantine.append(json.dumps({"raw": l, "reason": "孤儿转移"}, ensure_ascii=False))
+                continue
+            final.append(l)
         tmp = home / (LEDGER + ".tmp")
-        tmp.write_text(NJ(final), encoding="utf-8")
+        tmp.write_text(NJ(final), encoding="utf-8", errors="surrogateescape")
         os.replace(tmp, led)
     if quarantine:
-        with (home / (LEDGER + ".quarantine")).open("a", encoding="utf-8") as q:
+        with (home / (LEDGER + ".quarantine")).open("a", encoding="utf-8", errors="surrogateescape") as q:
             q.write(NJ(quarantine))
     print("OK repair：保留 %d 行，隔离 %d 行 → %s.quarantine" % (len(final), len(quarantine), LEDGER))
     sys.exit(0)
@@ -586,9 +655,16 @@ def cmd_selftest(args):
             opener = [f for f, (_, s, _) in resolve(load_entries(home)).items() if s == "OPEN"][0]
             assert run(lambda: cmd_close(ns(id=opener, to="FIXED", note="自测修复"))) == 0
             assert run(lambda: cmd_verify(ns(allow_open=0))) == 0, "清零后 verify 应 PASS"
+            # fork6 断言（#12a）：selftest 补 fork2-5 防线零覆盖面——
+            # ① repair 保 run 审计行（BSF-39）②charter 铸轮不构成轮次证据（#4）
+            assert run(lambda: cmd_run(ns(station="fake"))) == 0
+            assert run(lambda: cmd_repair(ns())) == 0
+            assert any(e.get("kind") == "run" for e in load_entries(home)), "repair 后 run 审计行必须存活"
+            append(home, {"kind": "charter", "station": "fake", "round": 9, "ts": now()})
+            assert run(lambda: cmd_verify(ns(allow_open=0, convergence=2))) == 1, "charter 铸轮应被拒绝（证据不足）"
         finally:
             STATIONS.clear(); STATIONS.update(saved)
-    print("OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门）")
+    print("OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）")
 
 
 def _exit_of(fn) -> int:
@@ -635,6 +711,7 @@ def main(argv=None):
     p.add_argument("--path", default=".")
     p.add_argument("--partial", action="store_true", help="恢复逐行部分接收（默认原子）")
     p.add_argument("--round", type=int, default=0, help="标记本批轮次（verify --convergence 用）")
+    p.add_argument("--allow-any", action="store_true", help="转移跳过状态机校验（与 close 同名逃生门，fork6#5）")
     p.add_argument("file")
     p.set_defaults(fn=cmd_ingest)
     p = sub.add_parser("verify", help="三门收口（schema+OPEN 限额）→ exit 0/1")
