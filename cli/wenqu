@@ -20,10 +20,11 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork6-maccc"
+VERSION = "0.3.0-fork8-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
+_SEV_MAP = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}  # fork8 F8：归一映射单一正源
 STATUSES = ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "PARTIAL")
 ALLOWED_TRANSITIONS = {  # v0.2#14 状态机：CLOSED 可重开，终态间不可横跳
     "OPEN": {"FIXING", "FIXED", "CLOSED", "VERIFIED"},
@@ -55,23 +56,56 @@ def _ledger_lock(home: Path):
     fork4（2026-10-02 加固四）：从 append 提为共用件——repair 重写账本同样必须持锁
     （原 repair 绕锁裸 read→write，与 append 并发时竞态覆盖丢行=同族半改）。"""
     lock = home / ".lock"
-    for _ in range(60):  # 6s 等待；超时看锁龄
+    deadline = time.monotonic() + 60  # fork8 F3：总等待上限 60s（活持有者无论锁龄一律等待）
+    while time.monotonic() < deadline:
         try:
             fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             break
         except FileExistsError:
+            # fork8 F3：原「stat 锁龄>30 判陈→unlink」两病——误杀慢而活着的持有者（双持）+
+            # stat→unlink 窗口双抢救者互踩（同删一把新活锁）。改：读持有者 pid 用 os.kill(pid,0)
+            # 验死——活进程一律等待；死/无 pid 才 os.rename 原子占领（唯一赢家）。
+            pid = None
             try:
-                age = time.time() - lock.stat().st_mtime
-                if age > 30:  # 陈锁（持有者已死）——判龄夺锁（裁定#1：不再盲删活锁）
-                    lock.unlink()
+                holder = lock.read_text(encoding="utf-8", errors="replace").split(",")[0].strip()
+                pid = int(holder) if holder.isdigit() else None
+            except (OSError, ValueError):
+                pid = None
+            if pid is None:
+                # fork8 F3b：锁在但读不出 pid——「O_CREAT 后 os.write 前」窗口的活锁，
+                # 抢它=双持丢行（8 进程压测实锄 round3/4）。保守等待；仅锁龄>65s 仍无
+                # pid 才按残骸 rename 兜底（写 holder 前崩溃的极窄情形）
+                try:
+                    if time.time() - lock.stat().st_mtime <= 65:
+                        time.sleep(0.05)
+                        continue
+                except FileNotFoundError:
+                    pass
+            if pid is not None:
+                alive = pid == os.getpid()
+                if not alive:
+                    try:
+                        os.kill(pid, 0)
+                        alive = True
+                    except OSError:
+                        alive = False
+                if alive:
+                    time.sleep(0.1)
                     continue
+            stale = home / f".lock.stale-{os.getpid()}-{int(time.time() * 1000) % 100000}"
+            try:
+                os.rename(str(lock), str(stale))
+                try:
+                    os.unlink(str(stale))
+                except FileNotFoundError:
+                    pass
             except FileNotFoundError:
-                pass
-            time.sleep(0.1)
+                pass  # 他人已处理，回到循环重竞争
+            continue
     else:
         # fork6（#9）：原 raise SystemExit(msg) 实际退出码=1（Python 对字符串参数的
         # SystemExit 以 1 退出）而消息自称 exit 2——契约级不一致，改 die 真 2
-        die("账本锁被持有超 6s 且非陈锁——另一进程在写或异常，退出保护（exit 2）", 2)
+        die("账本锁被持有超 60s（活持有者未释放）——退出保护（exit 2）", 2)
     try:
         os.write(fd, f"{os.getpid()},{now()}".encode())
         yield
@@ -108,7 +142,7 @@ def load_entries(home: Path):
     # fork6（#8）：非 UTF-8 行不再裸 crash（GBK 账本等外部写入真实存在），replace 后由
     # JSON 解析层报「损坏」走 repair 自愈；fork6（#3）：合法 JSON 非对象行（[1,2]/"x"）
     # 原穿透到下游 .get() 裸 AttributeError——此处与 JSON 损坏同路报错
-    for i, line in enumerate(led.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+    for i, line in enumerate(led.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
         if not line.strip():
             continue
         try:
@@ -128,11 +162,18 @@ def _append_unlocked(home: Path, entries) -> None:
     """锁内批写原语（裁定#4：整账本+新行→tmp→os.replace）。
     fork6（#1/#2/#6）：调用者必须已持 _ledger_lock——「锁外读-判定/锁内写」分离
     是并发 ingest 双入账/repair 陈旧快照吞行/sweep 复活已关发现三缺陷的共同根因。"""
+    if isinstance(entries, dict):
+        entries = [entries]  # fork8 F4b：close 传单 dict 时 for-e-in-dict 迭代出键=每键一行写坏账本（归一原只在 append 有）
     led = home / LEDGER
-    base = led.read_text(encoding="utf-8") if led.exists() else ""
+    # fork7（#8b，加固七）：读写 surrogateescape 配对——repair 字节保真保留的 GBK 行
+    # 使原 utf-8 严格读在此裸 UnicodeDecodeError，写路径（run/ingest/close/charter）全崩
+    # 且 repair 判其无病不隔离=只读写死锁闭环（fork6 修 load_entries/repair 漏本处=同族半改）
+    base = led.read_text(encoding="utf-8", errors="surrogateescape") if led.exists() else ""
+    if base and not base.endswith("\n"):
+        base += "\n"  # fork8 F7：外部无尾换行 append 后直接拼=粘行损坏全账本
     tmp = home / (LEDGER + ".tmp")
     tmp.write_text(base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries),
-                   encoding="utf-8")
+                   encoding="utf-8", errors="surrogateescape")
     os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
 
 
@@ -325,7 +366,11 @@ def cmd_ingest(args):
     # 加固⑥：两遍式原子 ingest——先全量解析校验（含转移指向存在性），零错才落账；
     # 默认全有或全无（审计管线不吞半批），--partial 恢复逐行部分接收旧行为
     staged, errs = [], []
-    for i, line in enumerate(src.read_text(encoding="utf-8").splitlines(), 1):
+    try:
+        src_text = src.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        die(f"源文件非 UTF-8：{e}（请转码后重投；exit 2）", 2)  # fork8 F9：原裸 traceback exit 1
+    for i, line in enumerate(src_text.split("\n"), 1):
         if not line.strip():
             continue
         try:
@@ -334,6 +379,17 @@ def cmd_ingest(args):
             errs.append(f"第{i}行 JSON 损坏：{e}")
             continue
         d.setdefault("kind", "finding")
+        if d.get("kind") not in ("finding", "transition"):
+            # fork8 F5：原实现 kind:"run"/"charter" 行掉进 finding 分支照单全收——一条命令
+            # 即可伪造 PASS run 行骗 sweep 误关真实发现；审计行只能由 CLI 自身产生
+            errs.append(f"第{i}行：kind 非法 {d.get('kind')}（审计行 run/charter 只能由 CLI 产生，外部仅 finding/transition）")
+            continue
+        if "round" in d:
+            r = d["round"]
+            if not isinstance(r, int) or isinstance(r, bool) or r < 1:
+                errs.append(f"第{i}行：行内 round 非法 {r!r}（轮次由 --round 指定，须 ≥1 整数）")
+                continue
+            d.pop("round")  # fork8 F5：行内 round 剥离——轮次统一由 --round 指定，防手写伪造轮次铸收敛
         if d.get("kind") == "transition":
             terr = validate_transition(d, f"第{i}行")
             if terr:
@@ -352,7 +408,7 @@ def cmd_ingest(args):
             continue
         if "sev" not in d and "severity" in d:
             d["sev"] = d["severity"]
-        d["sev"] = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}.get(str(d["sev"]).strip(), str(d["sev"]))
+        d["sev"] = _SEV_MAP.get(str(d["sev"]).strip(), str(d["sev"]))
         d["sev"], d["status"] = str(d["sev"]).upper(), str(d["status"]).upper()
         d.setdefault("ts", now())
         if getattr(args, "round", 0):
@@ -380,25 +436,41 @@ def cmd_ingest(args):
     with _ledger_lock(home):
         cur = load_entries(home)
         cur_ids = {e["id"] for e in cur if e.get("kind", "finding") == "finding"}
-        cur_view = resolve(cur) if cur else {}
+        # fork8 F2：折叠视图——原 cur_view 只含账本既有发现，同批 finding 现态被假定为 OPEN
+        # （同批 CLOSED+转移=状态机旁路；VERIFIED→OPEN 合法重开误拒；行序敏感误报孤儿；
+        # 多步链 from 失实误拒——四症状同根）。每接受一行即折叠，转移对折叠后现态校验。
+        fold = {fid: st for fid, (_, st, _) in (resolve(cur) if cur else {}).items()}
+        # fork8 F2：本批 findings 预折叠（行序无关——转移可引用同批稍后定义的 finding）
+        for d in staged_final:
+            if d.get("kind") == "finding":
+                fold[d["id"]] = str(d["status"]).upper()
+        fold_ids = set(cur_ids)
+        known = fold_ids | {d["id"] for d in staged_final if d.get("kind", "finding") == "finding"}
         final = []
         for d in staged_final:
-            if d.get("kind") == "finding" and d["id"] in cur_ids:
-                late_errs.append(f"id 重复（并发写入冲突）{d['id']}")
-                continue
-            if d.get("kind") == "transition":
-                _, st_now, _ = cur_view.get(d["id"], (None, "OPEN", None))
-                frm = str(d.get("from") or st_now).upper()
-                if not getattr(args, "allow_any", False):
-                    if frm != st_now:
-                        late_errs.append(f"转移 from 失实 {d['id']}：声明 {frm}，账本现态 {st_now}")
-                        continue
-                    if str(d["to"]).upper() not in ALLOWED_TRANSITIONS.get(st_now, set()):
-                        late_errs.append(f"状态机拒绝 {d['id']}：{st_now}→{d['to']} 不在允许集")
-                        continue
-                if d["id"] not in (cur_ids | {x["id"] for x in final if x.get("kind", "finding") == "finding"}):
-                    late_errs.append(f"孤儿转移：id {d['id']} 无对应发现")
+            if d.get("kind") == "finding":
+                if d["id"] in fold_ids:
+                    late_errs.append(f"id 重复（并发写入冲突）{d['id']}")
                     continue
+                fold_ids.add(d["id"])
+                fold[d["id"]] = str(d["status"]).upper()
+                final.append(d)
+                continue
+            st_now = fold.get(d["id"])
+            if d["id"] not in known:
+                late_errs.append(f"孤儿转移：id {d['id']} 在本批与账本中均无对应发现")
+                continue
+            frm = str(d.get("from") or st_now or "OPEN").upper()
+            if not getattr(args, "allow_any", False):
+                if frm != st_now:
+                    late_errs.append(f"转移 from 失实 {d['id']}：声明 {frm}，现态 {st_now}")
+                    continue
+                if str(d["to"]).upper() not in ALLOWED_TRANSITIONS.get(st_now, set()):
+                    late_errs.append(f"状态机拒绝 {d['id']}：{st_now}→{d['to']} 不在允许集")
+                    continue
+            fold[d["id"]] = str(d["to"]).upper()
+            if getattr(args, "round", 0):
+                d["round"] = args.round  # fork8 F5④：--round 对转移行同样生效（原静默 no-op）
             final.append(d)
         if final and (not late_errs or args.partial):
             _append_unlocked(home, final)
@@ -423,12 +495,12 @@ def cmd_findings(args):
     # fork6（#7）：过滤/排序对 sev 归一——小写行（手工/外部工具写入）原致 verify 判
     # schema 净而 findings 裸 ValueError crash（两命令 schema 判定不一致）
     rows = [(fid, f, st, cl) for fid, (f, st, cl) in view.items()
-            if (not args.sev or str(f["sev"]).upper() == args.sev.upper())
+            if (not args.sev or _SEV_MAP.get(str(f["sev"]), str(f["sev"]).upper()) == args.sev.upper())
             and (not args.status or st == args.status.upper())]
-    rows.sort(key=lambda r: (SEVS.index(str(r[1]["sev"]).upper()), r[0]))
+    rows.sort(key=lambda r: (SEVS.index(_SEV_MAP.get(str(r[1]["sev"]), str(r[1]["sev"]).upper())), r[0]))
     for fid, f, st, cl in rows:
         title = str(f.get("title") or f.get("decl_source") or "")[:46]
-        print(f"{fid:<24} {str(f['sev']).upper():<7} {st:<9} {title}")
+        print(f"{fid:<24} {_SEV_MAP.get(str(f['sev']), str(f['sev']).upper()):<7} {st:<9} {title}")
     print(f"共 {len(rows)} 条（账本总发现 {len(view)}）")
     sys.exit(1 if (getattr(args, "gate", False) and rows)
              or (args.status and args.status.upper() == "OPEN" and rows) else 0)
@@ -446,20 +518,23 @@ def cmd_show(args):
 
 
 def cmd_close(args):
+    # fork8 F4：close 是「锁外读-判定/锁内写」的第四个写者——并发 close 对陈旧 OPEN
+    # 双双通过校验=状态机横跳入账（fork6 批自述共同根因未修净）；全程持锁同 ingest/sweep
     home = home_of(args)
-    view = resolve(load_entries(home))
-    if args.id not in view:
-        die(f"无此 id：{args.id}")
-    _, cur, _ = view[args.id]
-    to = args.to.upper()
-    if to not in STATUSES:
-        die(f"目标状态非法：{to}")
-    if cur == to:
-        die(f"现态已是 {to}，拒绝空转移")
-    if not getattr(args, "allow_any", False) and to not in ALLOWED_TRANSITIONS.get(cur, set()):
-        die(f"非法转移 {cur} → {to}（状态机 v0.2#14；确需请 --allow-any 并在 note 说明）")
-    append(home, {"kind": "transition", "id": args.id, "from": cur, "to": to,
-                  "note": args.note, "ts": now()})
+    with _ledger_lock(home):
+        view = resolve(load_entries(home))
+        if args.id not in view:
+            die(f"无此 id：{args.id}")
+        _, cur, _ = view[args.id]
+        to = args.to.upper()
+        if to not in STATUSES:
+            die(f"目标状态非法：{to}")
+        if cur == to:
+            die(f"现态已是 {to}，拒绝空转移")
+        if not getattr(args, "allow_any", False) and to not in ALLOWED_TRANSITIONS.get(cur, set()):
+            die(f"非法转移 {cur} → {to}（状态机 v0.2#14；确需请 --allow-any 并在 note 说明）")
+        _append_unlocked(home, {"kind": "transition", "id": args.id, "from": cur, "to": to,
+                                "note": args.note, "ts": now()})
     print(f"OK close：{args.id} {cur} → {to}（append-only 转移已入账）")
 
 
@@ -478,7 +553,7 @@ def cmd_verify(args):
     drift = ""
     if args.check_scope:
         st = json.loads((home / STATE).read_text(encoding="utf-8"))
-        cur = _scope_files(Path(st["root"]), st.get("exts") or SRC_EXTS)
+        cur = _scope_files(Path(st["root"]), st.get("exts") or SRC_EXTS, st.get("skip_dirs") or ())  # fork8 F6：init 冻结的 skip_dirs 必须参与重算，否则未动仓假漂移红
         drift = ("" if _scope_hash(cur) == st["scope_hash"]
                  else f"范围漂移：冻结 {st['files']} 文件，现 {len(cur)} 文件")
     conv_txt, converged = "", True
@@ -571,7 +646,7 @@ def cmd_repair(args):
     # surrogateescape 读保字节（GBK 等外部写入行隔离时原文不丢）；except 扩
     # AttributeError/TypeError（合法 JSON 非对象行原裸 crash 打死自愈命令本身）
     with _ledger_lock(home):
-        lines = led.read_text(encoding="utf-8", errors="surrogateescape").splitlines()
+        lines = led.read_text(encoding="utf-8", errors="surrogateescape").split("\n")  # fork8 F1：物理行分割——splitlines 会按 U+2028/U+0085 拆行，json.dumps(ensure_ascii=False) 原样输出这些字符=合法输入落账即自毁
         good, quarantine, seen = [], [], set()
         for i, line in enumerate(lines, 1):
             if not line.strip():
