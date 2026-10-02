@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork10-maccc"
+VERSION = "0.3.0-fork11-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -316,6 +316,10 @@ def cmd_run(args):
         run_row["round"] = args.round  # fork2：run 轮次标记——使 AUTO 发现参与 verify --convergence 判定
     append(home, run_row)
     logf.write_text(r.stdout + r.stderr, encoding="utf-8")
+    if r.returncode >= 2:
+        # fork11（S5-F3）：rc≥2=探测器自身错误（如 grep 权限拒/xargs 123 之外的异常）——
+        # 环境错误不落账不计通过（对齐 fork2 超时纪律；原一律落 OPEN 冒充命中）
+        die(f"站位 {args.station} 探测器自身错误（exit={r.returncode}，日志 {logf}——不落账不计通过）", 2)
     if r.returncode != 0:
         finding_row = {"kind": "finding", "id": _auto_id(args.station),
                        "sev": st["sev"], "status": "OPEN", "title": f"站位 {args.station} FAIL（exit={r.returncode}）",
@@ -675,7 +679,7 @@ def cmd_selftest(args):
         home = Path(td) / "wh"
         sys.argv = ["wenqu"]
         fake = {"fake": {"cmd": [sys.executable, "-c", "print('ok')"], "sev": "LOW"},
-                "fakebad": {"cmd": [sys.executable, "-c", "import sys;sys.exit(3)"], "sev": "HIGH"}}
+                "fakebad": {"cmd": [sys.executable, "-c", "import sys;sys.exit(1)"], "sev": "HIGH"}}  # fork11：rc 契约=1 命中/≥2 环境错误
         saved = dict(STATIONS)
         STATIONS.update(fake)
         try:
@@ -799,6 +803,11 @@ def main(argv=None):
     p = sub.add_parser("selftest", help="端到端自证（零依赖环境可用性检查）")
     p.set_defaults(fn=cmd_selftest, path=".")
     args = ap.parse_args(argv)
+    # fork11（S5-F2）：--home 同构入口——读命令对不存在的 --home 凭空 mkdir 幽灵账本
+    # →空账本→--gate 假绿（typo 一字之差门禁放行）；mkdir 权限只留给写命令（init/run/charter）
+    if getattr(args, "cmd", "") in ("findings", "verify", "show", "sweep", "close", "repair", "ingest") \
+            and getattr(args, "home", None) and not Path(args.home).is_dir():
+        die(f"--home 不存在：{args.home}（读命令不凭空造目录；先 init 或修正路径）", 2)
     if getattr(args, "path", None) and not Path(args.path).resolve().is_dir():
         die(f"--path 不存在：{args.path}（fork9 S3-四：原读命令 typo 会凭空 mkdir 幽灵仓→空账本→--gate 假绿）")
     # fork3（2026-10-02 加固二）：轮次/收敛参数值域守卫——负 round 落账会污染

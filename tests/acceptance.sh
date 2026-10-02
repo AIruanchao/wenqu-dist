@@ -83,7 +83,7 @@ python3 "$WQ" --home "$H" run no-such --path "$R" >/dev/null 2>&1; ck "未知站
 echo "== I. 并发写账本安全（8 进程撞锁）=="
 H4="$TD/parhome"; R4="$TD/parrepo"; mkdir -p "$R4"; echo "z=1" > "$R4/c.py"
 python3 "$WQ" --home "$H4" init --path "$R4" >/dev/null 2>&1
-printf '{"sf":{"cmd":["bash","-c","sleep 0.3; exit 3"],"sev":"LOW"}}' > "$H4/stations.json"
+printf '{"sf":{"cmd":["bash","-c","sleep 0.3; exit 1"],"sev":"LOW"}}' > "$H4/stations.json"
 for i in 1 2 3 4 5 6 7 8; do python3 "$WQ" --home "$H4" run sf --path "$R4" >/dev/null 2>&1 & done
 wait
 N_OK=$(python3 - "$H4/findings.jsonl" <<'PYEOF'
@@ -114,7 +114,7 @@ if [ "$Q2" -gt "$Q1" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ quarantine 追加
 echo "== K. fork5：sweep 精确匹配+空格文件名 =="
 H5="$TD/swhome"; R5="$TD/swrepo"; mkdir -p "$R5"; echo "w=1" > "$R5/d.py"
 python3 "$WQ" --home "$H5" init --path "$R5" >/dev/null 2>&1
-printf '{"tests-x": {"cmd": ["bash","-c","exit 3"], "sev": "HIGH"},\n "tests": {"cmd": ["bash","-c","exit 0"], "sev": "HIGH"}}' > "$H5/stations.json"
+printf '{"tests-x": {"cmd": ["bash","-c","exit 1"], "sev": "HIGH"},\n "tests": {"cmd": ["bash","-c","exit 0"], "sev": "HIGH"}}' > "$H5/stations.json"
 python3 "$WQ" --home "$H5" run tests-x --path "$R5" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" run tests --path "$R5" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" sweep tests --path "$R5" >/dev/null 2>&1

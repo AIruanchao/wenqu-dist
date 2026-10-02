@@ -223,4 +223,7 @@ def test_v02_utc_timestamps(repo, tmp_path):
     f.write_text(jl({"id": "U-1", "sev": "LOW", "status": "OPEN"}), encoding="utf-8")
     wq(h, "ingest", "--path", str(repo), str(f), expect=0)
     led = (h / "findings.jsonl").read_text(encoding="utf-8")
-    import time as _t; _utc = _t.strftime("%Y-%m-%dT%H:%M", _t.gmtime()); assert ('"ts": "' + _utc[:16]) in led or (_t.strftime("%Y-%m-%dT%H:%M", _t.localtime()) != _utc and False), "ts 须为 UTC（gmtime）——原断言 A and B or C 空转，localtime 回归照绿（S4-7）"
+    import time as _t, calendar as _cal
+    _ts = [json.loads(x)["ts"] for x in led.splitlines() if "\"ts\"" in x][0]
+    _e = _cal.timegm(_t.strptime(_ts, "%Y-%m-%dT%H:%M:%SZ"))
+    assert abs(_t.time() - _e) < 120, f"ts 非 UTC（{_ts}，偏差 {abs(_t.time()-_e):.0f}s>120——localtime 回归）"
