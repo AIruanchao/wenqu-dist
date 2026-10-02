@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork11-maccc"
+VERSION = "0.3.0-fork12-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -88,6 +88,8 @@ def die(msg, code=2):
 
 def home_of(args) -> Path:
     h = Path(getattr(args, "home", None) or (Path(args.path) / ".wenqu"))
+    if h.exists() and not h.is_dir():
+        die(f"--home 路径被文件占用：{h}（exit 2）")  # fork12（S6-4b）：原裸 FileExistsError traceback exit 1
     h.mkdir(parents=True, exist_ok=True)
     return h
 
@@ -314,12 +316,13 @@ def cmd_run(args):
     run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now()}  # v0.3 血统件B：run 审计
     if getattr(args, "round", 0):
         run_row["round"] = args.round  # fork2：run 轮次标记——使 AUTO 发现参与 verify --convergence 判定
+    # fork12（S6-2）：rc≥2 检查必须在 append 前——原 fork11 顺序先落 run 审计行再 die，
+    # 声称「不落账」实则已落（半事务），且带 round 的环境错误轮可铸 Converged（实测）
+    if r.returncode >= 2:
+        logf.write_text(r.stdout + r.stderr, encoding="utf-8")
+        die(f"站位 {args.station} 探测器自身错误（exit={r.returncode}，日志 {logf}——不落账不计通过）", 2)
     append(home, run_row)
     logf.write_text(r.stdout + r.stderr, encoding="utf-8")
-    if r.returncode >= 2:
-        # fork11（S5-F3）：rc≥2=探测器自身错误（如 grep 权限拒/xargs 123 之外的异常）——
-        # 环境错误不落账不计通过（对齐 fork2 超时纪律；原一律落 OPEN 冒充命中）
-        die(f"站位 {args.station} 探测器自身错误（exit={r.returncode}，日志 {logf}——不落账不计通过）", 2)
     if r.returncode != 0:
         finding_row = {"kind": "finding", "id": _auto_id(args.station),
                        "sev": st["sev"], "status": "OPEN", "title": f"站位 {args.station} FAIL（exit={r.returncode}）",
@@ -805,9 +808,13 @@ def main(argv=None):
     args = ap.parse_args(argv)
     # fork11（S5-F2）：--home 同构入口——读命令对不存在的 --home 凭空 mkdir 幽灵账本
     # →空账本→--gate 假绿（typo 一字之差门禁放行）；mkdir 权限只留给写命令（init/run/charter）
-    if getattr(args, "cmd", "") in ("findings", "verify", "show", "sweep", "close", "repair", "ingest") \
-            and getattr(args, "home", None) and not Path(args.home).is_dir():
-        die(f"--home 不存在：{args.home}（读命令不凭空造目录；先 init 或修正路径）", 2)
+    _READ_CMDS = ("findings", "verify", "show", "sweep", "close", "repair", "ingest")
+    if getattr(args, "cmd", "") in _READ_CMDS:
+        # fork12（S6-4）：缺省 home 同构入口——未 init 仓的 findings --gate 原凭空 mkdir
+        # .wenqu→空账本→exit 0 假绿+写入仓（CI 新 clone 忘 init=门禁永久假绿）
+        _h = getattr(args, "home", None) or str(Path(getattr(args, "path", ".")).resolve() / ".wenqu")
+        if not Path(_h).is_dir():
+            die(f"账本目录不存在：{_h}（读命令不凭空造目录；先 init 或修正 --home/--path）", 2)
     if getattr(args, "path", None) and not Path(args.path).resolve().is_dir():
         die(f"--path 不存在：{args.path}（fork9 S3-四：原读命令 typo 会凭空 mkdir 幽灵仓→空账本→--gate 假绿）")
     # fork3（2026-10-02 加固二）：轮次/收敛参数值域守卫——负 round 落账会污染

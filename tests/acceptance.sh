@@ -171,6 +171,21 @@ python3 "$WQ" --home "$HN" ingest "$TD/forge.jsonl" >/dev/null 2>&1; ck "伪造 
 printf '{"kind":"transition","id":"M1","to":"FIXED"}\n{"id":"M1","sev":"LOW","status":"OPEN","title":"y"}\n' > "$TD/order.jsonl"
 python3 "$WQ" --home "$HN" ingest "$TD/order.jsonl" >/dev/null 2>&1; ck "转移引用同批后行 finding=行序无关" 0 $?
 
+echo "== O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）=="
+HO="$TD/f12home"; RO="$TD/f12repo"; mkdir -p "$RO"; echo "n=1" > "$RO/n.py"
+python3 "$WQ" --home "$HO" init --path "$RO" >/dev/null 2>&1
+cp "$ROOT/probes/stations.json" "$HO/stations.json"
+echo '{"e2":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HO/stations.json"
+BEFORE=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+python3 "$WQ" --home "$HO" run e2 --path "$RO" --round 1 >/dev/null 2>&1; ck "rc≥2 die(2) 不落账" 2 $?
+AFTER=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+[ "$BEFORE" = "$AFTER" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 环境错误 run 行未落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 落了账（$BEFORE→$AFTER）"; }
+python3 "$WQ" --home "$HO" verify --path "$RO" --convergence 3 >/dev/null 2>&1; ck "纯环境错误轮不铸 Converged" 1 $?
+printf '#!/usr/bin/env bash\ndocker exec -e PGPASSWORD=l db sh\n' > "$RO/lock.sh" && chmod 000 "$RO/lock.sh"
+cp "$ROOT/probes/stations.json" "$HO/stations.json"
+python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "权限拒泄露文件=环境错误 2" 2 $?
+chmod 644 "$RO/lock.sh"
+
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then
   (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
