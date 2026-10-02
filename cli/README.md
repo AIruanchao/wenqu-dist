@@ -14,7 +14,7 @@ python wenqu close <id> --note "理由"      # 状态转移（append-only，不�
 python wenqu verify --allow-open 0         # 收口门：schema 净 + OPEN≤限额 → exit 0/1
 python wenqu repair                        # 账本自愈（坏行/重复/孤儿→隔离区，v0.2#7）
 python wenqu selftest                      # 端到端自证（零依赖环境 30 秒体检）
-python -m pytest test_wenqu.py -q          # 契约测试套件（8 用例）
+python -m pytest test_wenqu.py -q          # 契约测试套件（20 用例）
 ```
 
 ## 加固点

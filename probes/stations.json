@@ -3,7 +3,7 @@
   "cmd": [
    "bash",
    "-c",
-   "f=$(find . -name '*.sh' -not -path './node_modules/*' -not -path './.git/*' 2>/dev/null); [ -n \"$f\" ] || exit 0; awk '/^[[:space:]]*trap/ && /EXIT/ {c[FILENAME]++} END {bad=0; for (fn in c) if (c[fn]>1) {print \"double-EXIT-trap: \" fn; bad=1} exit bad}' \"$f\""
+   "find . \\( -name node_modules -o -name .git -o -name .venv -o -name __pycache__ \\) -prune -o -name '*.sh' -print0 2>/dev/null | xargs -0 awk '/^[[:space:]]*trap/ && /EXIT/ && !/^[[:space:]]*trap[[:space:]]+(-|--)/ {c[FILENAME]++} END {bad=0; for (fn in c) if (c[fn]>1) {print \"double-EXIT-trap: \" fn; bad=1} exit bad}'; rc=$?; [ $rc -ne 0 ] && exit $rc; test -z \"$(find . \\( -name node_modules -o -name .git -o -name .venv \\) -prune -o -name '*.sh' -print -quit 2>/dev/null)\" && exit 0 || exit 0"
   ],
   "sev": "HIGH",
   "timeout": 60
@@ -12,7 +12,7 @@
   "cmd": [
    "bash",
    "-c",
-   "grep -rnE '^[[:space:]]*\\[.*\\][[:space:]]*#.*\\|\\| *FAIL' --include='*.sh' --exclude-dir=node_modules --exclude-dir=.git . && { echo 'guard-swallow: || FAIL 被注释吞（防线假活）'; exit 1; } || exit 0"
+   "grep -rnE '^[[:space:]]*\\[.*\\][[:space:]]*#.*\\|\\| *FAIL' --include='*.sh' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . ; rc=$?; [ $rc -eq 1 ] && exit 0; if [ $rc -eq 0 ]; then echo 'guard-swallow: || FAIL 被注释吞（防线假活）'; exit 1; fi; exit $rc"
   ],
   "sev": "HIGH",
   "timeout": 60
@@ -21,7 +21,7 @@
   "cmd": [
    "bash",
    "-c",
-   "grep -rnE 'docker exec .*-e +PGPASSWORD=' --include='*.sh' --include='*.py' --exclude-dir=node_modules --exclude-dir=.git . | grep -vE 'printf|echo ' && { echo 'cred-expose: PGPASSWORD 经 docker exec -e 暴露进程列表'; exit 1; } || exit 0"
+   "grep -rnE \"docker exec .*(-e[= ]+|--env[= ]+)['\\\"]?PGPASSWORD=\" --include='*.sh' --include='*.py' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . | grep -vE 'printf|echo '; rc=${PIPESTATUS[0]}; [ $rc -eq 1 ] && exit 0; if [ $rc -eq 0 ]; then echo 'cred-expose: PGPASSWORD 经 docker exec -e 暴露进程列表'; exit 1; fi; exit $rc"
   ],
   "sev": "MEDIUM",
   "timeout": 60

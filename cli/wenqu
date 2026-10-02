@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork8-maccc"
+VERSION = "0.3.0-fork10-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -52,71 +52,35 @@ def NJ(rows):
 
 @contextmanager
 def _ledger_lock(home: Path):
-    """账本独占锁（裁定#1#2）：O_EXCL 创建+持有者标记+>30s 判陈锁夺回。
-    fork4（2026-10-02 加固四）：从 append 提为共用件——repair 重写账本同样必须持锁
-    （原 repair 绕锁裸 read→write，与 append 并发时竞态覆盖丢行=同族半改）。"""
+    """账本互斥锁（fork9 S3-一/二 根治：fcntl.flock 内核级）。
+    演进史：v0.3 O_EXCL+判龄夺锁（裁定#1）→ fork8 F3 pid 验死+rename 原子占领 →
+    fork9 弃用户态协议改 flock——进程退出/崩溃由内核自动释放，陈锁判定、验死竞态
+    （EPERM 被 except OSError 误判死亡→活锁被抢）、rename 迟到窗口（双持丢行）、
+    空锁窗口四类问题整族消失。锁文件保留 holder 标记仅作诊断。类 Unix（Linux/macOS）。"""
+    import fcntl
     lock = home / ".lock"
-    deadline = time.monotonic() + 60  # fork8 F3：总等待上限 60s（活持有者无论锁龄一律等待）
+    deadline = time.monotonic() + 60
+    fd = None
     while time.monotonic() < deadline:
+        fd = os.open(str(lock), os.O_CREAT | os.O_WRONLY, 0o644)
         try:
-            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             break
-        except FileExistsError:
-            # fork8 F3：原「stat 锁龄>30 判陈→unlink」两病——误杀慢而活着的持有者（双持）+
-            # stat→unlink 窗口双抢救者互踩（同删一把新活锁）。改：读持有者 pid 用 os.kill(pid,0)
-            # 验死——活进程一律等待；死/无 pid 才 os.rename 原子占领（唯一赢家）。
-            pid = None
-            try:
-                holder = lock.read_text(encoding="utf-8", errors="replace").split(",")[0].strip()
-                pid = int(holder) if holder.isdigit() else None
-            except (OSError, ValueError):
-                pid = None
-            if pid is None:
-                # fork8 F3b：锁在但读不出 pid——「O_CREAT 后 os.write 前」窗口的活锁，
-                # 抢它=双持丢行（8 进程压测实锄 round3/4）。保守等待；仅锁龄>65s 仍无
-                # pid 才按残骸 rename 兜底（写 holder 前崩溃的极窄情形）
-                try:
-                    if time.time() - lock.stat().st_mtime <= 65:
-                        time.sleep(0.05)
-                        continue
-                except FileNotFoundError:
-                    pass
-            if pid is not None:
-                alive = pid == os.getpid()
-                if not alive:
-                    try:
-                        os.kill(pid, 0)
-                        alive = True
-                    except OSError:
-                        alive = False
-                if alive:
-                    time.sleep(0.1)
-                    continue
-            stale = home / f".lock.stale-{os.getpid()}-{int(time.time() * 1000) % 100000}"
-            try:
-                os.rename(str(lock), str(stale))
-                try:
-                    os.unlink(str(stale))
-                except FileNotFoundError:
-                    pass
-            except FileNotFoundError:
-                pass  # 他人已处理，回到循环重竞争
-            continue
-    else:
-        # fork6（#9）：原 raise SystemExit(msg) 实际退出码=1（Python 对字符串参数的
-        # SystemExit 以 1 退出）而消息自称 exit 2——契约级不一致，改 die 真 2
-        die("账本锁被持有超 60s（活持有者未释放）——退出保护（exit 2）", 2)
+        except OSError:
+            os.close(fd)
+            fd = None
+            time.sleep(0.05)
+    if fd is None:
+        print("wenqu: 错误：账本锁被持有超 60s——另一进程在写或异常，退出保护（exit 2）", file=sys.stderr)
+        sys.exit(2)  # die 定义在后，此处内联同语义
     try:
         os.write(fd, f"{os.getpid()},{now()}".encode())
         yield
     finally:
-        os.close(fd)
         try:
-            lock.unlink()
-        except FileNotFoundError:
-            pass
-
-
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 def die(msg, code=2):
     print(f"wenqu: 错误：{msg}", file=sys.stderr)
     sys.exit(code)
@@ -149,6 +113,9 @@ def load_entries(home: Path):
             d = json.loads(line)
             if not isinstance(d, dict):
                 bad.append(f"第{i}行非对象 JSON：{type(d).__name__}")
+                continue
+            if d.get("kind", "finding") == "finding" and not d.get("id"):
+                bad.append(f"第{i}行 finding 缺 id")  # fork9 S3-三：原穿透 resolve e["id"] 裸 KeyError
                 continue
             entries.append(d)
         except json.JSONDecodeError as e:
@@ -230,7 +197,9 @@ def resolve(entries):
     view = {}
     for e in entries:
         if e.get("kind", "finding") == "finding":
-            fid = e["id"]
+            fid = e.get("id")
+            if not fid:
+                die(f"账本内发现缺 id——可 wenqu repair 自愈")
             if fid in view:
                 die(f"账本内发现 id 重复：{fid}")
             view[fid] = [e, str(e["status"]).upper(), None]
@@ -263,7 +232,8 @@ def cmd_init(args):
     old = home / STATE
     if old.exists():
         prev = json.loads(old.read_text(encoding="utf-8"))
-        has_ledger = (home / LEDGER).exists() and (home / LEDGER).read_text(encoding="utf-8").strip()
+        led_f = home / LEDGER
+        has_ledger = led_f.exists() and led_f.stat().st_size > 0  # fork9 S3-五：零解码判非空（原严格 utf-8 读在 GBK 账本 re-init 裸崩）
         if prev.get("scope_hash") != scope_hash and has_ledger and not getattr(args, "force", False):
             die(f"范围已变（{prev.get('files')}→{len(picked)} 文件）而账本非空——重 init 将使旧账失去基准，确认请 --force（v0.2#11）")
     (home / STATE).write_text(json.dumps({
@@ -309,6 +279,8 @@ def cmd_run(args):
             customs = json.loads(extra.read_text(encoding="utf-8"))
             for k, v in customs.items():
                 assert isinstance(v.get("cmd"), list) and all(isinstance(x, str) for x in v["cmd"]) and v["cmd"], k
+                if str(v.get("sev", "")).upper() not in SEVS:
+                    die(f"stations.json 站位 {k} 的 sev 非法：{v.get('sev')!r}（须 HIGH/MEDIUM/LOW，fork9 S3-六：原缺失时 FAIL 后才在落账中途裸 KeyError=半事务）")
                 stations[k] = v
         except Exception as e:
             die(f"stations.json 非法：{e}")
@@ -827,11 +799,15 @@ def main(argv=None):
     p = sub.add_parser("selftest", help="端到端自证（零依赖环境可用性检查）")
     p.set_defaults(fn=cmd_selftest, path=".")
     args = ap.parse_args(argv)
+    if getattr(args, "path", None) and not Path(args.path).resolve().is_dir():
+        die(f"--path 不存在：{args.path}（fork9 S3-四：原读命令 typo 会凭空 mkdir 幽灵仓→空账本→--gate 假绿）")
     # fork3（2026-10-02 加固二）：轮次/收敛参数值域守卫——负 round 落账会污染
     # verify --convergence 的轮次集合（负轮号可参与甚至伪造连续性）；N<1 的
     # --convergence 语义非法（0=falsy 静默跳过、负数切片行为未定义）。0=不标轮次，合法。
     if getattr(args, "round", 0) < 0:
         die("--round 须为 ≥1 的整数（0=不标记轮次）")
+    if getattr(args, "cmd", "") == "charter" and getattr(args, "round", 1) < 1:
+        die("charter 轮次须 ≥1（fork9 S3-六：0 穿透产出自相矛盾文案+错配 LADDER_CAP）")
     if getattr(args, "convergence", 0) and args.convergence < 1:
         die("--convergence 须为 ≥1 的整数")
     if getattr(args, "include", None):

@@ -22,7 +22,21 @@ echo "x=1" > "$R/a.py"
 python3 "$WQ" --home "$H" init --path "$R" >/dev/null 2>&1; ck "init" 0 $?
 cp "$ROOT/probes/stations.json" "$H/stations.json"
 for st in trap-double guard-comment-swallow cred-cli-expose; do
-  python3 "$WQ" --home "$H" run $st --path "$R" >/dev/null 2>&1; ck "探测器命中 $st" 1 $?
+  python3 "$WQ" --home "$H" run $st --path "$R" >/dev/null 2>&1; RC=$?
+  # fork10（S4-1）：只断言 exit=1 无法区分「真命中」与「探测器报错」（原 36 项全绿含假绿——
+  # trap-double 实际命中炸参错误）；追加双断言：finding 标题 exit=1 形态+日志含探测器标记行
+  LOGF=$(ls -t "$H"/runs/*-$st.log 2>/dev/null | head -1)
+  MARK=""
+  case $st in
+    trap-double) MARK="double-EXIT-trap: ./deploy.sh";;
+    guard-comment-swallow) MARK="guard-swallow";;
+    cred-cli-expose) MARK="cred-expose";;
+  esac
+  if [ "$RC" = "1" ] && grep -q "$MARK" "$LOGF" 2>/dev/null; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 探测器真命中 ${st}（标记行在日志）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 探测器 ${st} 未真命中（rc=$RC 日志无标记）"
+  fi
 done
 python3 "$WQ" --home "$H" verify --path "$R" >/dev/null 2>&1; ck "verify 门红（OPEN 3/0）" 1 $?
 
