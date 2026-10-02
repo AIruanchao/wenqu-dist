@@ -1,0 +1,29 @@
+{
+ "trap-double": {
+  "cmd": [
+   "bash",
+   "-c",
+   "f=$(find . -name '*.sh' -not -path './node_modules/*' -not -path './.git/*' 2>/dev/null); [ -n \"$f\" ] || exit 0; awk '/trap/ && /EXIT/ {c[FILENAME]++} END {bad=0; for (fn in c) if (c[fn]>1) {print \"double-EXIT-trap: \" fn; bad=1} exit bad}' \"$f\""
+  ],
+  "sev": "HIGH",
+  "timeout": 60
+ },
+ "guard-comment-swallow": {
+  "cmd": [
+   "bash",
+   "-c",
+   "grep -rnE '#.*\\|\\| *FAIL' --include='*.sh' --exclude-dir=node_modules --exclude-dir=.git . && { echo 'guard-swallow: || FAIL 被注释吞（防线假活）'; exit 1; } || exit 0"
+  ],
+  "sev": "HIGH",
+  "timeout": 60
+ },
+ "cred-cli-expose": {
+  "cmd": [
+   "bash",
+   "-c",
+   "grep -rnE 'docker exec .*-e +PGPASSWORD=' --include='*.sh' --include='*.py' --exclude-dir=node_modules --exclude-dir=.git . && { echo 'cred-expose: PGPASSWORD 经 docker exec -e 暴露进程列表'; exit 1; } || exit 0"
+  ],
+  "sev": "MEDIUM",
+  "timeout": 60
+ }
+}

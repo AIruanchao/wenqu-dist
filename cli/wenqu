@@ -1,0 +1,692 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""wenqu — 缺陷工程轨道 CLI（F7 MVP，"轨道，不是大脑"）。
+
+底座三件套：git 时代的前置（文件 sha256 冻结）+ jsonl append-only 账本 + exit-code 收口。
+stdlib-only（Python≥3.9），零供应链。血统：问渠八站一环一本账 v1.6；章程 v1.0 的 charter/账本纪律。
+
+命令：init / run / ingest / verify / findings / show / close / selftest
+退出码：0=通过；1=门禁 FAIL；2=用法/数据错误。
+账本纪律：append-only——发现与状态转移都是追加行，永不改写历史（findings 按最新转移解析现态）。
+"""
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+VERSION = "0.3.0-fork5-maccc"
+LEDGER = "findings.jsonl"
+STATE = "state.json"
+SEVS = ("HIGH", "MEDIUM", "LOW")
+STATUSES = ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "PARTIAL")
+ALLOWED_TRANSITIONS = {  # v0.2#14 状态机：CLOSED 可重开，终态间不可横跳
+    "OPEN": {"FIXING", "FIXED", "CLOSED", "VERIFIED"},
+    "FIXING": {"FIXED", "OPEN", "CLOSED"},
+    "FIXED": {"VERIFIED", "OPEN", "CLOSED"},
+    "VERIFIED": {"CLOSED", "OPEN"},
+    "CLOSED": {"OPEN"},
+    "PARTIAL": {"FIXING", "FIXED", "CLOSED", "OPEN"},
+}
+LADDER_CAP = {1: None, 2: 5, 3: 3}  # 章程§3.3：首轮无上限→≤5→≤3（第4轮起=2）
+SRC_EXTS = (".py", ".sh", ".js", ".ts", ".tsx", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".sql")
+SKIP_DIRS = {".git", ".wenqu", "node_modules", "__pycache__", ".venv", "venv", ".tmp"}
+# 确定性站位注册表（问渠站2 家族；命令在目标仓根执行，fail 自动落一条 OPEN 账）
+STATIONS = {
+    "py-static": {"cmd": [sys.executable, "-m", "ruff", "check", "."], "sev": "MEDIUM"},
+    "sh-static": {"cmd": ["shellcheck", "-S", "warning", "*.sh"], "sev": "MEDIUM"},
+    "tests": {"cmd": [sys.executable, "-m", "pytest", "-q"], "sev": "HIGH"},
+    "supply": {"cmd": [sys.executable, "-m", "pip_audit", "-r", "requirements.txt", "--skip-editable"], "sev": "HIGH"},
+}
+
+
+def NJ(rows):
+    return "".join(r + chr(10) for r in rows)
+
+
+@contextmanager
+def _ledger_lock(home: Path):
+    """账本独占锁（裁定#1#2）：O_EXCL 创建+持有者标记+>30s 判陈锁夺回。
+    fork4（2026-10-02 加固四）：从 append 提为共用件——repair 重写账本同样必须持锁
+    （原 repair 绕锁裸 read→write，与 append 并发时竞态覆盖丢行=同族半改）。"""
+    lock = home / ".lock"
+    for _ in range(60):  # 6s 等待；超时看锁龄
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:
+            try:
+                age = time.time() - lock.stat().st_mtime
+                if age > 30:  # 陈锁（持有者已死）——判龄夺锁（裁定#1：不再盲删活锁）
+                    lock.unlink()
+                    continue
+            except FileNotFoundError:
+                pass
+            time.sleep(0.1)
+    else:
+        raise SystemExit(f"wenqu: 错误：账本锁被持有超 6s 且非陈锁——另一进程在写或异常，退出保护（exit 2）")
+    try:
+        os.write(fd, f"{os.getpid()},{now()}".encode())
+        yield
+    finally:
+        os.close(fd)
+        try:
+            lock.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def die(msg, code=2):
+    print(f"wenqu: 错误：{msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def home_of(args) -> Path:
+    h = Path(getattr(args, "home", None) or (Path(args.path) / ".wenqu"))
+    h.mkdir(parents=True, exist_ok=True)
+    return h
+
+
+def now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())  # v0.2#9：统一 UTC
+
+
+# ---------- 账本 ----------
+
+def load_entries(home: Path):
+    led = home / LEDGER
+    if not led.exists():
+        return []
+    entries, bad = [], []
+    for i, line in enumerate(led.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError as e:
+            bad.append(f"第{i}行 JSON 损坏：{e}")
+    if bad:
+        die(f"账本不可解析——{len(bad)} 处损坏（前 10：{'；'.join(bad[:10])}）——可 wenqu repair 自愈")
+    return entries
+
+
+def append(home: Path, entries) -> None:
+    """事务化批写（裁定#1#2#4）：单锁内 整账本+新行 → tmp → os.replace；锁带持有者，>30s 判陈锁。
+    entries 接受单 dict 或列表。"""
+    if isinstance(entries, dict):
+        entries = [entries]
+    led = home / LEDGER
+    with _ledger_lock(home):
+        base = led.read_text(encoding="utf-8") if led.exists() else ""
+        tmp = home / (LEDGER + ".tmp")
+        tmp.write_text(base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries),
+                       encoding="utf-8")
+        os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
+
+
+_auto_seq = {}
+
+
+def _auto_id(station: str) -> str:
+    """加固①：AUTO id 防碰撞=秒+pid+station+同进程序号（同秒双 FAIL 不再自毁账本）。"""
+    key = f"{time.strftime('%Y%m%d%H%M%S')}-{os.getpid()}-{station}"
+    _auto_seq[key] = _auto_seq.get(key, 0) + 1
+    import uuid
+    base = f"AUTO-{key}-{uuid.uuid4().hex[:4]}"  # 裁定#6：pid 回收碰撞兜底
+    return base
+
+
+def validate_finding(d: dict, where: str) -> str:
+    """返回错误串；空串=合法。必填 id/sev/status；枚举严格。"""
+    if not isinstance(d, dict):
+        return f"{where}：非对象"
+    sev = d.get("sev", d.get("severity"))  # 纯校验无副作用（裁定#3）：归一只在 ingest 落
+    sev = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}.get(str(sev).strip(), sev) if sev is not None else None
+    if not isinstance(d.get("id"), str) or not d["id"].strip():
+        return f"{where}：缺/非法必填键 id"
+    if sev is None:
+        return f"{where}：缺必填键 sev（或 severity）"
+    if not d.get("status"):
+        return f"{where}：缺必填键 status"
+    if str(sev).upper() not in SEVS:
+        return f"{where}：sev 非法（须为 {'/'.join(SEVS)}）"
+    if str(d["status"]).upper() not in STATUSES:
+        return f"{where}：status 非法（须为 {'/'.join(STATUSES)}）"
+    return ""
+
+
+def validate_transition(d: dict, where: str) -> str:
+    """加固⑤：转移行 schema——必填 id/to；to 须合法状态。"""
+    if not isinstance(d, dict):
+        return f"{where}：转移非对象"
+    for k in ("id", "to"):
+        if k not in d:
+            return f"{where}：转移缺必填键 {k}"
+    if str(d["to"]).upper() not in STATUSES:
+        return f"{where}：转移 to 非法（{d['to']}）"
+    if d.get("from") and str(d["from"]).upper() == str(d["to"]).upper():
+        return f"{where}：空转移（from=to）"  # 裁定#22：ingest 路径同享 cmd_close 的语义
+    return ""
+
+
+def resolve(entries):
+    """发现+转移 → 现态视图：{id: (finding, 现status, 关闭时刻 or None)}"""
+    view = {}
+    for e in entries:
+        if e.get("kind", "finding") == "finding":
+            fid = e["id"]
+            if fid in view:
+                die(f"账本内发现 id 重复：{fid}")
+            view[fid] = [e, str(e["status"]).upper(), None]
+    for e in entries:
+        if e.get("kind") == "transition":
+            fid = e.get("id")
+            if fid not in view:
+                die(f"转移指向不存在的发现：{fid}")
+            view[fid][1] = str(e.get("to", view[fid][1])).upper()
+            if view[fid][1] in ("CLOSED", "FIXED", "VERIFIED"):
+                view[fid][2] = e.get("ts")
+    return view
+
+
+# ---------- 命令 ----------
+
+def cmd_init(args):
+    root = Path(args.path).resolve()
+    if not root.is_dir():
+        die(f"路径不存在：{root}")
+    exts = getattr(args, "include_exts", None) or SRC_EXTS
+    skip = set(x for x in (getattr(args, "skip_dirs", "") or "").split(",") if x)
+    picked = _scope_files(root, exts, skip)
+    if not picked:
+        die("范围内零源文件（用 --include 自定义）")
+    scope_hash = _scope_hash(picked)
+    home = home_of(args)
+    old = home / STATE
+    if old.exists():
+        prev = json.loads(old.read_text(encoding="utf-8"))
+        has_ledger = (home / LEDGER).exists() and (home / LEDGER).read_text(encoding="utf-8").strip()
+        if prev.get("scope_hash") != scope_hash and has_ledger and not getattr(args, "force", False):
+            die(f"范围已变（{prev.get('files')}→{len(picked)} 文件）而账本非空——重 init 将使旧账失去基准，确认请 --force（v0.2#11）")
+    (home / STATE).write_text(json.dumps({
+        "version": VERSION, "created_at": now(), "root": str(root),
+        "scope_hash": scope_hash, "files": len(picked), "exts": list(exts), "skip_dirs": sorted(skip),
+    }, ensure_ascii=False, indent=1), encoding="utf-8")
+    if not (home / LEDGER).exists():
+        (home / LEDGER).write_text("", encoding="utf-8")
+    print(f"OK init：范围冻结 {len(picked)} 文件，scope_hash={scope_hash}，账本在 {home / LEDGER}")
+
+
+def _scope_files(root: Path, exts, skip=()):
+    skip = set(skip) | SKIP_DIRS
+    picked = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip]
+        for fn in filenames:
+            if fn.endswith(tuple(exts)):
+                p = Path(dirpath) / fn
+                if p.is_symlink():  # 裁定#5：防符号链接逃逸
+                    continue
+                try:
+                    data = p.read_bytes()  # 裁定#17：读异常守卫
+                except OSError:
+                    continue
+                picked[str(p.relative_to(root)).replace("\\", "/")] = hashlib.sha256(data).hexdigest()
+    return picked
+
+
+def _scope_hash(picked: dict) -> str:
+    blob = "".join(f"{k}:{v}\n" for k, v in sorted(picked.items()))
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def cmd_run(args):
+    home = home_of(args)
+    if not (home / STATE).exists():
+        die("未 init（无 state.json）——先 wenqu init")
+    stations = dict(STATIONS)
+    extra = home / "stations.json"
+    if extra.exists():  # v0.3 血统件C：域探测器插座（问渠线配置即插，零改码）
+        try:
+            customs = json.loads(extra.read_text(encoding="utf-8"))
+            for k, v in customs.items():
+                assert isinstance(v.get("cmd"), list) and all(isinstance(x, str) for x in v["cmd"]) and v["cmd"], k
+                stations[k] = v
+        except Exception as e:
+            die(f"stations.json 非法：{e}")
+    if args.station not in stations:
+        die(f"未知站位 {args.station}；可用：{', '.join(sorted(stations))}（AI 站走 charter+ingest）")
+    st = stations[args.station]
+    runs = home / "runs"
+    runs.mkdir(exist_ok=True)
+    logf = runs / f"{time.strftime('%Y%m%d-%H%M%S')}-{int(time.time()*1000)%1000:03d}-{args.station}.log"  # 裁定#8：毫秒防同秒覆盖
+    # fork2（2026-10-02 加固）：超时防线——stations.json 可 per-station 配 timeout（秒，默认 300）；
+    # 超时=环境错误 exit 2 不落账不计通过（轨道铁律 2「超时不得记零发现」的 CLI 侧落地）
+    # fork3（2026-10-02 加固二）：timeout 值域校验——非数字/零/负数为配置错误 die exit 2
+    # （原实现非数字裸 traceback、负值被当立即超时且文案误导）
+    timeout_raw = st.get("timeout", 300)
+    try:
+        timeout_s = int(timeout_raw)
+    except (TypeError, ValueError):
+        die(f"站位 {args.station} 的 timeout 非法：{timeout_raw!r}（须为 ≥1 整数秒，exit 2 不落账）")
+    if timeout_s < 1:
+        die(f"站位 {args.station} 的 timeout 非法：{timeout_s}（须 ≥1 秒，exit 2 不落账）")
+    try:
+        r = subprocess.run(st["cmd"], cwd=str(Path(args.path).resolve()),
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout_s)
+    except FileNotFoundError:
+        die(f"站位 {args.station} 依赖命令不可用：{st['cmd'][0]}（exit 2，不落账）")
+    except subprocess.TimeoutExpired:
+        die(f"站位 {args.station} 超时（>{timeout_s}s，exit 2 不落账不计通过）")
+    run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now()}  # v0.3 血统件B：run 审计
+    if getattr(args, "round", 0):
+        run_row["round"] = args.round  # fork2：run 轮次标记——使 AUTO 发现参与 verify --convergence 判定
+    append(home, run_row)
+    logf.write_text(r.stdout + r.stderr, encoding="utf-8")
+    if r.returncode != 0:
+        finding_row = {"kind": "finding", "id": _auto_id(args.station),
+                       "sev": st["sev"], "status": "OPEN", "title": f"站位 {args.station} FAIL（exit={r.returncode}）",
+                       "provenance": {"station": args.station, "log": str(logf), "ts": now()}}
+        if getattr(args, "round", 0):
+            finding_row["round"] = args.round
+        append(home, finding_row)
+        print(f"FAIL {args.station}（exit={r.returncode}）——已落账 OPEN，日志 {logf}")
+        sys.exit(1)
+    print(f"OK {args.station} PASS，日志 {logf}")
+    sys.exit(0)
+
+
+def cmd_ingest(args):
+    home = home_of(args)
+    src = Path(args.file)
+    if not src.is_file():
+        die(f"文件不存在：{src}")
+    existing = {e["id"] for e in load_entries(home) if e.get("kind", "finding") == "finding"}
+    # 加固⑥：两遍式原子 ingest——先全量解析校验（含转移指向存在性），零错才落账；
+    # 默认全有或全无（审计管线不吞半批），--partial 恢复逐行部分接收旧行为
+    staged, errs = [], []
+    for i, line in enumerate(src.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError as e:
+            errs.append(f"第{i}行 JSON 损坏：{e}")
+            continue
+        d.setdefault("kind", "finding")
+        if d.get("kind") == "transition":
+            terr = validate_transition(d, f"第{i}行")
+            if terr:
+                errs.append(terr)
+                continue
+            d["to"] = str(d["to"]).upper()
+            d.setdefault("ts", now())
+            staged.append(d)
+            continue
+        err = validate_finding(d, f"第{i}行")
+        if err:
+            errs.append(err)
+            continue
+        if d["id"] in existing:
+            errs.append(f"第{i}行：id 重复 {d['id']}")
+            continue
+        if "sev" not in d and "severity" in d:
+            d["sev"] = d["severity"]
+        d["sev"] = {"高": "HIGH", "中": "MEDIUM", "低": "LOW"}.get(str(d["sev"]).strip(), str(d["sev"]))
+        d["sev"], d["status"] = str(d["sev"]).upper(), str(d["status"]).upper()
+        d.setdefault("ts", now())
+        if getattr(args, "round", 0):
+            d["round"] = args.round
+        staged.append(d)
+        existing.add(d["id"])
+    known = existing | {d["id"] for d in staged if d.get("kind", "finding") == "finding"}
+    staged_final = []
+    for d in staged:
+        if d.get("kind") == "transition" and d["id"] not in known:
+            errs.append(f"孤儿转移：id {d['id']} 在本批与账本中均无对应发现（拒绝，防砖死账本）")
+            continue
+        staged_final.append(d)
+    if errs and not args.partial:
+        print(f"OK ingest：原子拒绝——0 条入账，{len(errs)} 处问题（--partial 可恢复逐行模式）", file=sys.stderr)
+        for e in errs[:8]:
+            print(f"  拒绝：{e}", file=sys.stderr)
+        sys.exit(2)
+    append(home, staged_final)  # 单事务批写（裁定#4）
+    ok = len(staged_final)
+    print(f"OK ingest：入账 {ok} 条" + (f"；拒绝 {len(errs)} 条" if errs else ""))
+    for e in errs[:8]:
+        print(f"  拒绝：{e}", file=sys.stderr)
+    sys.exit(2 if errs else 0)
+
+
+def cmd_findings(args):
+    view = resolve(load_entries(home_of(args)))
+    rows = [(fid, f, st, cl) for fid, (f, st, cl) in view.items()
+            if (not args.sev or f["sev"] == args.sev.upper())
+            and (not args.status or st == args.status.upper())]
+    rows.sort(key=lambda r: (SEVS.index(r[1]["sev"]), r[0]))
+    for fid, f, st, cl in rows:
+        title = str(f.get("title") or f.get("decl_source") or "")[:46]
+        print(f"{fid:<24} {f['sev']:<7} {st:<9} {title}")
+    print(f"共 {len(rows)} 条（账本总发现 {len(view)}）")
+    sys.exit(1 if (getattr(args, "gate", False) and rows)
+             or (args.status and args.status.upper() == "OPEN" and rows) else 0)
+
+
+def cmd_show(args):
+    view = resolve(load_entries(home_of(args)))
+    if args.id not in view:
+        die(f"无此 id：{args.id}")
+    f, st, cl = view[args.id]  # v0.2#19：命名空间隔离，用户字段零覆盖
+    trans = [e for e in load_entries(home_of(args))
+             if e.get("kind") == "transition" and e.get("id") == args.id]
+    print(json.dumps({"finding": f, "meta": {"现态": st, "关闭于": cl or "", "转移链": trans}},
+                     ensure_ascii=False, indent=1))
+
+
+def cmd_close(args):
+    home = home_of(args)
+    view = resolve(load_entries(home))
+    if args.id not in view:
+        die(f"无此 id：{args.id}")
+    _, cur, _ = view[args.id]
+    to = args.to.upper()
+    if to not in STATUSES:
+        die(f"目标状态非法：{to}")
+    if cur == to:
+        die(f"现态已是 {to}，拒绝空转移")
+    if not getattr(args, "allow_any", False) and to not in ALLOWED_TRANSITIONS.get(cur, set()):
+        die(f"非法转移 {cur} → {to}（状态机 v0.2#14；确需请 --allow-any 并在 note 说明）")
+    append(home, {"kind": "transition", "id": args.id, "from": cur, "to": to,
+                  "note": args.note, "ts": now()})
+    print(f"OK close：{args.id} {cur} → {to}（append-only 转移已入账）")
+
+
+def cmd_verify(args):
+    home = home_of(args)
+    if not (home / STATE).exists():
+        die("未 init——无可验证范围")
+    entries = load_entries(home)
+    schema_errs = [validate_finding(e, f"id={e.get('id')}") for e in entries
+                   if e.get("kind", "finding") == "finding"]
+    schema_errs += [validate_transition(e, f"转移 id={e.get('id')}") for e in entries
+                    if e.get("kind") == "transition"]
+    schema_errs = [s for s in schema_errs if s]
+    view = resolve(entries)
+    opens = [fid for fid, (_, st, _) in view.items() if st == "OPEN"]
+    drift = ""
+    if args.check_scope:
+        st = json.loads((home / STATE).read_text(encoding="utf-8"))
+        cur = _scope_files(Path(st["root"]), st.get("exts") or SRC_EXTS)
+        drift = ("" if _scope_hash(cur) == st["scope_hash"]
+                 else f"范围漂移：冻结 {st['files']} 文件，现 {len(cur)} 文件")
+    conv_txt, converged = "", True
+    if getattr(args, "convergence", 0):
+        # fork2（2026-10-02 加固，BSF-20261002-38 修复）：零/不足轮次不得判 Converged——
+        # 原实现 converged 初值 True，空账本直接过 exit code 门=空转假绿；并补轮次连续性检查
+        all_rounds = sorted({e.get("round") for e in entries if isinstance(e.get("round"), int)})
+        if len(all_rounds) < args.convergence:
+            converged = False
+            conv_txt = f"；收敛环=证据不足（已标 {len(all_rounds)}/{args.convergence} 轮，拒绝 Converged）"
+        else:
+            top = all_rounds[-args.convergence:]
+            if top != list(range(top[0], top[0] + args.convergence)):
+                converged = False
+                conv_txt = f"；收敛环=轮次不连续（{top}）"
+            else:
+                top_set = set(top)
+                converged = not [e for e in entries if e.get("kind", "finding") == "finding"
+                                 and e.get("round") in top_set]
+                conv_txt = f"；收敛环={'Converged' if converged else '未收敛'}（近 {args.convergence} 轮零新发现）"
+    ok = (not schema_errs and len(opens) <= args.allow_open
+          and (not drift or args.allow_drift) and converged)
+    print(f"{'OK' if ok else 'FAIL'} verify：schema {'净' if not schema_errs else '损'}；"
+          f"OPEN {len(opens)}/{args.allow_open} 限额；总 {len(view)} 条"
+          + conv_txt
+          + (f"；{drift}" if drift else "；范围=冻结态" if args.check_scope else ""))
+    for fid in opens[:10]:
+        print(f"  OPEN：{fid}")
+    for s in schema_errs[:5]:
+        print(f"  schema：{s}", file=sys.stderr)
+    sys.exit(0 if ok else 1)
+
+
+def cmd_sweep(args):
+    """血统件B（v0.3）：auto-close——station 最近一次 run 为 PASS 时，其 OPEN 的 AUTO 发现转 FIXED。"""
+    home = home_of(args)
+    entries = load_entries(home)
+    runs = [e for e in entries if e.get("kind") == "run" and e.get("station") == args.station]
+    if not runs or runs[-1].get("exit") != 0:
+        die(f"站位 {args.station} 无 PASS 的 run 记录，拒绝 sweep（防误关）")
+    view = resolve(entries)
+    closed = 0
+    for fid, (f, st, _) in view.items():
+        # fork5（2026-10-02 加固五，BSF-20261002-40）：站名精确匹配用账本里已有的
+        # provenance.station——原 `args.station in fid` 是 id 子串匹配，站名互为子串时
+        # 误关别家发现（实测：sweep tests 把 tests-x 的 AUTO 关成 FIXED=数据破坏级）
+        if fid.startswith("AUTO-") and st == "OPEN" \
+                and f.get("provenance", {}).get("station") == args.station:
+            append(home, {"kind": "transition", "id": fid, "from": "OPEN", "to": "FIXED",
+                          "note": "sweep：station %s 最近 run PASS" % args.station, "ts": now()})
+            closed += 1
+    print(f"OK sweep：{args.station} PASS → 自动关闭 {closed} 条 AUTO 发现")
+
+def cmd_charter(args):
+    """血统件A（v0.3）：标准 charter 发射器——章程附录 B 四占位符 + 发射审计入账。"""
+    cap = LADDER_CAP.get(args.round, 2)
+    cap_txt = ("首轮=攻击面全覆盖不设上限" if cap is None else "法定上限 %d 条，超出不再报" % cap)
+    mode = ("异构端点 %s（探测记录见执行日志）" % args.hetero) if args.hetero else "同模型兜底（异构端点探测不可用证据见执行日志）"
+    text = (
+        "你是一个反方评审会话（零先前上下文，立场对抗）。评审对象：{path}——{name}。"+chr(10)
+        + "你的 charter：证明它是错的或不完备的。只读；可读仓库内相关文档与执行日志核对事实；可 wsl.exe -e sh -c 命令 只读探测实机。"+chr(10)
+        + "本轮为第 {round} 轮={scope}；{cap}；本轮为{mode}。"+chr(10)
+        + "发现按杠杆率排序，每条：位置→缺陷→依据→修法；若无发现，输出零发现+核验矩阵。中文纯文本。"+chr(10)
+        + "产出逐字写入 docs/反方评审-主题-日期.md（你仅对该文件有写权），档内附本 charter 原文与偏离登记。"
+    ).format(path=args.path, name=args.name, round=args.round,
+             scope="攻击面全覆盖" if args.round == 1 else "仅验上轮修正落位+新增内容",
+             cap=cap_txt, mode=mode)
+    print(text)
+    append(home_of(args), {"kind": "charter", "station": args.name, "round": args.round,
+                           "hetero": bool(args.hetero), "endpoint": args.hetero or "", "ts": now()})
+
+def cmd_repair(args):
+    """v0.2#7：账本自愈——坏行/重复发现/孤儿转移 隔离进 .quarantine，正本只留健康行。"""
+    home = home_of(args)
+    led = home / LEDGER
+    if not led.exists():
+        die("无账本可修")
+    lines = led.read_text(encoding="utf-8").splitlines()
+    good, quarantine, seen = [], [], set()
+    for i, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+            kind = d.get("kind", "finding")
+            if kind == "finding":
+                err = validate_finding(d, "第%d行" % i)
+                if err:
+                    raise ValueError(err)
+                if d["id"] in seen:
+                    raise ValueError("第%d行：重复发现 id %s" % (i, d["id"]))
+                seen.add(d["id"])
+            elif kind == "transition":
+                err = validate_transition(d, "第%d行" % i)
+                if err:
+                    raise ValueError(err)
+            elif kind in ("run", "charter"):
+                # fork4（2026-10-02 加固四，上游 BSF-20261002-39）：v0.3 行类白名单——
+                # repair 是 v0.2 件不认识 v0.3 的 run/charter 审计行，原实现当「未知 kind」
+                # 隔离（实测：一次 repair 清空全部 run 行+连锁废掉 sweep 的 PASS 依据）
+                pass
+            else:
+                raise ValueError("第%d行：未知 kind %s" % (i, kind))
+            good.append(line)
+        except (json.JSONDecodeError, ValueError) as e:
+            quarantine.append(json.dumps({"bad_line_no": i, "reason": str(e), "raw": line}, ensure_ascii=False))
+    ids = {json.loads(l)["id"] for l in good if json.loads(l).get("kind", "finding") == "finding"}
+    final = []
+    for l in good:
+        d = json.loads(l)
+        if d.get("kind") == "transition" and d["id"] not in ids:
+            quarantine.append(json.dumps({"raw": l, "reason": "孤儿转移"}, ensure_ascii=False))
+            continue
+        final.append(l)
+    # fork4（加固四）：重写账本走共用锁协议（原裸 read→write 与 append 并发竞态丢行）；
+    # 隔离件追加式防前次隔离历史被覆盖
+    with _ledger_lock(home):
+        tmp = home / (LEDGER + ".tmp")
+        tmp.write_text(NJ(final), encoding="utf-8")
+        os.replace(tmp, led)
+    if quarantine:
+        with (home / (LEDGER + ".quarantine")).open("a", encoding="utf-8") as q:
+            q.write(NJ(quarantine))
+    print("OK repair：保留 %d 行，隔离 %d 行 → %s.quarantine" % (len(final), len(quarantine), LEDGER))
+    sys.exit(0)
+
+def cmd_selftest(args):
+    """端到端自证：临时仓 init→run(伪站位经 monkey 注入)→ingest 合法/拒绝→close→verify。"""
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td) / "repo"
+        repo.mkdir()
+        (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+        home = Path(td) / "wh"
+        sys.argv = ["wenqu"]
+        fake = {"fake": {"cmd": [sys.executable, "-c", "print('ok')"], "sev": "LOW"},
+                "fakebad": {"cmd": [sys.executable, "-c", "import sys;sys.exit(3)"], "sev": "HIGH"}}
+        saved = dict(STATIONS)
+        STATIONS.update(fake)
+        try:
+            ns = lambda **kw: argparse.Namespace(path=str(repo), home=str(home), partial=False, round=0,
+                                                 check_scope=False, allow_drift=False, **kw)
+            run = lambda fn: _exit_of(fn)  # 统一捕获 CLI 契约退出码
+            assert run(lambda: cmd_init(ns())) == 0, "init 应 0 退出"
+            assert (home / STATE).exists(), "init 未落 state"
+            assert run(lambda: cmd_run(ns(station="fake"))) == 0, "PASS 站应 0 退出"
+            assert run(lambda: cmd_run(ns(station="fakebad"))) == 1, "FAIL 站应 1 退出"
+            bad = Path(td) / "bad.jsonl"
+            bad.write_text('{"id":"X-1","sev":"HIGH","status":"OPEN"}\n{"id":"X-1","sev":"HIGH","status":"OPEN"}\n'
+                           '{"id":"X-2","sev":"致命","status":"OPEN"}\n', encoding="utf-8")
+            assert run(lambda: cmd_ingest(ns(file=str(bad)))) == 2, "脏数据应 2 退出"
+            out0 = _capture(lambda: run(lambda: cmd_findings(ns(sev=None, status=None))))
+            assert "X-1" not in out0, "原子拒绝后账本不得含半批件"
+            good = Path(td) / "g.jsonl"
+            good.write_text('{"id":"X-9","sev":"LOW","status":"OPEN","title":"样例"}\n', encoding="utf-8")
+            assert run(lambda: cmd_ingest(ns(file=str(good)))) == 0, "净数据应 0 退出"
+            out = _capture(lambda: run(lambda: cmd_findings(ns(sev=None, status=None))))
+            assert "X-9" in out and "AUTO-" in out, "findings 未列出 X-9 与 AUTO"
+            assert run(lambda: cmd_close(ns(id="X-9", to="CLOSED", note="自测关闭"))) == 0
+            assert run(lambda: cmd_verify(ns(allow_open=0))) == 1, "AUTO OPEN 存在时 verify 应 FAIL"
+            opener = [f for f, (_, s, _) in resolve(load_entries(home)).items() if s == "OPEN"][0]
+            assert run(lambda: cmd_close(ns(id=opener, to="FIXED", note="自测修复"))) == 0
+            assert run(lambda: cmd_verify(ns(allow_open=0))) == 0, "清零后 verify 应 PASS"
+        finally:
+            STATIONS.clear(); STATIONS.update(saved)
+    print("OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门）")
+
+
+def _exit_of(fn) -> int:
+    """执行并捕获 CLI 契约退出码（0/1/2 都是正常返回值）。"""
+    try:
+        fn()
+        return 0
+    except SystemExit as e:
+        return int(e.code or 0)
+
+
+def _capture(fn) -> str:
+    import io as _io
+    import contextlib
+    buf = _io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            fn()
+    except SystemExit:
+        pass
+    return buf.getvalue()
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="wenqu", description="问渠缺陷工程轨道 CLI（F7 MVP）")
+    ap.add_argument("--home", help="账本目录（默认 <path>/.wenqu）")
+    ap.add_argument("--version", action="version", version=f"wenqu {VERSION}")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("init", help="范围冻结（站0）")
+    p.add_argument("--path", default=".")
+    p.add_argument("--include", help="覆盖默认源码扩展名的逗号表（如 .py,.ts）")
+    p.add_argument("--skip-dirs", default="", help="额外跳过目录（逗号表，v0.2#20）")
+    p.add_argument("--force", action="store_true", help="范围变更且账本非空时强制重冻结（v0.2#11）")
+    p.set_defaults(fn=cmd_init)
+    p = sub.add_parser("run", help="跑确定性站位（AI 站走 charter+ingest）")
+    p.add_argument("--path", default=".")
+    p.add_argument("--round", type=int, default=0, help="标记本批轮次（fork2：落进 run 审计与 AUTO 发现，供 verify --convergence 判定）")
+    # fork1（2026-10-02，BSF-20261002-37 修复）：去掉 choices=sorted(STATIONS)——
+    # argparse 在解析期用内置表锁死站位，stations.json 自定义站位（域探测器插座）
+    # 报 invalid choice 永远到不了 cmd_run 的动态合并；未知站位由 cmd_run 内 die 兜底
+    p.add_argument("station")
+    p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("ingest", help="外部发现/转移入账（schema 严格；默认原子全有或全无）")
+    p.add_argument("--path", default=".")
+    p.add_argument("--partial", action="store_true", help="恢复逐行部分接收（默认原子）")
+    p.add_argument("--round", type=int, default=0, help="标记本批轮次（verify --convergence 用）")
+    p.add_argument("file")
+    p.set_defaults(fn=cmd_ingest)
+    p = sub.add_parser("verify", help="三门收口（schema+OPEN 限额）→ exit 0/1")
+    p.add_argument("--path", default=".")
+    p.add_argument("--allow-open", type=int, default=0)
+    p.add_argument("--check-scope", action="store_true", help="重算范围 hash 对照冻结态（漂移=FAIL）")
+    p.add_argument("--allow-drift", action="store_true", help="漂移仅提示不计 FAIL（增量场景）")
+    p.add_argument("--convergence", type=int, default=0, help="血统件B：要求近 N 轮零新发现（封存条件）")
+    p.set_defaults(fn=cmd_verify)
+    p = sub.add_parser("findings", help="账本查询（现态视图）")
+    p.add_argument("--path", default=".")
+    p.add_argument("--sev"); p.add_argument("--status")
+    p.add_argument("--gate", action="store_true", help="任一匹配即 exit 1（CI 门禁，v0.2#15）")
+    p.set_defaults(fn=cmd_findings)
+    p = sub.add_parser("show", help="单条全览")
+    p.add_argument("--path", default=".")
+    p.add_argument("id")
+    p.set_defaults(fn=cmd_show)
+    p = sub.add_parser("close", help="状态转移（append-only）")
+    p.add_argument("--path", default=".")
+    p.add_argument("id"); p.add_argument("--to", default="CLOSED")
+    p.add_argument("--allow-any", action="store_true", help="跳过状态机校验（v0.2#14）")
+    p.add_argument("--note", required=True)
+    p.set_defaults(fn=cmd_close)
+    p = sub.add_parser("charter", help="血统件A：标准 charter 发射（章程附录 B）+审计入账")
+    p.add_argument("--path", default=".")
+    p.add_argument("name", help="站位/主题名")
+    p.add_argument("--round", type=int, default=1)
+    p.add_argument("--hetero", default="", help="异构端点名（空=同模型兜底标记）")
+    p.set_defaults(fn=cmd_charter)
+    p = sub.add_parser("sweep", help="血统件B：auto-close（station 最近 run PASS→其 AUTO 发现转 FIXED）")
+    p.add_argument("--path", default=".")
+    p.add_argument("station")
+    p.set_defaults(fn=cmd_sweep)
+    p = sub.add_parser("repair", help="账本自愈：坏行/重复/孤儿隔离（v0.2#7）")
+    p.add_argument("--path", default=".")
+    p.set_defaults(fn=cmd_repair)
+    p = sub.add_parser("selftest", help="端到端自证（零依赖环境可用性检查）")
+    p.set_defaults(fn=cmd_selftest, path=".")
+    args = ap.parse_args(argv)
+    # fork3（2026-10-02 加固二）：轮次/收敛参数值域守卫——负 round 落账会污染
+    # verify --convergence 的轮次集合（负轮号可参与甚至伪造连续性）；N<1 的
+    # --convergence 语义非法（0=falsy 静默跳过、负数切片行为未定义）。0=不标轮次，合法。
+    if getattr(args, "round", 0) < 0:
+        die("--round 须为 ≥1 的整数（0=不标记轮次）")
+    if getattr(args, "convergence", 0) and args.convergence < 1:
+        die("--convergence 须为 ≥1 的整数")
+    if getattr(args, "include", None):
+        args.include_exts = tuple(
+            t if t.startswith(".") else "." + t for t in (x.strip() for x in args.include.split(",")))
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
