@@ -183,7 +183,12 @@ AFTER=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
 python3 "$WQ" --home "$HO" verify --path "$RO" --convergence 3 >/dev/null 2>&1; ck "纯环境错误轮不铸 Converged" 1 $?
 printf '#!/usr/bin/env bash\ndocker exec -e PGPASSWORD=l db sh\n' > "$RO/lock.sh" && chmod 000 "$RO/lock.sh"
 cp "$ROOT/probes/stations.json" "$HO/stations.json"
-python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "权限拒泄露文件=环境错误 2" 2 $?
+if [ "$(id -u)" = "0" ]; then
+  # root 可读 000 文件——权限拒前置不成立（探测器会真命中 exit 1），非缺陷：环境豁免
+  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "root 权限豁免（真命中 1）" 1 $?
+else
+  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "权限拒泄露文件=环境错误 2" 2 $?
+fi
 chmod 644 "$RO/lock.sh"
 
 echo "== H. pytest 契约套件（若 pytest 可用）=="
