@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork12-maccc"
+VERSION = "0.3.0-fork13-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -321,8 +321,10 @@ def cmd_run(args):
     if r.returncode >= 2:
         logf.write_text(r.stdout + r.stderr, encoding="utf-8")
         die(f"站位 {args.station} 探测器自身错误（exit={r.returncode}，日志 {logf}——不落账不计通过）", 2)
+    # fork13（S7-2）：finding 落账先于日志写——原 run 行→logf→finding 三步非原子，
+    # logf IO 失败（磁盘满/权限）打在中间=run 落账+finding 丢失+verify 假绿（实测）；
+    # 日志降级为诊断工件：写失败仅警告不阻断落账
     append(home, run_row)
-    logf.write_text(r.stdout + r.stderr, encoding="utf-8")
     if r.returncode != 0:
         finding_row = {"kind": "finding", "id": _auto_id(args.station),
                        "sev": st["sev"], "status": "OPEN", "title": f"站位 {args.station} FAIL（exit={r.returncode}）",
@@ -330,6 +332,11 @@ def cmd_run(args):
         if getattr(args, "round", 0):
             finding_row["round"] = args.round
         append(home, finding_row)
+    try:
+        logf.write_text(r.stdout + r.stderr, encoding="utf-8")
+    except OSError as log_err:
+        print(f"wenqu: 警告：日志写入失败 {logf}（{log_err}）——落账不受影响", file=sys.stderr)
+    if r.returncode != 0:
         print(f"FAIL {args.station}（exit={r.returncode}）——已落账 OPEN，日志 {logf}")
         sys.exit(1)
     print(f"OK {args.station} PASS，日志 {logf}")
@@ -814,7 +821,7 @@ def main(argv=None):
         # .wenqu→空账本→exit 0 假绿+写入仓（CI 新 clone 忘 init=门禁永久假绿）
         _h = getattr(args, "home", None) or str(Path(getattr(args, "path", ".")).resolve() / ".wenqu")
         if not Path(_h).is_dir():
-            die(f"账本目录不存在：{_h}（读命令不凭空造目录；先 init 或修正 --home/--path）", 2)
+            die(f"账本目录不存在：{_h}（不凭空造目录；请先 wenqu init 或修正 --home/--path）", 2)
     if getattr(args, "path", None) and not Path(args.path).resolve().is_dir():
         die(f"--path 不存在：{args.path}（fork9 S3-四：原读命令 typo 会凭空 mkdir 幽灵仓→空账本→--gate 假绿）")
     # fork3（2026-10-02 加固二）：轮次/收敛参数值域守卫——负 round 落账会污染
