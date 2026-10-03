@@ -296,6 +296,11 @@ def cmd_run(args):
         die(f"未知站位 {args.station}；可用：{', '.join(sorted(stations))}（AI 站走 charter+ingest）")
     if not Path(args.path).resolve().is_dir():
         die(f"--path 不存在：{args.path}（fork6#10：原误归因为『依赖命令不可用』误导排障）")
+    # fork19-CX9（Codex 终审#2）：run 绑仓——原可对任意仓跑轮次然后 verify 本仓=跨仓 Converged
+    _st_j = json.loads((home / STATE).read_text(encoding="utf-8")) if (home / STATE).exists() else {}
+    _sr = _st_j.get("root", "")
+    if _sr and str(Path(args.path).resolve()) != _sr:
+        die(f"--path 与 init 冻结仓不一致：{args.path} ≠ {_sr}（CX9 防跨仓 convergence）")
     st = stations[args.station]
     runs = home / "runs"
     runs.mkdir(exist_ok=True)
@@ -624,6 +629,8 @@ def cmd_sweep(args):
         _pass_root = str(runs[-1].get("root", _sweep_root))
         if _pass_root != _sweep_root:
             die(f"站位 {args.station} 最近 PASS 在 {_pass_root}（≠本仓 {_sweep_root}）——拒绝跨仓 sweep（CX8）", 2)
+        if "root" not in runs[-1]:
+            die(f"站位 {args.station} 最近 PASS run 无 root（fork19 前旧格式）——拒绝 sweep（CX10 fail-closed）", 2)
         view = resolve(entries)
         trans = []
         for fid, (f, st, _) in view.items():

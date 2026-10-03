@@ -119,11 +119,11 @@ python3 "$WQ" --home "$H5" run tests-x --path "$R5" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" run tests --path "$R5" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" sweep tests --path "$R5" >/dev/null 2>&1
 python3 "$WQ" --home "$H5" findings --path "$R5" --status OPEN 2>/dev/null | grep -q "tests-x" && { PASS_N=$((PASS_N+1)); echo "  ✅ 子串站名不被误关"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ sweep 误关别家发现"; }
-R6="$TD/sprepo"; mkdir -p "$R6/my dir"
+R6="$TD/sprepo"; H6="$TD/sphome2"; mkdir -p "$R6/my dir" "$H6"
 printf '#!/usr/bin/env bash\ntrap "rm x" EXIT\ntrap "rm y" EXIT\n' > "$R6/my dir/bad script.sh"; echo "v=1" > "$R6/e.py"
-cp "$ROOT/probes/stations.json" "$H5/stations.json"
-python3 "$WQ" --home "$H5" init --path "$R6" >/dev/null 2>&1
-python3 "$WQ" --home "$H5" run trap-double --path "$R6" >/dev/null 2>&1; ck "空格文件名真命中" 1 $?
+cp "$ROOT/probes/stations.json" "$H6/stations.json"
+python3 "$WQ" --home "$H6" init --path "$R6" >/dev/null 2>&1
+python3 "$WQ" --home "$H6" run trap-double --path "$R6" >/dev/null 2>&1; ck "空格文件名真命中" 1 $?
 
 echo "== L. fork6：四高防线（并发/非对象行/铸轮/状态机）=="
 H6="$TD/inghome"; R7="$TD/ingrepo"; mkdir -p "$R7"; echo "q=1" > "$R7/f.py"
