@@ -272,6 +272,22 @@ python3 "$WQ" --home "$HR" sweep cx8 --path "$RR2" >/dev/null 2>&1
 ST=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -c "AUTO-")
 [ "$ST" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CX8：跨仓 PASS 不洗白本仓 finding"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ CX8：跨仓 sweep 洗白漏洞"; }
 
+echo "== S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 =="
+HS="$TD/f19bhome"; RS="$TD/f19brepo"; mkdir -p "$HS" "$RS"; echo "t=1" > "$RS/t.py"
+# CX12：不可读目录含 .sh 的仓——trap-double 应 exit 2（原假 PASS）
+chmod 000 "$RS" 2>/dev/null || true
+# root 可写 000 目录，用子目录方式
+mkdir -p "$RS/hidden" 2>/dev/null; printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/hidden/h.sh" 2>/dev/null
+if [ "$(id -u)" != "0" ]; then
+  chmod 000 "$RS/hidden" 2>/dev/null
+  python3 "$WQ" --home "$HS" init --path "$RS" >/dev/null 2>&1
+  cp "$ROOT/probes/stations.json" "$HS/stations.json"
+  python3 "$WQ" --home "$HS" run trap-double --path "$RS" >/dev/null 2>&1; ck "CX12：不可读目录=环境错误非 PASS" 2 $?
+  chmod 755 "$RS/hidden" 2>/dev/null
+else
+  echo "  ⏭ root 豁免：CX12 权限面跳过"
+fi
+
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then
   (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?

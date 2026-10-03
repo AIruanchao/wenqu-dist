@@ -62,7 +62,7 @@ def _ledger_lock(home: Path):
     deadline = time.monotonic() + 60
     fd = None
     while time.monotonic() < deadline:
-        fd = os.open(str(lock), os.O_CREAT | os.O_WRONLY, 0o644)
+        fd = os.open(str(lock), os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)  # fork19-CX11
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             break
@@ -141,8 +141,9 @@ def _append_unlocked(home: Path, entries) -> None:
     if base and not base.endswith("\n"):
         base += "\n"  # fork8 F7：外部无尾换行 append 后直接拼=粘行损坏全账本
     tmp = home / (LEDGER + ".tmp")
-    tmp.write_text(base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries),
-                   encoding="utf-8", errors="surrogateescape")
+    _ledger_data = (base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries)).encode("utf-8", "surrogateescape")
+    _lfd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)  # fork19-CX11
+    os.write(_lfd, _ledger_data); os.close(_lfd)
     os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
 
 
@@ -243,10 +244,13 @@ def cmd_init(args):
                 die(f"范围已变（{prev.get('files')}→{len(picked)} 文件）而账本非空——重 init 将使旧账失去基准，确认请 --force（v0.2#11）")
         # state 原子写（K3-C2）：tmp→replace 而非原地覆写——并发 verify 不再读到半截
         st_tmp = home / (STATE + ".tmp")
-        st_tmp.write_text(json.dumps({
+        # fork19-CX11（Codex 终审#4）：O_NOFOLLOW|O_EXCL 防预置符号链接截断覆写仓外文件
+        _st_data = json.dumps({
             "version": VERSION, "created_at": now(), "root": str(root),
             "scope_hash": scope_hash, "files": len(picked), "exts": list(exts), "skip_dirs": sorted(skip),
-        }, ensure_ascii=False, indent=1), encoding="utf-8")
+        }, ensure_ascii=False, indent=1).encode("utf-8")
+        _st_fd = os.open(str(st_tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        os.write(_st_fd, _st_data); os.close(_st_fd)
         os.replace(st_tmp, home / STATE)
         if not (home / LEDGER).exists():
             (home / LEDGER).write_text("", encoding="utf-8")  # O_CREAT 语义=仅在不存在时创建，不截断既有
