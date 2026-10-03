@@ -191,6 +191,24 @@ else
 fi
 chmod 644 "$RO/lock.sh"
 
+echo "== P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）=="
+HP="$TD/f14home"; RP="$TD/f14repo"; mkdir -p "$RP"; echo "p=1" > "$RP/p.py"
+python3 "$WQ" --home "$HP" init --path "$RP" >/dev/null 2>&1
+cp "$ROOT/probes/stations.json" "$HP/stations.json"
+printf '#!/usr/bin/env bash\n# \326\320\316\304 GBK note\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RP/gbk.sh"
+python3 "$WQ" --home "$HP" run trap-double --path "$RP" >/dev/null 2>&1; ck "GBK .sh 真命中（LC_ALL=C）" 1 $?
+LG=$(ls -t "$HP"/runs/*trap-double.log 2>/dev/null | head -1)
+grep -q "gbk.sh" "$LG" 2>/dev/null && { PASS_N=$((PASS_N+1)); echo "  ✅ GBK 文件命中标记在日志"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ GBK 命中未落日志"; }
+echo '{"f1x":{"cmd":["bash","-c","exit 1"],"sev":"LOW"}}' > "$HP/stations.json"
+chmod 555 "$HP/runs" 2>/dev/null || { mkdir -p "$HP/runs"; chmod 555 "$HP/runs"; }
+python3 "$WQ" --home "$HP" run f1x --path "$RP" >/dev/null 2>&1; ck "只读 runs 下 FAIL 站 exit 1（日志降级不阻断）" 1 $?
+chmod 755 "$HP/runs"
+grep -c '"kind": "finding"' "$HP/findings.jsonl" >/dev/null 2>&1 && [ "$(grep -c '"kind": "finding"' "$HP/findings.jsonl")" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 只读 runs 下 finding 照落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ finding 丢失"; }
+if [ "$(id -u)" != "0" ]; then
+  echo '{"nopath":{"cmd":["/bin/sh","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
+  python3 "$WQ" --home "$HP" run nopath --path "$RP" >/dev/null 2>&1; ck "环境错误站 die(2)" 2 $?
+fi
+
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then
   (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
