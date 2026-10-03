@@ -201,6 +201,12 @@ LG=$(ls -t "$HP"/runs/*trap-double.log 2>/dev/null | head -1)
 grep -q "gbk.sh" "$LG" 2>/dev/null && { PASS_N=$((PASS_N+1)); echo "  ✅ GBK 文件命中标记在日志"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ GBK 命中未落日志"; }
 echo '{"f1x":{"cmd":["bash","-c","exit 1"],"sev":"LOW"}}' > "$HP/stations.json"
 N1=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+if [ "$(id -u)" = "0" ]; then
+  # root 可写 555 目录——降级前置不成立（日志正常写入），三重断言退化为 exit+增量
+  F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
+  N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+  if [ "$F1RC" = "1" ] && [ "$N2" = "$((N1+1))" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：FAIL 站 exit+增量"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ root 豁免段未过"; fi
+else
 chmod 555 "$HP/runs" 2>/dev/null || { mkdir -p "$HP/runs"; chmod 555 "$HP/runs"; }
 F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
 chmod 755 "$HP/runs"
@@ -210,17 +216,22 @@ N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
 if [ "$F1RC" = "1" ] && echo "$F1OUT" | grep -q "日志缺失" && [ "$N2" = "$((N1+1))" ]; then
   PASS_N=$((PASS_N+1)); echo "  ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）"
 else
-  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:$N1→$N2 out=${F1OUT:0:80}）"
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:${N1}到${N2} out=${F1OUT:0:80}）"
+fi
 fi
 # fork15：rc≥2+只读 runs=降级分支（证据转 stderr）
 echo '{"e2x":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
 chmod 555 "$HP/runs"
 EOUT=$(python3 "$WQ" --home "$HP" run e2x --path "$RP" 2>&1); ERC=$?
 chmod 755 "$HP/runs"
+if [ "$(id -u)" = "0" ]; then
+  [ "$ERC" = "2" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：rc≥2 die 正常"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 异常"; }
+else
 if [ "$ERC" = "2" ] && echo "$EOUT" | grep -q "日志写入失败"; then
   PASS_N=$((PASS_N+1)); echo "  ✅ rc≥2+只读 runs 降级分支触发"
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级分支未按预期（rc=$ERC）"
+fi
 fi
 if [ "$(id -u)" != "0" ]; then
   echo '{"nopath":{"cmd":["/bin/sh","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
