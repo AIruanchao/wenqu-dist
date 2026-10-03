@@ -255,6 +255,23 @@ python3 "$WQ" --home "$HQ" run trap-double --path "$RQ" >/dev/null 2>&1; ck "sym
 FILES=$(python3 -c "import json; print(json.load(open('$HQ/state.json'))['files'])")
 [ "$FILES" = "1" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CLI 冻结范围排除 symlink（1 文件）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 冻结范围含 symlink（$FILES）"; }
 
+echo "== R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）=="
+HR="$TD/f19home"; RR="$TD/f19repo"; RR2="$TD/f19repo2"
+mkdir -p "$RR" "$RR2"; echo "r=1" > "$RR/r.py"; echo "s=1" > "$RR2/s.py"
+python3 "$WQ" --home "$HR" init --path "$RR" >/dev/null 2>&1
+echo '{"neg":{"cmd":["bash","-c","kill -TERM $$"],"sev":"LOW"}}' > "$HR/stations.json"
+python3 "$WQ" --home "$HR" run neg --path "$RR" >/dev/null 2>&1; ck "CX3：信号终止(-15)归环境错误 exit 2" 2 $?
+python3 "$WQ" --home "$HR" findings --path "$RR" --status OEPEN >/dev/null 2>&1; ck "CX4：拼错 --status OEPEN exit 2" 2 $?
+# CX8：跨仓 sweep——对 RR init 的 home，再对 RR2 跑同名 PASS 站，sweep 不应关 RR 的 finding
+echo '{"cx8":{"cmd":["bash","-c","exit 1"],"sev":"HIGH"}}' > "$HR/stations.json"
+python3 "$WQ" --home "$HR" run cx8 --path "$RR" >/dev/null 2>&1
+FID=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+echo '{"cx8":{"cmd":["bash","-c","exit 0"],"sev":"HIGH"}}' > "$HR/stations.json"
+python3 "$WQ" --home "$HR" run cx8 --path "$RR2" >/dev/null 2>&1
+python3 "$WQ" --home "$HR" sweep cx8 --path "$RR2" >/dev/null 2>&1
+ST=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -c "AUTO-")
+[ "$ST" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CX8：跨仓 PASS 不洗白本仓 finding"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ CX8：跨仓 sweep 洗白漏洞"; }
+
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then
   (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?

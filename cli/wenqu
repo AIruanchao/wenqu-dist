@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork18-maccc"
+VERSION = "0.3.0-fork19-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -231,19 +231,25 @@ def cmd_init(args):
         die("范围内零源文件（用 --include 自定义）")
     scope_hash = _scope_hash(picked)
     home = home_of(args)
-    old = home / STATE
-    if old.exists():
-        prev = json.loads(old.read_text(encoding="utf-8"))
-        led_f = home / LEDGER
-        has_ledger = led_f.exists() and led_f.stat().st_size > 0  # fork9 S3-五：零解码判非空（原严格 utf-8 读在 GBK 账本 re-init 裸崩）
-        if prev.get("scope_hash") != scope_hash and has_ledger and not getattr(args, "force", False):
-            die(f"范围已变（{prev.get('files')}→{len(picked)} 文件）而账本非空——重 init 将使旧账失去基准，确认请 --force（v0.2#11）")
-    (home / STATE).write_text(json.dumps({
-        "version": VERSION, "created_at": now(), "root": str(root),
-        "scope_hash": scope_hash, "files": len(picked), "exts": list(exts), "skip_dirs": sorted(skip),
-    }, ensure_ascii=False, indent=1), encoding="utf-8")
-    if not (home / LEDGER).exists():
-        (home / LEDGER).write_text("", encoding="utf-8")
+    # fork19-CX1/C3（Codex#1+K3-C2 双族交叉确认）：init 全程持锁+state 原子写——
+    # 原不持锁：并发下 B 写的账本可被 A 的 write_text("") 清空；state.json 原地覆写可读到半截 JSON
+    with _ledger_lock(home):
+        old = home / STATE
+        if old.exists():
+            prev = json.loads(old.read_text(encoding="utf-8"))
+            led_f = home / LEDGER
+            has_ledger = led_f.exists() and led_f.stat().st_size > 0
+            if prev.get("scope_hash") != scope_hash and has_ledger and not getattr(args, "force", False):
+                die(f"范围已变（{prev.get('files')}→{len(picked)} 文件）而账本非空——重 init 将使旧账失去基准，确认请 --force（v0.2#11）")
+        # state 原子写（K3-C2）：tmp→replace 而非原地覆写——并发 verify 不再读到半截
+        st_tmp = home / (STATE + ".tmp")
+        st_tmp.write_text(json.dumps({
+            "version": VERSION, "created_at": now(), "root": str(root),
+            "scope_hash": scope_hash, "files": len(picked), "exts": list(exts), "skip_dirs": sorted(skip),
+        }, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(st_tmp, home / STATE)
+        if not (home / LEDGER).exists():
+            (home / LEDGER).write_text("", encoding="utf-8")  # O_CREAT 语义=仅在不存在时创建，不截断既有
     print(f"OK init：范围冻结 {len(picked)} 文件，scope_hash={scope_hash}，账本在 {home / LEDGER}")
 
 
@@ -313,14 +319,18 @@ def cmd_run(args):
         die(f"站位 {args.station} 依赖命令不可用：{st['cmd'][0]}（exit 2，不落账）")
     except subprocess.TimeoutExpired:
         die(f"站位 {args.station} 超时（>{timeout_s}s，exit 2 不落账不计通过）")
-    run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now()}  # v0.3 血统件B：run 审计
+    except OSError as _ose:
+        # fork19-CX3（Codex#3）：PermissionError/ENOEXEC/EISDIR 等 OSError 族——
+        # 原仅捕 FileNotFoundError，其余裸 traceback exit 1 冒充命中
+        die(f"站位 {args.station} 探测器无法执行：{st['cmd'][0]}（{_ose.__class__.__name__}，exit 2 不落账）")
+    run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now(), "root": str(Path(args.path).resolve())}  # fork19-CX8：run 记录仓根  # v0.3 血统件B：run 审计
     if getattr(args, "round", 0):
         run_row["round"] = args.round  # fork2：run 轮次标记——使 AUTO 发现参与 verify --convergence 判定
-    # fork12（S6-2）：rc≥2 检查必须在 append 前——原 fork11 顺序先落 run 审计行再 die，
-    # 声称「不落账」实则已落（半事务），且带 round 的环境错误轮可铸 Converged（实测）
-    if r.returncode >= 2:
-        # fork14（S8-F1）：日志写失败降级——原裸 traceback exit 1 冒充 FAIL 语义（rc 契约 2 被打破）；
-        # 写不进日志时把证据打到 stderr 再 die（磁盘满时探测器 mktemp 失败与本处共因高相关）
+    # fork19-CX2（Codex#2+K3-C1 双族交叉确认）：run+finding 一次锁事务原子提交——
+    # 原两次独立 append：中间窗口 verify 只见 run exit=1 无 finding → exit 0 假绿；进程崩溃=永久假绿
+    # fork19-CX3（Codex#3）：rc 分类收紧——负数（信号终止如 SIGTERM=-15）也归环境错误不落账
+    if r.returncode != 0 and r.returncode != 1:
+        # rc≥2 或负数=环境错误
         try:
             logf.write_text(r.stdout + r.stderr, encoding="utf-8")
             _logref = f"日志 {logf}"
@@ -329,17 +339,18 @@ def cmd_run(args):
             print(r.stdout + r.stderr, file=sys.stderr)
             _logref = "日志缺失（写入失败，证据已转 stderr）"
         die(f"站位 {args.station} 探测器自身错误（exit={r.returncode}，{_logref}——不落账不计通过）", 2)
-    # fork13（S7-2）：finding 落账先于日志写——原 run 行→logf→finding 三步非原子，
-    # logf IO 失败（磁盘满/权限）打在中间=run 落账+finding 丢失+verify 假绿（实测）；
-    # 日志降级为诊断工件：写失败仅警告不阻断落账
-    append(home, run_row)
+    # 原子批写：run + finding 同一把锁内一次 _append_unlocked
+    _batch = [run_row]
     if r.returncode != 0:
         finding_row = {"kind": "finding", "id": _auto_id(args.station),
                        "sev": st["sev"], "status": "OPEN", "title": f"站位 {args.station} FAIL（exit={r.returncode}）",
-                       "provenance": {"station": args.station, "log": str(logf), "ts": now()}}
+                       "provenance": {"station": args.station, "log": str(logf), "ts": now(),
+                                      "root": str(Path(args.path).resolve())}}  # fork19-CX8：provenance 绑仓根（sweep 跨仓防线）
         if getattr(args, "round", 0):
             finding_row["round"] = args.round
-        append(home, finding_row)
+        _batch.append(finding_row)
+    with _ledger_lock(home):
+        _append_unlocked(home, _batch)
     _logref = f"日志 {logf}"
     _log_written = True
     try:
@@ -600,18 +611,28 @@ def cmd_sweep(args):
     # fork6（#6，加固六）：重读-判定-写入全程持锁+单事务批写——原锁外构建 view 逐条 append，
     # 窗口内发现被 close 后仍按陈旧 OPEN 快照落 OPEN→FIXED（实测复活已关闭发现=状态机
     # 明令禁止的 CLOSED→FIXED 横跳）；且逐条 append 中途失败留半批
+    # fork19-CX8（Codex#8）：sweep 绑定目标仓——原同一 home 对缺陷仓 init/run 得 OPEN，
+    # 再对干净仓运行同名站得 PASS 即可洗白缺陷仓 finding（跨仓 sweep 漏洞）
+    _st = json.loads((home / STATE).read_text(encoding="utf-8")) if (home / STATE).exists() else {}
+    _sweep_root = str(_st.get("root", ""))
     with _ledger_lock(home):
         entries = load_entries(home)
         runs = [e for e in entries if e.get("kind") == "run" and e.get("station") == args.station]
         if not runs or runs[-1].get("exit") != 0:
             die(f"站位 {args.station} 无 PASS 的 run 记录，拒绝 sweep（防误关）")
+        # fork19-CX8：PASS run 必须绑同仓——最近 PASS 的 root 须匹配 state.root
+        _pass_root = str(runs[-1].get("root", _sweep_root))
+        if _pass_root != _sweep_root:
+            die(f"站位 {args.station} 最近 PASS 在 {_pass_root}（≠本仓 {_sweep_root}）——拒绝跨仓 sweep（CX8）", 2)
         view = resolve(entries)
         trans = []
         for fid, (f, st, _) in view.items():
             # fork5（BSF-20261002-40）：站名精确匹配用账本里已有的 provenance.station——
             # 原 `args.station in fid` 是 id 子串匹配，站名互为子串时误关别家发现
+            # fork19-CX8：追加仓根匹配——provenance.root 必须与 state.root 一致
             if fid.startswith("AUTO-") and st == "OPEN" \
-                    and f.get("provenance", {}).get("station") == args.station:
+                    and f.get("provenance", {}).get("station") == args.station \
+                    and str(f.get("provenance", {}).get("root", _sweep_root)) == _sweep_root:
                 trans.append({"kind": "transition", "id": fid, "from": "OPEN", "to": "FIXED",
                               "note": "sweep：station %s 最近 run PASS" % args.station, "ts": now()})
         if trans:
@@ -800,7 +821,9 @@ def main(argv=None):
     p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("findings", help="账本查询（现态视图）")
     p.add_argument("--path", default=".")
-    p.add_argument("--sev"); p.add_argument("--status")
+    # fork19-CX4（Codex#4）：--sev/--status 枚举校验——原拼错如 OEPEN 静默空结果 exit 0=CI 假绿
+    p.add_argument("--sev", choices=list(SEVS) + [s.lower() for s in SEVS], help="严重级过滤")
+    p.add_argument("--status", choices=list(STATUSES) + [s.lower() for s in STATUSES], help="状态过滤")
     p.add_argument("--gate", action="store_true", help="任一匹配即 exit 1（CI 门禁，v0.2#15）")
     p.set_defaults(fn=cmd_findings)
     p = sub.add_parser("show", help="单条全览")
