@@ -11,7 +11,9 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: release-check（版本号残留机械闸）
-        run: bash tests/release-check.sh v1.0.18 fork18
+        run: V=$(python cli/wenqu --version | awk '{print $2}' | sed "s/^0\.3\.0-//;s/-maccc$//")
+        DV=$(ls docs/问渠轨道规范-发行版-*.md | sed "s/.*发行版-v//;s/\.md//")
+        bash tests/release-check.sh v$DV $V
       - name: acceptance 49 项（探测器需 bash/awk/grep/find——runner 原生）
         run: bash tests/acceptance.sh
       - name: pytest 契约
