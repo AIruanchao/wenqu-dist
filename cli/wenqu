@@ -284,8 +284,13 @@ def _scope_files(root: Path, exts, skip=()):
                 try:
                     data = p.read_bytes()  # 裁定#17：读异常守卫
                 except OSError:
+                    picked[str(p.relative_to(root)).replace("\\", "/")] = "UNREADABLE"  # fork19-CX23
                     continue
                 picked[str(p.relative_to(root)).replace("\\", "/")] = hashlib.sha256(data).hexdigest()
+    # fork19-CX23（Codex R7#2）：不可读文件不吞——标 UNREADABLE 并在 init/verify 报 BLOCKED
+    _bad = [k for k, v in picked.items() if v == "UNREADABLE"]
+    if _bad:
+        die(f"范围不完整：{len(_bad)} 个源文件不可读（{_bad[0]}…）——BLOCKED（CX23 fail-closed）", 2)
     return picked
 
 
