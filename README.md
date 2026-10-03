@@ -6,7 +6,7 @@
 
 ```
 wenqu-dist/
-├── cli/wenqu            # CLI 执行器 v0.3.0-fork15-maccc（stdlib-only 单文件；fork1-15 修复史见 CHANGELOG）
+├── cli/wenqu            # CLI 执行器 v0.3.0-fork16-maccc（stdlib-only 单文件；fork1-15 修复史见 CHANGELOG）
 ├── cli/test_wenqu.py    # CLI 契约测试套件（pytest）
 ├── cli/README.md        # CLI 用法（上游版）
 ├── probes/stations.json # 初始三域探测器（trap-double/guard-comment-swallow/cred-cli-expose）

@@ -218,6 +218,12 @@ if [ "$F1RC" = "1" ] && echo "$F1OUT" | grep -q "日志缺失" && [ "$N2" = "$((
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:${N1}到${N2} out=${F1OUT:0:80}）"
 fi
+# fork16（S10-FB）：note 回填断言——降级后账本应含 LOG-MISSING note 行+repair 不隔离它
+NOTEN=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+[ "$NOTEN" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ note 回填行在账本"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ note 回填缺失"; }
+python3 "$WQ" --home "$HP" repair >/dev/null 2>&1
+NOTE2=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+[ "$NOTE2" = "$NOTEN" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ repair 后 note 行存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ repair 隔离了 note（${NOTEN}到${NOTE2}）"; }
 fi
 # fork15：rc≥2+只读 runs=降级分支（证据转 stderr）
 echo '{"e2x":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
@@ -237,6 +243,17 @@ if [ "$(id -u)" != "0" ]; then
   echo '{"nopath":{"cmd":["/bin/sh","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
   python3 "$WQ" --home "$HP" run nopath --path "$RP" >/dev/null 2>&1; ck "环境错误站 die(2)" 2 $?
 fi
+
+echo "== Q. fork16：symlink 排除与 CLI 对齐（S10-FA）=="
+HQ="$TD/f16home"; RQ="$TD/f16repo"; mkdir -p "$RQ" "$TD/outside"
+echo "h=1" > "$RQ/h.py"
+printf '#!/usr/bin/env bash\ntrap "a" EXIT\ntrap "b" EXIT\n' > "$TD/outside/evil.sh"
+ln -sf "$TD/outside/evil.sh" "$RQ/evil.sh"
+python3 "$WQ" --home "$HQ" init --path "$RQ" >/dev/null 2>&1
+cp "$ROOT/probes/stations.json" "$HQ/stations.json"
+python3 "$WQ" --home "$HQ" run trap-double --path "$RQ" >/dev/null 2>&1; ck "symlink 指向仓外目标被排除" 0 $?
+FILES=$(python3 -c "import json; print(json.load(open('$HQ/state.json'))['files'])")
+[ "$FILES" = "1" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CLI 冻结范围排除 symlink（1 文件）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 冻结范围含 symlink（$FILES）"; }
 
 echo "== H. pytest 契约套件（若 pytest 可用）=="
 if python3 -c "import pytest" 2>/dev/null; then

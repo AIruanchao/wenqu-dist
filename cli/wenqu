@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork15-maccc"
+VERSION = "0.3.0-fork16-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -384,7 +384,7 @@ def cmd_ingest(args):
         if d.get("kind") not in ("finding", "transition"):
             # fork8 F5：原实现 kind:"run"/"charter" 行掉进 finding 分支照单全收——一条命令
             # 即可伪造 PASS run 行骗 sweep 误关真实发现；审计行只能由 CLI 自身产生
-            errs.append(f"第{i}行：kind 非法 {d.get('kind')}（审计行 run/charter 只能由 CLI 产生，外部仅 finding/transition）")
+            errs.append(f"第{i}行：kind 非法 {d.get('kind')}（审计行 run/charter/note 只能由 CLI 产生，外部仅 finding/transition）")
             continue
         if "round" in d:
             r = d["round"]
