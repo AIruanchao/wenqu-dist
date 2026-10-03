@@ -4,17 +4,19 @@ jobs:
   matrix:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]  # 闭条件放行声明盲区#5（平台证据两台→CI 持续双平台）
+        os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - name: release-check（版本号残留机械闸）
-        run: V=$(python cli/wenqu --version | awk '{print $2}' | sed "s/^0\.3\.0-//;s/-maccc$//")
-        DV=$(ls docs/问渠轨道规范-发行版-*.md | sed "s/.*发行版-v//;s/\.md//")
-        bash tests/release-check.sh v$DV $V
-      - name: acceptance 49 项（探测器需 bash/awk/grep/find——runner 原生）
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
         run: bash tests/acceptance.sh
       - name: pytest 契约
         run: pip install pytest && python -m pytest cli/test_wenqu.py -q
