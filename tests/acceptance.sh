@@ -219,10 +219,10 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:${N1}到${N2} out=${F1OUT:0:80}）"
 fi
 # fork16（S10-FB）：note 回填断言——降级后账本应含 LOG-MISSING note 行+repair 不隔离它
-NOTEN=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+NOTEN=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTEN=${NOTEN:-0}
 [ "$NOTEN" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ note 回填行在账本"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ note 回填缺失"; }
 python3 "$WQ" --home "$HP" repair >/dev/null 2>&1
-NOTE2=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+NOTE2=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTE2=${NOTE2:-0}
 [ "$NOTE2" = "$NOTEN" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ repair 后 note 行存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ repair 隔离了 note（${NOTEN}到${NOTE2}）"; }
 fi
 # fork15：rc≥2+只读 runs=降级分支（证据转 stderr）

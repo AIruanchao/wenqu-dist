@@ -40,5 +40,5 @@ append-only 账本（转移审计链可见）/ schema 双口校验/ 原子 inges
 - **convergence 三前置**（fork2/BSF-38）：Converged 须 已标轮次 ≥N 且轮号连续 且近 N 轮零新发现；任一不满足即拒绝（证据不足/不连续/未收敛）。
 - **repair 行类安全**（fork4/BSF-39）：run/charter 审计行不再被误隔离（原一次 repair 清空审计链+废掉 sweep）；重写账本走与 append 相同的锁协议；quarantine 追加式（不覆盖前次隔离历史）。
 
-## fork5-15 行为增补（v1.0.15 补录——此前停在 fork4）
-- fork5 sweep 站名精确匹配（provenance.station）；fork6 并发安全四写者全程锁+ingest 折叠视图+charter 铸轮拒绝；fork7 GBK 写路径；fork8 U+2028 行分割+close 锁+kind 白名单；fork9 flock 锁+缺 id+--path 守卫；fork10 rc 契约（1=命中/≥2=环境错误）+B 段双断言；fork11 rc≥2 不落账+UTC 绝对断言；fork12 PIPESTATUS 直管+die 前置；fork13 LC_ALL=C 三站+finding 先于日志；fork14 日志降级统一；fork15 provenance 降级标记+! -type l。详见 ../CHANGELOG.md。
+## fork5-17 行为增补（v1.0.17 补录）
+- fork5 sweep 站名精确匹配（provenance.station）；fork6 并发安全四写者全程锁+ingest 折叠视图+charter 铸轮拒绝；fork7 GBK 写路径；fork8 U+2028 行分割+close 锁+kind 白名单；fork9 flock 锁+缺 id+--path 守卫；fork10 rc 契约（1=命中/≥2=环境错误）+B 段双断言；fork11 rc≥2 不落账+UTC 绝对断言；fork12 PIPESTATUS 直管+die 前置；fork13 LC_ALL=C 三站+finding 先于日志；fork14 日志降级统一；fork15 provenance 降级标记+note 回填；fork16 ! -type l 真落（勘误：曾误记 fork15）+三变异闭环；fork17 升版文档面收口+release-check。详见 ../CHANGELOG.md。
