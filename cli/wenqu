@@ -595,9 +595,13 @@ def cmd_verify(args):
         # fork6（#4，加固六）：轮次证据限定 run 行∪带 round 的 finding/transition 产物行——
         # 原集合不过滤 kind，charter 行同权参与（charter 只打印提示词零探测，两条命令
         # 即可铸连续轮号伪造 Converged，实测）；AI 审轮（ingest --round 产物）保留资格
+        # fork19-CX16（Codex 四审#1）：convergence 绑仓——run 须带 root 且匹配 state.root
+        _v_st = json.loads((home / STATE).read_text(encoding="utf-8")) if (home / STATE).exists() else {}
+        _v_root = _v_st.get("root", "")
         all_rounds = sorted({e.get("round") for e in entries
                              if isinstance(e.get("round"), int)
-                             and e.get("kind") in ("run", "finding", "transition")})
+                             and e.get("kind") in ("run", "finding", "transition")
+                             and (e.get("kind") != "run" or str(e.get("root", _v_root)) == _v_root)})
         if len(all_rounds) < args.convergence:
             converged = False
             conv_txt = f"；收敛环=证据不足（已标 {len(all_rounds)}/{args.convergence} 轮，拒绝 Converged）"

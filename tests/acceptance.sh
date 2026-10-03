@@ -280,7 +280,12 @@ cp "$ROOT/probes/stations.json" "$HS/stations.json"
 if [ "$(id -u)" != "0" ]; then
   printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/rs/h.sh"
   chmod 000 "$RS/rs" 2>/dev/null
-  python3 "$WQ" --home "$HS" run trap-double --path "$RS" >/dev/null 2>&1; ck "CX12：不可读子目录=环境错误" 2 $?
+  CXOUT=$(python3 "$WQ" --home "$HS" run trap-double --path "$RS" 2>&1); CXRC=$?
+  if [ "$CXRC" = "2" ] && echo "$CXOUT" | grep -qi "探测器自身错误.*exit=2"; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（stderr 含权限标记）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC out=${CXOUT:0:80}"
+  fi
   chmod 755 "$RS/rs" 2>/dev/null
 else
   echo "  ⏭ root 豁免：CX12 权限面跳过"
