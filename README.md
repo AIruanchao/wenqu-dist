@@ -43,3 +43,7 @@ python3 cli/wenqu verify --path <你的仓> --allow-open 0
 - 方法论正源：maccc `~/.agents/skills/bug-scan-pipeline/SKILL.md` v1.8（ERP 主仓重装管线）。
 - CLI 正源：ccc 治理线 `办公系统/wenqu-cli/` v0.3.0；版本史见 CHANGELOG.md。本包 fork 均带源码注释标记：BSF-37（argparse choices 锁死插座）+ BSF-38（convergence 空转）另加固 run 超时防线与 --round 轮次落账；修法已回报 serve-v4 待上游采纳。
 - 实测履历：F4 跨仓扫描（37 发现，两轮异源+HIGH 全亲验）+ fork 集成测试四绿 + 三探测器实弹全中真缺陷。
+
+## CI（平台证据第三环境）
+
+`.github/workflows/acceptance.yml`（macOS+Ubuntu 双矩阵×release-check+49 项+pytest+selftest）已备——推送到 GitHub 即生效，永久闭掉条件放行声明的平台证据盲区（#5）。推送命令（外发动作，待定）：`git remote add origin <私仓URL> && git push -u origin main`。
