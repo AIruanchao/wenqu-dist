@@ -143,7 +143,14 @@ def _append_unlocked(home: Path, entries) -> None:
     tmp = home / (LEDGER + ".tmp")
     _ledger_data = (base + "".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in entries)).encode("utf-8", "surrogateescape")
     _lfd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)  # fork19-CX11
-    os.write(_lfd, _ledger_data); os.close(_lfd)
+    try:
+        _written = 0  # fork19-CX14：循环写满——短写（ENOSPC/FUSE）禁 replace 防半截账本
+        while _written < len(_ledger_data):
+            _n = os.write(_lfd, _ledger_data[_written:])
+            if _n == 0: raise OSError("short write: 0 bytes")
+            _written += _n
+    finally:
+        os.close(_lfd)
     os.replace(tmp, led)  # 原子替换（裁定#4：整批要么全在要么全不在）
 
 
@@ -250,7 +257,14 @@ def cmd_init(args):
             "scope_hash": scope_hash, "files": len(picked), "exts": list(exts), "skip_dirs": sorted(skip),
         }, ensure_ascii=False, indent=1).encode("utf-8")
         _st_fd = os.open(str(st_tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-        os.write(_st_fd, _st_data); os.close(_st_fd)
+        try:
+            _sw = 0; _sd = _st_data if isinstance(_st_data, bytes) else _st_data.encode()
+            while _sw < len(_sd):
+                _n = os.write(_st_fd, _sd[_sw:])
+                if _n == 0: raise OSError("short write")
+                _sw += _n
+        finally:
+            os.close(_st_fd)
         os.replace(st_tmp, home / STATE)
         if not (home / LEDGER).exists():
             (home / LEDGER).write_text("", encoding="utf-8")  # O_CREAT 语义=仅在不存在时创建，不截断既有
@@ -300,11 +314,7 @@ def cmd_run(args):
         die(f"未知站位 {args.station}；可用：{', '.join(sorted(stations))}（AI 站走 charter+ingest）")
     if not Path(args.path).resolve().is_dir():
         die(f"--path 不存在：{args.path}（fork6#10：原误归因为『依赖命令不可用』误导排障）")
-    # fork19-CX9（Codex 终审#2）：run 绑仓——原可对任意仓跑轮次然后 verify 本仓=跨仓 Converged
-    _st_j = json.loads((home / STATE).read_text(encoding="utf-8")) if (home / STATE).exists() else {}
-    _sr = _st_j.get("root", "")
-    if _sr and str(Path(args.path).resolve()) != _sr:
-        die(f"--path 与 init 冻结仓不一致：{args.path} ≠ {_sr}（CX9 防跨仓 convergence）")
+
     st = stations[args.station]
     runs = home / "runs"
     runs.mkdir(exist_ok=True)
@@ -866,6 +876,17 @@ def main(argv=None):
     # fork11（S5-F2）：--home 同构入口——读命令对不存在的 --home 凭空 mkdir 幽灵账本
     # →空账本→--gate 假绿（typo 一字之差门禁放行）；mkdir 权限只留给写命令（init/run/charter）
     _READ_CMDS = ("findings", "verify", "show", "sweep", "close", "repair", "ingest")
+    # fork19-CX13（Codex 三审#1）：全部命令绑仓——CX9 只修了 run，verify/sweep/ingest
+    # 仍可 --home A --path B 交叉操作=身份不一致（跨仓 convergence/ingest 投毒）
+    # --path 默认 "." 时跳过（ingest 等不显式传 --path 的调用面）；仅显式传了不同 --path 才拦
+    _explicit_path = getattr(args, "path", None)
+    if _explicit_path and _explicit_path != "." and getattr(args, "cmd", "") in ("run", "ingest", "verify", "sweep", "close"):
+        _h_for_check = Path(getattr(args, "home", None) or (Path(_explicit_path) / ".wenqu"))
+        _st_f = _h_for_check / STATE
+        if _st_f.exists():
+            _st_r = json.loads(_st_f.read_text(encoding="utf-8")).get("root", "")
+            if _st_r and str(Path(_explicit_path).resolve()) != _st_r:
+                die(f"--path 与 init 冻结仓不一致：{_explicit_path} ≠ {_st_r}（CX13 全命令绑仓）")
     if getattr(args, "cmd", "") in _READ_CMDS:
         # fork12（S6-4）：缺省 home 同构入口——未 init 仓的 findings --gate 原凭空 mkdir
         # .wenqu→空账本→exit 0 假绿+写入仓（CI 新 clone 忘 init=门禁永久假绿）
