@@ -331,9 +331,21 @@ def cmd_run(args):
     if timeout_s < 1:
         die(f"站位 {args.station} 的 timeout 非法：{timeout_s}（须 ≥1 秒，exit 2 不落账）")
     try:
-        r = subprocess.run(st["cmd"], cwd=str(Path(args.path).resolve()),
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=timeout_s)
+        # fork19-CX19（Codex R5#2）：独立进程组+超时杀全组——原只杀直接子进程，
+        # 探测器后台任务可在 CLI 报超时后继续运行（实证：父超时 0.1s 后代 0.51s 仍存活）
+        import signal as _sig
+        _proc = subprocess.Popen(st["cmd"], cwd=str(Path(args.path).resolve()),
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                  encoding="utf-8", errors="replace", start_new_session=True)
+        try:
+            _so, _se = _proc.communicate(timeout=timeout_s)
+            class _R: pass
+            r = _R(); r.returncode = _proc.returncode; r.stdout = _so or ""; r.stderr = _se or ""
+        except subprocess.TimeoutExpired:
+            import os as _os
+            _os.killpg(_os.getpgid(_proc.pid), _sig.SIGKILL)
+            _so, _se = _proc.communicate()
+            raise subprocess.TimeoutExpired(st["cmd"][0], timeout_s)
     except FileNotFoundError:
         die(f"站位 {args.station} 依赖命令不可用：{st['cmd'][0]}（exit 2，不落账）")
     except subprocess.TimeoutExpired:

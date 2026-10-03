@@ -281,10 +281,14 @@ if [ "$(id -u)" != "0" ]; then
   printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/rs/h.sh"
   chmod 000 "$RS/rs" 2>/dev/null
   CXOUT=$(python3 "$WQ" --home "$HS" run trap-double --path "$RS" 2>&1); CXRC=$?
-  if [ "$CXRC" = "2" ] && echo "$CXOUT" | grep -qi "探测器自身错误.*exit=2"; then
-    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（stderr 含权限标记）"
+  # fork19-CX20（Codex R5#3）：真断言——CLI 包装语可伪造，读 run 日志验真 Permission denied
+  CXLOG=$(ls -t "$HS"/runs/*trap-double*.log 2>/dev/null | head -1)
+  CXLOGERR=""
+  [ -n "$CXLOG" ] && CXLOGERR=$(grep -ci "denied\|permission" "$CXLOG" 2>/dev/null || echo 0)
+  if [ "$CXRC" = "2" ] && [ "${CXLOGERR:-0}" -ge 1 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC out=${CXOUT:0:80}"
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC logerr=$CXLOGERR"
   fi
   chmod 755 "$RS/rs" 2>/dev/null
 else
