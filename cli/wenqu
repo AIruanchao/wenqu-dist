@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork14-maccc"
+VERSION = "0.3.0-fork15-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")
@@ -341,11 +341,17 @@ def cmd_run(args):
             finding_row["round"] = args.round
         append(home, finding_row)
     _logref = f"日志 {logf}"
+    _log_written = True
     try:
         logf.write_text(r.stdout + r.stderr, encoding="utf-8")
     except OSError as log_err:
         print(f"wenqu: 警告：日志写入失败 {logf}（{log_err}）——落账不受影响", file=sys.stderr)
         _logref = "日志缺失（写入失败）"  # fork14（S8-F5）：原 FAIL 行仍宣称日志路径=自相矛盾+审计断链 404
+        _log_written = False
+    if not _log_written:
+        # fork15（S9-F3）：账本层断链回填——provenance.log 指向未写成文件=审计 404（stdout 早已消散）
+        append(home, {"kind": "note", "id": "LOG-MISSING", "station": args.station,
+                      "detail": f"日志写入失败，provenance.log 路径无效：{logf}", "ts": now()})
     if r.returncode != 0:
         print(f"FAIL {args.station}（exit={r.returncode}）——已落账 OPEN，{_logref}")
         sys.exit(1)
@@ -663,7 +669,7 @@ def cmd_repair(args):
                     err = validate_transition(d, "第%d行" % i)
                     if err:
                         raise ValueError(err)
-                elif kind in ("run", "charter"):
+                elif kind in ("run", "charter", "note"):  # fork15：note（日志缺失回填）入白名单——BSF-39 同族教训
                     # fork4（2026-10-02 加固四，上游 BSF-20261002-39）：v0.3 行类白名单——
                     # repair 是 v0.2 件不认识 v0.3 的 run/charter 审计行，原实现当「未知 kind」
                     # 隔离（实测：一次 repair 清空全部 run 行+连锁废掉 sweep 的 PASS 依据）
