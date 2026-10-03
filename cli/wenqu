@@ -354,7 +354,7 @@ def cmd_run(args):
         # fork19-CX3（Codex#3）：PermissionError/ENOEXEC/EISDIR 等 OSError 族——
         # 原仅捕 FileNotFoundError，其余裸 traceback exit 1 冒充命中
         die(f"站位 {args.station} 探测器无法执行：{st['cmd'][0]}（{_ose.__class__.__name__}，exit 2 不落账）")
-    run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now(), "root": str(Path(args.path).resolve())}  # fork19-CX8：run 记录仓根  # v0.3 血统件B：run 审计
+    run_row = {"kind": "run", "station": args.station, "exit": r.returncode, "ts": now(), "root": str(Path(args.path).resolve()), "rfp": hashlib.sha256(json.dumps(st, sort_keys=True).encode()).hexdigest()[:12]}  # fork19-CX8：run 记录仓根  # v0.3 血统件B：run 审计
     if getattr(args, "round", 0):
         run_row["round"] = args.round  # fork2：run 轮次标记——使 AUTO 发现参与 verify --convergence 判定
     # fork19-CX2（Codex#2+K3-C1 双族交叉确认）：run+finding 一次锁事务原子提交——
@@ -593,7 +593,8 @@ def cmd_verify(args):
                     if e.get("kind") == "transition"]
     schema_errs = [s for s in schema_errs if s]
     view = resolve(entries)
-    opens = [fid for fid, (_, st, _) in view.items() if st == "OPEN"]
+    opens = [fid for fid, (_, st, _) in view.items() if st in ("OPEN", "FIXING", "PARTIAL")]
+    # fork19-CX21（Codex R6#1）：FIXING/PARTIAL 也是未解决态——原只数 OPEN=部分修复态静默过门
     drift = ""
     if args.check_scope:
         st = json.loads((home / STATE).read_text(encoding="utf-8"))
@@ -667,9 +668,13 @@ def cmd_sweep(args):
             # fork5（BSF-20261002-40）：站名精确匹配用账本里已有的 provenance.station——
             # 原 `args.station in fid` 是 id 子串匹配，站名互为子串时误关别家发现
             # fork19-CX8：追加仓根匹配——provenance.root 必须与 state.root 一致
+            _st_cfg = stations.get(args.station, {})
+            _rfp = __import__("hashlib").sha256(json.dumps(_st_cfg, sort_keys=True).encode()).hexdigest()[:12] if _st_cfg else ""
+            _finding_rfp = f.get("provenance", {}).get("rfp", "")
             if fid.startswith("AUTO-") and st == "OPEN" \
                     and f.get("provenance", {}).get("station") == args.station \
-                    and str(f.get("provenance", {}).get("root", _sweep_root)) == _sweep_root:
+                    and str(f.get("provenance", {}).get("root", _sweep_root)) == _sweep_root \
+                    and (not _finding_rfp or not _rfp or _finding_rfp == _rfp):  # fork19-CX22：规则指纹匹配（同规则才可 sweep）
                 trans.append({"kind": "transition", "id": fid, "from": "OPEN", "to": "FIXED",
                               "note": "sweep：station %s 最近 run PASS" % args.station, "ts": now()})
         if trans:
