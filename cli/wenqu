@@ -20,7 +20,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "0.3.0-fork17-maccc"
+VERSION = "0.3.0-fork18-maccc"
 LEDGER = "findings.jsonl"
 STATE = "state.json"
 SEVS = ("HIGH", "MEDIUM", "LOW")

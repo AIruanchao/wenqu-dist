@@ -9,7 +9,11 @@ for f in README.md cli/README.md docs/*.md; do
   while IFS=: read -r ln content; do
     echo "  残留: $f:$ln $content"
     FAIL=1
-  done < <(grep -nE "v0\.3\.0-fork[0-9]+-maccc|发行版-v1\.0\.[0-9]+\.md" "$f" | grep -v "$F" | grep -v "$V" || true)
+  # fork17-S12 加固：先剥本行的新版本引用再查旧（防同行新旧并存被整行豁免）；
+  # forkN/vN.N.N 后加边界类（[^0-9]|$）防 fork170 前瞻豁免
+  done < <(grep -nE "v0\.3\.0-fork[0-9]+-maccc|发行版-v1\.0\.[0-9]+\.md" "$f" \
+    | sed -E "s/$F[^0-9]/CUR/g; s/${V//./\\.}[^0-9]/CUR/g" \
+    | grep -E "v0\.3\.0-fork[0-9]+-maccc|发行版-v1\.0\.[0-9]+\.md" || true)
 done
 # CLI VERSION 常量对齐
 GV=$(python3 cli/wenqu --version | awk '{print $2}')
