@@ -48,7 +48,7 @@
     "cmd": [
       "bash",
       "-c",
-      "if [ ! -d sdd/domain-spec ]; then exit 0; fi; missing=$(for f in sdd/domain-spec/*.md; do   [ -f \"$f\" ] && ! grep -q '## 验收标准\\|## Acceptance' \"$f\" && echo \"missing: $f\"; done | head -5); if [ -n \"$missing\" ]; then echo \"$missing\"; exit 1; fi; exit 0"
+      "if [ ! -d sdd/domain-spec ]; then exit 0; fi; missing=$(for f in sdd/domain-spec/*.md; do   [ -f \"$f\" ] && ! grep -qE '验收标准|^#+[[:space:]]*验收[[:space:]]*$|## Acceptance' \"$f\" && echo \"missing: $f\"; done | head -5); if [ -n \"$missing\" ]; then echo \"$missing\"; exit 1; fi; exit 0"
     ],
     "sev": "MEDIUM",
     "timeout": 30
