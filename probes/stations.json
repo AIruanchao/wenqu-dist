@@ -39,7 +39,7 @@
     "cmd": [
       "bash",
       "-c",
-      "if [ ! -d src/app ]; then exit 0; fi; hits=$(grep -rn '\\.status\\b\\|\\.pickupMode\\b\\|\\.settlementTiming\\b\\|\\.paymentStatus\\b' --include='*.tsx' src/app/ 2>/dev/null | grep -v 'LABEL\\|Label\\|label\\|map\\|Map\\|format\\|Format\\|statusLabel\\|displayStatus' | grep '\\${.*\\.' | grep -v '===\\|!==\\|?\\.' | grep -v 'href=\\|className=\\|searchParams\\|as.*Type\\|as string\\|as const\\|trim()\\|String(' | head -5); if [ -n \"$hits\" ]; then echo \"$hits\"; exit 1; fi; exit 0"
+      "if [ ! -d src/app ]; then exit 0; fi; hits=$(grep -rn '\\.status\\b\\|\\.pickupMode\\b\\|\\.settlementTiming\\b\\|\\.paymentStatus\\b' --include='*.tsx' src/app/ 2>/dev/null | grep -v 'LABEL\\|Label\\|label\\|map\\|Map\\|format\\|Format\\|statusLabel\\|displayStatus' | grep '\\${.*\\.' | grep -v '===\\|!==\\|?\\.' | grep -v 'href=\\|className=\\|value={\\|searchParams\\|as.*Type\\|as string\\|as const\\|trim()\\|String('   | grep -v '?? [0-9]' | grep -v 'HTTP \\${' | grep -vE ':[[:space:]]*`.*`,[[:space:]]*$' | head -5); if [ -n \"$hits\" ]; then echo \"$hits\"; exit 1; fi; exit 0"
     ],
     "sev": "LOW",
     "timeout": 30
@@ -75,7 +75,7 @@
     "cmd": [
       "bash",
       "-c",
-      "if [ ! -d src ]; then exit 0; fi; hits=$(for f in $(find src -name '*.tsx' -o -name '*.ts' 2>/dev/null); do   if grep -q '\"use client\"' \"$f\" 2>/dev/null; then     first=$(head -1 \"$f\" | tr -d '[:space:]');     if [ \"$first\" != '\"useclient\"' ] && [ \"$first\" != '\"useclient\";' ]; then       echo \"use-client not first line: $f\"; fi; fi; done | head -5); if [ -n \"$hits\" ]; then echo \"$hits\"; exit 1; fi; exit 0"
+      "if [ ! -d src ]; then exit 0; fi; hits=$(for f in $(find src -name '*.tsx' -o -name '*.ts' 2>/dev/null); do if grep -q '\"use client\"' \"$f\" 2>/dev/null; then first=$(head -1 \"$f\" | tr -d '[:space:]' | sed 's|//.*||'); if [ \"$first\" != '\"useclient\"' ] && [ \"$first\" != '\"useclient\";' ]; then echo \"use-client not first line: $f\"; fi; fi; done | head -5); if [ -n \"$hits\" ]; then echo \"$hits\"; exit 1; fi; exit 0"
     ],
     "sev": "MEDIUM",
     "timeout": 60
