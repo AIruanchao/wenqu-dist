@@ -30,7 +30,7 @@
     "cmd": [
       "bash",
       "-c",
-      "if [ ! -f package.json ]; then exit 0; fi; if [ ! -f package-lock.json ]; then echo 'package-lock.json missing'; exit 1; fi; MISSING=$(python3 -c \"import json\\npkg = json.load(open('package.json'))\\nlock = json.load(open('package-lock.json'))\\npkg_deps = {**pkg.get('dependencies',{}), **pkg.get('devDependencies',{})}\\nlock_pkgs = set(lock.get('packages',{}).keys())\\nfor d in pkg_deps:\\n    if f'node_modules/{d}' not in lock_pkgs:\\n        print(f'missing: {d}')\\n\" 2>/dev/null); if [ -n \"$MISSING\" ]; then echo \"$MISSING\"; exit 1; fi; exit 0"
+      "if [ ! -f package.json ]; then exit 0; fi; if [ ! -f package-lock.json ]; then echo 'package-lock.json missing'; exit 1; fi; MISSING=$(python3 -c \"import json;pkg=json.load(open('package.json'));lock=json.load(open('package-lock.json'));deps={**pkg.get('dependencies',{}),**pkg.get('devDependencies',{})};pkgs=set(lock.get('packages',{}).keys());missing=[d for d in deps if 'node_modules/'+d not in pkgs];print('missing: '+' '.join(missing)) if missing else None\" 2>/dev/null); if [ -n \"$MISSING\" ]; then echo \"$MISSING\"; exit 1; fi; exit 0"
     ],
     "sev": "MEDIUM",
     "timeout": 30
@@ -66,7 +66,7 @@
     "cmd": [
       "bash",
       "-c",
-      "if [ ! -f sdd/bug-library/PITFALLS.md ]; then exit 0; fi; total=$(grep -c '^## PIT-' sdd/bug-library/PITFALLS.md 2>/dev/null || echo 0); tagged=$(grep -c '^family:' sdd/bug-library/PITFALLS.md 2>/dev/null || echo 0); if [ \"$total\" -gt 0 ] && [ \"$tagged\" -lt \"$total\" ]; then   echo \"PIT entries without family tag: $((total - tagged))/$total\"; exit 1; fi; exit 0"
+      "if [ ! -f sdd/bug-library/PITFALLS.md ]; then exit 0; fi; total=$(grep -c '^## PIT-' sdd/bug-library/PITFALLS.md 2>/dev/null); total=${total:-0}; tagged=$(grep -c '^family:' sdd/bug-library/PITFALLS.md 2>/dev/null); tagged=${tagged:-0}; if [ \"$total\" -gt 0 ] && [ \"$tagged\" -lt \"$total\" ]; then echo \"PIT entries without family tag: $((total - tagged))/$total\"; exit 1; fi; exit 0"
     ],
     "sev": "LOW",
     "timeout": 30
