@@ -1,29 +1,83 @@
 {
- "trap-double": {
-  "cmd": [
-   "bash",
-   "-c",
-   "_e=$(mktemp) || exit 2; [ -z \"$(find . \\( -name node_modules -o -name .git -o -name .venv -o -name __pycache__ \\) -prune -o -name '*.sh' ! -type l -print -quit 2>>\"$_e\")\" ] && {\n  # fork19-CX12（Codex 终审#5）：空仓不删 _e——find 错误（如 EACCES）时仍走错误判定，\n  # 原删 _e exit 0 = 错误吞没假 PASS（不可读目录内含 .sh 的仓误判干净）\n  if [ -s \"$_e\" ]; then cat \"$_e\" >&2; rm -f \"$_e\"; exit 2; fi\n  rm -f \"$_e\"; exit 0\n}; _o=$(find . \\( -name node_modules -o -name .git -o -name .venv -o -name __pycache__ \\) -prune -o -name '*.sh' ! -type l -print0 2>>\"$_e\" | xargs -0 env LC_ALL=C awk '/^[[:space:]]*trap/ && /EXIT/ && !/^[[:space:]]*trap[[:space:]]+(-|--)+([[:space:]]+EXIT|[[:space:]]*$)/ {c[FILENAME]++} END {for (fn in c) if (c[fn]>1) print \"double-EXIT-trap: \" fn}' 2>>\"$_e\"); if [ -s \"$_e\" ]; then cat \"$_e\" >&2; rm -f \"$_e\"; exit 2; fi; rm -f \"$_e\"; [ -n \"$_o\" ] && { echo \"$_o\"; exit 1; }; exit 0"
-  ],
-  "sev": "HIGH",
-  "timeout": 60
- },
- "guard-comment-swallow": {
-  "cmd": [
-   "bash",
-   "-c",
-   "LC_ALL=C grep -rnE '^[[:space:]]*\\[.*\\][[:space:]]*#.*\\|\\| *FAIL' --include='*.sh' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . ; rc=$?; [ $rc -eq 1 ] && exit 0; if [ $rc -eq 0 ]; then echo 'guard-swallow: || FAIL 被注释吞（防线假活）'; exit 1; fi; exit $rc"
-  ],
-  "sev": "HIGH",
-  "timeout": 60
- },
- "cred-cli-expose": {
-  "cmd": [
-   "bash",
-   "-c",
-   "_t=$(mktemp) || exit 2; LC_ALL=C grep -rnE \"docker exec .*(-e|--env)[= ]*['\\\"]?PGPASSWORD=\" --include='*.sh' --include='*.py' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . 2>/dev/null | grep -vE '^[^:]*:[0-9]*:[[:space:]]*(#|echo |printf )' > \"$_t\"; rc0=${PIPESTATUS[0]}; out=$(cat \"$_t\"); rm -f \"$_t\"; [ $rc0 -ge 2 ] && exit $rc0; [ $rc0 -eq 1 ] && exit 0; [ -n \"${out}\" ] && { echo 'cred-expose: PGPASSWORD 经 docker exec -e 暴露进程列表'; exit 1; }; exit 0"
-  ],
-  "sev": "MEDIUM",
-  "timeout": 60
- }
+  "trap-double": {
+    "cmd": [
+      "bash",
+      "-c",
+      "_e=$(mktemp) || exit 2; [ -z \"$(find . \\( -name node_modules -o -name .git -o -name .venv -o -name __pycache__ \\) -prune -o -name '*.sh' ! -type l -print -quit 2>>\"$_e\")\" ] && {\n  # fork19-CX12（Codex 终审#5）：空仓不删 _e——find 错误（如 EACCES）时仍走错误判定，\n  # 原删 _e exit 0 = 错误吞没假 PASS（不可读目录内含 .sh 的仓误判干净）\n  if [ -s \"$_e\" ]; then cat \"$_e\" >&2; rm -f \"$_e\"; exit 2; fi\n  rm -f \"$_e\"; exit 0\n}; _o=$(find . \\( -name node_modules -o -name .git -o -name .venv -o -name __pycache__ \\) -prune -o -name '*.sh' ! -type l -print0 2>>\"$_e\" | xargs -0 env LC_ALL=C awk '/^[[:space:]]*trap/ && /EXIT/ && !/^[[:space:]]*trap[[:space:]]+(-|--)+([[:space:]]+EXIT|[[:space:]]*$)/ {c[FILENAME]++} END {for (fn in c) if (c[fn]>1) print \"double-EXIT-trap: \" fn}' 2>>\"$_e\"); if [ -s \"$_e\" ]; then cat \"$_e\" >&2; rm -f \"$_e\"; exit 2; fi; rm -f \"$_e\"; [ -n \"$_o\" ] && { echo \"$_o\"; exit 1; }; exit 0"
+    ],
+    "sev": "HIGH",
+    "timeout": 60
+  },
+  "guard-comment-swallow": {
+    "cmd": [
+      "bash",
+      "-c",
+      "LC_ALL=C grep -rnE '^[[:space:]]*\\[.*\\][[:space:]]*#.*\\|\\| *FAIL' --include='*.sh' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . ; rc=$?; [ $rc -eq 1 ] && exit 0; if [ $rc -eq 0 ]; then echo 'guard-swallow: || FAIL 被注释吞（防线假活）'; exit 1; fi; exit $rc"
+    ],
+    "sev": "HIGH",
+    "timeout": 60
+  },
+  "cred-cli-expose": {
+    "cmd": [
+      "bash",
+      "-c",
+      "_t=$(mktemp) || exit 2; LC_ALL=C grep -rnE \"docker exec .*(-e|--env)[= ]*['\\\"]?PGPASSWORD=\" --include='*.sh' --include='*.py' --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.venv . 2>/dev/null | grep -vE '^[^:]*:[0-9]*:[[:space:]]*(#|echo |printf )' > \"$_t\"; rc0=${PIPESTATUS[0]}; out=$(cat \"$_t\"); rm -f \"$_t\"; [ $rc0 -ge 2 ] && exit $rc0; [ $rc0 -eq 1 ] && exit 0; [ -n \"${out}\" ] && { echo 'cred-expose: PGPASSWORD 经 docker exec -e 暴露进程列表'; exit 1; }; exit 0"
+    ],
+    "sev": "MEDIUM",
+    "timeout": 60
+  },
+  "lockfile-desync": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -f package.json ]; then exit 0; fi; deps=$(python3 -c \"import json;d=json.load(open('package.json'));print(len({**d.get('dependencies',{}),**d.get('devDependencies',{})}))\" 2>/dev/null); lock_deps=$(python3 -c \"import json;d=json.load(open('package-lock.json'));print(len([k for k in d.get('packages',{}) if k.startswith('node_modules/') and 'dev' not in k.split('/')[1:2]])\" 2>/dev/null || echo 0); if [ \"$deps\" -gt 0 ] && [ \"$lock_deps\" -eq 0 ]; then echo 'package-lock.json is empty or missing dependencies'; exit 1; fi; for dep in $(python3 -c \"import json;d=json.load(open('package.json'));[print(k) for k in {**d.get('dependencies',{}),**d.get('devDependencies',{})}]\" 2>/dev/null); do   grep -q \"\\\"node_modules/$dep\\\"\" package-lock.json 2>/dev/null || { echo \"missing in lockfile: $dep\"; exit 1; }; done; exit 0"
+    ],
+    "sev": "MEDIUM",
+    "timeout": 30
+  },
+  "enum-raw-render": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -d src/app ]; then exit 0; fi; hits=$(grep -rn '\\.status\\b\\|\\.pickupMode\\b\\|\\.settlementTiming\\b\\|\\.paymentStatus\\b\\|\\.disposition\\b' --include='*.tsx' src/app/ 2>/dev/null | grep -v 'LABEL\\|Label\\|label\\|map\\|Map\\|format\\|Format\\|statusLabel\\|displayStatus' | grep '\\${.*\\.' | grep -v '===\\|!==\\|?\\.' | head -5); if [ -n \"$hits\" ]; then echo 'Raw enum rendered without LABEL mapping:'; echo \"$hits\"; exit 1; fi; exit 0"
+    ],
+    "sev": "LOW",
+    "timeout": 30
+  },
+  "sdd-missing-acceptance": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -d sdd/domain-spec ]; then exit 0; fi; missing=$(for f in sdd/domain-spec/*.md; do   [ -f \"$f\" ] && ! grep -q '## 验收标准\\|## Acceptance' \"$f\" && echo \"missing: $f\"; done | head -5); if [ -n \"$missing\" ]; then echo \"$missing\"; exit 1; fi; exit 0"
+    ],
+    "sev": "MEDIUM",
+    "timeout": 30
+  },
+  "openapi-stale": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -d src/app/api ] || [ ! -f docs/api/openapi.json ]; then exit 0; fi; routes=$(find src/app/api -name 'route.ts' -o -name 'route.py' 2>/dev/null | wc -l); endpoints=$(python3 -c \"import json;d=json.load(open('docs/api/openapi.json'));print(sum(len(v) for v in d.get('paths',{}).values()))\" 2>/dev/null || echo 0); if [ \"$routes\" -gt \"$((endpoints + 20))\" ]; then echo \"openapi.json has $endpoints but repo has $routes routes (gap>20, likely stale)\"; exit 1; fi; exit 0"
+    ],
+    "sev": "MEDIUM",
+    "timeout": 30
+  },
+  "pit-missing-family": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -f sdd/bug-library/PITFALLS.md ]; then exit 0; fi; total=$(grep -c '^## PIT-' sdd/bug-library/PITFALLS.md 2>/dev/null || echo 0); tagged=$(grep -c '^family:' sdd/bug-library/PITFALLS.md 2>/dev/null || echo 0); if [ \"$total\" -gt 0 ] && [ \"$tagged\" -lt \"$total\" ]; then   echo \"PIT entries without family tag: $((total - tagged))/$total\"; exit 1; fi; exit 0"
+    ],
+    "sev": "LOW",
+    "timeout": 30
+  },
+  "use-client-position": {
+    "cmd": [
+      "bash",
+      "-c",
+      "if [ ! -d src ]; then exit 0; fi; hits=$(for f in $(find src -name '*.tsx' -o -name '*.ts' 2>/dev/null); do   if grep -q '\"use client\"' \"$f\" 2>/dev/null; then     first=$(head -1 \"$f\" | tr -d '[:space:]');     if [ \"$first\" != '\"useclient\"' ] && [ \"$first\" != '\"useclient\";' ]; then       echo \"use-client not first line: $f\"; fi; fi; done | head -5); if [ -n \"$hits\" ]; then echo \"$hits\"; exit 1; fi; exit 0"
+    ],
+    "sev": "MEDIUM",
+    "timeout": 60
+  }
 }
