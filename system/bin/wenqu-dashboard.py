@@ -60,12 +60,37 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 .mx .hd{border-color:var(--acc);color:var(--acc);font-weight:600}
 .mx .self{opacity:.25}
 .mx .rv{border-color:#3d44db;color:#a5b4fc}
+#deck .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.pbtn{background:#1f6feb33;color:var(--acc);border:1px solid var(--acc);border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px}
+.pbar{height:5px;background:#21262d;border-radius:3px;overflow:hidden;flex:1;min-width:120px}
+.pbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#1f6feb,#3fb950);transition:width .5s}
+.tbtn{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:14px;padding:3px 12px;cursor:pointer;font-size:12px}
+.tbtn.on{color:var(--acc);border-color:var(--acc)}
+.deck{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.scard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;transition:transform .18s,border-color .18s,opacity .3s,box-shadow .18s;animation:pop .45s both}
+.scard:hover{transform:translateY(-3px);border-color:var(--acc)}
+.scard.now{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok),0 0 18px #3fb95033}
+.scard.lit{border-color:#2f81f7;opacity:1}
+.scard.off{opacity:.32;filter:saturate(.4)}
+.scard .sn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#1f6feb33;color:var(--acc);font-weight:700;margin-right:8px;flex:none}
+.scard .tier{font-size:11px;color:#a5b4fc;background:#3d44db22;border:1px solid #3d44db55;border-radius:9px;padding:0 8px;margin-left:8px}
+.scard .det{max-height:0;overflow:hidden;transition:max-height .3s}
+.scard.open .det{max-height:340px}
+.scard .det .lab{color:var(--dim);font-size:10px;margin-top:8px;letter-spacing:.5px}
+.scard .det p{font-size:11.5px;color:#a8b3bf;line-height:1.55}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+#ringcard{margin-top:12px;display:flex;gap:16px;align-items:center;border-style:dashed;animation:pop .45s .7s both}
+#ringcard.now{border-color:var(--ok);border-style:solid;box-shadow:0 0 22px #3fb95033}
+.ring{width:54px;height:54px;border-radius:50%;border:3px dashed var(--acc);animation:spin 9s linear infinite;flex:none;display:flex;align-items:center;justify-content:center}
+.ring b{font-size:10px;color:var(--acc);animation:spin 9s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style></head><body>
 <h1>问渠 wenqu <span class="badge" id="ver">…</span></h1>
 <div class="sub">本地质量工程体系 · <span id="ts"></span> · 端口 """ + str(PORT) + """</div>
 <nav style="margin-bottom:14px;display:flex;gap:8px">
-  <button class="tab active" onclick="showTab('ov')">总览</button>
-  <button class="tab" onclick="showTab('pipe')">管线流程</button>
+  <button class="tab active" data-t="ov" onclick="showTab('ov')">总览</button>
+  <button class="tab" data-t="pipe" onclick="showTab('pipe')">管线流程</button>
+  <button class="tab" data-t="deck" onclick="showTab('deck')">问渠全流程</button>
 </nav>
 <div id="pipe" style="display:none"><div class="pl"><h3>四轨出生制 v3.1</h3><div class="src">正源：optimal-quality-process（方案/规格/规则类自动触发；假设任何单轨不可信——任何错误至少被两层独立机制拦截）</div>
 <div class="flow">
@@ -117,6 +142,24 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
  <div class="arrow">▼ 横切 · 收敛环（任何「干净/扫完」声明必过）</div>
  <div class="frow"><div class="node alt" style="max-width:560px"><b>递归清零 v2.2</b><span>N 轮异源实扫：FAST=1 / STANDARD=2 / INCIDENT=3（末轮含 S3 对抗或 S5 独立审计）；上限 N+1 超限转人工；每轮 rounds.jsonl 工件，无工件不计轮；同命令族+同时辰+换模型转述≠异源</span></div></div>
 </div></div></div>
+<div id="deck" style="display:none">
+ <div class="pl"><h3>问渠八站 · 动态卡片</h3><div class="src">正源：bug-scan-pipeline SKILL.md §1（站序=成本×确定性递增，便宜的先拦）——点卡片展开执行件/通过判据；点档位查看该档点亮的站点；▶ 自动巡游全流程</div>
+  <div class="tools">
+    <button class="pbtn" id="playBtn" onclick="playFlow()">▶ 自动巡游</button>
+    <div class="pbar"><i id="pfill"></i></div>
+    <span id="playmsg" class="dim" style="font-size:12px">8 站 + 收敛环</span>
+  </div>
+  <div class="tools" id="tiers"></div>
+  <div id="tierinfo" class="src" style="margin:0 0 10px">档位×站点矩阵：选择档位查看该档覆盖的站点与 lane/N（升档站点集=高档∪原档，只增不减）</div>
+  <div class="deck" id="stdeck"></div>
+  <div class="card" id="ringcard">
+    <div class="ring"><b>收敛</b></div>
+    <div><b style="color:var(--acc)">收敛环（横切）· 递归清零 v2.2</b>
+    <p style="font-size:12px;color:#a8b3bf;line-height:1.6">任何「这站干净/整线扫完」声明 → N 轮异源实扫：FAST=1 / STANDARD=2 / INCIDENT=3（末轮含 S3 对抗或 S5 独立审计）；上限 N+1 超限转人工；S1-S5 证据源实质轮换——同命令族+同时辰+换模型转述同一日志≠异源；每轮 rounds.jsonl 工件，无工件不计轮。证据时效双上限：权限/漏洞情报类 ≤7 天、其余 ≤30 天，跨类从短；指纹五元组（SHA+规则版本集+环境+范围哈希+数据/配置版本）变化即失效重跑。</p></div>
+  </div>
+  <div class="src" style="margin-top:8px">一本账 = rounds.jsonl / findings.jsonl 账本族（无工件不计轮）；跳站依赖=每档继承证据表显式化，nightly 继承站3 须周档未超时+差集为空</div>
+ </div>
+</div>
 <div class="grid" id="ov">
   <div class="card"><h2>组件体检</h2><div id="comp">载入中…</div></div>
   <div class="card"><h2>守护进程</h2><div id="daemon">载入中…</div>
@@ -130,10 +173,74 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 async function j(u){const r=await fetch(u);return r.json()}
 function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
 function showTab(t){
-  document.getElementById('ov').style.display=t=='ov'?'':'none';
-  document.getElementById('pipe').style.display=t=='pipe'?'':'none';
-  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('active',(t=='ov')==(i==0)));
+  for(const id of['ov','pipe','deck'])document.getElementById(id).style.display=t==id?'':'none';
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.t==t));
 }
+const STATIONS=[
+ {n:0,name:'范围冻结',tier:'每次开扫首站',exec:'EQS 前置门禁（eqs-dev-flow ③段）；五元组指纹=SHA+规则版本集+环境+范围哈希+数据/配置版本 → rounds.jsonl',pass:'必跑项与覆盖分母齐全；身份一致三查（commit SHA+构建指纹 GIT_HASH+环境标识）；未知影响面不得自动排除；定级理由（档位+触发面+升降档依据）随指纹落账供复核'},
+ {n:1,name:'源闸',tier:'PR 阻断',exec:'CI Fast：tsc/eslint/vitest/pytest/守卫棘轮/openapi/org-guard + verify-rebase-integrity（hook）+ typedRoutes 反证探针；涉权限/资金/租户 PR+隔离环境定向真单链',pass:'全绿+棘轮不升+探针真红（写死链探针→tsc 必红 TS2322）'},
+ {n:2,name:'静态与供应链全量',tier:'周',exec:'dupscan-fullscan（jscpd 棘轮，周哨兵周日 04:00）+ 持续修复引擎五类（日档常驻）+ route-integrity 静态腿 + dh-audit（仅 correctness）+ supply-chain-audit（周一 08:30）',pass:'克隆率≤基线；dh-audit exit 0；CVE 零 HIGH 及以上；引擎五类 0 open'},
+ {n:3,name:'契约与数据',tier:'周',exec:'openapi 对账 + org-guard + db-schema-recon-4track 漂移白名单（周一 08:00）+ api-perm-matrix（静态矩阵 org/session/none/exempt+双面探针）+ 迁移类 DDL 三段式',pass:'无未归属端点；无未解释漂移；矩阵三源一致（仲裁序=运行时＞DB＞静态，不投票）；负例（越权/跨租户）全拦+正例全通'},
+ {n:4,name:'行为面',tier:'nightly',exec:'e2e 全量 + route-integrity 动态腿 + web-gui-tester 抽检（~60 核心页轮换；545 遍历页与 565 形态盘点不混分母）',pass:'e2e 全绿+抽样零新发现+每测试点一张已看截图'},
+ {n:5,name:'实弹面',tier:'版本/新模块首版/权限资金 PR 发布前',exec:'erp-real-order-test：真单 14 节链+18 发对抗+DB 断言；生产写须超哥明确口令，越界拒跑上报',pass:'DB 断言全 PASS+废单清点+守恒公式对账平'},
+ {n:6,name:'对抗面',tier:'事件（上产 24h 内）',exec:'post-delivery-adversarial-audit 四轴+S3 反例轮+fact-verify；simplify 候选不自动重构（工件化留痕）；支付/第三方对接变更=对抗+实弹+沙箱回读三件',pass:'每轴必问全覆盖+新用例含守卫真拦住负断言；不强制每轴必有发现'},
+ {n:7,name:'运行时',tier:'持续',exec:'Argus 四班哨兵/probe/self-heal+告警触达链（sentinel-notify-lib 主，Hermes 兜底）',pass:'不参与收敛声明（时态不同）；事件工单回流站6'}
+];
+const TIERS=[
+ {k:'PR 每次合入',s:[0,1],lane:'FAST→INCIDENT（权限资金类+站5 发布前专项）'},
+ {k:'日 cron 常驻',s:[2],lane:'FAST/1（引擎五类+路由哨兵·自动监测非开扫，零发现不出声明）'},
+ {k:'周 launchd',s:[0,2,3],lane:'STANDARD/2'},
+ {k:'nightly',s:[0,4],lane:'STANDARD/2（继承站3 证据须周档未超时+差集为空）'},
+ {k:'版本/新模块首版',s:[0,5],lane:'STANDARD/2'},
+ {k:'事件 上产24h内',s:[0,6,5],lane:'STANDARD→INCIDENT（支付/第三方对接+站5 实弹）'},
+ {k:'季度',s:[0,1,2,3,4,5,6,7],lane:'INCIDENT/3+末轮 S5（全线+尾巴盘点+性能基线+管线失效演练）'}
+];
+function renderDeck(){
+  const dk=document.getElementById('stdeck');dk.innerHTML='';
+  STATIONS.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='scard';d.style.animationDelay=(i*70)+'ms';
+    d.onclick=()=>{document.querySelectorAll('.scard').forEach(x=>{if(x!==d)x.classList.remove('open')});d.classList.toggle('open')};
+    d.innerHTML=`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
+    <div class="det"><div class="lab">执行件</div><p>${s.exec}</p><div class="lab">通过判据</div><p>${s.pass}</p></div>
+    <span class="dim" style="font-size:11px">点击展开执行件 / 通过判据</span>`;
+    dk.appendChild(d);
+  });
+  const tb=document.getElementById('tiers');tb.innerHTML='';
+  TIERS.forEach(t=>{
+    const b=document.createElement('button');b.className='tbtn';b.textContent=t.k;
+    b.onclick=()=>{
+      document.querySelectorAll('.tbtn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+      document.querySelectorAll('.scard').forEach((c,i)=>{c.classList.toggle('lit',t.s.includes(STATIONS[i].n));c.classList.toggle('off',!t.s.includes(STATIONS[i].n))});
+      document.getElementById('tierinfo').innerHTML=`<b style="color:var(--acc)">${t.k}</b> → 站点 {${t.s.join('、')}} · lane/N = ${t.lane}`;
+    };
+    tb.appendChild(b);
+  });
+}
+let playTimer=null;
+function stopPlay(){if(playTimer){clearInterval(playTimer);playTimer=null}}
+function playFlow(){
+  const cards=[...document.querySelectorAll('.scard')];const ring=document.getElementById('ringcard');
+  stopPlay();
+  const btn=document.getElementById('playBtn');
+  if(btn.dataset.run){btn.dataset.run='';btn.textContent='▶ 自动巡游';cards.forEach(c=>c.classList.remove('now'));ring.classList.remove('now');return}
+  btn.dataset.run='1';btn.textContent='⏸ 停止巡游';
+  cards.forEach(c=>c.classList.remove('now'));ring.classList.remove('now');
+  let i=0;const total=cards.length+1;
+  playTimer=setInterval(()=>{
+    if(i>=cards.length){
+      cards.forEach(c=>c.classList.remove('now'));ring.classList.add('now');
+      document.getElementById('pfill').style.width='100%';
+      document.getElementById('playmsg').innerHTML='走查完成——任何「干净/扫完」声明必过收敛环（递归清零 v2.2）';
+      stopPlay();btn.dataset.run='';btn.textContent='▶ 自动巡游';return;
+    }
+    cards.forEach(c=>c.classList.remove('now'));
+    const c=cards[i];c.classList.add('now');c.scrollIntoView({block:'nearest',behavior:'smooth'});
+    document.getElementById('pfill').style.width=Math.round((i+1)*100/total)+'%';
+    document.getElementById('playmsg').innerHTML=`站${STATIONS[i].n} <b>${STATIONS[i].name}</b> · ${STATIONS[i].tier}`;
+    i++;
+  },1500);
+}
+renderDeck();
 async function refresh(){
   const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
   let ok=0,tot=0;
