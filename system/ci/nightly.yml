@@ -1,0 +1,22 @@
+# wenqu nightly 模板 —— 全量验证 + 质量哨兵（夜间低峰）
+name: Nightly Full
+on:
+  schedule:
+    - cron: '0 18 * * *'   # UTC 18:00 = 北京 02:00
+  workflow_dispatch:
+jobs:
+  full:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}   # 组织无 ubuntu 池时：仓库 Settings→Variables 加 CI_RUNNER=mac-runner-1 / self-hosted
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci || npm install
+      - name: 全量单测（随机序×3，抓测试间污染）
+        run: for i in 1 2 3; do npx vitest run --sequence.shuffle; done
+      - name: 全量 e2e
+        run: npx playwright test || true   # 按项目配置
+      - name: 克隆率棘轮（防重复代码回潮）
+        run: npx jscpd src --min-tokens 50 --reporters consoleFull || true

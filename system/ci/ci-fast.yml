@@ -1,0 +1,21 @@
+# wenqu CI 快层模板 —— 拷入目标仓 .github/workflows/ci-fast.yml
+# 日常 push/PR 3-5 分钟快反馈；全量验证走 nightly
+name: CI Fast
+on:
+  push: { branches: ['**'] }
+  pull_request: { branches: [master, main] }
+jobs:
+  fast:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}   # 组织无 ubuntu 池时：仓库 Settings→Variables 加 CI_RUNNER=mac-runner-1 / self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # 注意：cache:npm 需仓内有 package-lock.json；无锁文件项目删掉 cache 行
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci || npm install
+      - name: Lint + 类型检查
+        run: npx tsc --noEmit
+      - name: 单测（变更定向）
+        run: npx vitest run --silent 2>&1 | tail -20

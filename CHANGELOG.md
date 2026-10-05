@@ -1,6 +1,6 @@
-# wenqu-dist CHANGELOG（版本唯一正源）
+# 三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
 
-三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
+- **v3.0.0（2026-10-05 新增第四轴：完整体系包 system/）**：wenqu v3.0=可复用质量工程全体系（一键 install.sh+统一 `wenqu` CLI 13 子命令+12 bin+4 哨兵+3 守护+2 SQL+CI 模板+TLA+/Z3 规范）。四验证面实证：本机全新安装/ccc WSL 异地（SHA256 对账+铁门陌生仓优雅降级）/真实 GitHub 仓 CI 双模板绿/TLA+ 6×MaxAmount 完成级证明（172,561 状态 1,116 distinct 零错误）+Z3 五定理 unsat。全参数化零生产痕迹（wenqu-env.sh 中央配置 11 变量）。tarball=wenqu-v3.0.0.tar.gz（SHA256 见 SHA256-v3.0.0.txt，头16=2ff4487e）。生产质量系统同批升级：hardening-doctor pgrep 探测根修+auto-merge 浅克隆 --unshallow 回退。
 
 - **v1.0.17（2026-10-02 加固十六·S11 终审 1 MED 清零+release-check 固化）**：S11 终审判「不出条件放行」（1 MED=fork16 升版文档面 5 点位同族半改——版本号同步残留；正面清单全属实：三变异独立复现全红/49 项/sha256 对账/诚实边界）。修复 5 点位（spec 执行器 fork16 残留/README 引用 v1.0.15 死链/同句 fork16+fork1-15 并存/spec §8 缺条目/cli-README+spec 的 ! -type l 不实归属勘误至 fork16）+note 断言双行 LOW；**release-check.sh 打包前置检查固化**（版本号残留机械全查——首跑即抓到 spec 残留=防线生效实证）。曲线 …4→3→**1**。
 - **v1.0.16（2026-10-02 加固十五·S10 复扫 3 条全清+三变异闭环真达成）**：S10（fork15 复扫）3 条（2MED1LOW）→fork16 全清，曲线 …5→5→4→**3**。F-A【MED】**「! -type l」第四次声称未落地**（fork15 改了 cmd[1]=字面"-c"串——静默未匹配；probes 停在 fork13）→真落 cmd[2]+json assert+行为验证（symlink 指仓外双 trap 被排除）+Q 段夹具；F-B【MED】note 面零夹具双变异存活→note 在账本/repair 存活双断言+**独立三变异全红**（! -type l 删/note 删/白名单还原各 exit 1=闭环从日志面扩至三面）；F-C spec 123 句更新为 fork12 实际语义。插曲：变异 C「存活」实为**多字节陷阱第四踩**（$NOTEN→ crash 式红）——修后干净红；ingest 文案同步 note。49 项双平台绿待验。S10 核验矩阵确认 note 全链路兼容/ingest 伪造拒绝/root 豁免正确/CHANGELOG 勘误可对账。

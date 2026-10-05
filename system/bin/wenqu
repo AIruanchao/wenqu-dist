@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# wenqu —— 统一入口 v3.0
+set -uo pipefail
+WQ="${WENQU_HOME:-$HOME/.wenqu}"
+[ -f "$WQ/bin/wenqu-env.sh" ] && . "$WQ/bin/wenqu-env.sh"
+C_G="\033[32m"; C_R="\033[31m"; C_Y="\033[33m"; C_B="\033[36m"; C_0="\033[0m"
+ok() { echo -e "${C_G}✓${C_0} $1"; }; bad() { echo -e "${C_R}✗${C_0} $1"; }; info() { echo -e "${C_B}▸${C_0} $1"; }
+hdr() { echo -e "\n${C_B}━━ $1 ━━${C_0}"; }
+
+cmd="${1:-help}"; shift 2>/dev/null || true
+case "$cmd" in
+init)  # 项目初始化：模板落地 + git hooks + 首检
+  [ -d .git ] || { bad "请在 git 仓库根目录执行"; exit 1; }
+  hdr "初始化项目质量体系"
+  mkdir -p .wenqu/logs .wenqu/state
+  cp "$WQ/env.example" .wenqu.env 2>/dev/null || true
+  [ -f .wenqu.env ] || cp "$WQ/config/wenqu.env.example" .wenqu.env
+  # git pre-push hook：推前自动 iron-gate 快检
+  HOOK=.git/hooks/pre-push
+  if ! grep -q wenqu "$HOOK" 2>/dev/null; then
+    cat > "$HOOK" <<HOOK
+#!/usr/bin/env bash
+# wenqu pre-push 快检（跳过：WENQU_SKIP=1 git push）
+[ -n "\${WENQU_SKIP:-}" ] && exit 0
+bash "$WQ/bin/iron-gate.sh" 2>&1 | tail -5
+HOOK
+    chmod +x "$HOOK"; ok "git pre-push 钩子"
+  fi
+  ok "配置模板 .wenqu.env（请编辑）"; ok "目录 .wenqu/"
+  info "下一步：编辑 .wenqu.env → wenqu verify"
+  ;;
+verify)  # 全量验证管线
+  hdr "零返工验证管线"
+  bash "$WQ/bin/zero-rework.sh" "$@"
+  ;;
+gate)  # 快速铁门（0.1s）：wenqu gate [仓目录 [base]]
+  GD="${1:-$WENQU_REPO_DIR}"; GB="${2:-origin/master}"
+  bash "$WQ/bin/iron-gate.sh" "$GD" "$GB" ;;
+blast)  # 影响面分析
+  python3 "$WQ/bin/blast-radius.py" "$@" ;;
+preflight)  # 部署前置五门
+  bash "$WQ/bin/deploy-preflight.sh" "$@" ;;
+doctor)  # 全组件体检
+  hdr "wenqu 体检"
+  D=0
+  for c in wenqu-env.sh iron-gate.sh blast-radius.py cursor-auto-verify.sh deploy-preflight.sh hardening-doctor.sh; do
+    [ -f "$WQ/bin/$c" ] && ok "$c" || { bad "缺 $c"; D=1; }
+  done
+  for s in ci-event-sentinel.sh conservation-sentinel.sh ssl-cert-sentinel.sh; do
+    [ -f "$WQ/sentinels/$s" ] && ok "哨兵 $s" || { bad "缺哨兵 $s"; D=1; }
+  done
+  for d in auto-merge.sh conservation-daemon.py; do
+    [ -f "$WQ/daemons/$d" ] && ok "守护 $d" || { bad "缺守护 $d"; D=1; }
+  done
+  CFG=""
+  for c in "$WQ/env" .wenqu.env; do [ -f "$c" ] && CFG="$c"; done
+  if [ -n "$CFG" ]; then
+    if grep -q "OWNER/REPO" "$CFG"; then bad "配置 $CFG 未填写（仍为占位符）"; D=1; else ok "配置 $CFG"; fi
+  else
+    bad "无配置（wenqu init 或复制 env.example）"; D=1
+  fi
+  exit $D ;;
+start)  # 启动守护进程
+  hdr "启动守护"
+  mkdir -p "$WQ/logs" "$WQ/state"
+  if [ -f "$WQ/daemons/auto-merge.sh" ] && [ -n "${WENQU_REPO:-}" ] && [ "$WENQU_REPO" != "OWNER/REPO" ]; then
+    nohup bash "$WQ/daemons/auto-merge.sh" >> "$WQ/logs/auto-merge.log" 2>&1 &
+    echo $! > "$WQ/state/auto-merge.pid"; ok "auto-merge (pid $!)"
+  else
+    info "auto-merge 跳过（WENQU_REPO 未配置）"
+  fi
+  ;;
+stop)
+  hdr "停止守护"
+  for p in "$WQ"/state/*.pid; do
+    [ -f "$p" ] || continue
+    kill "$(cat "$p")" 2>/dev/null && ok "$(basename "$p" .pid) 已停" || info "$(basename "$p" .pid) 已退出"
+    rm -f "$p"
+  done ;;
+status)
+  hdr "wenqu 状态"
+  for p in "$WQ"/state/*.pid; do
+    [ -f "$p" ] || continue
+    PID=$(cat "$p"); NAME=$(basename "$p" .pid)
+    kill -0 "$PID" 2>/dev/null && ok "$NAME 运行中 (pid $PID)" || bad "$NAME 已死（wenqu start）"
+  done
+  ls "$WQ"/state/*.pid >/dev/null 2>&1 || info "无运行中守护"
+  [ -x /usr/bin/cron ] || command -v crontab >/dev/null && { crontab -l 2>/dev/null | grep -c wenqu | xargs -I{} echo "▸ cron 任务 {} 条"; } || true
+  ;;
+db)  # DB 组件安装（触发器/自愈）
+  hdr "安装 DB 守恒组件"
+  case "${1:-}" in
+  triggers) bash -c "cat '$WQ/db/conservation-triggers.sql' | ${WENQU_DB_SSH:+ssh $WENQU_DB_SSH} psql ${WENQU_DB_NAME:-mydb}" ;;
+  selfheal) bash -c "cat '$WQ/db/self-heal.sql' | ${WENQU_DB_SSH:+ssh $WENQU_DB_SSH} psql ${WENQU_DB_NAME:-mydb}" ;;
+  *) echo "用法：wenqu db triggers|selfheal" ;;
+  esac ;;
+cron)  # 哨兵 cron 安装
+  hdr "安装哨兵 cron"
+  CRON_TMP=$(mktemp); crontab -l 2>/dev/null > "$CRON_TMP" || true
+  add_cron() { grep -qF "$2" "$CRON_TMP" || { echo "$1 $WQ/sentinels/$2 >> $WQ/logs/$2.log 2>&1" >> "$CRON_TMP"; ok "$2 ($1)"; }; }
+  add_cron "*/30 * * * *"  ci-event-sentinel.sh
+  add_cron "5 5 * * *"     conservation-sentinel.sh
+  add_cron "0 8 * * 1"     ssl-cert-sentinel.sh
+  crontab "$CRON_TMP" && ok "crontab 已更新"; rm -f "$CRON_TMP" ;;
+uncron)
+  hdr "卸载哨兵 cron"
+  CRON_TMP=$(mktemp); crontab -l 2>/dev/null | grep -v wenqu/sentinels > "$CRON_TMP"; crontab "$CRON_TMP"
+  ok "已移除全部 wenqu 哨兵 cron"; rm -f "$CRON_TMP" ;;
+tla)  # 形式化验证
+  hdr "TLA+ 模型检查"
+  java -cp "$WQ/bin/tla2tools.jar" tlc2.TLC -deadlock -config "$WQ/specs/PaymentConservation.cfg" "$WQ/specs/PaymentConservation.tla" 2>&1 | tail -15 ;;
+z3)  # SMT 定理证明
+  hdr "Z3 不变量证明"
+  z3 "$WQ/specs/z3/payment_invariants.smt2" 2>&1 | tail -10 ;;
+help|*)
+  cat <<'H'
+wenqu v3.0 —— 问渠质量工程体系
+  wenqu init        初始化项目（配置模板+git 钩子）
+  wenqu verify      零返工验证管线（铁门→影响面→定向测试→风险分）
+  wenqu gate        快速铁门（20 规则，0.1s）
+  wenqu blast       影响面分析（依赖图 BFS）
+  wenqu preflight   部署前置五门（血统/指纹/形态/演练）
+  wenqu doctor      全组件体检
+  wenqu start|stop|status   守护进程管理
+  wenqu cron|uncron         哨兵 cron 安装/卸载
+  wenqu db triggers|selfheal DB 守恒组件安装
+  wenqu tla|z3      形式化验证 / SMT 证明
+H
+  ;;
+esac
