@@ -1,5 +1,7 @@
 # 三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
 
+- **v3.1.0（2026-10-05 system 轴：Web 仪表盘）**：`wenqu dashboard [端口]`=零依赖单文件（Python 标准库+原生 HTML/JS）——组件体检完整度/守护进程与 cron/棘轮基线/引擎账本最近轮次/哨兵日志尾五卡，15s 自刷新，127.0.0.1 绑定。真浏览器验收（IAB 渲染+DOM 结构断言+两轮视觉核验：单份渲染/12-12 满绿/无溢出）。修两真 bug：version 键误入组件组渲染/账本路径少目录层。
+
 - **v3.0.0（2026-10-05 新增第四轴：完整体系包 system/）**：wenqu v3.0=可复用质量工程全体系（一键 install.sh+统一 `wenqu` CLI 13 子命令+12 bin+4 哨兵+3 守护+2 SQL+CI 模板+TLA+/Z3 规范）。四验证面实证：本机全新安装/ccc WSL 异地（SHA256 对账+铁门陌生仓优雅降级）/真实 GitHub 仓 CI 双模板绿/TLA+ 6×MaxAmount 完成级证明（172,561 状态 1,116 distinct 零错误）+Z3 五定理 unsat。全参数化零生产痕迹（wenqu-env.sh 中央配置 11 变量）。tarball=wenqu-v3.0.0.tar.gz（SHA256 见 SHA256-v3.0.0.txt，头16=2ff4487e）。生产质量系统同批升级：hardening-doctor pgrep 探测根修+auto-merge 浅克隆 --unshallow 回退。
 
 - **v1.0.17（2026-10-02 加固十六·S11 终审 1 MED 清零+release-check 固化）**：S11 终审判「不出条件放行」（1 MED=fork16 升版文档面 5 点位同族半改——版本号同步残留；正面清单全属实：三变异独立复现全红/49 项/sha256 对账/诚实边界）。修复 5 点位（spec 执行器 fork16 残留/README 引用 v1.0.15 死链/同句 fork16+fork1-15 并存/spec §8 缺条目/cli-README+spec 的 ! -type l 不实归属勘误至 fork16）+note 断言双行 LOW；**release-check.sh 打包前置检查固化**（版本号残留机械全查——首跑即抓到 spec 残留=防线生效实证）。曲线 …4→3→**1**。
