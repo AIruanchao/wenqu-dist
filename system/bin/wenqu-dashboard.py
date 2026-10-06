@@ -413,8 +413,9 @@ async function loadBGL(){
   chain.forEach(([k,lab],ix)=>{
     if(ix)h+='<div class="arrow">▸</div>';
     const n=st[k]||0;
-    const clickable=k==='OPEN'&&n>0?` style="cursor:pointer" onclick="toggleOpenItems()" title="点击展开未修明细"`:'';
-    h+=`<div class="bnode${k==='OPEN'&&n>0?' hot':''}"${clickable}><b>${k}${k==='OPEN'&&n>0?' ▾':''}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
+    const clickable=n>0?` style="cursor:pointer" onclick="toggleItems('${k}')" title="点击展开该状态明细"`:'';
+    const hot=k==='OPEN'&&n>0?' hot':'';
+    h+=`<div class="bnode${hot}"${clickable}><b>${k}${n>0?' ▾':''}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
   });
   h+='</div><div class="frow" style="margin-top:8px"><div class="arrow">↳</div>';
   h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
@@ -424,14 +425,20 @@ async function loadBGL(){
   box.innerHTML=h;
   window._openItems=d.open_items||[];window._openTotal=d.open_total||0;
   const old=document.getElementById('bglitems');if(old)old.remove();
-  window.toggleOpenItems=function(){
+  window._itemsShown=null;
+  window.toggleItems=async function(stt){
     let el=document.getElementById('bglitems');
-    if(el){el.remove();return}
-    el=document.createElement('div');el.id='bglitems';el.style.cssText='margin-top:10px;max-height:300px;overflow:auto;border:1px dashed #30363d;border-radius:8px;padding:8px';
-    const items=window._openItems;
-    el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">未修明细 ${window._openTotal} 条（严重度序${window._openTotal>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 OPEN 收起</div>`+
+    if(el&&window._itemsShown===stt){el.remove();window._itemsShown=null;return}
+    window._itemsShown=stt;
+    if(!el){el=document.createElement('div');el.id='bglitems';el.style.cssText='margin-top:10px;max-height:300px;overflow:auto;border:1px dashed #30363d;border-radius:8px;padding:8px';document.getElementById('bglstate').appendChild(el);}
+    el.innerHTML='<div class="dim" style="font-size:11px">载入中…</div>';
+    let d2;
+    if(stt==='OPEN'){d2={items:window._openItems,items_total:window._openTotal};}
+    else{try{d2=await j('/api/bugscan-ledger?items='+encodeURIComponent(stt));}catch(e){d2={items:[],items_total:0};}}
+    if(window._itemsShown!==stt)return;  // 期间已切换
+    const items=d2.items||[];
+    el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">${stt} 明细 ${d2.items_total||0} 条（严重度序${(d2.items_total||0)>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 ${stt} 收起</div>`+
       items.map(x=>`<div class="row"><span class="chip ${x.sev==='HIGH'?'h':(x.sev==='MED'?'m':(x.sev==='LOW'?'l':''))}" style="margin:0 6px 0 0">${x.sev}</span><span class="dim" style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.proj)}">${esc(x.proj)}</span><span class="dim" style="flex:0 0 96px">${esc(x.id)}</span><span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.title)}">${esc(x.title)||'<i style="opacity:.5">（无标题）</i>'}</span></div>`).join('');
-    document.getElementById('bglstate').appendChild(el);
   };
   const pb=document.getElementById('bglproj');pb.innerHTML='';
   d.projects.slice(0,8).forEach(p=>{
@@ -696,7 +703,7 @@ def _bugscan_ledger_impl(files):
     projects = []
     tot_status, tot_sev = {}, {}
     tot_findings, tot_last = 0, ""
-    open_items = []
+    all_items = []
     for f in files:
         cur, trans, sev_of, title_of, last = _fold_project(f)
         if not cur:
@@ -708,8 +715,7 @@ def _bugscan_ledger_impl(files):
             by_status[stt] = by_status.get(stt, 0) + 1
             sv = _norm_sev(sev_of.get(fid))
             by_sev[sv] = by_sev.get(sv, 0) + 1
-            if stt == "OPEN":
-                open_items.append({"id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key})
+            all_items.append({"st": stt, "id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key})
         n_find = len(cur)
         projects.append({"key": key, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
         tot_findings += n_find
@@ -721,10 +727,12 @@ def _bugscan_ledger_impl(files):
             tot_last = last
     projects.sort(key=lambda p: -p["findings"])
     sev_rank = {"HIGH": 0, "MED": 1, "LOW": 2, "INFO": 3, "OTHER": 4}
-    open_items.sort(key=lambda x: (sev_rank.get(x["sev"], 9), x["proj"]))
+    all_items.sort(key=lambda x: (sev_rank.get(x["sev"], 9), x["proj"]))
     return {"available": True, "projects": projects,
             "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]},
-            "open_total": len(open_items), "open_items": open_items[:60]}  # 明细钻取：现态 OPEN 清单（严重度序，前 60）
+            "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
+            "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],  # 兼容：OPEN 明细（前 60）
+            "_all_items": all_items}  # 内部全集（端点按 ?items=STATE 过滤；不下发无参请求）
 
 
 class H(BaseHTTPRequestHandler):
@@ -1006,8 +1014,19 @@ class H(BaseHTTPRequestHandler):
                 day = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
                 out.append({"d": day[5:], "n": days.get(day, 0)})
             return self._send(200, json.dumps(out, ensure_ascii=False))
-        if self.path == "/api/bugscan-ledger":
-            return self._send(200, json.dumps(bugscan_ledger(), ensure_ascii=False))
+        if self.path.split("?")[0] == "/api/bugscan-ledger":
+            d = bugscan_ledger()
+            if "_all_items" in d:  # 无参请求不下发内部全集；?items=STATE 按状态过滤钻取
+                want = None
+                if "?" in self.path:
+                    want = dict(p.split("=", 1) for p in self.path.split("?", 1)[1].split("&") if "=" in p).get("items", "")
+                d = dict(d)
+                full = d.pop("_all_items")
+                if want:
+                    d["items_state"] = want
+                    d["items_total"] = sum(1 for x in full if x["st"] == want)
+                    d["items"] = [x for x in full if x["st"] == want][:60]
+            return self._send(200, json.dumps(d, ensure_ascii=False))
         if self.path.startswith("/api/decisions"):
             want_all = "all=1" in self.path
             out = []
