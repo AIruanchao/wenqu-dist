@@ -5,7 +5,7 @@
 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
 """
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import signal
 import subprocess
@@ -294,6 +294,18 @@ async function refresh(){
       <div style="flex:none;text-align:center"><div class="spark" id="hspark"></div><div class="dim" style="font-size:10px">最近走势</div></div>
       <div style="flex:1;min-width:300px">${h.parts.map(p=>`<div class="row"><span>${p['项']}</span><span class="dim">${p['详情']}</span><span style="color:${p['比']==='100%'?'var(--ok)':'#f0883e'}">${p['得分']}/${p['满分']}</span></div>`).join('')}</div>
     </div>`;}
+  {const hh=await j('/api/health-history').catch(()=>[]);
+   const hc=document.getElementById('health');
+   if(hh&&hh.length>1&&hc){const pts=hh.map((p,i)=>`${20+i*(440/Math.max(hh.length-1,1))},${40-p.score*0.36}`).join(' ');
+     hc.appendChild(el(`<div style="margin-top:8px;border-top:1px dashed #30363d;padding-top:6px"><svg width="100%" height="44" viewBox="0 0 460 44" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#3fb950" stroke-width="2"/></svg><div class="dim" style="font-size:10px">历史走势 ${hh.length} 点（${hh[0].ts} 起）</div></div>`));}}
+  {const heat=await j('/api/rounds-heat').catch(()=>[]);
+   const rwrap=document.getElementById('rounds')?.parentElement;
+   if(heat&&heat.length&&rwrap&&!document.getElementById('rheat')){
+     const mx=Math.max(...heat.map(x=>x.n),1);
+     const cells=heat.map(x=>`<i title="${x.d}：${x.n} 轮" style="width:9px;height:9px;border-radius:2px;background:rgba(63,185,80,${x.n?0.25+0.75*x.n/mx:0.08})"></i>`).join('');
+     const bar=document.createElement('div');bar.id='rheat';bar.style.cssText='display:flex;gap:2px;margin-top:8px;flex-wrap:wrap';
+     bar.innerHTML=cells+`<span class="dim" style="font-size:10px;margin-left:6px">近 30 天轮次</span>`;
+     rwrap.appendChild(bar);}}
   {const sp=document.getElementById('hspark');
    if(sp){sp.innerHTML=window.__hist.map(v=>`<i class="${v<75?'hot':''}" style="height:${Math.max(3,v*0.3)}px" title="${v}"></i>`).join('');}
    const sc=document.getElementById('hscore');
@@ -324,6 +336,9 @@ async function refresh(){
       </div>`));
     }
   }
+  {const all=await j('/api/decisions?all=1').catch(()=>null);
+   if(all&&all.length){const done=all.filter(x=>x.status!=='待拍').slice(-8).reverse();
+     if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${x.id}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.q}</span><span class="${x.status==='已拍'?'ok':'dim'}">${x.status}</span></div>`).join('')}</details>`));}}}
   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
 }
 refresh();setInterval(refresh,5000);
@@ -357,7 +372,6 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        import datetime
         if self.path == "/api/decide":
             n = int(self.headers.get("Content-Length") or 0)
             try:
@@ -484,8 +498,33 @@ class H(BaseHTTPRequestHandler):
             import shutil
             du = shutil.disk_usage(os.path.expanduser("~"))
             disk_pct = du.used / du.total * 100
-            r3 = 1.0 if disk_pct < 80 else (0.7 if disk_pct < 88 else 0.3)
-            parts.append(sub("本机磁盘", r3, 100, 10, f"已用 {disk_pct:.0f}%")); total += r3*10; full += 10
+            # 远程盘（cloud4 /opt）——5 分钟缓存防每查必 ssh
+            cache_p = "/tmp/wenqu-cloud4-disk.json"
+            remote_pct = None
+            try:
+                if os.path.isfile(cache_p) and datetime.now().timestamp() - os.path.getmtime(cache_p) < 300:
+                    remote_pct = json.load(open(cache_p)).get("pct")
+            except Exception:
+                remote_pct = None
+            if remote_pct is None:
+                try:
+                    out_ = subprocess.run(["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", "root@cloud4",
+                                           "python3 -c \"import os;s=os.statvfs('/opt');print(round((s.f_blocks-s.f_bavail)*100/s.f_blocks))\""],
+                                          capture_output=True, text=True, timeout=6).stdout.strip()
+                    remote_pct = float(out_) if out_.replace(".", "").isdigit() else None
+                    if remote_pct is not None:
+                        json.dump({"pct": remote_pct}, open(cache_p, "w"))
+                except Exception:
+                    remote_pct = None
+            r3 = (1.0 if disk_pct < 80 else (0.7 if disk_pct < 88 else 0.3)) * 0.5
+            detail3 = f"本机 {disk_pct:.0f}%"
+            if remote_pct is not None:
+                r3 += (1.0 if remote_pct < 80 else (0.7 if remote_pct < 88 else 0.3)) * 0.5
+                detail3 += f" / 服务器 {remote_pct:.0f}%"
+            else:
+                r3 += 0.5
+                detail3 += " / 服务器未知"
+            parts.append(sub("磁盘（本机/服务器）", r3, 100, 10, detail3)); total += r3*10; full += 10
             ratcheted = 0
             for cand in ("scripts/dupscan/baseline.json", os.path.join(os.environ.get("WENQU_REPO_DIR", ""), "scripts/dupscan/baseline.json")):
                 if cand and os.path.isfile(cand):
@@ -537,7 +576,45 @@ class H(BaseHTTPRequestHandler):
             except Exception:
                 pass
             return self._send(200, json.dumps({"score": score, "grade": grade, "parts": parts}, ensure_ascii=False))
-        if self.path == "/api/decisions":
+        if self.path == "/api/health-history":
+            out = []
+            try:
+                for l in open(os.path.expanduser("~/Documents/ERP）Zcode/健康度走势.jsonl"), errors="ignore"):
+                    if l.strip():
+                        try:
+                            d = json.loads(l)
+                            out.append({"ts": d.get("ts", "")[5:16], "score": d.get("score")})
+                        except ValueError:
+                            continue
+            except OSError:
+                pass
+            return self._send(200, json.dumps(out[-48:], ensure_ascii=False))
+        if self.path == "/api/rounds-heat":
+            import collections
+            days = collections.Counter()
+            for lp in ("~/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl",):
+                p = os.path.expanduser(lp)
+                if os.path.isfile(p):
+                    try:
+                        for l in open(p, errors="ignore"):
+                            if not l.strip():
+                                continue
+                            try:
+                                d = json.loads(l)
+                            except ValueError:
+                                continue
+                            ts = str(d.get("ts") or d.get("time") or "")[:10]
+                            if ts:
+                                days[ts] += 1
+                    except OSError:
+                        pass
+            out = []
+            for i in range(29, -1, -1):
+                day = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+                out.append({"d": day[5:], "n": days.get(day, 0)})
+            return self._send(200, json.dumps(out, ensure_ascii=False))
+        if self.path.startswith("/api/decisions"):
+            want_all = "all=1" in self.path
             out = []
             env = os.environ.get("WENQU_DECISIONS", os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"))
             try:
@@ -548,8 +625,11 @@ class H(BaseHTTPRequestHandler):
                         d = json.loads(l)
                     except ValueError:
                         continue
-                    if d.get("status") == "待拍":
-                        out.append({k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")})
+                    if d.get("status") == "待拍" or want_all:
+                        row = {k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")}
+                        if want_all:
+                            row["status"] = d.get("status")
+                        out.append(row)
             except OSError:
                 pass
             return self._send(200, json.dumps(out, ensure_ascii=False))
