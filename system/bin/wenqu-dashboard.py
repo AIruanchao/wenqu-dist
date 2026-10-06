@@ -5,6 +5,7 @@
 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
 """
 import json
+from datetime import datetime
 import os
 import signal
 import subprocess
@@ -161,6 +162,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
  </div>
 </div>
 <div class="grid" id="ov">
+  <div class="card" style="grid-column:1/-1;border-color:#3fb950" id="healthcard"><h2>❤️ 系统健康度</h2><div id="health">载入中…</div></div>
   <div class="card" style="border-color:#f0883e" id="deccard"><h2>⏳ 待拍板</h2><div id="dec" style="max-height:340px;overflow:auto">载入中…</div></div>
   <div class="card"><h2>组件体检</h2><div id="comp">载入中…</div></div>
   <div class="card"><h2>守护进程</h2><div id="daemon">载入中…</div>
@@ -257,7 +259,7 @@ async function refresh(){
   const ds=Object.entries(d.daemons);
   if(!ds.length)db.innerHTML='<span class="dim">无运行中守护（wenqu start）</span>';
   for(const[n,s]of ds)db.appendChild(el(`<div class="row"><span>${n}</span><span class="${s=='运行中'?'ok':'bad'}">${s}</span></div>`));
-  document.getElementById('cronline').textContent=`cron 哨兵任务：${d.cron} 条`;
+  document.getElementById('cronline').textContent=`定时哨兵：${d.cron} 条`;
   const r=await j('/api/ratchet');const rb=document.getElementById('ratchet');
   rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
   if(r.available){rb.innerHTML='';
@@ -266,6 +268,13 @@ async function refresh(){
   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
   for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p)}
+  const h=await j('/api/health');const hbox=document.getElementById('health');
+  if(h.score!=null){const col=h.score>=90?'var(--ok)':(h.score>=75?'#f0883e':'var(--bad)');
+    hbox.innerHTML=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div style="text-align:center;flex:none"><div style="font-size:44px;font-weight:700;color:${col};line-height:1">${h.score}</div>
+      <div style="font-size:12px;color:${col}">${h.grade}</div></div>
+      <div style="flex:1;min-width:300px">${h.parts.map(p=>`<div class="row"><span>${p['项']}</span><span class="dim">${p['详情']}</span><span style="color:${p['比']==='100%'?'var(--ok)':'#f0883e'}">${p['得分']}/${p['满分']}</span></div>`).join('')}</div>
+    </div>`;}
   const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
   else{dbox.innerHTML='';
@@ -371,6 +380,76 @@ class H(BaseHTTPRequestHandler):
                 except OSError:
                     pass
             return self._send(200, json.dumps({"rounds": rounds}, ensure_ascii=False))
+        if self.path == "/api/health":
+            def sub(name, got, full, weight, detail=""):
+                return {"项": name, "得分": round(got * weight, 1), "满分": weight,
+                        "比": f"{got*100:.0f}%", "详情": detail}
+            parts, total, full = [], 0.0, 0.0
+            c = components()
+            items = [it for grp in c["components"].values() if isinstance(grp, list) for it in grp]
+            okc = sum(1 for it in items if it["ok"])
+            r1 = okc / len(items) if items else 0
+            parts.append(sub("组件完整", r1, 100, 30, f"{okc}/{len(items)} 在位")); total += r1*30; full += 30
+            daemons_live = 0
+            state = os.path.join(WQ, "state")
+            if os.path.isdir(state):
+                for f in os.listdir(state):
+                    if f.endswith(".pid"):
+                        try:
+                            os.kill(int(open(os.path.join(state, f)).read().strip()), 0)
+                            daemons_live += 1
+                        except (OSError, ValueError):
+                            pass
+            cron = 0
+            try:
+                cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.count("wenqu/sentinels")
+            except OSError:
+                pass
+            r2 = 1.0 if daemons_live > 0 else (0.5 if cron > 0 else 0.0)
+            parts.append(sub("守护与哨兵", r2, 100, 20, f"守护 {daemons_live} 活 / cron {cron} 条")); total += r2*20; full += 20
+            import shutil
+            du = shutil.disk_usage(os.path.expanduser("~"))
+            disk_pct = du.used / du.total * 100
+            r3 = 1.0 if disk_pct < 80 else (0.7 if disk_pct < 88 else 0.3)
+            parts.append(sub("本机磁盘", r3, 100, 10, f"已用 {disk_pct:.0f}%")); total += r3*10; full += 10
+            ratcheted = 0
+            for cand in ("scripts/dupscan/baseline.json", os.path.join(os.environ.get("WENQU_REPO_DIR", ""), "scripts/dupscan/baseline.json")):
+                if cand and os.path.isfile(cand):
+                    try:
+                        d = json.load(open(cand))
+                        ratcheted = sum(1 for v in d.get("layers", {}).values())
+                    except (OSError, ValueError):
+                        pass
+            r4 = 1.0 if ratcheted >= 3 else (0.5 if ratcheted else 0.0)
+            parts.append(sub("棘轮基线", r4, 100, 15, f"{ratcheted}/3 层在位")); total += r4*15; full += 15
+            rounds_recent = 0
+            for lp in ("~/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl",):
+                p = os.path.expanduser(lp)
+                if os.path.isfile(p):
+                    try:
+                        lines = [l for l in open(p, errors="ignore") if l.strip()][-20:]
+                        today = datetime.now().strftime("%m-%d")
+                        rounds_recent = sum(1 for l in lines if today in l[:16])
+                    except OSError:
+                        pass
+            r5 = 1.0 if rounds_recent >= 3 else (0.6 if rounds_recent else 0.2)
+            parts.append(sub("账本活性", r5, 100, 15, f"今日 {rounds_recent} 轮")); total += r5*15; full += 15
+            try:
+                dl = json.load(open(os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"), errors="ignore")) if False else None
+            except Exception:
+                dl = None
+            pending = 0
+            try:
+                import io as _io
+                with _io.open(os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"), errors="ignore") as f:
+                    pending = sum(1 for l in f if l.strip() and json.loads(l).get("status") == "待拍")
+            except Exception:
+                pass
+            r6 = 1.0 if pending == 0 else (0.6 if pending <= 3 else 0.2)
+            parts.append(sub("决策积压", r6, 100, 10, f"{pending} 条待拍")); total += r6*10; full += 10
+            score = round(total / full * 100, 0) if full else 0
+            grade = "健康" if score >= 90 else ("良好" if score >= 75 else ("关注" if score >= 60 else "告警"))
+            return self._send(200, json.dumps({"score": score, "grade": grade, "parts": parts}, ensure_ascii=False))
         if self.path == "/api/decisions":
             out = []
             env = os.environ.get("WENQU_DECISIONS", os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"))
