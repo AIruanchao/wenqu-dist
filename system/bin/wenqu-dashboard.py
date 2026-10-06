@@ -250,7 +250,7 @@ function renderDeck(){
   const dk=document.getElementById('stdeck');dk.innerHTML='';
   STATIONS.forEach((s,i)=>{
     const d=document.createElement('div');d.className='scard';d.style.animationDelay=(i*70)+'ms';
-    d.onclick=()=>{document.querySelectorAll('.scard').forEach(x=>{if(x!==d)x.classList.remove('open')});d.classList.toggle('open')};
+    d.onclick=()=>{document.querySelectorAll('#stdeck .scard').forEach(x=>{if(x!==d)x.classList.remove('open')});d.classList.toggle('open')};
     d.innerHTML=`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
     <div class="det"><div class="lab">执行件</div><p>${s.exec}</p><div class="lab">通过判据</div><p>${s.pass}</p></div>
     <span class="dim" style="font-size:11px">点击展开执行件 / 通过判据</span>`;
@@ -261,7 +261,7 @@ function renderDeck(){
     const b=document.createElement('button');b.className='tbtn';b.textContent=t.k;
     b.onclick=()=>{
       document.querySelectorAll('.tbtn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
-      document.querySelectorAll('.scard').forEach((c,i)=>{c.classList.toggle('lit',t.s.includes(STATIONS[i].n));c.classList.toggle('off',!t.s.includes(STATIONS[i].n))});
+      document.querySelectorAll('#stdeck .scard').forEach((c,i)=>{c.classList.toggle('lit',t.s.includes(STATIONS[i].n));c.classList.toggle('off',!t.s.includes(STATIONS[i].n))});
       document.getElementById('tierinfo').innerHTML=`<b style="color:var(--acc)">${t.k}</b> → 站点 {${t.s.join('、')}} · lane/N = ${t.lane}`;
     };
     tb.appendChild(b);
@@ -270,7 +270,7 @@ function renderDeck(){
 let playTimer=null;
 function stopPlay(){if(playTimer){clearInterval(playTimer);playTimer=null}}
 function playFlow(){
-  const cards=[...document.querySelectorAll('.scard')];const ring=document.getElementById('ringcard');
+  const cards=[...document.querySelectorAll('#stdeck .scard')];const ring=document.getElementById('ringcard');
   stopPlay();
   const btn=document.getElementById('playBtn');
   if(btn.dataset.run){btn.dataset.run='';btn.textContent='▶ 自动巡游';cards.forEach(c=>c.classList.remove('now'));ring.classList.remove('now');return}
@@ -292,6 +292,134 @@ function playFlow(){
   },1500);
 }
 renderDeck();
+const POSTFIX=[
+ {n:1,name:'圈面',tier:'§9.1',exec:'修复批全部产物文件（git diff <基线>..master -- src 剔测试），双代理并行分片对抗审',pass:'审计六维：CAS 快照真拦竞态 / 幂等键真唯一 / 权限锚点对 / 事务边界 / 孪生口径一致性 / Decimal'},
+ {n:2,name:'异源升级',tier:'§9.2',exec:'第三轮起鼓励真库实验（docker PG + 真实 Prisma 版本实证，如 25P02 家族——交互式事务 P2002 后 catch 内重查必炸）',pass:'证据源实质轮换：同命令族+同时辰+换模型转述≠异源'},
+ {n:3,name:'修复-复扫循环',tier:'§9.3',exec:'每轮发现→冻结工单→修复→上产→下轮复扫新产物',pass:'曲线应递减（实战 20→12→4→1→0）；不递减=修复方法有系统性问题，停手复盘'},
+ {n:4,name:'封环条件',tier:'§9.4 · 三条全满足',exec:'① 末轮零新发现；② 存量数据尾巴生产核查清（历史口径行数=0 或已裁定）；③ 修复语义短路/边界亲审零疑问',pass:'三条全满足才可宣言收敛；缺一=继续循环'},
+ {n:5,name:'入账',tier:'§9.5',exec:'每轮发现进 bugscan-ledger；方法论战训入 quality-system candidates',pass:'封环时跑 check-ingestion --last-action 收口'}
+];
+const PFCURVE=[20,12,4,1,0];
+const HARDEN=[
+ {n:'A',name:'异源审引擎（核心引擎）',tier:'§9b A',exec:'每轮派零先前上下文子代理：charter=「证明它是错的或不完备的」+攻击面清单+上限条数+零发现合法；实测优先于推演；修复者自验=自审（同批代码自审漏 6 条实证——二审定律）',pass:'曲线判读：递减=健康；平台期≠稳态（「无 HIGH」可能含账面成分）；轮换维度再扫（代码→测试件→文档→故障形态）每换一维常有增量；停机=曲线归零+变异闭环+正门验收全绿→条件放行（非清零——盲区清单+解除条件必附）；无限磨低危=反模式'},
+ {n:'B',name:'修复批纪律（四条）',tier:'§9b B',exec:'① 同族半改按 family 收口（同一防线 A 处修 B 处没修——18 轮最高频病灶，六族实证）② 真实执行语义验证（声明的 rc/shell/退出码语义必须实测对齐——PIPESTATUS 赋值陷阱 / xargs 123 混叠 / die-append 顺序三案）③ 故障形态双类注入（内容异常 GBK/BOM/二进制/超长行 + 宿主异常 磁盘满/只读/PATH 残缺）④ 声明与事实对齐（声称改了必须 grep assert 在文 + git diff 非零）',pass:'「修复验证只想到的形态≠全部形态」——S7 模式定谳'},
+ {n:'C',name:'验收三法（跨模型审最高优先）',tier:'§9b C',exec:'跨模型审（v2.0 新增）：GLM 收敛到零后必须送至少一个异族模型终审（Codex/K3/M3）——实证 GLM 12 轮收敛到 0，Codex 一轮 8 HIGH + K3 一轮 3 Critical 全漏（同族认知盲区=结构性限制，无法靠更多轮修复）；变异测试=夹具有效性唯一可信法（把修复还原为坏形态→全套测试必须红，绿了=假绿夹具）；文档修复验收=逐变更点 assert + git diff 非零',pass:'工具通道：codex exec --skip-git-repo-check -s read-only ／ mmx text chat --model kimi-k3 · wenqu 跨模型收敛曲线 8H→5H→3H→3M→3M→2M→2M→1M→修复完'}
+];
+const ARSENAL=[
+ {n:1,name:'api-perm-matrix',st:'站3',badge:'✅现役',one:'787 端点静态矩阵+openapi 对账+双面探针',det:'静态矩阵（org=488/session=176/none=17/exempt=425）+双面探针（dry-run 默认）；PR#527 入仓，首基线已入库'},
+ {n:2,name:'supply-chain-audit',st:'站2',badge:'✅现役',one:'npm audit CVE+lockfile 对账+依赖快照 diff+安装脚本面',det:'launchd 周一 08:30；首跑 CLEAN（CVE 0 HIGH+ / lockfile 0 漂移 / 1472 传递依赖基线 / 9 安装脚本包全良性）'},
+ {n:3,name:'simplify 工件化',st:'站6',badge:'✅',one:'simplify-evidence-<日期>.md 五要素落盘纪律',det:'候选不自动重构，证据工件五要素（2026-09-17 工件化）'},
+ {n:4,name:'DB 漂移周哨兵',st:'站3',badge:'✅现役',one:'db-schema-recon-4track 漂移白名单周扫',det:'launchd 周一 08:00 + erp_readonly 只读账户 + watchdog；首跑 CLEAN（基线 27 还在收敛）'},
+ {n:5,name:'dupscan 周哨兵',st:'站2',badge:'✅现役',one:'仓内正源 check-ratchet.sh 周扫（弃自建口径）',det:'launchd 周日 04:00；首跑 PASS 三层全在基线下'},
+ {n:6,name:'DH Next.js 适配',st:'站1',badge:'✅',one:'dh-gate 判定函数双分支化',det:'cloud3 判定函数移植双分支（Python + Node/Next），ERP 仓实测 web 判定，md5 对账 0a83919b'},
+ {n:7,name:'perf-baseline-runner',st:'季度档',badge:'✅现役',one:'绝对阈值+相对退化双判性能基线',det:'launchd 季度首日 05:00；首基线 CLEAN（登录 p95≈90ms / health p95≈166ms / 单进程 RSS 1623MB / PG 12 连接）'},
+ {n:8,name:'Z-A advisory-watch',st:'站2',badge:'🆕v1.7',one:'框架安全通告跟踪',det:'GitHub Advisories API 比对 lockfile 实锁版本，命中且实锁<修复版→告警；幂等哈希去重。触发=CVE-2025-29927（middleware bypass CVSS 9.1）曾靠人工核免疫'},
+ {n:9,name:'Z-B export-tenant-audit',st:'站2',badge:'🆕v1.7',one:'导出/下载端点租户过滤静态扫',det:'全 export/download 路由查询 builder where 缺 organizationId 且模型属 TENANT_MODELS→违例清单；基线=Z17 修后 0 违例（BSF-20261001-06 双例实证）'},
+ {n:10,name:'Z-C N+1 基线',st:'—',badge:'候选',one:'Prisma query 事件计数探针',det:'staging top 路由 query/req 阈值——先基线不阻断'},
+ {n:11,name:'Z-D DB 守恒约束',st:'站3',badge:'候选',one:'LedgerEntry Σ 约束触发器方案',det:'业界最佳实践=CHECK/触发器写时现形；涉生产 DDL 拍板'},
+ {n:12,name:'stations.json 三域探测器',st:'跨仓插座',badge:'🆕v1.8',one:'trap-double / guard-comment-swallow / cred-cli-expose',det:'零依赖 bash+awk+grep 可挂任意仓（协议见 §10）；F4 战训固化，部署 ccc 实测三站全中真缺陷'}
+];
+const LAYERS6=[
+ {u:'U1',name:'Sentry DSN',badge:'✅配置完成',det:'主侧 env 补入+蓝侧原有+instrument.ts 激活'},
+ {u:'U2',name:'fast-check 属性测试',badge:'✅入 master',det:'资金域 7 属性'},
+ {u:'U3',name:'Stryker 变异测试',badge:'✅0% 三文件根治',det:'首跑基线 69.58 分+3 文件 0% 发现→用例重构根治'},
+ {u:'U4',name:'Semgrep',badge:'✅3 自定义规则',det:'+594 findings 画像'},
+ {u:'U5',name:'CodeQL',badge:'⚠️边界标注',det:'private 仓不可用，如实标注'},
+ {u:'U6',name:'Zod 覆盖审计',badge:'✅第一批 5 路由',det:'z.coerce.string 终版；外部 webhook 必须 schema——垃圾输入→干净 400 非 500 重试风暴'}
+];
+const BLIND=[
+ '业务正确性只到已建模断言（18 发+真单链）——靠实弹+用户报告+季度业务走查日',
+ 'schema 对账只对当前 schema（迁移类已强制 DDL 三段式+实弹双核验）',
+ '第三方 SaaS 行为不在视野（支付类已强制核验，其余靠 SLA+对抗）',
+ 'AI 生成语义 bug 静态结构性盲（缓解=新模块首版强制站5）',
+ '性能深层瓶颈只到基线快照，profiling 人工',
+ '无独立渗透测试件（季度人工评审替代）',
+ '多模型交叉≠保证独立',
+ '「扫干净」=限定范围收敛声明，非零 Bug 承诺；最高标准=可证伪、可审计、不把未知说成安全',
+ '框架层安全通告（Next.js middleware bypass 族）依赖人工核版本——缓解=Z-A 通告跟踪哨兵',
+ '导出/下载路径为租户泄漏高发面（wanji BSF-11 + catalog 双例实证）——缓解=Z-B 导出租户周扫',
+ '查询级性能（N+1/计划退化）无自动化（端点基线只测延迟不测查询数）——缓解=Z-C N+1 基线起步',
+ '守恒不变量在 DB 层无硬约束（应用层+人工对账兜底）——缓解=Z-D 评估',
+ 'Next.js 缓存租户串扰面（深审=IMMUNE：零危险原语+全站动态渲染；重审计触发=引入 unstable_cache/"use cache"/fetch tags 时）',
+ '会计错误 13 类模式（SQL 化 4 类检测=0/57 全为业务巧合；重扫触发=财务对账不平时先跑此四查）',
+ '跨仓/只读委托时运行态站（4/5/7）常不可达——离线审计≠运行态验证，交付声明必须如实分列（F4 实战定式）',
+ '防线「同族半改」结构性盲：同一防线 A 处修 B 处没修（F4 六例）——缓解=对抗审必查族覆盖对称性+修复批按 family 收口勿逐点'
+];
+function renderBugDeck(){
+  const mk=(dkid,arr,fh)=>{
+    const dk=document.getElementById(dkid);dk.innerHTML='';
+    arr.forEach((s,i)=>{
+      const d=document.createElement('div');d.className='scard';d.style.animationDelay=(i*60)+'ms';
+      d.onclick=()=>{document.querySelectorAll('#'+dkid+' .scard').forEach(x=>{if(x!==d)x.classList.remove('open')});d.classList.toggle('open')};
+      d.innerHTML=fh(s);dk.appendChild(d);
+    });
+  };
+  mk('pfdeck',POSTFIX,s=>`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
+    <div class="det"><div class="lab">执行</div><p>${s.exec}</p><div class="lab">判读</div><p>${s.pass}</p></div>
+    <span class="dim" style="font-size:11px">点击展开执行 / 判读</span>`);
+  mk('hardendeck',HARDEN,s=>`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
+    <div class="det"><div class="lab">纪律</div><p>${s.exec}</p><div class="lab">要点</div><p>${s.pass}</p></div>
+    <span class="dim" style="font-size:11px">点击展开纪律 / 要点</span>`);
+  mk('arsdeck',ARSENAL,s=>`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.st}</span><span class="tier" style="color:#3fb950;border-color:#3fb95055;background:#3fb95022">${s.badge}</span></div>
+    <div style="font-size:12px;color:#a8b3bf">${s.one}</div>
+    <div class="det"><div class="lab">详情</div><p>${s.det}</p></div>
+    <span class="dim" style="font-size:11px">点击展开详情</span>`);
+  const l6=document.getElementById('layers6');
+  l6.innerHTML='<div class="lab" style="color:var(--dim);font-size:10px;margin:12px 0 6px;letter-spacing:.5px">v2.0 六层强化（2026-10-03「我要最强」——已装未用四件挖掘=最大富矿）</div>';
+  LAYERS6.forEach(x=>{l6.appendChild(el(`<div class="row"><span style="flex:0 0 40px" class="dim">${x.u}</span><span style="flex:0 0 170px">${x.name}</span><span style="color:#3fb950;font-size:12px;flex:0 0 130px">${x.badge}</span><span class="dim" style="font-size:11px;flex:1">${x.det}</span></div>`))});
+  const bs=document.getElementById('blindspots');
+  BLIND.forEach((t,i)=>{bs.appendChild(el(`<div style="font-size:11.5px;color:#a8b3bf;line-height:1.55;padding:3px 0;border-bottom:1px dashed #21262d"><span class="dim" style="margin-right:8px">${String(i+1).padStart(2,'0')}</span>${t}</div>`))});
+  const sp=document.getElementById('pfspark');
+  sp.innerHTML=PFCURVE.map(v=>`<i title="${v} 发现" style="height:${Math.max(3,v*2)}px;${v===0?'background:linear-gradient(180deg,#3fb950,#1f6feb)':''}"></i>`).join('');
+}
+let pfTimer=null;
+function pfFlow(){
+  const cards=[...document.querySelectorAll('#pfdeck .scard')];
+  const btn=document.getElementById('pfBtn');
+  if(pfTimer){clearInterval(pfTimer);pfTimer=null;cards.forEach(c=>c.classList.remove('now'));btn.textContent='▶ 巡游五步';return}
+  btn.textContent='⏸ 停止巡游';
+  cards.forEach(c=>c.classList.remove('now'));
+  let i=0;
+  pfTimer=setInterval(()=>{
+    if(i>=cards.length){
+      clearInterval(pfTimer);pfTimer=null;
+      cards.forEach(c=>c.classList.remove('now'));
+      document.getElementById('pffill').style.width='100%';
+      document.getElementById('pfmsg').innerHTML='走查完成——封环条件三条全满足才可宣言收敛';
+      btn.textContent='▶ 巡游五步';return;
+    }
+    cards.forEach(c=>c.classList.remove('now'));
+    cards[i].classList.add('now');cards[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+    document.getElementById('pffill').style.width=Math.round((i+1)*100/cards.length)+'%';
+    document.getElementById('pfmsg').innerHTML=`第${POSTFIX[i].n}步 <b>${POSTFIX[i].name}</b> · ${POSTFIX[i].tier}`;
+    i++;
+  },1500);
+}
+async function loadBGL(){
+  const d=await j('/api/bugscan-ledger');
+  const box=document.getElementById('bglstate');
+  if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
+  const st=d.total.by_status||{};
+  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭']];
+  let h='<div class="frow">';
+  chain.forEach(([k,lab],ix)=>{
+    if(ix)h+='<div class="arrow">▸</div>';
+    const n=st[k]||0;
+    h+=`<div class="bnode${k==='OPEN'&&n>0?' hot':''}"><b>${k}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
+  });
+  h+='</div><div class="frow" style="margin-top:8px"><div class="arrow">↳</div>';
+  h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
+  h+=`<div class="bnode side"><b>OTHER</b><span class="cnt">${st['OTHER']||0}</span><span class="hint">无状态字段/变体未归类</span></div></div>`;
+  const sv=d.total.by_sev||{};
+  h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span><span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${d.total.last_ts||'—'}</span></div>`;
+  box.innerHTML=h;
+  const pb=document.getElementById('bglproj');pb.innerHTML='';
+  d.projects.slice(0,8).forEach(p=>{
+    pb.appendChild(el(`<div class="row"><span class="dim" style="flex:0 0 132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.key}">${p.key}</span><span style="flex:1;font-size:12px">${p.findings} 条 · OPEN ${p.by_status.OPEN||0} / FIXED ${p.by_status.FIXED||0} / VERIFIED ${p.by_status.VERIFIED||0} / CLOSED ${p.by_status.CLOSED||0}</span><span class="dim" style="font-size:11px;flex:0 0 108px;text-align:right;white-space:nowrap">${p.last_ts||''}</span></div>`));
+  });
+}
+renderBugDeck();
+loadBGL().catch(()=>{});setInterval(()=>loadBGL().catch(()=>{}),60000);
 async function refresh(){
   const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
   let ok=0,tot=0;
@@ -399,6 +527,105 @@ def components():
     return {"components": out, "version": ver}
 
 
+def _norm_status(s):
+    """账本状态归一——bugscan-ledger 为多源异构历史（OPEN(运维)/FIXED(...备注)/VERIFIED_CLOSED_PROD 等变体），归一到 §4 正源状态机五态+FIXED 过渡+OTHER 残差。"""
+    if s is None:
+        return "OTHER"
+    t = str(s).strip()
+    if not t:
+        return "OTHER"
+    tl = t.lower()
+    if tl.startswith("open"):
+        return "OPEN"
+    if tl.startswith("fixing"):
+        return "FIXING"
+    if tl.startswith("fixed+verified") or t.startswith("VERIFIED_CLOSED") or tl.startswith("partially-verified"):
+        return "VERIFIED"
+    if tl.startswith("fixed") or tl.startswith("corrected") or tl.startswith("done") or tl.startswith("mitigated") or tl.startswith("documented"):
+        return "FIXED"
+    if tl.startswith("verified"):
+        return "VERIFIED"
+    if tl.startswith("closed") or tl.startswith("rejected"):
+        return "CLOSED"
+    if tl.startswith("accepted"):
+        return "ACCEPTED"
+    return "OTHER"
+
+
+def _norm_sev(s):
+    if s is None:
+        return "OTHER"
+    t = str(s).strip().lower()
+    if not t:
+        return "OTHER"
+    if "high" in t:
+        return "HIGH"
+    if "low" in t:
+        return "LOW"
+    if "med" in t or "medium" in t:
+        return "MED"
+    if "info" in t or t == "pass":
+        return "INFO"
+    return "OTHER"
+
+
+def bugscan_ledger():
+    """实读 bugscan-ledger 账本（只读本地目录，子项名做 basename+realpath 双校验限制在允许目录内）。"""
+    root = os.path.realpath(os.path.expanduser(
+        os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
+    if not os.path.isdir(root):
+        return {"available": False}
+    projects = []
+    tot_status, tot_sev = {}, {}
+    tot_findings, tot_last = 0, ""
+    for name in sorted(os.listdir(root)):
+        # 路径防御：仅接受 basename 级子项名，规范化后必须仍在 root 内（禁 ../ 与分隔符）
+        if name != os.path.basename(name) or name.startswith("."):
+            continue
+        f = os.path.realpath(os.path.join(root, name, "findings.jsonl"))
+        if not (f == root or f.startswith(root + os.sep)):
+            continue
+        if not os.path.isfile(f):
+            continue
+        by_status, by_sev = {}, {}
+        n_find, last = 0, ""
+        try:
+            for l in open(f, errors="ignore"):
+                l = l.strip()
+                if not l:
+                    continue
+                try:
+                    d = json.loads(l)
+                except ValueError:
+                    continue
+                if not isinstance(d, dict) or not ("id" in d or "finding_id" in d):
+                    continue  # 审计行（run/charter）不计 finding
+                if "record_type" in d:
+                    continue  # 状态流转审计行（state_transition）引用 finding id 但本身非发现
+                n_find += 1
+                stt = _norm_status(d.get("status") or d.get("state"))
+                by_status[stt] = by_status.get(stt, 0) + 1
+                sv = _norm_sev(d.get("sev") or d.get("severity"))
+                by_sev[sv] = by_sev.get(sv, 0) + 1
+                ts = str(d.get("ts") or d.get("time") or "")
+                if ts > last:
+                    last = ts
+        except OSError:
+            continue
+        if n_find:
+            projects.append({"key": name, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
+            tot_findings += n_find
+            for k, v in by_status.items():
+                tot_status[k] = tot_status.get(k, 0) + v
+            for k, v in by_sev.items():
+                tot_sev[k] = tot_sev.get(k, 0) + v
+            if last > tot_last:
+                tot_last = last
+    projects.sort(key=lambda p: -p["findings"])
+    return {"available": True, "projects": projects,
+            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]}}
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -436,7 +663,7 @@ class H(BaseHTTPRequestHandler):
                     if d.get("id") == dec_id and d.get("status") == "待拍":
                         d["status"] = "已拍"
                         d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
-                        d["executed"] = "点击时间 " + datetime.datetime.now().strftime("%m-%d %H:%M")
+                        d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
                         hit = True
                     out.append(json.dumps(d, ensure_ascii=False))
                 if not hit:
@@ -660,6 +887,8 @@ class H(BaseHTTPRequestHandler):
                 day = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
                 out.append({"d": day[5:], "n": days.get(day, 0)})
             return self._send(200, json.dumps(out, ensure_ascii=False))
+        if self.path == "/api/bugscan-ledger":
+            return self._send(200, json.dumps(bugscan_ledger(), ensure_ascii=False))
         if self.path.startswith("/api/decisions"):
             want_all = "all=1" in self.path
             out = []
