@@ -620,46 +620,74 @@ def _fold_project(f):
     return cur, trans, sev_of, last
 
 
-def bugscan_ledger():
-    """实读 bugscan-ledger 账本；折叠语义见 _fold_project。任何未预期异常兜底返回稳定错误（fail-soft）。"""
+_LEDGER_CACHE = {"stamp": None, "data": None}
+_LEDGER_LOCK = threading.Lock()
+
+
+def _ledger_files(root):
+    """采集账本文件集及其 (mtime_ns,size) 签名（basename+realpath 双校验限制在允许目录内）。"""
+    files = {}
     try:
-        return _bugscan_ledger_impl()
-    except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
-        return {"available": False, "error": f"{type(e).__name__}: {e}"}
+        names = sorted(os.listdir(root))
+    except OSError:
+        return files
+    for name in names:
+        # 路径防御：仅接受 basename 级子项名（显式拒绝 .. 与分隔符），规范化后必须仍在 root 内
+        if name != os.path.basename(name) or ".." in name or name.startswith("."):
+            continue
+        f = os.path.realpath(os.path.join(root, name, "findings.jsonl"))
+        if not (f == root or f.startswith(root + os.sep)) or not os.path.isfile(f):
+            continue
+        try:
+            st = os.stat(f)
+        except OSError:
+            continue
+        files[f] = (st.st_mtime_ns, st.st_size)
+    return files
 
 
-def _bugscan_ledger_impl():
-    """实读 bugscan-ledger 账本（只读本地目录，子项名做 basename+realpath 双校验限制在允许目录内）。"""
+def bugscan_ledger():
+    """实读 bugscan-ledger 账本；折叠语义见 _fold_project。
+
+    性能（2026-10-07「优化」）：文件 (mtime,size) 签名不变→直接返回缓存（读侧仅 json 序列化
+    不修改 dict，CPython 只读并发安全）；未命中在 _LEDGER_LOCK 内单飞重读（singleflight，
+    并发不重复 IO）。任何未预期异常兜底返回稳定错误（fail-soft），不写缓存。"""
     root = os.path.realpath(os.path.expanduser(
         os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
     if not os.path.isdir(root):
         return {"available": False}
+    files = _ledger_files(root)
+    stamp = frozenset(files.items())
+    with _LEDGER_LOCK:
+        if _LEDGER_CACHE["stamp"] == stamp:
+            return _LEDGER_CACHE["data"]
+        try:
+            data = _bugscan_ledger_impl(files)
+        except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
+            return {"available": False, "error": f"{type(e).__name__}: {e}"}
+        _LEDGER_CACHE["stamp"] = stamp
+        _LEDGER_CACHE["data"] = data
+        return data
+
+
+def _bugscan_ledger_impl(files):
+    """files={已校验 findings.jsonl 路径: (mtime,size)}；折叠语义见 _fold_project。"""
     projects = []
     tot_status, tot_sev = {}, {}
     tot_findings, tot_last = 0, ""
-    for name in sorted(os.listdir(root)):
-        # 路径防御：仅接受 basename 级子项名，规范化后必须仍在 root 内（禁 ../ 与分隔符）
-        if name != os.path.basename(name) or name.startswith("."):
-            continue
-        f = os.path.realpath(os.path.join(root, name, "findings.jsonl"))
-        if not (f == root or f.startswith(root + os.sep)):
-            continue
-        if not os.path.isfile(f):
-            continue
-        by_status, by_sev = {}, {}
-        try:
-            cur, trans, sev_of, last = _fold_project(f)
-        except OSError:
-            continue
+    for f in files:
+        cur, trans, sev_of, last = _fold_project(f)
         if not cur:
             continue
+        by_status, by_sev = {}, {}
         for fid, init_status in cur.items():
             stt = _norm_status(trans.get(fid) or init_status)  # 流转现态优先
             by_status[stt] = by_status.get(stt, 0) + 1
             sv = _norm_sev(sev_of.get(fid))
             by_sev[sv] = by_sev.get(sv, 0) + 1
         n_find = len(cur)
-        projects.append({"key": name, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
+        key = os.path.basename(os.path.dirname(f))
+        projects.append({"key": key, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
         tot_findings += n_find
         for k, v in by_status.items():
             tot_status[k] = tot_status.get(k, 0) + v
