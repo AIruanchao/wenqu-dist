@@ -161,6 +161,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
  </div>
 </div>
 <div class="grid" id="ov">
+  <div class="card" style="border-color:#f0883e" id="deccard"><h2>⏳ 待拍板</h2><div id="dec" style="max-height:340px;overflow:auto">载入中…</div></div>
   <div class="card"><h2>组件体检</h2><div id="comp">载入中…</div></div>
   <div class="card"><h2>守护进程</h2><div id="daemon">载入中…</div>
     <div style="margin-top:8px" class="dim" id="cronline"></div></div>
@@ -265,6 +266,19 @@ async function refresh(){
   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
   for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p)}
+  const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
+  if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+  else{dbox.innerHTML='';
+    for(const d of dec){
+      const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
+      const overdue=days===0;
+      dbox.appendChild(el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
+        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${d.cat}${d.red?' 🔴':''}</span> ${d.q}</span>
+        <span class="${overdue?'bad':'dim'}" style="font-size:11px;white-space:nowrap">${overdue?'⏰ 已逾期':(days!=null?`TTL ${days}d`:'')}</span></div>
+        <div class="dim" style="font-size:12px">💡 ${d.opt||''}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
+      </div>`));
+    }
+  }
   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
 }
 refresh();setInterval(refresh,15000);
@@ -357,6 +371,22 @@ class H(BaseHTTPRequestHandler):
                 except OSError:
                     pass
             return self._send(200, json.dumps({"rounds": rounds}, ensure_ascii=False))
+        if self.path == "/api/decisions":
+            out = []
+            env = os.environ.get("WENQU_DECISIONS", os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"))
+            try:
+                for l in open(env, errors="ignore"):
+                    if not l.strip():
+                        continue
+                    try:
+                        d = json.loads(l)
+                    except ValueError:
+                        continue
+                    if d.get("status") == "待拍":
+                        out.append({k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")})
+            except OSError:
+                pass
+            return self._send(200, json.dumps(out, ensure_ascii=False))
         if self.path == "/api/logs":
             out, logdir = {}, os.path.join(WQ, "logs")
             if os.path.isdir(logdir):

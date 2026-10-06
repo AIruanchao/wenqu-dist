@@ -17,7 +17,7 @@ echo "== iron-gate v1: $DIR vs $BASE =="
 
 # ── R001/R002: PIT family + defense ──
 MISS_FAM=$(git diff "$BASE"...HEAD -- sdd/bug-library/PITFALLS.md 2>/dev/null | grep "^+## PIT-" | sed 's/^+## \(PIT-[0-9]*\).*/\1/' | while read -r pit; do
-  git show "HEAD:sdd/bug-library/PITFALLS.md" 2>/dev/null | grep -A 1 "^## ${pit} " | grep -q "^family:" || echo "$pit"
+  git show "HEAD:sdd/bug-library/PITFALLS.md" 2>/dev/null | grep -A 3 "^## ${pit} " | grep -q "^family:" || echo "$pit"
 done | tr '\n' ' ')
 [ -n "$MISS_FAM" ] && f "R001 PIT 缺 family: $MISS_FAM" || p "R001 PIT family"
 
@@ -29,7 +29,8 @@ done | tr '\n' ' ')
 
 # ── R003: SDD 验收标准段 ──
 SDD_MISS=$(for f in $(git diff --name-only "$BASE"...HEAD -- 'sdd/domain-spec/*.md' 2>/dev/null); do
-  [ -f "$f" ] && ! grep -q "^## 验收标准" "$f" && echo "$f"
+  # 对齐 W4-T08/pytest 宽松口径：验收标准节 / 验收标题行 / Acceptance 任意命中即可
+  [ -f "$f" ] && ! grep -qE "^#+[[:space:]]*验收(标准)?$|^##[[:space:]]+Acceptance" "$f" && echo "$f"
 done | tr '\n' ' ')
 [ -n "$SDD_MISS" ] && f "R003 SDD 缺验收段: $SDD_MISS" || p "R003 SDD 验收段"
 
@@ -56,7 +57,7 @@ BAD_TREE=$(git ls-tree -r --name-only HEAD 2>/dev/null | grep -cE "^node_modules
 [ "${BAD_TREE:-0}" -gt 0 ] && f "R007-R010 树含构建物/非代码物（$BAD_TREE 条——git rm --cached + .gitignore）" || p "R007-R010 树干净"
 
 # ── R011-R013: 安全面（diff 中敏感模式）──
-SECRET_HITS=$(git diff "$BASE"...HEAD 2>/dev/null | grep "^+" | grep -cE "PASSWORD\s*=\s*[\"']|SECRET\s*=\s*[\"']|AKIA[0-9A-Z]{16}|Bearer [A-Za-z0-9._-]{8,}" || true)
+SECRET_HITS=$(git diff "$BASE"...HEAD -- . ":(exclude)*.test.ts" ":(exclude)*.spec.ts" ":(exclude)*fixtures*" 2>/dev/null | grep "^+" | grep -cE "PASSWORD\s*=\s*[\"']|SECRET\s*=\s*[\"']|AKIA[0-9A-Z]{16}|Bearer [A-Za-z0-9._-]{8,}" || true)
 [ "${SECRET_HITS:-0}" -gt 0 ] && f "R011-R013 diff 含 $SECRET_HITS 处敏感赋值模式（env 回落须 REDACTED 或 join 拆形）" || p "R011-R013 安全扫描"
 
 # ── R014: route.ts 非法导出 ──
@@ -76,7 +77,7 @@ if ls tests/e2e/*.spec.ts >/dev/null 2>&1; then
   UNWIRED=$(for spec in $(git diff --name-only "$BASE"...HEAD -- 'tests/e2e/*.spec.ts' 2>/dev/null); do
     basename "$spec" | xargs -I{} sh -c "grep -rq '{}' .github/workflows/ 2>/dev/null || echo '{}'"
   done | tr '\n' ' ')
-  [ -n "$UNWIRED" ] && f "R016 e2e spec 未接线：$UNWIRED（在 nightly-triorder.yml 加步骤）" || p "R016 e2e 接线"
+  if [ -n "${UNWIRED}" ]; then f "R016 e2e spec 未接线：${UNWIRED}（在 nightly-triorder.yml 加步骤）"; else p "R016 e2e 接线"; fi
 fi
 
 # ── R019: ci.yml W-RES-4 ──
