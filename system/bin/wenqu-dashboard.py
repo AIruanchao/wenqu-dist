@@ -93,6 +93,15 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 .ring{width:54px;height:54px;border-radius:50%;border:3px dashed var(--acc);animation:spin 9s linear infinite;flex:none;display:flex;align-items:center;justify-content:center}
 .ring b{font-size:10px;color:var(--acc);animation:spin 9s linear infinite reverse}
 @keyframes spin{to{transform:rotate(360deg)}}
+.bnode{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 16px;text-align:center;min-width:104px}
+.bnode b{color:var(--fg);font-size:12px;display:block}
+.bnode .cnt{font-size:22px;font-weight:700;color:var(--acc);display:block;margin:2px 0;line-height:1.1}
+.bnode .hint{color:var(--dim);font-size:10px;display:block}
+.bnode.hot{border-color:var(--bad)}
+.bnode.hot .cnt{color:var(--bad)}
+.bnode.side{border-style:dashed}
+.chip{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:#1f6feb33;color:var(--acc);margin:2px 4px 2px 0}
+.chip.h{background:#f8514933;color:#f85149}.chip.m{background:#f0883e33;color:#f0883e}.chip.l{background:#3fb95033;color:#3fb950}
 </style></head><body>
 <h1>问渠 wenqu <span class="badge" id="ver">…</span></h1>
 <div class="sub">本地质量工程体系 · <span id="ts"></span> · 端口 """ + str(PORT) + """</div>
@@ -100,6 +109,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
   <button class="tab active" data-t="ov" onclick="showTab('ov')">总览</button>
   <button class="tab" data-t="pipe" onclick="showTab('pipe')">管线流程</button>
   <button class="tab" data-t="deck" onclick="showTab('deck')">问渠全流程</button>
+  <button class="tab" data-t="bugdeck" onclick="showTab('bugdeck')">bug 管线</button>
 </nav>
 <div id="pipe" style="display:none"><div class="pl"><h3>四轨出生制 v3.1</h3><div class="src">正源：optimal-quality-process（方案/规格/规则类自动触发；假设任何单轨不可信——任何错误至少被两层独立机制拦截）</div>
 <div class="flow">
@@ -167,7 +177,37 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
     <p style="font-size:12px;color:#a8b3bf;line-height:1.6">任何「这站干净/整线扫完」声明 → N 轮异源实扫：FAST=1 / STANDARD=2 / INCIDENT=3（末轮含 S3 对抗或 S5 独立审计）；上限 N+1 超限转人工；S1-S5 证据源实质轮换——同命令族+同时辰+换模型转述同一日志≠异源；每轮 rounds.jsonl 工件，无工件不计轮。证据时效双上限：权限/漏洞情报类 ≤7 天、其余 ≤30 天，跨类从短；指纹五元组（SHA+规则版本集+环境+范围哈希+数据/配置版本）变化即失效重跑。</p></div>
   </div>
   <div class="src" style="margin-top:8px">一本账 = rounds.jsonl / findings.jsonl 账本族（无工件不计轮）；跳站依赖=每档继承证据表显式化，nightly 继承站3 须周档未超时+差集为空</div>
+</div>
+</div>
+<div id="bugdeck" style="display:none">
+ <div class="pl"><h3>bug 管线 · 一本账运转视图</h3><div class="src">正源：bug-scan-pipeline SKILL.md——与「问渠全流程」页签（§1-§2 八站结构与档位）互补，本页=缺陷从发现到收敛的运转面（§4 账本 / §9 post-fix 收敛循环 / §9b 加固循环 / §6 军火库 / §7 盲区）· 账本计数实读 ~/.zcode/quality-system/bugscan-ledger/</div>
+ <div class="card" style="margin-bottom:10px"><h2>📒 缺陷账本 · 状态机（实数据）</h2>
+  <div id="bglstate">载入中…</div>
+  <div id="bglproj" style="margin-top:10px"></div>
+  <div class="src" id="bglnote" style="margin-top:8px">状态机正源 §4：OPEN→FIXING→VERIFIED→CLOSED；ACCEPTED 须批准人+理由+到期日，到期哨兵日检、到期未续自动重开 OPEN 并告警。FIXED=历史变体态（已修复待验证）。账本为多源异构历史，计数为归一口径。</div>
  </div>
+ <div class="card" style="margin-bottom:12px;border-color:#f0883e"><h2>🔁 §9 post-fix 收敛循环（修复波必跑）</h2>
+  <div style="font-size:12px;color:#f0883e;margin-bottom:8px">铁律：修复即新攻击面——任何成批修复后必须开对抗复扫循环</div>
+  <div class="tools">
+    <button class="pbtn" id="pfBtn" onclick="pfFlow()">▶ 巡游五步</button>
+    <div class="pbar"><i id="pffill"></i></div>
+    <span id="pfmsg" class="dim" style="font-size:12px">5 步循环 · 曲线递减=健康</span>
+  </div>
+  <div class="deck" id="pfdeck"></div>
+  <div class="tools" style="margin-top:10px">
+    <span class="dim" style="font-size:11px">实战递减曲线（§9.3）</span>
+    <div class="spark" id="pfspark"></div>
+    <span class="dim" style="font-size:11px">20→12→4→1→0 · 不递减=修复方法有系统性问题，停手复盘</span>
+  </div>
+ </div>
+ <div class="pl" style="margin-top:6px"><h3>§9b 加固循环 · 异源审引擎（2026-10-03 固化）</h3><div class="src">wenqu-dist 18 轮实战方法论 skill 化，任何交付物可复用；与 §9 的区别：§9 针对修复波产物，§9b 针对完整交付物的多轮对抗强化</div>
+ <div class="deck" id="hardendeck"></div></div>
+ <div class="pl" style="margin-top:6px"><h3>§6 扫描器军火库（12 件 + v2.0 六层）</h3><div class="src">新件清单——2026-09-17「全量开干」当日 7 件全建成；Z 系探测器与三域插座后续扩编 · 点击卡片展开详情</div>
+ <div class="deck" id="arsdeck"></div>
+ <div id="layers6"></div></div>
+ <div class="pl" style="margin-top:6px"><h3>§7 盲区诚实声明（16 条）+ §5 收敛声明模板</h3><div class="src">季度复盘一次；命中且成事故→触发缺口决议重审。PASS=已知盲区外收敛，非零 Bug 承诺；最高标准=可证伪、可审计、不把未知说成安全</div>
+ <details style="margin-bottom:8px"><summary class="dim" style="cursor:pointer;font-size:12px">展开 16 条盲区清单</summary><div id="blindspots" style="margin-top:8px"></div></details>
+ <div class="src">收敛声明两版（禁自由发挥）：清零声明（零豁免时）／条件放行声明（有有效豁免时只能用此版——铁律 3：带有效豁免只能称「条件放行」不能称「清零」）；生产观察窗未跨过=候选收敛；两版均须附盲区清单作为附件</div></div>
 </div>
 <div class="grid" id="ov">
   <div class="card" style="grid-column:1/-1;border-color:#3fb950" id="healthcard"><h2>❤️ 系统健康度</h2><div id="health">载入中…</div></div>
@@ -184,7 +224,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 async function j(u){const r=await fetch(u);return r.json()}
 function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
 function showTab(t){
-  for(const id of['ov','pipe','deck'])document.getElementById(id).style.display=t==id?'':'none';
+  for(const id of['ov','pipe','deck','bugdeck'])document.getElementById(id).style.display=t==id?'':'none';
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.t==t));
 }
 const STATIONS=[
@@ -541,8 +581,15 @@ class H(BaseHTTPRequestHandler):
                 if os.path.isfile(p):
                     try:
                         lines = [l for l in open(p, errors="ignore") if l.strip()][-20:]
-                        today = datetime.now().strftime("%m-%d")
-                        rounds_recent = sum(1 for l in lines if today in l[:16])
+                        today = datetime.utcnow().strftime("%m-%d")  # 与账本 ts 的 UTC 同口径
+                        rounds_recent = 0
+                        for l in lines:
+                            try:
+                                ts = str(json.loads(l).get("ts") or "")[:16]
+                            except ValueError:
+                                continue
+                            if today in ts:
+                                rounds_recent += 1
                     except OSError:
                         pass
             r5 = 1.0 if rounds_recent >= 3 else (0.6 if rounds_recent else 0.2)
