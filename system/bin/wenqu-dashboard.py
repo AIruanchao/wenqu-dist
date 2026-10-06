@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 WQ = os.environ.get("WENQU_HOME", os.path.expanduser("~/.wenqu"))
@@ -229,7 +230,10 @@ function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
 function showTab(t){
   for(const id of['ov','pipe','deck','bugdeck'])document.getElementById(id).style.display=t==id?'':'none';
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.t==t));
+  if(location.hash.slice(1)!==t) history.replaceState(null,'','#'+t);  // 页签记忆：刷新/分享链接直达
 }
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(['ov','pipe','deck','bugdeck'].includes(h))showTab(h)});
+(function(){const h=location.hash.slice(1);if(['ov','pipe','deck','bugdeck'].includes(h))showTab(h)})();
 const STATIONS=[
  {n:0,name:'范围冻结',tier:'每次开扫首站',exec:'EQS 前置门禁（eqs-dev-flow ③段）；五元组指纹=SHA+规则版本集+环境+范围哈希+数据/配置版本 → rounds.jsonl',pass:'必跑项与覆盖分母齐全；身份一致三查（commit SHA+构建指纹 GIT_HASH+环境标识）；未知影响面不得自动排除；定级理由（档位+触发面+升降档依据）随指纹落账供复核'},
  {n:1,name:'源闸',tier:'PR 阻断',exec:'CI Fast：tsc/eslint/vitest/pytest/守卫棘轮/openapi/org-guard + verify-rebase-integrity（hook）+ typedRoutes 反证探针；涉权限/资金/租户 PR+隔离环境定向真单链',pass:'全绿+棘轮不升+探针真红（写死链探针→tsc 必红 TS2322）'},
@@ -622,6 +626,7 @@ def _fold_project(f):
 
 _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
+_EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
 
 
 def _ledger_files(root):
@@ -818,6 +823,9 @@ class H(BaseHTTPRequestHandler):
                     pass
             return self._send(200, json.dumps({"rounds": rounds}, ensure_ascii=False))
         if self.path == "/api/health":
+            b = _EP_CACHE.setdefault("health", {"ts": 0.0, "data": None})
+            if b["data"] is not None and time.time() - b["ts"] < 30:  # TTL 30s：走势本身 10min 粒度
+                return self._send(200, b["data"])
             def sub(name, got, full, weight, detail=""):
                 return {"项": name, "得分": round(got * weight, 1), "满分": weight,
                         "比": f"{got*100:.0f}%", "详情": detail}
@@ -931,8 +939,13 @@ class H(BaseHTTPRequestHandler):
                         f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "score": score}, ensure_ascii=False) + "\n")
             except Exception:
                 pass
-            return self._send(200, json.dumps({"score": score, "grade": grade, "parts": parts}, ensure_ascii=False))
+            out = json.dumps({"score": score, "grade": grade, "parts": parts}, ensure_ascii=False)
+            b["data"], b["ts"] = out, time.time()
+            return self._send(200, out)
         if self.path == "/api/health-history":
+            b = _EP_CACHE.setdefault("hh", {"ts": 0.0, "data": None})
+            if b["data"] is not None and time.time() - b["ts"] < 30:
+                return self._send(200, b["data"])
             out = []
             try:
                 for l in open(os.path.expanduser("~/Documents/ERP）Zcode/健康度走势.jsonl"), errors="ignore"):
@@ -944,7 +957,9 @@ class H(BaseHTTPRequestHandler):
                             continue
             except OSError:
                 pass
-            return self._send(200, json.dumps(out[-48:], ensure_ascii=False))
+            out = json.dumps(out[-48:], ensure_ascii=False)
+            b["data"], b["ts"] = out, time.time()
+            return self._send(200, out)
         if self.path == "/api/rounds-heat":
             import collections
             days = collections.Counter()
@@ -992,6 +1007,9 @@ class H(BaseHTTPRequestHandler):
                 pass
             return self._send(200, json.dumps(out, ensure_ascii=False))
         if self.path == "/api/logs":
+            b = _EP_CACHE.setdefault("logs", {"ts": 0.0, "data": None})
+            if b["data"] is not None and time.time() - b["ts"] < 15:  # 日志尾 15s 滞后可接受
+                return self._send(200, b["data"])
             out, logdir = {}, os.path.join(WQ, "logs")
             if os.path.isdir(logdir):
                 for f in sorted(os.listdir(logdir)):
@@ -1003,7 +1021,9 @@ class H(BaseHTTPRequestHandler):
                             pass
             if not out:
                 out["(说明)"] = "哨兵经 wenqu cron 安装后，日志将出现在 ~/.wenqu/logs/"
-            return self._send(200, json.dumps(out, ensure_ascii=False))
+            out = json.dumps(out, ensure_ascii=False)
+            b["data"], b["ts"] = out, time.time()
+            return self._send(200, out)
         return self._send(404, '{"error":"not found"}')
 
 
