@@ -279,7 +279,7 @@ async function refresh(){
   rbox.innerHTML='';
   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
-  for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p)}
+  for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.innerHTML=t.split(String.fromCharCode(10)).map(l=>/ERROR|FAIL/i.test(l)?`<span style="color:#f85149">${l}</span>`:(/WARN/i.test(l)?`<span style="color:#f0883e">${l}</span>`:(/OK|PASS/i.test(l)?`<span style="color:#3fb950">${l}</span>`:l))).join(String.fromCharCode(10));}
   const h=await j('/api/health');const hbox=document.getElementById('health');
   window.__hist=window.__hist||[];
   if(h.score!=null){
@@ -301,6 +301,12 @@ async function refresh(){
      const old=sc.parentElement.querySelector('.up,.down');if(old)old.remove();
      sc.insertAdjacentHTML('afterend',`<span class="${h.score>window.__scorePrev?'up':'down'}">${h.score>window.__scorePrev?'▲':'▼'}</span>`);}
    window.__scorePrev=h.score;}
+  window.decide=async function(id,act){
+    const item=dec.find(x=>x.id===id);
+    if(item&&item.red&&!confirm(`该决策属红旗类（资金/库存/权限）：\n${item.q}\n确认${act==='take'?'采纳':'驳回'}默认建议？`))return;
+    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+    if(r.ok){refresh();}else{alert('清账失败：'+(await r.text()));}
+  };
   const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
   {const pc=document.getElementById('deccard');const prevD=window.__lastDec;
    if(prevD!=null&&prevD!==dec.length){pc.classList.remove('flash');void pc.offsetWidth;pc.classList.add('flash');}
@@ -314,6 +320,7 @@ async function refresh(){
         <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${d.cat}${d.red?' 🔴':''}</span> ${d.q}</span>
         <span class="${overdue?'bad':'dim'}" style="font-size:11px;white-space:nowrap">${overdue?'⏰ 已逾期':(days!=null?`TTL ${days}d`:'')}</span></div>
         <div class="dim" style="font-size:12px">💡 ${d.opt||''}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
+        <div style="display:flex;gap:6px;margin-top:3px"><button class="pbtn" style="padding:1px 10px;font-size:11px" onclick="decide('${d.id}','take')">✓ 采纳</button><button class="pbtn" style="padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)" onclick="decide('${d.id}','reject')">✗ 驳回</button></div>
       </div>`));
     }
   }
@@ -348,6 +355,43 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def do_POST(self):
+        import datetime
+        if self.path == "/api/decide":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                body = json.loads(self.rfile.read(n).decode()) if n else {}
+            except ValueError:
+                return self._send(400, '{"error":"bad json"}')
+            did, act = body.get("id"), body.get("action")
+            if did not in ("take", "reject") and act not in ("take", "reject"):
+                pass
+            dec_id, action = body.get("id"), body.get("action")
+            if not dec_id or action not in ("take", "reject"):
+                return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
+            path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+            try:
+                lines = [l for l in open(path, errors="ignore") if l.strip()]
+                out, hit = [], False
+                for l in lines:
+                    try:
+                        d = json.loads(l)
+                    except ValueError:
+                        out.append(l); continue
+                    if d.get("id") == dec_id and d.get("status") == "待拍":
+                        d["status"] = "已拍"
+                        d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+                        d["executed"] = "点击时间 " + datetime.datetime.now().strftime("%m-%d %H:%M")
+                        hit = True
+                    out.append(json.dumps(d, ensure_ascii=False))
+                if not hit:
+                    return self._send(404, '{"error":"id 不存在或非待拍"}')
+                open(path, "w").write("\n".join(out) + "\n")
+                return self._send(200, '{"ok":true}')
+            except OSError as e:
+                return self._send(500, json.dumps({"error": str(e)}))
+        return self._send(404, '{"error":"not found"}')
 
     def do_GET(self):
         if self.path == "/" or self.path.startswith("/index"):
@@ -479,6 +523,19 @@ class H(BaseHTTPRequestHandler):
             parts.append(sub("决策积压", r6, 100, 10, f"{pending} 条待拍")); total += r6*10; full += 10
             score = round(total / full * 100, 0) if full else 0
             grade = "健康" if score >= 90 else ("良好" if score >= 75 else ("关注" if score >= 60 else "告警"))
+            hist_p = os.path.expanduser("~/Documents/ERP）Zcode/健康度走势.jsonl")
+            try:
+                last = ""
+                if os.path.isfile(hist_p):
+                    for l in open(hist_p, errors="ignore"):
+                        if l.strip():
+                            last = l
+                last_ts = json.loads(last).get("ts", "") if last else ""
+                if not last_ts or (datetime.now() - datetime.fromisoformat(last_ts)).total_seconds() > 600:
+                    with open(hist_p, "a") as f:
+                        f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "score": score}, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
             return self._send(200, json.dumps({"score": score, "grade": grade, "parts": parts}, ensure_ascii=False))
         if self.path == "/api/decisions":
             out = []
