@@ -180,7 +180,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 </div>
 </div>
 <div id="bugdeck" style="display:none">
- <div class="pl"><h3>bug 管线 · 一本账运转视图</h3><div class="src">正源：bug-scan-pipeline SKILL.md——与「问渠全流程」页签（§1-§2 八站结构与档位）互补，本页=缺陷从发现到收敛的运转面（§4 账本 / §9 post-fix 收敛循环 / §9b 加固循环 / §6 军火库 / §7 盲区）· 账本计数实读 ~/.zcode/quality-system/bugscan-ledger/</div>
+ <div class="pl"><h3>bug 管线 · 一本账运转视图</h3><div class="src">主源：bug-scan-pipeline SKILL.md（§4/§9/§9b/§6/§7 逐字收敛）；六层落地细节=SKILL §8 v2.0 血统段——与「问渠全流程」页签（§1-§2 八站结构与档位）互补，本页=缺陷从发现到收敛的运转面 · 账本计数实读 ~/.zcode/quality-system/bugscan-ledger/（现态折叠：同 id 末次流转为准）</div>
  <div class="card" style="margin-bottom:10px"><h2>📒 缺陷账本 · 状态机（实数据）</h2>
   <div id="bglstate">载入中…</div>
   <div id="bglproj" style="margin-top:10px"></div>
@@ -303,7 +303,7 @@ const PFCURVE=[20,12,4,1,0];
 const HARDEN=[
  {n:'A',name:'异源审引擎（核心引擎）',tier:'§9b A',exec:'每轮派零先前上下文子代理：charter=「证明它是错的或不完备的」+攻击面清单+上限条数+零发现合法；实测优先于推演；修复者自验=自审（同批代码自审漏 6 条实证——二审定律）',pass:'曲线判读：递减=健康；平台期≠稳态（「无 HIGH」可能含账面成分）；轮换维度再扫（代码→测试件→文档→故障形态）每换一维常有增量；停机=曲线归零+变异闭环+正门验收全绿→条件放行（非清零——盲区清单+解除条件必附）；无限磨低危=反模式'},
  {n:'B',name:'修复批纪律（四条）',tier:'§9b B',exec:'① 同族半改按 family 收口（同一防线 A 处修 B 处没修——18 轮最高频病灶，六族实证）② 真实执行语义验证（声明的 rc/shell/退出码语义必须实测对齐——PIPESTATUS 赋值陷阱 / xargs 123 混叠 / die-append 顺序三案）③ 故障形态双类注入（内容异常 GBK/BOM/二进制/超长行 + 宿主异常 磁盘满/只读/PATH 残缺）④ 声明与事实对齐（声称改了必须 grep assert 在文 + git diff 非零）',pass:'「修复验证只想到的形态≠全部形态」——S7 模式定谳'},
- {n:'C',name:'验收三法（跨模型审最高优先）',tier:'§9b C',exec:'跨模型审（v2.0 新增）：GLM 收敛到零后必须送至少一个异族模型终审（Codex/K3/M3）——实证 GLM 12 轮收敛到 0，Codex 一轮 8 HIGH + K3 一轮 3 Critical 全漏（同族认知盲区=结构性限制，无法靠更多轮修复）；变异测试=夹具有效性唯一可信法（把修复还原为坏形态→全套测试必须红，绿了=假绿夹具）；文档修复验收=逐变更点 assert + git diff 非零',pass:'工具通道：codex exec --skip-git-repo-check -s read-only ／ mmx text chat --model kimi-k3 · wenqu 跨模型收敛曲线 8H→5H→3H→3M→3M→2M→2M→1M→修复完'}
+ {n:'C',name:'验收三法（跨模型审最高优先）',tier:'§9b C',exec:'跨模型审（v2.0 新增）：GLM 收敛到零后必须送至少一个异族模型终审（Codex/K3/M3）——实证 GLM 12 轮收敛到 0，Codex 一轮 8 HIGH + K3 一轮 3 Critical 全漏（同族认知盲区=结构性限制，无法靠更多轮修复）；变异测试=夹具有效性唯一可信法（把修复还原为坏形态→全套测试必须红，绿了=假绿夹具）；文档修复验收=逐变更点 assert + git diff 非零',pass:'工具通道：codex exec --skip-git-repo-check -s read-only ／ mmx text chat --model kimi-k3；机械闸（release-check 类）——首跑即抓漏=防线生效实证'}
 ];
 const ARSENAL=[
  {n:1,name:'api-perm-matrix',st:'站3',badge:'✅现役',one:'787 端点静态矩阵+openapi 对账+双面探针',det:'静态矩阵（org=488/session=176/none=17/exempt=425）+双面探针（dry-run 默认）；PR#527 入仓，首基线已入库'},
@@ -313,19 +313,19 @@ const ARSENAL=[
  {n:5,name:'dupscan 周哨兵',st:'站2',badge:'✅现役',one:'仓内正源 check-ratchet.sh 周扫（弃自建口径）',det:'launchd 周日 04:00；首跑 PASS 三层全在基线下'},
  {n:6,name:'DH Next.js 适配',st:'站1',badge:'✅',one:'dh-gate 判定函数双分支化',det:'cloud3 判定函数移植双分支（Python + Node/Next），ERP 仓实测 web 判定，md5 对账 0a83919b'},
  {n:7,name:'perf-baseline-runner',st:'季度档',badge:'✅现役',one:'绝对阈值+相对退化双判性能基线',det:'launchd 季度首日 05:00；首基线 CLEAN（登录 p95≈90ms / health p95≈166ms / 单进程 RSS 1623MB / PG 12 连接）'},
- {n:8,name:'Z-A advisory-watch',st:'站2',badge:'🆕v1.7',one:'框架安全通告跟踪',det:'GitHub Advisories API 比对 lockfile 实锁版本，命中且实锁<修复版→告警；幂等哈希去重。触发=CVE-2025-29927（middleware bypass CVSS 9.1）曾靠人工核免疫'},
- {n:9,name:'Z-B export-tenant-audit',st:'站2',badge:'🆕v1.7',one:'导出/下载端点租户过滤静态扫',det:'全 export/download 路由查询 builder where 缺 organizationId 且模型属 TENANT_MODELS→违例清单；基线=Z17 修后 0 违例（BSF-20261001-06 双例实证）'},
+ {n:8,name:'Z-A advisory-watch',st:'—',badge:'🆕v1.7',one:'框架安全通告跟踪',det:'GitHub Advisories API 比对 lockfile 实锁版本，命中且实锁<修复版→告警；幂等哈希去重。触发=CVE-2025-29927（middleware bypass CVSS 9.1）曾靠人工核免疫'},
+ {n:9,name:'Z-B export-tenant-audit',st:'—',badge:'🆕v1.7',one:'导出/下载端点租户过滤静态扫',det:'全 export/download 路由查询 builder where 缺 organizationId 且模型属 TENANT_MODELS→违例清单；基线=Z17 修后 0 违例（BSF-20261001-06 双例实证）'},
  {n:10,name:'Z-C N+1 基线',st:'—',badge:'候选',one:'Prisma query 事件计数探针',det:'staging top 路由 query/req 阈值——先基线不阻断'},
- {n:11,name:'Z-D DB 守恒约束',st:'站3',badge:'候选',one:'LedgerEntry Σ 约束触发器方案',det:'业界最佳实践=CHECK/触发器写时现形；涉生产 DDL 拍板'},
+ {n:11,name:'Z-D DB 守恒约束',st:'—',badge:'候选',one:'LedgerEntry Σ 约束触发器方案',det:'业界最佳实践=CHECK/触发器写时现形；涉生产 DDL 拍板'},
  {n:12,name:'stations.json 三域探测器',st:'跨仓插座',badge:'🆕v1.8',one:'trap-double / guard-comment-swallow / cred-cli-expose',det:'零依赖 bash+awk+grep 可挂任意仓（协议见 §10）；F4 战训固化，部署 ccc 实测三站全中真缺陷'}
 ];
 const LAYERS6=[
- {u:'U1',name:'Sentry DSN',badge:'✅配置完成',det:'主侧 env 补入+蓝侧原有+instrument.ts 激活'},
- {u:'U2',name:'fast-check 属性测试',badge:'✅入 master',det:'资金域 7 属性'},
- {u:'U3',name:'Stryker 变异测试',badge:'✅0% 三文件根治',det:'首跑基线 69.58 分+3 文件 0% 发现→用例重构根治'},
- {u:'U4',name:'Semgrep',badge:'✅3 自定义规则',det:'+594 findings 画像'},
- {u:'U5',name:'CodeQL',badge:'⚠️边界标注',det:'private 仓不可用，如实标注'},
- {u:'U6',name:'Zod 覆盖审计',badge:'✅第一批 5 路由',det:'z.coerce.string 终版；外部 webhook 必须 schema——垃圾输入→干净 400 非 500 重试风暴'}
+ {u:'U1',name:'Sentry DSN',badge:'✅生产已配',det:'cloud4 生产 env SENTRY_DSN 键在位实证（9-14 上产）；SKILL §8 血统段仍标「待授权」=滞后续写'},
+ {u:'U2',name:'fast-check 属性测试',badge:'✅入 master',det:'资金域 7 属性（SKILL §8 v2.0）'},
+ {u:'U3',name:'Stryker 变异测试',badge:'✅3 文件 0% 发现',det:'首跑基线 69.58 分+3 文件 0% 发现（SKILL §8 v2.0）'},
+ {u:'U4',name:'Semgrep',badge:'✅3 自定义规则',det:'3 自定义规则入仓（SKILL §8 v2.0）'},
+ {u:'U5',name:'CodeQL',badge:'⚠️边界标注',det:'private 不可用，如实标注（SKILL §8 v2.0）'},
+ {u:'U6',name:'Zod 覆盖审计',badge:'✅top 风险 5 处',det:'覆盖审计（0.25%→top 风险 5 处）（SKILL §8 v2.0）'}
 ];
 const BLIND=[
  '业务正确性只到已建模断言（18 发+真单链）——靠实弹+用户报告+季度业务走查日',
@@ -365,7 +365,7 @@ function renderBugDeck(){
     <div class="det"><div class="lab">详情</div><p>${s.det}</p></div>
     <span class="dim" style="font-size:11px">点击展开详情</span>`);
   const l6=document.getElementById('layers6');
-  l6.innerHTML='<div class="lab" style="color:var(--dim);font-size:10px;margin:12px 0 6px;letter-spacing:.5px">v2.0 六层强化（2026-10-03「我要最强」——已装未用四件挖掘=最大富矿）</div>';
+  l6.innerHTML='<div class="lab" style="color:var(--dim);font-size:10px;margin:12px 0 6px;letter-spacing:.5px">v2.0 六层强化（SKILL §8 血统段 2026-10-03「我要最强」）</div>';
   LAYERS6.forEach(x=>{l6.appendChild(el(`<div class="row"><span style="flex:0 0 40px" class="dim">${x.u}</span><span style="flex:0 0 170px">${x.name}</span><span style="color:#3fb950;font-size:12px;flex:0 0 130px">${x.badge}</span><span class="dim" style="font-size:11px;flex:1">${x.det}</span></div>`))});
   const bs=document.getElementById('blindspots');
   BLIND.forEach((t,i)=>{bs.appendChild(el(`<div style="font-size:11.5px;color:#a8b3bf;line-height:1.55;padding:3px 0;border-bottom:1px dashed #21262d"><span class="dim" style="margin-right:8px">${String(i+1).padStart(2,'0')}</span>${t}</div>`))});
@@ -396,6 +396,7 @@ function pfFlow(){
   },1500);
 }
 async function loadBGL(){
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const d=await j('/api/bugscan-ledger');
   const box=document.getElementById('bglstate');
   if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
@@ -415,7 +416,7 @@ async function loadBGL(){
   box.innerHTML=h;
   const pb=document.getElementById('bglproj');pb.innerHTML='';
   d.projects.slice(0,8).forEach(p=>{
-    pb.appendChild(el(`<div class="row"><span class="dim" style="flex:0 0 132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.key}">${p.key}</span><span style="flex:1;font-size:12px">${p.findings} 条 · OPEN ${p.by_status.OPEN||0} / FIXED ${p.by_status.FIXED||0} / VERIFIED ${p.by_status.VERIFIED||0} / CLOSED ${p.by_status.CLOSED||0}</span><span class="dim" style="font-size:11px;flex:0 0 108px;text-align:right;white-space:nowrap">${p.last_ts||''}</span></div>`));
+    pb.appendChild(el(`<div class="row"><span class="dim" style="flex:0 0 132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.key)}">${esc(p.key)}</span><span style="flex:1;font-size:12px">${p.findings} 条 · OPEN ${p.by_status.OPEN||0} / FIXED ${p.by_status.FIXED||0} / VERIFIED ${p.by_status.VERIFIED||0} / CLOSED ${p.by_status.CLOSED||0}</span><span class="dim" style="font-size:11px;flex:0 0 108px;text-align:right;white-space:nowrap">${esc(p.last_ts)}</span></div>`));
   });
 }
 renderBugDeck();
@@ -558,15 +559,48 @@ def _norm_sev(s):
     t = str(s).strip().lower()
     if not t:
         return "OTHER"
+    if "critical" in t or "crit" in t:
+        return "HIGH"
     if "high" in t:
         return "HIGH"
+    if "med" in t or "medium" in t:
+        return "MED"  # 复合值（med-high/low-medium/med-low）统一取含 med 档，与取高的 high 对称
     if "low" in t:
         return "LOW"
-    if "med" in t or "medium" in t:
-        return "MED"
     if "info" in t or t == "pass":
         return "INFO"
     return "OTHER"
+
+
+def _fold_project(f):
+    """单项目账本折叠：finding 行按 id 去重取末次为初始态；同 id 末次 state_transition 的
+    目标态覆盖初始态（与 wenqu CLI 锁内折叠视图同源，防幻影 OPEN）。返回 (cur, sev_of, last)。"""
+    cur, trans, sev_of, last = {}, {}, {}, ""
+    for l in open(f, errors="ignore"):
+        l = l.strip()
+        if not l:
+            continue
+        try:
+            d = json.loads(l)
+        except ValueError:
+            continue
+        if not isinstance(d, dict) or not ("id" in d or "finding_id" in d):
+            continue  # 审计行（run/charter）不计
+        fid = str(d.get("id") or d.get("finding_id"))
+        ts = str(d.get("ts") or d.get("time") or "")
+        if ts > last:
+            last = ts
+        if "record_type" in d:
+            # 状态流转审计行：末次 transition 的目标态=现态
+            tr = str(d.get("transition", ""))
+            if "->" in tr:
+                to_state = tr.rsplit(">", 1)[1].strip()
+                if to_state:
+                    trans[fid] = to_state
+            continue
+        cur[fid] = d.get("status") or d.get("state")  # 同 id 重复摄入取末次
+        sev_of[fid] = d.get("sev") or d.get("severity")
+    return cur, trans, sev_of, last
 
 
 def bugscan_ledger():
@@ -588,39 +622,26 @@ def bugscan_ledger():
         if not os.path.isfile(f):
             continue
         by_status, by_sev = {}, {}
-        n_find, last = 0, ""
         try:
-            for l in open(f, errors="ignore"):
-                l = l.strip()
-                if not l:
-                    continue
-                try:
-                    d = json.loads(l)
-                except ValueError:
-                    continue
-                if not isinstance(d, dict) or not ("id" in d or "finding_id" in d):
-                    continue  # 审计行（run/charter）不计 finding
-                if "record_type" in d:
-                    continue  # 状态流转审计行（state_transition）引用 finding id 但本身非发现
-                n_find += 1
-                stt = _norm_status(d.get("status") or d.get("state"))
-                by_status[stt] = by_status.get(stt, 0) + 1
-                sv = _norm_sev(d.get("sev") or d.get("severity"))
-                by_sev[sv] = by_sev.get(sv, 0) + 1
-                ts = str(d.get("ts") or d.get("time") or "")
-                if ts > last:
-                    last = ts
+            cur, trans, sev_of, last = _fold_project(f)
         except OSError:
             continue
-        if n_find:
-            projects.append({"key": name, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
-            tot_findings += n_find
-            for k, v in by_status.items():
-                tot_status[k] = tot_status.get(k, 0) + v
-            for k, v in by_sev.items():
-                tot_sev[k] = tot_sev.get(k, 0) + v
-            if last > tot_last:
-                tot_last = last
+        if not cur:
+            continue
+        for fid, init_status in cur.items():
+            stt = _norm_status(trans.get(fid) or init_status)  # 流转现态优先
+            by_status[stt] = by_status.get(stt, 0) + 1
+            sv = _norm_sev(sev_of.get(fid))
+            by_sev[sv] = by_sev.get(sv, 0) + 1
+        n_find = len(cur)
+        projects.append({"key": name, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
+        tot_findings += n_find
+        for k, v in by_status.items():
+            tot_status[k] = tot_status.get(k, 0) + v
+        for k, v in by_sev.items():
+            tot_sev[k] = tot_sev.get(k, 0) + v
+        if last > tot_last:
+            tot_last = last
     projects.sort(key=lambda p: -p["findings"])
     return {"available": True, "projects": projects,
             "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]}}
