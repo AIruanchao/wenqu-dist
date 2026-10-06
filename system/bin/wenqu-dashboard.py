@@ -7,13 +7,16 @@
 import json
 from datetime import datetime, timedelta
 import os
+import re
 import signal
 import subprocess
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 WQ = os.environ.get("WENQU_HOME", os.path.expanduser("~/.wenqu"))
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 7788
+_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
 
 COMPONENTS = {
     "bin": ["wenqu-env.sh", "iron-gate.sh", "blast-radius.py", "cursor-auto-verify.sh",
@@ -412,7 +415,7 @@ async function loadBGL(){
   h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
   h+=`<div class="bnode side"><b>OTHER</b><span class="cnt">${st['OTHER']||0}</span><span class="hint">无状态字段/变体未归类</span></div></div>`;
   const sv=d.total.by_sev||{};
-  h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span><span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${d.total.last_ts||'—'}</span></div>`;
+  h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span><span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
   box.innerHTML=h;
   const pb=document.getElementById('bglproj');pb.innerHTML='';
   d.projects.slice(0,8).forEach(p=>{
@@ -538,6 +541,8 @@ def _norm_status(s):
     tl = t.lower()
     if tl.startswith("open"):
         return "OPEN"
+    if tl.startswith("partially-fixed") or tl.startswith("partially_fixed"):
+        return "FIXING"  # 真实账本 2036aa7ab8c9 存在的变体（部分修复=修复中）
     if tl.startswith("fixing"):
         return "FIXING"
     if tl.startswith("fixed+verified") or t.startswith("VERIFIED_CLOSED") or tl.startswith("partially-verified"):
@@ -559,15 +564,19 @@ def _norm_sev(s):
     t = str(s).strip().lower()
     if not t:
         return "OTHER"
-    if "critical" in t or "crit" in t:
+    # 词级匹配（词首对齐），防止 highway/below/mediumship 等无关子串误收
+    toks = [w for w in re.split(r"[^a-z]+", t) if w]
+    def hit(*stems):
+        return any(w.startswith(st) for w in toks for st in stems)
+    if hit("crit"):
         return "HIGH"
-    if "high" in t:
+    if hit("high"):
         return "HIGH"
-    if "med" in t or "medium" in t:
+    if hit("med"):
         return "MED"  # 复合值（med-high/low-medium/med-low）统一取含 med 档，与取高的 high 对称
-    if "low" in t:
+    if hit("low"):
         return "LOW"
-    if "info" in t or t == "pass":
+    if hit("info") or t == "pass":
         return "INFO"
     return "OTHER"
 
@@ -591,19 +600,35 @@ def _fold_project(f):
         if ts > last:
             last = ts
         if "record_type" in d:
-            # 状态流转审计行：末次 transition 的目标态=现态
+            # 流转审计行：末次 transition 目标态=现态。目标必须是合法状态词——
+            # SEVERITY 降档流转（如 "SEVERITY HIGH->LOW(潜伏)"）只更新严重度不碰状态
             tr = str(d.get("transition", ""))
             if "->" in tr:
                 to_state = tr.rsplit(">", 1)[1].strip()
-                if to_state:
+                if to_state and _norm_status(to_state) != "OTHER":
                     trans[fid] = to_state
+                else:
+                    sev_to = to_state.split("(")[0].strip() if to_state else ""
+                    if sev_to and _norm_sev(sev_to) != "OTHER":
+                        sev_of[fid] = sev_to
             continue
         cur[fid] = d.get("status") or d.get("state")  # 同 id 重复摄入取末次
-        sev_of[fid] = d.get("sev") or d.get("severity")
+        raw_sev = d.get("sev") or d.get("severity")
+        # 稀疏更新行（只改 status 无 severity，或带 FIX/FIX-PARTIAL 工作流标签）不抹已有严重度
+        if raw_sev is not None and _norm_sev(raw_sev) != "OTHER":
+            sev_of[fid] = raw_sev
     return cur, trans, sev_of, last
 
 
 def bugscan_ledger():
+    """实读 bugscan-ledger 账本；折叠语义见 _fold_project。任何未预期异常兜底返回稳定错误（fail-soft）。"""
+    try:
+        return _bugscan_ledger_impl()
+    except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
+        return {"available": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def _bugscan_ledger_impl():
     """实读 bugscan-ledger 账本（只读本地目录，子项名做 basename+realpath 双校验限制在允许目录内）。"""
     root = os.path.realpath(os.path.expanduser(
         os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
@@ -661,19 +686,24 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/decide":
-            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._send(400, '{"error":"bad length"}')
+            if n > 1048576:
+                return self._send(413, '{"error":"body too large"}')
             try:
                 body = json.loads(self.rfile.read(n).decode()) if n else {}
             except ValueError:
                 return self._send(400, '{"error":"bad json"}')
-            did, act = body.get("id"), body.get("action")
-            if did not in ("take", "reject") and act not in ("take", "reject"):
-                pass
+            if not isinstance(body, dict):
+                return self._send(400, '{"error":"body must be object"}')
             dec_id, action = body.get("id"), body.get("action")
             if not dec_id or action not in ("take", "reject"):
                 return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
             path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
             try:
+                _DECIDE_LOCK.acquire()  # 读改写整段互斥：并发清账不丢账（每出口恰好一次 release）
                 lines = [l for l in open(path, errors="ignore") if l.strip()]
                 out, hit = [], False
                 for l in lines:
@@ -690,8 +720,10 @@ class H(BaseHTTPRequestHandler):
                 if not hit:
                     return self._send(404, '{"error":"id 不存在或非待拍"}')
                 open(path, "w").write("\n".join(out) + "\n")
+                _DECIDE_LOCK.release()
                 return self._send(200, '{"ok":true}')
             except OSError as e:
+                _DECIDE_LOCK.release()
                 return self._send(500, json.dumps({"error": str(e)}))
         return self._send(404, '{"error":"not found"}')
 
@@ -833,7 +865,7 @@ class H(BaseHTTPRequestHandler):
                         rounds_recent = 0
                         for l in lines:
                             try:
-                                ts = str(json.loads(l).get("ts") or "")[:16]
+                                ts = str(json.loads(l).get("ts") or json.loads(l).get("utc") or json.loads(l).get("time") or "")[:16]
                             except ValueError:
                                 continue
                             if today in ts:
