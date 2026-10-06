@@ -564,15 +564,15 @@ def _norm_sev(s):
     t = str(s).strip().lower()
     if not t:
         return "OTHER"
-    # 词级匹配（词首对齐），防止 highway/below/mediumship 等无关子串误收
+    # 词级匹配（完整词或连字符复合词边界），防止 highway/below/mediumship 等无关词误收
     toks = [w for w in re.split(r"[^a-z]+", t) if w]
     def hit(*stems):
-        return any(w.startswith(st) for w in toks for st in stems)
-    if hit("crit"):
+        return any(w == st or w.startswith(st + "-") for w in toks for st in stems)
+    if hit("crit", "critical"):
         return "HIGH"
     if hit("high"):
         return "HIGH"
-    if hit("med"):
+    if hit("med", "medium"):
         return "MED"  # 复合值（med-high/low-medium/med-low）统一取含 med 档，与取高的 high 对称
     if hit("low"):
         return "LOW"
@@ -600,17 +600,17 @@ def _fold_project(f):
         if ts > last:
             last = ts
         if "record_type" in d:
-            # 流转审计行：末次 transition 目标态=现态。目标必须是合法状态词——
-            # SEVERITY 降档流转（如 "SEVERITY HIGH->LOW(潜伏)"）只更新严重度不碰状态
+            # 流转审计行：先嗅探源侧——SEVERITY 降档流转只更新严重度不碰状态；
+            # 状态流转要求目标态是合法状态词（OPEN->REOPENED 等未知目标保持初始态不误吞）
             tr = str(d.get("transition", ""))
             if "->" in tr:
-                to_state = tr.rsplit(">", 1)[1].strip()
-                if to_state and _norm_status(to_state) != "OTHER":
-                    trans[fid] = to_state
-                else:
-                    sev_to = to_state.split("(")[0].strip() if to_state else ""
+                src_side, to_state = tr.split("->", 1)[0].strip().upper(), tr.rsplit(">", 1)[1].strip()
+                if src_side.startswith("SEVERITY"):
+                    sev_to = to_state.split("(")[0].strip()
                     if sev_to and _norm_sev(sev_to) != "OTHER":
                         sev_of[fid] = sev_to
+                elif to_state and _norm_status(to_state) != "OTHER":
+                    trans[fid] = to_state
             continue
         cur[fid] = d.get("status") or d.get("state")  # 同 id 重复摄入取末次
         raw_sev = d.get("sev") or d.get("severity")
@@ -704,7 +704,7 @@ class H(BaseHTTPRequestHandler):
             path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
             try:
                 _DECIDE_LOCK.acquire()  # 读改写整段互斥：并发清账不丢账（每出口恰好一次 release）
-                lines = [l for l in open(path, errors="ignore") if l.strip()]
+                lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
                 out, hit = [], False
                 for l in lines:
                     try:
@@ -718,8 +718,9 @@ class H(BaseHTTPRequestHandler):
                         hit = True
                     out.append(json.dumps(d, ensure_ascii=False))
                 if not hit:
+                    _DECIDE_LOCK.release()
                     return self._send(404, '{"error":"id 不存在或非待拍"}')
-                open(path, "w").write("\n".join(out) + "\n")
+                open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
                 _DECIDE_LOCK.release()
                 return self._send(200, '{"ok":true}')
             except OSError as e:
