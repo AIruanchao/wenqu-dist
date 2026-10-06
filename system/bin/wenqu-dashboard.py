@@ -42,6 +42,14 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 .bar>i{display:block;height:100%;background:var(--ok)}
 .badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:#1f6feb33;color:var(--acc);margin-left:8px}
 #ts{color:var(--dim);font-size:11px}
+@keyframes flash{0%{background:#f0883e55}100%{background:transparent}}
+.flash{animation:flash 1.6s ease-out}
+@keyframes popnum{0%{transform:scale(1.25);color:#f0883e}100%{transform:scale(1)}}
+.popnum{animation:popnum .9s ease-out}
+.spark{display:flex;align-items:flex-end;gap:2px;height:34px;margin-left:auto}
+.spark i{width:7px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#3fb950,#1f6feb);min-height:2px}
+.spark i.hot{background:linear-gradient(180deg,#f0883e,#f85149)}
+.up{color:var(--ok);font-size:11px}.down{color:var(--bad);font-size:11px}
 .tab{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:6px 18px;cursor:pointer;font-size:13px}
 .tab.active{color:var(--acc);border-color:var(--acc)}
 .pl{margin-bottom:28px}
@@ -264,18 +272,39 @@ async function refresh(){
   rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
   if(r.available){rb.innerHTML='';
     for(const[l,v]of Object.entries(r.layers))rb.appendChild(el(`<div class="row"><span>${l}</span><span>${v.clones} 克隆 / ${v.rate}%</span></div>`))}
-  const rd=await j('/api/rounds');const rbox=document.getElementById('rounds');rbox.innerHTML='';
+  const rd=await j('/api/rounds');const rbox=document.getElementById('rounds');
+  {const prevR=window.__lastRounds;const n=rd.rounds.length;
+   if(prevR!=null&&n>prevR){rbox.classList.remove('flash');void rbox.offsetWidth;rbox.classList.add('flash');}
+   window.__lastRounds=n;}
+  rbox.innerHTML='';
   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
   for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p)}
   const h=await j('/api/health');const hbox=document.getElementById('health');
+  window.__hist=window.__hist||[];
+  if(h.score!=null){
+    const prev=window.__lastScore;
+    window.__hist.push(h.score);if(window.__hist.length>24)window.__hist.shift();
+  window.__lastScore=h.score;
+  }
   if(h.score!=null){const col=h.score>=90?'var(--ok)':(h.score>=75?'#f0883e':'var(--bad)');
     hbox.innerHTML=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
-      <div style="text-align:center;flex:none"><div style="font-size:44px;font-weight:700;color:${col};line-height:1">${h.score}</div>
+      <div style="text-align:center;flex:none"><div id="hscore" style="font-size:44px;font-weight:700;color:${col};line-height:1">${h.score}</div>
       <div style="font-size:12px;color:${col}">${h.grade}</div></div>
+      <div style="flex:none;text-align:center"><div class="spark" id="hspark"></div><div class="dim" style="font-size:10px">最近走势</div></div>
       <div style="flex:1;min-width:300px">${h.parts.map(p=>`<div class="row"><span>${p['项']}</span><span class="dim">${p['详情']}</span><span style="color:${p['比']==='100%'?'var(--ok)':'#f0883e'}">${p['得分']}/${p['满分']}</span></div>`).join('')}</div>
     </div>`;}
+  {const sp=document.getElementById('hspark');
+   if(sp){sp.innerHTML=window.__hist.map(v=>`<i class="${v<75?'hot':''}" style="height:${Math.max(3,v*0.3)}px" title="${v}"></i>`).join('');}
+   const sc=document.getElementById('hscore');
+   if(sc&&window.__scorePrev!=null&&window.__scorePrev!==h.score){sc.classList.remove('popnum');void sc.offsetWidth;sc.classList.add('popnum');
+     const old=sc.parentElement.querySelector('.up,.down');if(old)old.remove();
+     sc.insertAdjacentHTML('afterend',`<span class="${h.score>window.__scorePrev?'up':'down'}">${h.score>window.__scorePrev?'▲':'▼'}</span>`);}
+   window.__scorePrev=h.score;}
   const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
+  {const pc=document.getElementById('deccard');const prevD=window.__lastDec;
+   if(prevD!=null&&prevD!==dec.length){pc.classList.remove('flash');void pc.offsetWidth;pc.classList.add('flash');}
+   window.__lastDec=dec.length;}
   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
   else{dbox.innerHTML='';
     for(const d of dec){
@@ -290,7 +319,8 @@ async function refresh(){
   }
   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
 }
-refresh();setInterval(refresh,15000);
+refresh();setInterval(refresh,5000);
+setInterval(()=>{const t=document.getElementById('ts');if(t)t.textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});},1000);
 </script></body></html>"""
 
 
