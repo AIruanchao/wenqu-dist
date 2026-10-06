@@ -413,7 +413,8 @@ async function loadBGL(){
   chain.forEach(([k,lab],ix)=>{
     if(ix)h+='<div class="arrow">▸</div>';
     const n=st[k]||0;
-    h+=`<div class="bnode${k==='OPEN'&&n>0?' hot':''}"><b>${k}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
+    const clickable=k==='OPEN'&&n>0?` style="cursor:pointer" onclick="toggleOpenItems()" title="点击展开未修明细"`:'';
+    h+=`<div class="bnode${k==='OPEN'&&n>0?' hot':''}"${clickable}><b>${k}${k==='OPEN'&&n>0?' ▾':''}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
   });
   h+='</div><div class="frow" style="margin-top:8px"><div class="arrow">↳</div>';
   h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
@@ -421,6 +422,17 @@ async function loadBGL(){
   const sv=d.total.by_sev||{};
   h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span><span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
   box.innerHTML=h;
+  window._openItems=d.open_items||[];window._openTotal=d.open_total||0;
+  const old=document.getElementById('bglitems');if(old)old.remove();
+  window.toggleOpenItems=function(){
+    let el=document.getElementById('bglitems');
+    if(el){el.remove();return}
+    el=document.createElement('div');el.id='bglitems';el.style.cssText='margin-top:10px;max-height:300px;overflow:auto;border:1px dashed #30363d;border-radius:8px;padding:8px';
+    const items=window._openItems;
+    el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">未修明细 ${window._openTotal} 条（严重度序${window._openTotal>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 OPEN 收起</div>`+
+      items.map(x=>`<div class="row"><span class="chip ${x.sev==='HIGH'?'h':(x.sev==='MED'?'m':(x.sev==='LOW'?'l':''))}" style="margin:0 6px 0 0">${x.sev}</span><span class="dim" style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.proj)}">${esc(x.proj)}</span><span class="dim" style="flex:0 0 96px">${esc(x.id)}</span><span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.title)}">${esc(x.title)||'<i style="opacity:.5">（无标题）</i>'}</span></div>`).join('');
+    document.getElementById('bglstate').appendChild(el);
+  };
   const pb=document.getElementById('bglproj');pb.innerHTML='';
   d.projects.slice(0,8).forEach(p=>{
     pb.appendChild(el(`<div class="row"><span class="dim" style="flex:0 0 132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.key)}">${esc(p.key)}</span><span style="flex:1;font-size:12px">${p.findings} 条 · OPEN ${p.by_status.OPEN||0} / FIXED ${p.by_status.FIXED||0} / VERIFIED ${p.by_status.VERIFIED||0} / CLOSED ${p.by_status.CLOSED||0}</span><span class="dim" style="font-size:11px;flex:0 0 108px;text-align:right;white-space:nowrap">${esc(p.last_ts)}</span></div>`));
@@ -587,8 +599,9 @@ def _norm_sev(s):
 
 def _fold_project(f):
     """单项目账本折叠：finding 行按 id 去重取末次为初始态；同 id 末次 state_transition 的
-    目标态覆盖初始态（与 wenqu CLI 锁内折叠视图同源，防幻影 OPEN）。返回 (cur, sev_of, last)。"""
-    cur, trans, sev_of, last = {}, {}, {}, ""
+    目标态覆盖初始态（与 wenqu CLI 锁内折叠视图同源，防幻影 OPEN）。
+    返回 (cur, trans, sev_of, title_of, last)。"""
+    cur, trans, sev_of, title_of, last = {}, {}, {}, {}, ""
     for l in open(f, errors="ignore"):
         l = l.strip()
         if not l:
@@ -621,7 +634,10 @@ def _fold_project(f):
         # 稀疏更新行（只改 status 无 severity，或带 FIX/FIX-PARTIAL 工作流标签）不抹已有严重度
         if raw_sev is not None and _norm_sev(raw_sev) != "OTHER":
             sev_of[fid] = raw_sev
-    return cur, trans, sev_of, last
+        t = str(d.get("title") or d.get("desc") or "").strip()
+        if t:
+            title_of[fid] = t  # 末次出现的非空标题保留
+    return cur, trans, sev_of, title_of, last
 
 
 _LEDGER_CACHE = {"stamp": None, "data": None}
@@ -680,18 +696,21 @@ def _bugscan_ledger_impl(files):
     projects = []
     tot_status, tot_sev = {}, {}
     tot_findings, tot_last = 0, ""
+    open_items = []
     for f in files:
-        cur, trans, sev_of, last = _fold_project(f)
+        cur, trans, sev_of, title_of, last = _fold_project(f)
         if not cur:
             continue
+        key = os.path.basename(os.path.dirname(f))
         by_status, by_sev = {}, {}
         for fid, init_status in cur.items():
             stt = _norm_status(trans.get(fid) or init_status)  # 流转现态优先
             by_status[stt] = by_status.get(stt, 0) + 1
             sv = _norm_sev(sev_of.get(fid))
             by_sev[sv] = by_sev.get(sv, 0) + 1
+            if stt == "OPEN":
+                open_items.append({"id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key})
         n_find = len(cur)
-        key = os.path.basename(os.path.dirname(f))
         projects.append({"key": key, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
         tot_findings += n_find
         for k, v in by_status.items():
@@ -701,8 +720,11 @@ def _bugscan_ledger_impl(files):
         if last > tot_last:
             tot_last = last
     projects.sort(key=lambda p: -p["findings"])
+    sev_rank = {"HIGH": 0, "MED": 1, "LOW": 2, "INFO": 3, "OTHER": 4}
+    open_items.sort(key=lambda x: (sev_rank.get(x["sev"], 9), x["proj"]))
     return {"available": True, "projects": projects,
-            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]}}
+            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]},
+            "open_total": len(open_items), "open_items": open_items[:60]}  # 明细钻取：现态 OPEN 清单（严重度序，前 60）
 
 
 class H(BaseHTTPRequestHandler):

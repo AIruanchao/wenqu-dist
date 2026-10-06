@@ -1,5 +1,7 @@
 # 三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
 
+- **v3.5.6（2026-10-07 system 轴：三次「优化」令·OPEN 明细钻取）**：从「计数仪表盘」进化「可行动清单」——状态机 OPEN 节点可点击，展开**未修明细表**（严重度徽标/项目/ID/标题，严重度序前 60 条，再点收起）。数据随折叠语义同源收集（open_total=by_status.OPEN=33 对账一致；title/desc 字段兼容；fold 顺手收 title_of 末次非空）。缓存/失效/转义全部沿用既有机制（明细字段全过 esc）。浏览器三态实测（点击展开 33 行/首行 HIGH 最重/再点收起）。首测假阴性教训：IAB goto 同域仅变 hash 不重载——旧 JS 验新功能必先 reload。
+
 - **v3.5.5（2026-10-07 system 轴：二次「优化」令·慢端点 TTL 缓存+页签 hash 记忆）**：①慢端点 TTL 缓存（/api/health 30s——ssh 探盘+全组件 stat+crontab 子进程的重计算；/api/health-history 30s；/api/logs 15s——tail 子进程×日志数；decisions 等即时端点不入缓存表）——多 tab 5s 轮询防重算放大，实测 health 22ms→1ms / logs 18ms→1ms；②**页签 hash 记忆**：URL hash 与页签双向绑定（#bugdeck 直达分享链接/hashchange 即时切换/点击写 hash/刷新保持四态实测）——此前刷新浏览器永远弹回总览页签的体验痛点根除。死代码纪律：初版 _ttl_cache 装饰器在端点改内联方案后即删（S9 死码教训）。
 
 - **v3.5.4（2026-10-07 system 轴：「优化」令·账本 API mtime 缓存 8-11×）**：/api/bugscan-ledger 从每次全量重读改为**文件 (mtime_ns,size) 签名缓存+singleflight 单飞重读**（签名不变→直返缓存，读侧仅序列化不修改 dict=CPython 只读并发安全；未命中锁内单飞，并发不重复 IO；异常 fail-soft 不写缓存）。实测：单发 8ms→**1ms**（8×）、50 并发 avg 321ms→**38ms**/max 1081ms→**96ms**/total 1090ms→**109ms**（8-11×）。**缓存失效四态负验证全过**：追加发现行/追加流转行/整个项目目录替换——API 均立即反映新数据（mtime 签名变更即时失效）；数据口径零漂移（481/OPEN 33）。重构顺带：_ledger_files 抽出（签名采集与折叠消费共用路径防御，消除重复）。
