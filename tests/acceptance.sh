@@ -334,6 +334,19 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
 fi
 
+echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+  CORE_RC=$?
+  if [ $CORE_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+fi
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1

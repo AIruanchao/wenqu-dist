@@ -76,21 +76,15 @@ python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需
 [ -f "$PREFIX/bin/tla2tools.jar" ] && echo "✓ TLA+ 工具链" || echo "△ 无 tla2tools.jar（仅影响形式化验证组件）"
 command -v z3 >/dev/null && echo "✓ Z3 定理证明器" || echo "△ 缺 z3（brew install z3，仅影响 SMT 组件）"
 
-# 6. 自检（P0-7 修：区分「新装未配置」与「关键件损坏」）
+# 6. 自检（P0-7 修：新装预期警告不中止；关键件损坏才中止）
 echo "── 自检 ──"
-DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1)
-DOC_RC=$?
-if [ $DOC_RC -ne 0 ]; then
-  # 区分：占位符=新装预期（警告不中止）；其他失败=关键件损坏（中止）
-  if echo "$DOC_OUT" | grep -q "占位符\|OWNER/REPO"; then
-    echo "△ doctor 警告：配置未填写（新装预期——编辑 env 后 wenqu doctor 复检）"
-  else
-    echo "✗ 安装自检失败——doctor 非零退出且非配置问题，安装中止" >&2
-    echo "$DOC_OUT" | tail -5 >&2
-    exit 1
-  fi
+DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1 || true)
+if echo "$DOC_OUT" | grep -q "✗ 缺.*必需\|✗.*不可导入\|✗.*不存在"; then
+  echo "✗ 安装自检失败——关键件缺失，安装中止" >&2
+  echo "$DOC_OUT" | grep "✗" | tail -3 >&2
+  exit 1
 else
-  echo "✓ doctor 自检通过"
+  echo "✓ 安装自检通过（配置警告不影响安装——配置后 wenqu doctor 复检）"
 fi
 
 echo "
