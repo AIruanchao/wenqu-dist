@@ -7,4 +7,11 @@
 - approvals.py：判别联合审批消费
 - source_gate.py：W3A 源闸基础件（fetch/merge-base diff/affected 范围/
   TrustedRunner 测试执行/精确 SHA 校验，产出 source-gate-result.json）
+
+Bug 八站适配层（W6A/W6D）：
+- bugscan_orchestrator.py：W6A 八站 Planner/Registry + 站0 冻结 + 站1 源闸适配
+- station4_behavior.py：W6D 站4 行为面（E2eScanner/RouteDynamicScanner/
+  WebGuiScanner → station-result-v2，分母自 tests/ 动态计算）
+- station7_runtime.py：W6D 站7 运行时（哨兵活性/SLO/告警链端到端 →
+  station-result-v2；不计收敛轮但可阻断发布；含站5/站6 占位接口）
 """
