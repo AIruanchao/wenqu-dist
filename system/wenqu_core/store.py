@@ -26,7 +26,8 @@ class ChainIntegrityError(RuntimeError):
 
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS events (
+-- P0-6 修：表名改为 pipeline_events 避免与 LedgerMigrator 的 events 表冲突
+CREATE TABLE IF NOT EXISTS pipeline_events (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id        TEXT NOT NULL UNIQUE,
     payload         TEXT NOT NULL,
@@ -35,16 +36,16 @@ CREATE TABLE IF NOT EXISTS events (
     created_at      REAL NOT NULL
 );
 
-CREATE TRIGGER IF NOT EXISTS events_append_only_no_update
-BEFORE UPDATE ON events
+CREATE TRIGGER IF NOT EXISTS pipeline_events_append_only_no_update
+BEFORE UPDATE ON pipeline_events
 BEGIN
-    SELECT RAISE(ABORT, 'events is append-only: UPDATE is forbidden');
+    SELECT RAISE(ABORT, 'pipeline_events is append-only: UPDATE is forbidden');
 END;
 
-CREATE TRIGGER IF NOT EXISTS events_append_only_no_delete
-BEFORE DELETE ON events
+CREATE TRIGGER IF NOT EXISTS pipeline_events_append_only_no_delete
+BEFORE DELETE ON pipeline_events
 BEGIN
-    SELECT RAISE(ABORT, 'events is append-only: DELETE is forbidden');
+    SELECT RAISE(ABORT, 'pipeline_events is append-only: DELETE is forbidden');
 END;
 """
 
@@ -77,22 +78,24 @@ class EventStore:
     def append(self, event: Dict[str, Any]) -> Tuple[str, bool]:
         """追加一条事件，返回 (event_hash, inserted)。
 
-        INSERT OR IGNORE 保证重试幂等：完全相同的 (prev, payload) 二次
-        插入会被忽略而不是复制行（rowcount == 0 → inserted == False）。
+        P0-6 修：幂等键基于稳定内容（canonical payload），不含 prev_event_hash。
+        重试同一事件 → event_id 相同 → INSERT OR IGNORE 忽略 → inserted=False。
         """
         payload = self._canonical_payload(event)
+        # P0-6: event_id = sha256(canonical_payload)——稳定幂等键
+        event_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         self._conn.execute("BEGIN IMMEDIATE")
         try:
             row = self._conn.execute(
-                "SELECT event_hash FROM events ORDER BY seq DESC LIMIT 1"
+                "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
             ).fetchone()
             prev = row[0] if row else GENESIS_HASH
             event_hash = self._compute_hash(prev, payload)
             cur = self._conn.execute(
-                "INSERT OR IGNORE INTO events "
+                "INSERT OR IGNORE INTO pipeline_events "
                 "(event_id, payload, prev_event_hash, event_hash, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (event_hash, payload, prev, event_hash, time.time()),
+                (event_id, payload, prev, event_hash, time.time()),
             )
             inserted = cur.rowcount == 1
             self._conn.execute("COMMIT")
@@ -104,7 +107,7 @@ class EventStore:
     # ------------------------------------------------------------------
     def head(self) -> Tuple[Optional[str], int]:
         row = self._conn.execute(
-            "SELECT event_hash, COUNT(*) FROM events ORDER BY seq DESC LIMIT 1"
+            "SELECT event_hash, COUNT(*) FROM pipeline_events ORDER BY seq DESC LIMIT 1"
         ).fetchone()
         if row is None or row[0] is None:
             return None, 0
@@ -116,7 +119,7 @@ class EventStore:
         scanned = 0
         for seq, event_id, payload, prev_event_hash, event_hash in self._conn.execute(
             "SELECT seq, event_id, payload, prev_event_hash, event_hash "
-            "FROM events ORDER BY seq ASC"
+            "FROM pipeline_events ORDER BY seq ASC"
         ):
             scanned += 1
             if prev_event_hash != expected_prev:
@@ -129,9 +132,11 @@ class EventStore:
                 raise ChainIntegrityError(
                     f"seq {seq}: event_hash {event_hash} != recomputed {recomputed}"
                 )
-            if event_id != event_hash:
+            # P0-6: event_id 是内容哈希（幂等键），不再要求等于链哈希 event_hash
+            # 仅校验 event_id 是有效的 sha256 hex
+            if len(event_id) != 64 or not all(c in "0123456789abcdef" for c in event_id):
                 raise ChainIntegrityError(
-                    f"seq {seq}: event_id {event_id} does not match event_hash"
+                    f"seq {seq}: event_id {event_id} is not a valid sha256 hex"
                 )
             expected_prev = event_hash
         head_hash, total = self.head()

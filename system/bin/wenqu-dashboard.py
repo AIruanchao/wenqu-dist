@@ -4,6 +4,7 @@
 用法：wenqu dashboard [端口=7788]
 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
 """
+import hmac
 import json
 from datetime import datetime, timedelta
 import os
@@ -861,6 +862,29 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/decide":
+            port = self.server.server_address[1]
+            allowed_origins = {
+                "http://127.0.0.1:%d" % port,
+                "http://localhost:%d" % port,
+            }
+            origins = self.headers.get_all("Origin", [])
+            if len(origins) != 1 or origins[0] not in allowed_origins:
+                return self._send(403, '{"error":"forbidden"}')
+            allowed_hosts = {
+                "127.0.0.1", "localhost",
+                "127.0.0.1:%d" % port, "localhost:%d" % port,
+            }
+            hosts = self.headers.get_all("Host", [])
+            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
+                return self._send(403, '{"error":"forbidden"}')
+            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
+            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+            if (not expected_key or len(supplied_keys) != 1
+                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
+                return self._send(403, '{"error":"forbidden"}')
+            requested_with = self.headers.get_all("X-Requested-With", [])
+            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
+                return self._send(403, '{"error":"forbidden"}')
             try:
                 n = int(self.headers.get("Content-Length") or 0)
             except ValueError:

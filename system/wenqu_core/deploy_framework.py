@@ -146,9 +146,15 @@ class DeployManager:
                 json.dump(manifest, fh, ensure_ascii=False, indent=2, sort_keys=True)
                 fh.write("\n")
 
-            # 发布后只读（常规文件 0444；目录不可变由“只增不改”协议保证）
+            # P0-7 修：保留执行位——脚本/shebang 类 0555，其他 0444
             for e in manifest["files"]:
-                os.chmod(os.path.join(staging, e["path"]), 0o444)
+                fpath = os.path.join(staging, e["path"])
+                _is_exec = e["path"].endswith(".sh") or (
+                    e["path"].endswith(".py")
+                    and os.path.getsize(fpath) > 2
+                    and open(fpath, "rb").read(2) == b"#!"
+                )
+                os.chmod(fpath, 0o555 if _is_exec else 0o444)
             os.chmod(manifest_path, 0o444)
 
             if os.path.exists(final_dir):
@@ -305,11 +311,18 @@ class DeployManager:
     def deploy(self, source_dir: str) -> Dict[str, Any]:
         """完整部署：构建 -> 对账 -> 原子切换 -> 安装自检。
 
-        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError（原始异常链
-        保留，回滚失败亦如实写入错误消息，绝不吞错）。
+        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError。
+        P0-7 修：首次部署无上一版可回滚时，切回空/删除 current link（不留在失败版上）。
         """
         build_result = self.build(source_dir)
         verify_report = self.verify(build_result["release_dir"])  # 切换前对账
+
+        # P0-7 修：切换前记录是否存在 current link（首次部署判定）
+        _had_current = os.path.islink(self.current_link) or os.path.exists(self.current_link)
+        _prev_target = None
+        if _had_current and os.path.islink(self.current_link):
+            _prev_target = os.readlink(self.current_link)
+
         switch_report = self.switch(self.current_link, build_result["release_dir"])
 
         try:
@@ -318,16 +331,22 @@ class DeployManager:
                 if not check:
                     raise SelfCheckError(f"install self-check returned falsy: {check!r}")
         except Exception as exc:
-            previous_abs = switch_report.get("previous_abs")
-            rollback_note = "no previous release to roll back to; current link stays on failed release"
-            if previous_abs and os.path.isdir(previous_abs):
+            rollback_note = "no previous release to roll back to"
+            if _prev_target and os.path.isdir(_prev_target):
                 try:
-                    self.rollback(self.current_link, previous_abs)
-                    rollback_note = f"rolled back to {previous_abs}"
+                    self.rollback(self.current_link, _prev_target)
+                    rollback_note = f"rolled back to {_prev_target}"
                 except DeployError as rb_exc:
                     rollback_note = (f"ROLLBACK FAILED ({rb_exc}); "
                                      f"current link remains on failed release "
                                      f"{build_result['release_dir']}")
+            elif not _had_current:
+                # P0-7 修：首次部署失败——删除 current link（不留在失败版上）
+                try:
+                    os.unlink(self.current_link)
+                    rollback_note = "first deploy: current link removed (no failed release active)"
+                except OSError:
+                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
             raise DeployError(
                 f"deploy failed at install self-check: {exc!r}; {rollback_note}"
             ) from exc
