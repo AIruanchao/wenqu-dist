@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/run-event-v2.json",
+  "title": "Run/Station Event Schema v2",
+  "description": "统一结果双轴：execution_status × policy_verdict——Codex 方案 §6.1 契约冻结",
+  "type": "object",
+  "required": ["schema_version", "event_type", "run_id", "execution_status", "policy_verdict", "identity"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "event_type": {
+      "enum": ["RUN_CREATED", "STAGE_STARTED", "STAGE_COMPLETED", "RUN_COMPLETED", "WAITING_RAISED", "WAITING_RESUMED", "SUPERSEDED"]
+    },
+    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    "task_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    "stage": {"enum": ["S1_REQUIREMENT", "S2_SOLUTION", "S3_EQS_PRE", "S4_IMPLEMENT", "S5_CONVERGENCE", "S6_EQS_FULL", "S7_GATE"]},
+    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    "attempt_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    "execution_status": {
+      "enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"],
+      "description": "工具/命令实际执行结果——不可由调用者自报"
+    },
+    "policy_verdict": {
+      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"],
+      "description": "策略判定——由 gate aggregator 基于 evidence 计算"
+    },
+    "identity": {
+      "type": "object",
+      "required": ["commit_sha", "environment", "scope_hash"],
+      "properties": {
+        "repo_id": {"type": "string"},
+        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "environment": {"enum": ["local", "staging", "production"]},
+        "scope_hash": {"type": "string"},
+        "ruleset_hash": {"type": "string"},
+        "data_config_hash": {"type": "string"},
+        "lockfile_hash": {"type": "string"}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"}
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "state_version": {"type": "integer", "minimum": 1},
+    "ts": {"type": "string", "format": "date-time"},
+    "actor": {"type": "string"},
+    "prev_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false,
+  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）"
+}

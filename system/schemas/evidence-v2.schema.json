@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/evidence-v2.json",
+  "title": "Trusted Evidence Schema v2",
+  "description": "不可伪造证据绑定——Codex 方案 §6.6 契约",
+  "type": "object",
+  "required": ["evidence_id", "run_id", "identity", "tool", "runner", "execution", "fresh_until"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "evidence_id": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_]+$"},
+    "run_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "stage": {"type": "string"},
+    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    "attempt_id": {"type": "string"},
+    "identity": {
+      "type": "object",
+      "required": ["commit_sha", "environment", "scope_hash"],
+      "properties": {
+        "repo_id": {"type": "string"},
+        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "base_sha": {"type": "string"},
+        "environment": {"type": "string"},
+        "scope_hash": {"type": "string"},
+        "ruleset_hash": {"type": "string"},
+        "data_config_hash": {"type": "string"},
+        "lockfile_hash": {"type": "string"}
+      }
+    },
+    "runner": {
+      "type": "object",
+      "required": ["runner_id", "version"],
+      "properties": {
+        "runner_id": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "digest": {"type": "string"}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["argv_digest", "started_at", "finished_at", "actual_exit_code"],
+      "properties": {
+        "argv_digest": {"type": "string"},
+        "cwd_digest": {"type": "string"},
+        "started_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": "string", "format": "date-time"},
+        "actual_exit_code": {"type": "integer"},
+        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifact_size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "verdict": {
+      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]
+    },
+    "fresh_until": {
+      "type": "string",
+      "format": "date-time",
+      "description": "由受保护 policy 按 trusted_finished_at + policy_ttl 计算——调用者和工件不得自行声明"
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "evidence 不得是 symlink、外部路径、空文件或无哈希文件（不变量 #11）"
+}

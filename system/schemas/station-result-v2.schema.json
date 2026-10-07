@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/station-result-v2.json",
+  "title": "Bug 八站 Station Result Schema v2",
+  "description": "每站统一结果——Codex 方案 §7.2 契约",
+  "type": "object",
+  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    "attempt_id": {"type": "string"},
+    "execution_status": {"enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]},
+    "policy_verdict": {"enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]},
+    "identity": {
+      "type": "object",
+      "required": ["commit_sha", "environment", "scope_hash"],
+      "properties": {
+        "project_id": {"type": "string"},
+        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "environment": {"type": "string"},
+        "scope_hash": {"type": "string"},
+        "ruleset_hash": {"type": "string"},
+        "data_config_hash": {"type": "string"},
+        "lockfile_hash": {"type": "string"}
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "digest": {"type": "string"}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["argv_digest", "started_at", "ended_at", "actual_exit_code", "expected_exit_set", "assertion_verdict"],
+      "properties": {
+        "argv_digest": {"type": "string"},
+        "cwd_digest": {"type": "string"},
+        "started_at": {"type": "string", "format": "date-time"},
+        "ended_at": {"type": "string", "format": "date-time"},
+        "timeout_s": {"type": "integer", "minimum": 1},
+        "actual_exit_code": {
+          "type": "integer",
+          "description": "trusted runner 实际 waitpid 捕获——不可由调用者填写"
+        },
+        "expected_exit_set": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "description": "该测试允许的内层退出码集合（负例可有非零）"
+        },
+        "assertion_verdict": {
+          "enum": ["PASS", "FAIL", "ERROR"],
+          "description": "测试 harness 对行为是否符合预期的判断"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["denominator", "scanned"],
+      "properties": {
+        "denominator": {"type": "integer", "minimum": 0},
+        "scanned": {"type": "integer", "minimum": 0},
+        "exclusions": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cas_digest", "size"],
+        "properties": {
+          "cas_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "size": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）"
+}

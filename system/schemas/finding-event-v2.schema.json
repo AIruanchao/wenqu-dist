@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/finding-event-v2.json",
+  "title": "Finding State Machine Schema v2",
+  "description": "Finding 状态机——Codex 方案 §6.3 契约（FIXED→FIXED_PENDING_VERIFY 迁移）",
+  "type": "object",
+  "required": ["schema_version", "event_type", "finding_id", "fingerprint", "severity", "priority", "ts"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "event_type": {
+      "enum": [
+        "FINDING_CREATED", "FINDING_REOPENED",
+        "FIX_STARTED", "FIX_COMPLETED",
+        "VERIFY_STARTED", "VERIFIED",
+        "CLOSED",
+        "ACCEPTED_RISK", "RISK_REVOKED", "RISK_INVALIDATED",
+        "SUPERSEDED"
+      ]
+    },
+    "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    "parent_finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    "fingerprint": {
+      "type": "string",
+      "description": "stable fingerprint: sha256(file_path+line_start+rule_id+code_snippet_hash)"
+    },
+    "severity": {
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+      "description": "技术严重度——默认 CRITICAL→P0, HIGH→P1（可由版本化 policy 升级）"
+    },
+    "priority": {
+      "enum": ["P0", "P1", "P2", "P3"],
+      "description": "业务优先级——自动流程不得降级（不变量）"
+    },
+    "state_from": {
+      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK"]
+    },
+    "state_to": {
+      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK", "RISK_REVOKED"]
+    },
+    "risk_acceptance": {
+      "type": "object",
+      "required": ["approver", "reason", "scope", "expiry"],
+      "properties": {
+        "approver": {"type": "string"},
+        "reason": {"type": "string", "minLength": 10},
+        "scope": {"type": "string"},
+        "compensating_controls": {"type": "array", "items": {"type": "string"}},
+        "expiry": {"type": "string", "format": "date-time"}
+      }
+    },
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "identity": {
+      "type": "object",
+      "properties": {
+        "commit_sha": {"type": "string"},
+        "environment": {"type": "string"},
+        "scope_hash": {"type": "string"},
+        "policy_hash": {"type": "string"}
+      }
+    },
+    "ts": {"type": "string", "format": "date-time"},
+    "actor": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
+}

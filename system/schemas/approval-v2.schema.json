@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/approval-v2.json",
+  "title": "Approval Event Schema v2（判别联合）",
+  "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
+  "type": "object",
+  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+    "approval_type": {
+      "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
+    },
+    "run_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "stop_event_id": {"type": "string"},
+    "stop_type": {
+      "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
+    },
+    "stage": {"type": "string"},
+    "environment": {"enum": ["local", "staging", "production"]},
+    "authorized_scope": {"type": "string"},
+    "policy_hash": {"type": "string"},
+    "ruleset_hash": {"type": "string"},
+    "input_watermark": {"type": "string"},
+    "actor": {"type": "string", "minLength": 1},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "expected_state_version": {"type": "integer", "minimum": 1},
+    "nonce": {"type": "string", "minLength": 16},
+    "decision": {"enum": ["approve", "deny", "conditional"]},
+    "signature": {"type": "string", "minLength": 32},
+    "payload": {
+      "type": "object",
+      "description": "判别 payload——按 approval_type 必须含对应专属字段",
+      "oneOf": [
+        {
+          "properties": {"approval_type": {"const": "resume"}},
+          "required": ["stop_event_id", "stop_type", "objective_precondition_hash"]
+        },
+        {
+          "properties": {"approval_type": {"const": "risk"}},
+          "required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]
+        },
+        {
+          "properties": {"approval_type": {"const": "merge"}},
+          "required": ["repo_id", "base_sha", "head_sha", "merge_method"]
+        },
+        {
+          "properties": {"approval_type": {"const": "release"}},
+          "required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]
+        },
+        {
+          "properties": {"approval_type": {"const": "ddl"}},
+          "required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]
+        },
+        {
+          "properties": {"approval_type": {"const": "prod_write"}},
+          "required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]
+        },
+        {
+          "properties": {"approval_type": {"const": "fund_auth"}},
+          "required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]
+        },
+        {
+          "properties": {"approval_type": {"const": "rollback"}},
+          "required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝"
+}
