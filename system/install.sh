@@ -14,6 +14,34 @@ echo "目标：$PREFIX"
 mkdir -p "$PREFIX"/{bin,sentinels,daemons,db,ci,templates,specs,config,logs,state}
 
 # 2. 拷贝组件
+# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
+mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
+for f in "$SRC"/wenqu_core/*.py; do
+  [ -f "$f" ] && cp "$f" "$PREFIX/lib/wenqu_core/"
+done
+# 确保包可导入
+touch "$PREFIX/lib/wenqu_core/__init__.py"
+[ -f "$SRC"/wenqu_core/__init__.py ] && cp "$SRC"/wenqu_core/__init__.py "$PREFIX/lib/wenqu_core/"
+
+for f in "$SRC"/schemas/*.json; do
+  [ -f "$f" ] && cp "$f" "$PREFIX/schemas/"
+done
+
+for ext in html css js py; do
+  [ -f "$SRC/dashboard/index.$ext" ] && cp "$SRC/dashboard/index.$ext" "$PREFIX/dashboard/"
+done
+[ -f "$SRC/dashboard/app.$ext" ] || true
+for f in "$SRC"/dashboard/*.html "$SRC"/dashboard/*.css "$SRC"/dashboard/*.js "$SRC"/dashboard/*.py; do
+  [ -f "$f" ] && cp "$f" "$PREFIX/dashboard/"
+done
+
+# P0-1 验证：新核心安装后必须可导入，否则安装失败
+if ! PYTHONPATH="$PREFIX/lib" python3 -c "from wenqu_core.runner import TrustedRunner" 2>/dev/null; then
+  echo "✗ 安装自检失败：wenqu_core 不可导入——安装中止" >&2
+  exit 1
+fi
+echo "✓ wenqu_core 安装验证通过（TrustedRunner 可导入）"
+
 cp -R "$SRC"/bin/. "$PREFIX/bin/"
 cp -R "$SRC"/sentinels/. "$PREFIX/sentinels/" 2>/dev/null || true
 cp -R "$SRC"/daemons/. "$PREFIX/daemons/" 2>/dev/null || true
@@ -48,9 +76,22 @@ python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需
 [ -f "$PREFIX/bin/tla2tools.jar" ] && echo "✓ TLA+ 工具链" || echo "△ 无 tla2tools.jar（仅影响形式化验证组件）"
 command -v z3 >/dev/null && echo "✓ Z3 定理证明器" || echo "△ 缺 z3（brew install z3，仅影响 SMT 组件）"
 
-# 6. 自检
+# 6. 自检（P0-7 修：区分「新装未配置」与「关键件损坏」）
 echo "── 自检 ──"
-WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor || true
+DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1)
+DOC_RC=$?
+if [ $DOC_RC -ne 0 ]; then
+  # 区分：占位符=新装预期（警告不中止）；其他失败=关键件损坏（中止）
+  if echo "$DOC_OUT" | grep -q "占位符\|OWNER/REPO"; then
+    echo "△ doctor 警告：配置未填写（新装预期——编辑 env 后 wenqu doctor 复检）"
+  else
+    echo "✗ 安装自检失败——doctor 非零退出且非配置问题，安装中止" >&2
+    echo "$DOC_OUT" | tail -5 >&2
+    exit 1
+  fi
+else
+  echo "✓ doctor 自检通过"
+fi
 
 echo "
 安装完成。三步上手：

@@ -99,8 +99,17 @@ uncron)
   hdr "卸载哨兵 cron"
   CRON_TMP=$(mktemp); crontab -l 2>/dev/null | grep -v wenqu/sentinels > "$CRON_TMP"; crontab "$CRON_TMP"
   ok "已移除全部 wenqu 哨兵 cron"; rm -f "$CRON_TMP" ;;
-dashboard)  # Web 仪表盘
-  exec python3 "$WQ/bin/wenqu-dashboard.py" "${1:-7788}" ;;
+dashboard)  # Web 仪表盘（P0-1：优先用新 dashboard，回退旧版）
+  if [ -f "$WQ/dashboard/server.py" ]; then
+    # P0-1 修：新 dashboard 优先——只读+安全加固版
+    python3 "$WQ/dashboard/server.py" --port "${1:-7788}"
+  elif [ -f "$WQ/bin/wenqu-dashboard.py" ]; then
+    # 回退：旧单文件版（过渡期兼容）
+    exec python3 "$WQ/bin/wenqu-dashboard.py" "${1:-7788}"
+  else
+    bad "dashboard 不可用（$WQ/dashboard/server.py 与 $WQ/bin/wenqu-dashboard.py 均不存在）"
+    exit 1
+  fi ;;
 tla)  # 形式化验证
   hdr "TLA+ 模型检查"
   java -cp "$WQ/bin/tla2tools.jar" tlc2.TLC -deadlock -config "$WQ/specs/PaymentConservation.cfg" "$WQ/specs/PaymentConservation.tla" 2>&1 | tail -15 ;;
