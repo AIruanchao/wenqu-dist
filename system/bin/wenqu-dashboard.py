@@ -665,6 +665,8 @@ def _fold_project(f, by_day=None):
                         if len(_d) == 10 and _d.startswith("20"):
                             _k = (_d, _norm_status(to_state))
                             by_day[_k] = by_day.get(_k, 0) + 1
+            if ts:
+                ts_of[fid] = ts  # 流转行也是活动（陈账计时须含流转——否则旧 finding 当日流转后 dashboard 仍报陈旧）
             continue
         cur[fid] = d.get("status") or d.get("state")  # 同 id 重复摄入取末次
         raw_sev = d.get("sev") or d.get("severity")
@@ -753,7 +755,13 @@ def _bugscan_ledger_impl(files):
             by_sev[sv] = by_sev.get(sv, 0) + 1
             stale = False
             if stt == "OPEN":
-                t = str(ts_of.get(fid, ""))[:19]  # 2026-09-22T15:05:xx 形（剥时区后缀取本地口径 naive 对比）
+                t = str(ts_of.get(fid, ""))
+                # 剥时区后缀再截 19 位（+08:00/Z 尾随会让 fromisoformat 出 aware→naive 混算 TypeError，或截出非法串漏检）
+                for suf in ("+08:00", "+00:00", "Z"):
+                    if t.endswith(suf):
+                        t = t[: -len(suf)]
+                        break
+                t = t[:19]
                 try:
                     if t:
                         dt = datetime.fromisoformat(t)
