@@ -213,6 +213,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
  <details style="margin-bottom:8px"><summary class="dim" style="cursor:pointer;font-size:12px">展开 16 条盲区清单</summary><div id="blindspots" style="margin-top:8px"></div></details>
  <div class="src">收敛声明两版（禁自由发挥）：清零声明（零豁免时）／条件放行声明（有有效豁免时只能用此版——铁律 3：带有效豁免只能称「条件放行」不能称「清零」）；生产观察窗未跨过=候选收敛；两版均须附盲区清单作为附件</div></div>
 </div>
+</div>
 <div class="grid" id="ov">
   <div class="card" style="grid-column:1/-1;border-color:#3fb950" id="healthcard"><h2>❤️ 系统健康度</h2><div id="health">载入中…</div></div>
   <div class="card" style="border-color:#f0883e" id="deccard"><h2>⏳ 待拍板</h2><div id="dec" style="max-height:340px;overflow:auto">载入中…</div></div>
@@ -421,7 +422,7 @@ async function loadBGL(){
   h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
   h+=`<div class="bnode side"><b>OTHER</b><span class="cnt">${st['OTHER']||0}</span><span class="hint">无状态字段/变体未归类</span></div></div>`;
   const sv=d.total.by_sev||{};
-  h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span><span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
+  h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span>${(d.stale_open||0)>0?`<span class="chip" style="background:#f0883e33;color:#f0883e;border:1px dashed #f0883e" title="OPEN 且 >14 天无活动——多半是修了没销账的陈账，跑 sweep 核销">⏳ 陈账 ${d.stale_open}</span>`:''}<span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
   box.innerHTML=h;
   window._openItems=d.open_items||[];window._openTotal=d.open_total||0;
   const old=document.getElementById('bglitems');if(old)old.remove();
@@ -438,7 +439,7 @@ async function loadBGL(){
     if(window._itemsShown!==stt)return;  // 期间已切换
     const items=d2.items||[];
     el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">${stt} 明细 ${d2.items_total||0} 条（严重度序${(d2.items_total||0)>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 ${stt} 收起</div>`+
-      items.map(x=>`<div class="row"><span class="chip ${x.sev==='HIGH'?'h':(x.sev==='MED'?'m':(x.sev==='LOW'?'l':''))}" style="margin:0 6px 0 0">${x.sev}</span><span class="dim" style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.proj)}">${esc(x.proj)}</span><span class="dim" style="flex:0 0 96px">${esc(x.id)}</span><span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.title)}">${esc(x.title)||'<i style="opacity:.5">（无标题）</i>'}</span></div>`).join('');
+      items.map(x=>`<div class="row"${x.stale?' style="border-left:2px solid #f0883e;padding-left:6px"':''}><span class="chip ${x.sev==='HIGH'?'h':(x.sev==='MED'?'m':(x.sev==='LOW'?'l':''))}" style="margin:0 6px 0 0">${x.sev}</span>${x.stale?`<span class="dim" style="font-size:10px;color:#f0883e;flex:0 0 44px" title="OPEN 超 14 天无活动=陈账嫌疑">⏳${esc(x.ts||'')}</span>`:''}<span class="dim" style="flex:0 0 110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.proj)}">${esc(x.proj)}</span><span class="dim" style="flex:0 0 96px">${esc(x.id)}</span><span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.title)}">${esc(x.title)||'<i style="opacity:.5">（无标题）</i>'}</span></div>`).join('');
   };
   const pb=document.getElementById('bglproj');pb.innerHTML='';
   d.projects.slice(0,8).forEach(p=>{
@@ -608,7 +609,7 @@ def _fold_project(f):
     """单项目账本折叠：finding 行按 id 去重取末次为初始态；同 id 末次 state_transition 的
     目标态覆盖初始态（与 wenqu CLI 锁内折叠视图同源，防幻影 OPEN）。
     返回 (cur, trans, sev_of, title_of, last)。"""
-    cur, trans, sev_of, title_of, last = {}, {}, {}, {}, ""
+    cur, trans, sev_of, title_of, ts_of, last = {}, {}, {}, {}, {}, ""
     for l in open(f, errors="ignore"):
         l = l.strip()
         if not l:
@@ -644,7 +645,9 @@ def _fold_project(f):
         t = str(d.get("title") or d.get("desc") or "").strip()
         if t:
             title_of[fid] = t  # 末次出现的非空标题保留
-    return cur, trans, sev_of, title_of, last
+        if ts:
+            ts_of[fid] = ts  # 末次活动时间（finding 行/流转行共用取末次）
+    return cur, trans, sev_of, title_of, ts_of, last
 
 
 _LEDGER_CACHE = {"stamp": None, "data": None}
@@ -704,8 +707,11 @@ def _bugscan_ledger_impl(files):
     tot_status, tot_sev = {}, {}
     tot_findings, tot_last = 0, ""
     all_items = []
+    stale_open = 0
+    STALE_DAYS = 14  # 陈账线：OPEN 且末次活动 >14 天=已修未销嫌疑（时效协议其余项 ≤30 天的一半先行黄线）
+    now = datetime.now()
     for f in files:
-        cur, trans, sev_of, title_of, last = _fold_project(f)
+        cur, trans, sev_of, title_of, ts_of, last = _fold_project(f)
         if not cur:
             continue
         key = os.path.basename(os.path.dirname(f))
@@ -715,7 +721,19 @@ def _bugscan_ledger_impl(files):
             by_status[stt] = by_status.get(stt, 0) + 1
             sv = _norm_sev(sev_of.get(fid))
             by_sev[sv] = by_sev.get(sv, 0) + 1
-            all_items.append({"st": stt, "id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key})
+            stale = False
+            if stt == "OPEN":
+                t = str(ts_of.get(fid, ""))[:19]  # 2026-09-22T15:05:xx 形（剥时区后缀取本地口径 naive 对比）
+                try:
+                    if t:
+                        dt = datetime.fromisoformat(t)
+                        if (now - dt).days > STALE_DAYS:
+                            stale = True
+                            stale_open += 1
+                except ValueError:
+                    pass
+            all_items.append({"st": stt, "id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key,
+                              "stale": stale, "ts": str(ts_of.get(fid, ""))[:10]})
         n_find = len(cur)
         projects.append({"key": key, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
         tot_findings += n_find
@@ -732,6 +750,7 @@ def _bugscan_ledger_impl(files):
             "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]},
             "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
             "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],  # 兼容：OPEN 明细（前 60）
+            "stale_open": stale_open,  # 陈账积压：OPEN 且 >14 天无活动（已修未销嫌疑）
             "_all_items": all_items}  # 内部全集（端点按 ?items=STATE 过滤；不下发无参请求）
 
 
@@ -954,8 +973,27 @@ class H(BaseHTTPRequestHandler):
                 pass
             r6 = 1.0 if pending == 0 else (0.6 if pending <= 3 else 0.2)
             parts.append(sub("决策积压", r6, 100, 10, f"{pending} 条待拍")); total += r6*10; full += 10
+            # W0-FND007 修：第 7 维「CI Gate 实际状态」——dashboard 不得比 Gate 更绿
+            gate_conclusion = None
+            try:
+                import subprocess as _sp2
+                _r = _sp2.run(["gh", "api", "repos/AIruanchao/qisemi-erp/actions/runs?branch=master&per_page=15",
+                              "--jq", '[.workflow_runs[]|select(.name=="CI")][0].conclusion'],
+                             capture_output=True, text=True, timeout=10,
+                             env={**os.environ, "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"})
+                gate_conclusion = _r.stdout.strip() or None
+            except Exception:
+                gate_conclusion = None
+            r7 = 1.0 if gate_conclusion == "success" else (0.0 if gate_conclusion == "failure" else 0.5)
+            parts.append(sub("CI Gate（正源）", r7, 100, 20, f"Gate={gate_conclusion or '查询失败'}"))
+            total += r7 * 20; full += 20
             score = round(total / full * 100, 0) if full else 0
+            # FND-007 硬约束：Gate 红→dashboard 最高只能 40（绝不能比 Gate 更绿）
+            if gate_conclusion == "failure" and score > 40:
+                score = 40
             grade = "健康" if score >= 90 else ("良好" if score >= 75 else ("关注" if score >= 60 else "告警"))
+            if gate_conclusion == "failure":
+                grade = "告警"
             hist_p = os.path.expanduser("~/Documents/ERP）Zcode/健康度走势.jsonl")
             try:
                 last = ""
@@ -1069,6 +1107,15 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
+    # 启动自检：HTML div 平衡+容器层级（fail-fast——2026-10-07 总览空白事故根治）
+    lint_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "html-balance-lint.py")
+    if os.path.isfile(lint_path):
+        import subprocess as _sp
+        rc = _sp.run(["python3", lint_path, os.path.abspath(__file__)],
+                     capture_output=True, text=True).returncode
+        if rc != 0:
+            print("::error::dashboard HTML 平衡自检 FAIL——拒绝启动（修复 div 嵌套后重试）", file=sys.stderr)
+            sys.exit(2)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
     print(f"wenqu dashboard → http://127.0.0.1:{PORT}  (Ctrl-C 停)")
     signal.signal(signal.SIGINT, lambda *a: sys.exit(0))
