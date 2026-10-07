@@ -62,5 +62,15 @@
     "actor": {"type": "string"}
   },
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+      "then": {"properties": {"severity": {"enum": ["MEDIUM", "LOW"]}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "CLOSED"}}},
+      "then": {"properties": {"state_from": {"enum": ["VERIFIED"]}}}
+    }
+  ],
   "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
 }

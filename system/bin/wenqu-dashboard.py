@@ -419,9 +419,7 @@ async function loadBGL(){
     const hot=k==='OPEN'&&n>0?' hot':'';
     h+=`<div class="bnode${hot}"${clickable}><b>${k}${n>0?' ▾':''}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
   });
-  h+='</div><div class="frow" style="margin-top:8px"><div class="arrow">↳</div>';
-  h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
-  h+=`<div class="bnode side"><b>OTHER</b><span class="cnt">${st['OTHER']||0}</span><span class="hint">无状态字段/变体未归类</span></div></div>`;
+  h+='</div>';
   const sv=d.total.by_sev||{};
   h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span>${(d.stale_open||0)>0?`<span class="chip" style="background:#f0883e33;color:#f0883e;border:1px dashed #f0883e" title="OPEN 且 >14 天无活动——多半是修了没销账的陈账，跑 sweep 核销">⏳ 陈账 ${d.stale_open}</span>`:''}<span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
   box.innerHTML=h;
@@ -499,7 +497,7 @@ async function refresh(){
   rbox.innerHTML='';
   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
-  for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.innerHTML=t.split(String.fromCharCode(10)).map(l=>/ERROR|FAIL/i.test(l)?`<span style="color:#f85149">${l}</span>`:(/WARN/i.test(l)?`<span style="color:#f0883e">${l}</span>`:(/OK|PASS/i.test(l)?`<span style="color:#3fb950">${l}</span>`:l))).join(String.fromCharCode(10));}
+  for(const[n,t]of Object.entries(lg)){const h2=document.createElement('h2');h2.style.marginTop='8px';h2.textContent=n;lbox.appendChild(h2);const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p);}
   const h=await j('/api/health');const hbox=document.getElementById('health');
   window.__hist=window.__hist||[];
   if(h.score!=null){
@@ -564,7 +562,7 @@ async function refresh(){
   }
   {const all=await j('/api/decisions?all=1').catch(()=>null);
    if(all&&all.length){const done=all.filter(x=>x.status!=='待拍').slice(-8).reverse();
-     if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${x.id}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.q}</span><span class="${x.status==='已拍'?'ok':'dim'}">${x.status}</span></div>`).join('')}</details>`));}}}
+     if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${escD(x.id)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escD(x.q)}</span><span class="${x.status==='已拍'?'ok':'dim'}">${escD(x.status)}</span></div>`).join('')}</details>`));}}}
   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
 }
 refresh();setInterval(refresh,5000);
@@ -691,6 +689,7 @@ _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
 _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
 _SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
+_SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
 
 
 def _ledger_files(root):
@@ -807,10 +806,7 @@ def ledger_trend():
     if not os.path.isdir(root):
         return {"days": []}
     day_st = {}  # {(day, state): count}
-    for name in sorted(os.listdir(root)):
-        f = os.path.join(root, name, "findings.jsonl")
-        if name != os.path.basename(name) or ".." in name or not os.path.isfile(f):
-            continue
+    for f in _ledger_files(root):  # 复用安全入口（realpath 根边界+basename 校验——勿自行 join 绕过）
         for l in open(f, errors="ignore"):
             l = l.strip()
             if "record_type" not in l or "transition" not in l:
@@ -1067,7 +1063,7 @@ class H(BaseHTTPRequestHandler):
             try:
                 import io as _io
                 with _io.open(os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"), errors="ignore") as f:
-                    pending = sum(1 for l in f if l.strip() and json.loads(l).get("status") == "待拍")
+                    pending = sum(1 for l in f if l.strip() and isinstance((json.loads(l) if l.strip().startswith(("{", "[")) else {}), dict) and json.loads(l).get("status") == "待拍")
             except Exception:
                 pass
             r6 = 1.0 if pending == 0 else (0.6 if pending <= 3 else 0.2)
@@ -1174,19 +1170,17 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, out)
         if self.path == "/api/bugscan-sse":
             # SSE 连接数限制（单用户面 4 路足够；超出 503 防线程放大——dict 计数器免 global）
-            _SSE_COUNT["n"] = _SSE_COUNT.get("n", 0) + 1
-            if _SSE_COUNT["n"] > 4:
-                _SSE_COUNT["n"] -= 1
+            if not _SSE_SEM.acquire(blocking=False):  # BoundedSemaphore(4)：线程安全非阻塞获取
                 return self._send(503, '{"error":"sse connections full"}')
             # SSE：账本 mtime 签名变化→推事件（前端 EventSource 替代盲轮询；30s 心跳保活）
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "keep-alive")
-            self.end_headers()
-            last_stamp = None
-            t0 = time.time()
             try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.end_headers()
+                last_stamp = None
+                t0 = time.time()
                 while time.time() - t0 < 300:  # 5 分钟断开，前端 EventSource 自动重连
                     root = os.path.realpath(os.path.expanduser(
                         os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
@@ -1206,7 +1200,7 @@ class H(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass  # 客户端断开
             finally:
-                _SSE_COUNT["n"] = _SSE_COUNT.get("n", 1) - 1
+                _SSE_SEM.release()
             return
         if self.path.startswith("/api/decisions"):
             want_all = "all=1" in self.path
@@ -1219,6 +1213,8 @@ class H(BaseHTTPRequestHandler):
                     try:
                         d = json.loads(l)
                     except ValueError:
+                        continue
+                    if not isinstance(d, dict):  # 非对象行防 AttributeError
                         continue
                     if d.get("status") == "待拍" or want_all:
                         row = {k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")}

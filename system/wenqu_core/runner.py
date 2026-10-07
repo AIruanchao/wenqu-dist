@@ -124,23 +124,48 @@ class TrustedRunner:
         fresh_until = timestamp + self._freshness_seconds
         argv_digest = self.argv_digest(argv)
         try:
-            completed = subprocess.run(
+            # P0-5 修：使用 Popen + 进程组（start_new_session=True），超时时 killpg 杀整棵子树
+            import signal as _signal
+            proc = subprocess.Popen(
                 list(argv),
                 cwd=workdir,
                 shell=False,
-                capture_output=True,
-                timeout=self._timeout,
-                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,  # 独立进程组——超时可 killpg 整组
             )
-        except subprocess.TimeoutExpired as exc:
-            partial_out = bytes(exc.stdout or b"")
-            partial_err = bytes(exc.stderr or b"")
+            try:
+                stdout_bytes, stderr_bytes = proc.communicate(timeout=self._timeout)
+                timed_out = False
+                actual_exit = proc.returncode
+            except subprocess.TimeoutExpired:
+                # 杀整棵进程组（含所有子孙进程）
+                try:
+                    os.killpg(proc.pid, _signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+                stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
+                timed_out = True
+                actual_exit = 124
+        except Exception as exc:
+            return Evidence(
+                argv=tuple(argv),
+                cwd=workdir,
+                actual_exit_code=2,
+                stdout_sha256=_sha256_hex(b""),
+                stderr_sha256=_sha256_hex(str(exc).encode()),
+                argv_digest=argv_digest,
+                timestamp=timestamp,
+                fresh_until=fresh_until,
+                timed_out=False,
+            )
+        if timed_out:
             return Evidence(
                 argv=tuple(argv),
                 cwd=workdir,
                 actual_exit_code=None,
-                stdout_sha256=_sha256_hex(partial_out),
-                stderr_sha256=_sha256_hex(partial_err),
+                stdout_sha256=_sha256_hex(stdout_bytes or b""),
+                stderr_sha256=_sha256_hex(stderr_bytes or b""),
                 argv_digest=argv_digest,
                 timestamp=timestamp,
                 fresh_until=fresh_until,
@@ -149,9 +174,9 @@ class TrustedRunner:
         return Evidence(
             argv=tuple(argv),
             cwd=workdir,
-            actual_exit_code=completed.returncode,
-            stdout_sha256=_sha256_hex(completed.stdout),
-            stderr_sha256=_sha256_hex(completed.stderr),
+            actual_exit_code=actual_exit,
+            stdout_sha256=_sha256_hex(stdout_bytes),
+            stderr_sha256=_sha256_hex(stderr_bytes),
             argv_digest=argv_digest,
             timestamp=timestamp,
             fresh_until=fresh_until,

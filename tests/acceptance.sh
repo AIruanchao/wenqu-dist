@@ -302,6 +302,38 @@ else
   echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
 fi
 
+echo "== T. P0 auto-merge containment =="
+P0_MSG="auto-merge permanently disabled per P0 containment"
+P0_STUB_LINE="printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1"
+P0_HOME="$TD/p0-home"; mkdir -p "$P0_HOME/daemons" "$P0_HOME/state"
+printf '%s\n' 'touch "$WENQU_HOME/writer-ran"; exit 0' > "$P0_HOME/daemons/auto-merge.sh"
+P0_OUT=$(WENQU_HOME="$P0_HOME" WENQU_REPO="owner/repo" bash "$ROOT/system/bin/wenqu" start 2>&1); P0_RC=$?
+ck "wenqu start 永久拒绝" 1 "$P0_RC"
+if [ "$P0_OUT" = "$P0_MSG" ] && [ ! -e "$P0_HOME/writer-ran" ] && [ ! -e "$P0_HOME/state/auto-merge.pid" ]; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ start 精确报错且未执行 writer/写 PID"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ start containment 断言失败"
+fi
+
+P0_OUT=$(bash "$ROOT/system/daemons/auto-merge.sh" ignored 2>&1); P0_RC=$?
+ck "源码 auto-merge stub 拒绝" 1 "$P0_RC"
+if [ "$P0_OUT" = "$P0_MSG" ] && [ "$(cat "$ROOT/system/daemons/auto-merge.sh")" = "$P0_STUB_LINE" ] && [ "$(wc -l < "$ROOT/system/daemons/auto-merge.sh" | tr -d ' ')" = "1" ]; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ 源码 stub 唯一内容、单行且消息精确"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 源码 stub 形态或消息错误"
+fi
+
+P0_PREFIX="$TD/p0-prefix"; P0_FAKE_HOME="$TD/p0-fake-home"
+mkdir -p "$P0_PREFIX/bin" "$P0_PREFIX/daemons" "$P0_FAKE_HOME"
+printf '%s\n' 'echo unsafe-writer' > "$P0_PREFIX/daemons/auto-merge.sh"
+HOME="$P0_FAKE_HOME" PATH="$P0_PREFIX/bin:$PATH" bash "$ROOT/system/install.sh" --prefix "$P0_PREFIX" >/dev/null 2>&1; ck "隔离安装" 0 $?
+P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
+fi
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1

@@ -60,16 +60,9 @@ doctor)  # 全组件体检
     bad "无配置（wenqu init 或复制 env.example）"; D=1
   fi
   exit $D ;;
-start)  # 启动守护进程
-  hdr "启动守护"
-  mkdir -p "$WQ/logs" "$WQ/state"
-  if [ -f "$WQ/daemons/auto-merge.sh" ] && [ -n "${WENQU_REPO:-}" ] && [ "$WENQU_REPO" != "OWNER/REPO" ]; then
-    nohup bash "$WQ/daemons/auto-merge.sh" >> "$WQ/logs/auto-merge.log" 2>&1 &
-    echo $! > "$WQ/state/auto-merge.pid"; ok "auto-merge (pid $!)"
-  else
-    info "auto-merge 跳过（WENQU_REPO 未配置）"
-  fi
-  ;;
+start)  # P0 containment：永久禁止 auto-merge writer
+  printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2
+  exit 1 ;;
 stop)
   hdr "停止守护"
   for p in "$WQ"/state/*.pid; do

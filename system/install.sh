@@ -17,6 +17,8 @@ mkdir -p "$PREFIX"/{bin,sentinels,daemons,db,ci,templates,specs,config,logs,stat
 cp -R "$SRC"/bin/. "$PREFIX/bin/"
 cp -R "$SRC"/sentinels/. "$PREFIX/sentinels/" 2>/dev/null || true
 cp -R "$SRC"/daemons/. "$PREFIX/daemons/" 2>/dev/null || true
+# P0 containment：安装面始终收敛为不可启动的审计 stub。
+printf '%s\n' 'printf '\''%s\n'\'' '\''auto-merge permanently disabled per P0 containment'\'' >&2; exit 1' > "$PREFIX/daemons/auto-merge.sh"
 cp -R "$SRC"/db/. "$PREFIX/db/" 2>/dev/null || true
 cp -R "$SRC"/ci/. "$PREFIX/ci/" 2>/dev/null || true
 cp -R "$SRC"/templates/. "$PREFIX/templates/" 2>/dev/null || true

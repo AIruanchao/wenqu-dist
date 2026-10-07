@@ -4,7 +4,7 @@
   "title": "Approval Event Schema v2（判别联合）",
   "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
   "type": "object",
-  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature"],
+  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
   "properties": {
     "schema_version": {"const": "2.0"},
     "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},

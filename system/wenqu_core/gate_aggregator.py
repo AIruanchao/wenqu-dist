@@ -228,10 +228,12 @@ class GateAggregator:
         else:
             outcome = PASS
 
-        if outcome == PASS and self.required_stations:
-            reason = f"all {len(self.required_stations)} required stations PASS"
+        if not self.required_stations:
+            # P0-3 修：零分母真空 PASS 是 fail-closed 违规——没有 required 站的 Gate 必须拒绝
+            outcome = BLOCKED
+            reason = "BLOCKED: no required stations configured — refusing vacuous PASS (P0-3 fix)"
         elif outcome == PASS:
-            reason = "vacuous pass: no required stations configured"
+            reason = f"all {len(self.required_stations)} required stations PASS"
         else:
             reason = reasons[0] if reasons else outcome
 
@@ -247,7 +249,7 @@ class GateAggregator:
 
         return {
             "aggregate_outcome": outcome,
-            "technical_eligible": not hard,
+            "technical_eligible": (not hard) and outcome == PASS,  # P0-3: zero-required must also be false
             "reason": reason,
             "reasons": reasons,
             "counts": {
