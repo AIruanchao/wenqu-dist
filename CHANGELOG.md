@@ -1,5 +1,7 @@
 # 三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
 
+- **v3.6.0（2026-10-07 system 轴：「能做的都做了」令·防线自动化三件套）**：①**自动 sweep**（sweep.py+launchd 每小时——检测 >14 天 OPEN 陈账报告+日志，设计裁定=只报告不自动核销（修复证据链须人审，机器无法确证"真修了"）；首跑 stale=0 exit0）②**📈 流转趋势**（/api/bugscan-trend 近 30 天按天各状态流转计数——transition 行日期→目标态，TTL 60s 缓存；bug 管线页签新增 SVG 五色面积叠加曲线 绿=CLOSED/蓝=VERIFIED/紫=FIXED/橙=ACCEPTED/红=OPEN，今日波次 FIXED 23/CLOSED 4/ACCEPTED 9 可见）③**SSE 实时推送**（/api/bugscan-sse——账本 mtime 签名变化→推 ledger 事件（负验证：root 下写文件→2 秒内收到 event: ledger），前端 EventSource 替代盲轮询+断线自动重连+5 分钟服务端窗口+心跳保活）。第四族模型审：K3 通道 --model 不生效（实证 M3）/本地 Llama 不存在——**不可做，诚实标注**（Codex 终审由本条目同回合并规执行）。
+
 - **v3.5.8（2026-10-07 system 轴：「全部要」令·陈账积压根治双件）**：①**⏳ 陈账指标**（超哥问「bug 管线修复能力不如问渠」触发的根治）——API `stale_open`（OPEN 且 >14 天无活动=已修未销嫌疑，负验证 OLD1 9-01=1 条/NEW1 10-05=0 精确）；页签徽标（>0 橙色虚线 ⏳ N）+钻取列表陈账行标记（橙左边条+日期）——修完不销账 14 天后仪表盘自动黄牌；②**销账硬关门条款**入 bug-scan-pipeline §3 第 6 步+§9 入账双闭环（修复波完成定义从「上站」改为「账本流转」——每卡 commit 必须同步写 OPEN->FIXED transition+波尾 sweep+陈账归零确认）；根因=9 月修的 24 条堆 13 天没销账（修复→销账最后一公里无人管）；③同步正源并行会话新增的 W0-FND007（CI Gate 第 7 维）到 dist+安装副本（rsync 全量同步替代逐段 Edit——三处一致性纪律）。
 
 - **v3.5.7（2026-10-07 system 轴：四次「优化」令·全状态钻取+7788 退役）**：钻取补完——状态机**全部状态节点**可点击展开明细（OPEN 33/FIXED 172/CLOSED 156/VERIFIED 67/ACCEPTED 36/FIXING 4/OTHER 13，七状态钻取计数与状态机逐一对账 PASS）；`?items=STATE` 参数化端点（内部 _all_items 全集缓存但无参请求不下发——防 payload 膨胀；切换态防竞态 _itemsShown 守卫）；OPEN 本地直渲染其余异步拉取。**7788 次实例退役**（默认占位 env 的 nohup 历史实例，kill 后不再拉起——维护面收窄，7789 launchd 常驻为唯一正门）。

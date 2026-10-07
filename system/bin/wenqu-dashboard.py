@@ -188,6 +188,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
  <div class="card" style="margin-bottom:10px"><h2>📒 缺陷账本 · 状态机（实数据）</h2>
   <div id="bglstate">载入中…</div>
   <div id="bglproj" style="margin-top:10px"></div>
+  <div id="bgltrend" style="margin-top:12px;display:none"><h2>📈 流转趋势 · 近 30 天</h2><div id="trendsvg"></div></div>
   <div class="src" id="bglnote" style="margin-top:8px">状态机正源 §4：OPEN→FIXING→VERIFIED→CLOSED；ACCEPTED 须批准人+理由+到期日，到期哨兵日检、到期未续自动重开 OPEN 并告警。FIXED=历史变体态（已修复待验证）。账本为多源异构历史，计数为归一口径。</div>
  </div>
  <div class="card" style="margin-bottom:12px;border-color:#f0883e"><h2>🔁 §9 post-fix 收敛循环（修复波必跑）</h2>
@@ -448,6 +449,29 @@ async function loadBGL(){
 }
 renderBugDeck();
 loadBGL().catch(()=>{});setInterval(()=>loadBGL().catch(()=>{}),60000);
+// 趋势曲线（近 30 天状态流转计数→SVG 面积叠加）
+async function loadTrend(){
+  try{
+    const d=(await j('/api/bugscan-trend')).days;
+    if(!d||!d.length)return;
+    document.getElementById('bgltrend').style.display='';
+    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN));
+    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
+    const pts=(k)=>d.map((x,i)=>`${pad+i*(W-2*pad)/Math.max(d.length-1,1)},${H-24-(x[k]||0)*(H-48)/mx}`).join(' ');
+    const area=(k)=>pts(k)+` ${W-pad},${H-24} ${pad},${H-24}`;
+    let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="max-width:${W}px">`;
+    for(let i=series.length-1;i>=0;i--){const[k,c]=series[i];svg+=`<polygon points="${area(k)}" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-width="1.5"><title>${k} 叠层</title></polygon>`;}
+    d.forEach((x,i)=>{if(i%5===0||i===d.length-1)svg+=`<text x="${pad+i*(W-2*pad)/Math.max(d.length-1,1)}" y="${H-8}" fill="#8b949e" font-size="10" text-anchor="middle">${x.d}</text>`});
+    svg+=`<text x="${pad}" y="16" fill="#8b949e" font-size="10">峰值 ${mx} 流转/天 · 绿=CLOSED 蓝=VERIFIED 紫=FIXED 橙=ACCEPTED 红=OPEN</text></svg>`;
+    document.getElementById('trendsvg').innerHTML=svg;
+  }catch(e){}
+}
+loadTrend();setInterval(()=>loadTrend().catch(()=>{}),120000);
+// SSE：账本文件变化实时推送（替代盲轮询首跳延迟；断线 EventSource 自动重连）
+try{
+  const es=new EventSource('/api/bugscan-sse');
+  es.addEventListener('ledger',()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{})});
+}catch(e){}
 async function refresh(){
   const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
   let ok=0,tot=0;
@@ -605,10 +629,10 @@ def _norm_sev(s):
     return "OTHER"
 
 
-def _fold_project(f):
+def _fold_project(f, by_day=None):
     """单项目账本折叠：finding 行按 id 去重取末次为初始态；同 id 末次 state_transition 的
     目标态覆盖初始态（与 wenqu CLI 锁内折叠视图同源，防幻影 OPEN）。
-    返回 (cur, trans, sev_of, title_of, last)。"""
+    by_day 传入时按天累计状态流转计数（趋势数据）。"""
     cur, trans, sev_of, title_of, ts_of, last = {}, {}, {}, {}, {}, ""
     for l in open(f, errors="ignore"):
         l = l.strip()
@@ -636,6 +660,11 @@ def _fold_project(f):
                         sev_of[fid] = sev_to
                 elif to_state and _norm_status(to_state) != "OTHER":
                     trans[fid] = to_state
+                    if by_day is not None:
+                        _d = ts[:10]
+                        if len(_d) == 10 and _d.startswith("20"):
+                            _k = (_d, _norm_status(to_state))
+                            by_day[_k] = by_day.get(_k, 0) + 1
             continue
         cur[fid] = d.get("status") or d.get("state")  # 同 id 重复摄入取末次
         raw_sev = d.get("sev") or d.get("severity")
@@ -708,10 +737,11 @@ def _bugscan_ledger_impl(files):
     tot_findings, tot_last = 0, ""
     all_items = []
     stale_open = 0
+    by_day = {}  # {(day, state): count} 从 transition 行提取
     STALE_DAYS = 14  # 陈账线：OPEN 且末次活动 >14 天=已修未销嫌疑（时效协议其余项 ≤30 天的一半先行黄线）
     now = datetime.now()
     for f in files:
-        cur, trans, sev_of, title_of, ts_of, last = _fold_project(f)
+        cur, trans, sev_of, title_of, ts_of, last = _fold_project(f, by_day)
         if not cur:
             continue
         key = os.path.basename(os.path.dirname(f))
@@ -751,7 +781,50 @@ def _bugscan_ledger_impl(files):
             "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
             "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],  # 兼容：OPEN 明细（前 60）
             "stale_open": stale_open,  # 陈账积压：OPEN 且 >14 天无活动（已修未销嫌疑）
-            "_all_items": all_items}  # 内部全集（端点按 ?items=STATE 过滤；不下发无参请求）
+            "_all_items": all_items,  # 内部全集（端点按 ?items=STATE 过滤；不下发无参请求）
+            "_by_day": by_day}  # 趋势：按天状态流转计数（transition 行日期 → 目标态）
+
+
+def ledger_trend():
+    """趋势数据：近 30 天每日各状态流转计数（从 transition 行提取，无 transition 则跳过）。"""
+    root = os.path.realpath(os.path.expanduser(
+        os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
+    if not os.path.isdir(root):
+        return {"days": []}
+    day_st = {}  # {(day, state): count}
+    for name in sorted(os.listdir(root)):
+        f = os.path.join(root, name, "findings.jsonl")
+        if name != os.path.basename(name) or ".." in name or not os.path.isfile(f):
+            continue
+        for l in open(f, errors="ignore"):
+            l = l.strip()
+            if "record_type" not in l or "transition" not in l:
+                continue
+            try:
+                d = json.loads(l)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("record_type") != "state_transition":
+                continue
+            tr = str(d.get("transition", ""))
+            if "->" not in tr:
+                continue
+            src, to = tr.split("->", 1)[0].strip().upper(), tr.rsplit(">", 1)[1].strip()
+            if src.startswith("SEVERITY"):
+                continue
+            st = _norm_status(to)
+            if st == "OTHER":
+                continue
+            t = str(d.get("time") or d.get("ts") or "")[:10]
+            if len(t) == 10 and t.startswith("20"):
+                day_st[(t, st)] = day_st.get((t, st), 0) + 1
+    out_days = []
+    today = datetime.now().strftime("%Y-%m-%d")
+    for i in range(29, -1, -1):
+        d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+        out_days.append({"d": d[5:], **counts})
+    return {"days": out_days}
 
 
 class H(BaseHTTPRequestHandler):
@@ -1060,11 +1133,48 @@ class H(BaseHTTPRequestHandler):
                     want = dict(p.split("=", 1) for p in self.path.split("?", 1)[1].split("&") if "=" in p).get("items", "")
                 d = dict(d)
                 full = d.pop("_all_items")
+                d.pop("_by_day", None)  # 趋势数据走独立端点（TTL 缓存）
                 if want:
                     d["items_state"] = want
                     d["items_total"] = sum(1 for x in full if x["st"] == want)
                     d["items"] = [x for x in full if x["st"] == want][:60]
             return self._send(200, json.dumps(d, ensure_ascii=False))
+        if self.path == "/api/bugscan-trend":
+            b = _EP_CACHE.setdefault("trend", {"ts": 0.0, "data": None})
+            if b["data"] is not None and time.time() - b["ts"] < 60:
+                return self._send(200, b["data"])
+            out = json.dumps(ledger_trend(), ensure_ascii=False)
+            b["data"], b["ts"] = out, time.time()
+            return self._send(200, out)
+        if self.path == "/api/bugscan-sse":
+            # SSE：账本 mtime 签名变化→推事件（前端 EventSource 替代盲轮询；30s 心跳保活）
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            last_stamp = None
+            t0 = time.time()
+            try:
+                while time.time() - t0 < 300:  # 5 分钟断开，前端 EventSource 自动重连
+                    root = os.path.realpath(os.path.expanduser(
+                        os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
+                    stamp = _ledger_files(root) if os.path.isdir(root) else {}
+                    sig = hash(frozenset(stamp.items()))
+                    if last_stamp is not None and sig != last_stamp:
+                        d = bugscan_ledger()
+                        msg = json.dumps({"type": "ledger-changed", "open": d["total"]["by_status"].get("OPEN", 0),
+                                          "findings": d["total"]["findings"], "stale": d.get("stale_open", 0)},
+                                         ensure_ascii=False)
+                        self.wfile.write(f"event: ledger\ndata: {msg}\n\n".encode())
+                    else:
+                        self.wfile.write(b": hb\n\n")  # 心跳注释行
+                    self.wfile.flush()
+                    last_stamp = sig
+                    time.sleep(10)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # 客户端断开
+            return
         if self.path.startswith("/api/decisions"):
             want_all = "all=1" in self.path
             out = []
