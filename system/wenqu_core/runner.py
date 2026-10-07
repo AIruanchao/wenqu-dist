@@ -202,16 +202,31 @@ class EvidenceStore:
         return _sha256_hex(evidence.to_json().encode("utf-8"))
 
     def _path_for(self, digest: str) -> Path:
-        return self._root / digest[:2] / f"{digest}.json"
+        p = self._root / digest[:2] / f"{digest}.json"
+        # P0-5 修：防父目录 symlink 逃逸——检查整个路径链不在 CAS root 外
+        resolved = p.resolve(strict=False)
+        root_resolved = self._root.resolve(strict=False)
+        if not str(resolved).startswith(str(root_resolved)):
+            raise IntegrityError(f"path escapes CAS root: {p} -> {resolved}")
+        return p
 
     def contains(self, digest: str) -> bool:
-        return self._path_for(digest).is_file()
+        p = self._path_for(digest)
+        if p.is_symlink():
+            return False  # P0-5: symlink 一律视为不存在
+        return p.is_file()
 
     # ------------------------------------------------------------------
     def put(self, evidence: Evidence) -> str:
         digest = self.digest_for(evidence)
         shard = self._root / digest[:2]
+        # P0-5 修：检查父目录不是 symlink
+        if shard.is_symlink():
+            raise IntegrityError(f"shard parent is symlink: {shard}")
         shard.mkdir(parents=True, exist_ok=True)
+        # P0-5 修：检查 mkdir 后父目录未被替换为 symlink
+        if shard.is_symlink():
+            raise IntegrityError(f"shard replaced by symlink after mkdir: {shard}")
         target = self._path_for(digest)
         data = evidence.to_json().encode("utf-8")
 
@@ -225,7 +240,16 @@ class EvidenceStore:
                 raise IntegrityError(
                     f"symlink planted at content path {target}; refusing to write"
                 )
-            return digest  # 内容寻址：同 digest 已存在，幂等成功
+            # P0-5 修：已存在文件须校验内容完整性（防预置损坏文件假成功）
+            try:
+                existing = target.read_bytes()
+                if _sha256_hex(existing) != digest:
+                    raise IntegrityError(
+                        f"corrupted file at {target}: hash mismatch, refusing silent success"
+                    )
+            except OSError as exc:
+                raise IntegrityError(f"cannot verify existing file {target}: {exc}")
+            return digest  # 内容寻址：同 digest 已存在且完整，幂等成功
         try:
             view = memoryview(data)
             while view:
