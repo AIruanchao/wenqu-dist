@@ -410,7 +410,7 @@ async function loadBGL(){
   const box=document.getElementById('bglstate');
   if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
   const st=d.total.by_status||{};
-  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭']];
+  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭'],['ACCEPTED','有条件接受'],['OTHER','未归类']];
   let h='<div class="frow">';
   chain.forEach(([k,lab],ix)=>{
     if(ix)h+='<div class="arrow">▸</div>';
@@ -455,8 +455,8 @@ async function loadTrend(){
     const d=(await j('/api/bugscan-trend')).days;
     if(!d||!d.length)return;
     document.getElementById('bgltrend').style.display='';
-    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN));
-    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
+    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN+x.FIXING));
+    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['FIXING','#d29922'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
     const pts=(k)=>d.map((x,i)=>`${pad+i*(W-2*pad)/Math.max(d.length-1,1)},${H-24-(x[k]||0)*(H-48)/mx}`).join(' ');
     const area=(k)=>pts(k)+` ${W-pad},${H-24} ${pad},${H-24}`;
     let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="max-width:${W}px">`;
@@ -545,15 +545,21 @@ async function refresh(){
    window.__lastDec=dec.length;}
   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
   else{dbox.innerHTML='';
+    const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     for(const d of dec){
       const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
       const overdue=days===0;
-      dbox.appendChild(el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
-        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${d.cat}${d.red?' 🔴':''}</span> ${d.q}</span>
+      const btn=document.createElement('button');btn.className='pbtn';btn.style.cssText='padding:1px 10px;font-size:11px';btn.textContent='✓ 采纳';
+      btn.onclick=()=>decide(d.id,'take');
+      const btn2=document.createElement('button');btn2.className='pbtn';btn2.style.cssText='padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)';btn2.textContent='✗ 驳回';
+      btn2.onclick=()=>decide(d.id,'reject');
+      const row=el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
+        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${escD(d.cat)}${d.red?' 🔴':''}</span> ${escD(d.q)}</span>
         <span class="${overdue?'bad':'dim'}" style="font-size:11px;white-space:nowrap">${overdue?'⏰ 已逾期':(days!=null?`TTL ${days}d`:'')}</span></div>
-        <div class="dim" style="font-size:12px">💡 ${d.opt||''}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
-        <div style="display:flex;gap:6px;margin-top:3px"><button class="pbtn" style="padding:1px 10px;font-size:11px" onclick="decide('${d.id}','take')">✓ 采纳</button><button class="pbtn" style="padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)" onclick="decide('${d.id}','reject')">✗ 驳回</button></div>
-      </div>`));
+        <div class="dim" style="font-size:12px">💡 ${escD(d.opt||'')}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
+      </div>`);
+      const bar=document.createElement('div');bar.style.cssText='display:flex;gap:6px;margin-top:3px';bar.append(btn,btn2);row.appendChild(bar);
+      dbox.appendChild(row);
     }
   }
   {const all=await j('/api/decisions?all=1').catch(()=>null);
@@ -684,6 +690,7 @@ def _fold_project(f, by_day=None):
 _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
 _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
+_SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
 
 
 def _ledger_files(root):
@@ -830,7 +837,7 @@ def ledger_trend():
     today = datetime.now().strftime("%Y-%m-%d")
     for i in range(29, -1, -1):
         d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
         out_days.append({"d": d[5:], **counts})
     return {"days": out_days}
 
@@ -838,6 +845,15 @@ def ledger_trend():
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
+
+    @staticmethod
+    def _decide_write(out_lines):
+        """写回决策台账（原子：先写 tmp 再 replace）。"""
+        p = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+        tmp = p + ".tmp-decide"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(out_lines) + "\n")
+        os.replace(tmp, p)
 
     def _send(self, code, body, ctype="application/json; charset=utf-8"):
         data = body if isinstance(body, bytes) else body.encode()
@@ -866,28 +882,30 @@ class H(BaseHTTPRequestHandler):
                 return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
             path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
             try:
-                _DECIDE_LOCK.acquire()  # 读改写整段互斥：并发清账不丢账（每出口恰好一次 release）
-                lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
-                out, hit = [], False
-                for l in lines:
-                    try:
-                        d = json.loads(l)
-                    except ValueError:
-                        out.append(l); continue
-                    if d.get("id") == dec_id and d.get("status") == "待拍":
-                        d["status"] = "已拍"
-                        d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
-                        d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
-                        hit = True
-                    out.append(json.dumps(d, ensure_ascii=False))
-                if not hit:
+                _DECIDE_LOCK.acquire()  # 读改写整段互斥（finally 统一释放——行级异常不再泄漏锁）
+                try:
+                    lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
+                    out, hit = [], False
+                    for l in lines:
+                        try:
+                            d = json.loads(l)
+                        except ValueError:
+                            out.append(l); continue
+                        if not isinstance(d, dict):  # 合法 JSON 非对象（数组/null/数字）原样保留，防 AttributeError 泄漏锁
+                            out.append(l); continue
+                        if d.get("id") == dec_id and d.get("status") == "待拍":
+                            d["status"] = "已拍"
+                            d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+                            d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
+                            hit = True
+                        out.append(json.dumps(d, ensure_ascii=False))
+                    if not hit:
+                        return self._send(404, '{"error":"id 不存在或非待拍"}')
+                    self._decide_write(out)
+                    return self._send(200, '{"ok":true}')
+                finally:
                     _DECIDE_LOCK.release()
-                    return self._send(404, '{"error":"id 不存在或非待拍"}')
-                open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
-                _DECIDE_LOCK.release()
-                return self._send(200, '{"ok":true}')
             except OSError as e:
-                _DECIDE_LOCK.release()
                 return self._send(500, json.dumps({"error": str(e)}))
         return self._send(404, '{"error":"not found"}')
 
@@ -1155,6 +1173,11 @@ class H(BaseHTTPRequestHandler):
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
         if self.path == "/api/bugscan-sse":
+            # SSE 连接数限制（单用户面 4 路足够；超出 503 防线程放大——dict 计数器免 global）
+            _SSE_COUNT["n"] = _SSE_COUNT.get("n", 0) + 1
+            if _SSE_COUNT["n"] > 4:
+                _SSE_COUNT["n"] -= 1
+                return self._send(503, '{"error":"sse connections full"}')
             # SSE：账本 mtime 签名变化→推事件（前端 EventSource 替代盲轮询；30s 心跳保活）
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -1182,6 +1205,8 @@ class H(BaseHTTPRequestHandler):
                     time.sleep(10)
             except (BrokenPipeError, ConnectionResetError):
                 pass  # 客户端断开
+            finally:
+                _SSE_COUNT["n"] = _SSE_COUNT.get("n", 1) - 1
             return
         if self.path.startswith("/api/decisions"):
             want_all = "all=1" in self.path
