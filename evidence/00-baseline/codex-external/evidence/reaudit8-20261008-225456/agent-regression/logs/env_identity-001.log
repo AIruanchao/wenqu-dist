@@ -1,0 +1,15 @@
+label: env_identity
+started: 2026-10-08T22:56:02.817756+08:00
+ended: 2026-10-08T22:56:03.086106+08:00
+cwd: /private/tmp/wenqu-reaudit8-20261008-225456
+command: set -o pipefail; pwd; git rev-parse HEAD; git status --short; git log -3 --oneline --decorate; uname -a; python3 --version; pytest --version
+exit_code: 0
+--- output ---
+/private/tmp/wenqu-reaudit8-20261008-225456
+67f9aa7370430d2be689c2d217513107c642b4a6
+67f9aa7 (HEAD) Merge pull request #11 from AIruanchao/wave7/final-artifacts
+ff5de0f (origin/wave7/final-artifacts, origin/HEAD, wave7/final-artifacts) fix(wave7): 索引 CI 结论转终态——run 37792468258 success（双平台实查）
+ac4f7b8 chore(wave7): 终 SHA 2bd59ab 制品四件套+索引 20/20 严格达标
+Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64
+Python 3.14.8
+pytest 9.1.1

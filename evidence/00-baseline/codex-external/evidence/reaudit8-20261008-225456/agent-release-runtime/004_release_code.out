@@ -1,0 +1,818 @@
+=== id=004_release_code ===
+=== started_utc=2026-10-08T14:56:09Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && nl -ba tools/release_attest.py | sed -n '70,190p;240,405p;570,735p;735,875p' && printf '\n--- install-release ---\n' && nl -ba system/install-release.sh | sed -n '1,300p'
+=== output ===
+    70	    sys.path.insert(0, SYSTEM_DIR)
+    71	
+    72	# 只读 import：仅使用签发/验签函数与 keyring 读取，绝不写 keyring。
+    73	from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
+    74	
+    75	TOOL_NAME = "release_attest.py"
+    76	TOOL_VERSION = "1.1.0"
+    77	MANIFEST_SCHEMA = "wenqu-release-manifest/1"
+    78	SIG_SCHEMA = "wenqu-release-sig/1"
+    79	SBOM_SPDX_VERSION = "SPDX-2.3"
+    80	
+    81	#: 方案快照在归档内的成员路径（冻结正源 evidence/00-baseline/codex-external/
+    82	#: 方案.md 的仓内路径；git archive 干净树必含——缺件即 build fail-closed）。
+    83	PLAN_MEMBER = "evidence/00-baseline/codex-external/方案.md"
+    84	
+    85	#: 方案正源冻结哈希——**单一正源 import**（R7-REL-POLICY-HASH-011 根修：
+    86	#: 旧版手工拷贝 ac_traceability 的冻结值时截损 3 字符产出 61hex 常量并被
+    87	#: 烤进 manifest，verify 又不实算校验 → 绑定形同虚设。现改为运行时从
+    88	#: tools/ac_traceability.py import，拷贝漂移在构造上不可复现）。
+    89	from ac_traceability import PLAN_SHA256 as PLAN_SHA256  # noqa: E402
+    90	
+    91	#: 启动即守卫：冻结常量必须是 64 位小写 hex（61/62/63 字符的截损值在此
+    92	#: 立即炸掉，任何子命令都跑不起来——同类回归零静默通过）。
+    93	if not re.fullmatch(r"[0-9a-f]{64}", PLAN_SHA256):
+    94	    raise SystemExit(
+    95	        f"[release_attest] ERROR: ac_traceability.PLAN_SHA256 非法（应 64 位"
+    96	        f"小写 hex，实得 {len(PLAN_SHA256)} 字符）: {PLAN_SHA256!r}")
+    97	
+    98	#: SBOM 依赖提取的自述文件清单（归档内按 basename 精确匹配；无网络）。
+    99	DEP_MANIFEST_BASENAMES = (
+   100	    "requirements.txt", "requirements-dev.txt", "requirements_test.txt",
+   101	    "package.json", "pyproject.toml", "setup.py", "Pipfile",
+   102	    "go.mod", "Cargo.toml", "Gemfile",
+   103	)
+   104	
+   105	_SIG_HONESTY_NOTE = (
+   106	    "HMAC-SHA256 symmetric key (same trust root as approval keyring): "
+   107	    "tamper-evident / anti-forgery only, NOT non-repudiation (plan §21.4)"
+   108	)
+   109	
+   110	
+   111	# ---------------------------------------------------------------------- #
+   112	# 基础工具
+   113	# ---------------------------------------------------------------------- #
+   114	def _utc_now_iso() -> str:
+   115	    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+   116	
+   117	
+   118	def _build_id(short: str) -> str:
+   119	    return f"rel-{short}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
+   120	
+   121	
+   122	def _sha256_file(path: str) -> str:
+   123	    h = hashlib.sha256()
+   124	    with open(path, "rb") as fh:
+   125	        for chunk in iter(lambda: fh.read(1 << 20), b""):
+   126	            h.update(chunk)
+   127	    return h.hexdigest()
+   128	
+   129	
+   130	def _die(msg: str, code: int = 2) -> "None":
+   131	    print(f"[release_attest] ERROR: {msg}", file=sys.stderr)
+   132	    raise SystemExit(code)
+   133	
+   134	
+   135	def _git(repo: str, *args: str) -> str:
+   136	    try:
+   137	        proc = subprocess.run(["git", "-C", repo, *args],
+   138	                              capture_output=True, text=True, check=True)
+   139	    except FileNotFoundError:
+   140	        _die("git 不可用（PATH 缺失）")
+   141	    except subprocess.CalledProcessError as exc:
+   142	        _die(f"git {' '.join(args)} 失败: "
+   143	             f"{(exc.stderr or exc.stdout).strip()[:200]}")
+   144	    return proc.stdout.strip()
+   145	
+   146	
+   147	def _safe_member_path(name: str) -> bool:
+   148	    """tar 成员路径防御：拒绝绝对路径 / .. 逃逸 / 反斜杠混淆（fail-closed）。"""
+   149	    if not name or name.startswith("/") or "\\" in name:
+   150	        return False
+   151	    parts = name.split("/")
+   152	    return all(p not in ("", "..", ".") for p in parts) and name != "./"
+   153	
+   154	
+   155	# ---------------------------------------------------------------------- #
+   156	# tar 枚举（build 与 verify 共用同一正源函数）
+   157	# ---------------------------------------------------------------------- #
+   158	def _iter_tar_records(tar_path: str
+   159	                      ) -> Tuple[List[Dict[str, Any]], List[str]]:
+   160	    """枚举 tar 内全部实体成员 → manifest 记录（含目录标记），返回 (记录, 意外成员)。"""
+   161	    records: List[Dict[str, Any]] = []
+   162	    unexpected: List[str] = []
+   163	    with tarfile.open(tar_path, "r:gz") as tf:
+   164	        for ti in tf:  # type: tarfile.TarInfo
+   165	            if not _safe_member_path(ti.name):
+   166	                unexpected.append(f"unsafe-path:{ti.name}")
+   167	                continue
+   168	            if ti.isdir():
+   169	                continue  # 目录由文件路径蕴含，不入清单
+   170	            if ti.isfile():
+   171	                fh = tf.extractfile(ti)
+   172	                if fh is None:
+   173	                    unexpected.append(f"unreadable:{ti.name}")
+   174	                    continue
+   175	                h = hashlib.sha256()
+   176	                for chunk in iter(lambda: fh.read(1 << 20), b""):
+   177	                    h.update(chunk)
+   178	                records.append({
+   179	                    "path": ti.name,
+   180	                    "type": "file",
+   181	                    "mode": int(ti.mode & 0o7777),
+   182	                    "size": int(ti.size),
+   183	                    "sha256": h.hexdigest(),
+   184	                })
+   185	            elif ti.issym():
+   186	                target = ti.linkname or ""
+   187	                records.append({
+   188	                    "path": ti.name,
+   189	                    "type": "symlink",
+   190	                    "mode": int(ti.mode & 0o7777),
+   240	    arch = subprocess.run(
+   241	        ["git", "-C", repo, "archive", "--format=tar", full],
+   242	        capture_output=True, check=False)
+   243	    if arch.returncode != 0:
+   244	        _die(f"git archive {short} 失败: {arch.stderr.decode('utf-8', 'replace')[:200]}")
+   245	    with open(tar_path, "wb") as out:
+   246	        with gzip.GzipFile(fileobj=out, mode="wb", compresslevel=9,
+   247	                           mtime=0, filename="") as gz:
+   248	            gz.write(arch.stdout)
+   249	
+   250	    records, unexpected = _iter_tar_records(tar_path)
+   251	    if unexpected:
+   252	        os.unlink(tar_path)
+   253	        _die(f"归档含意外成员（fail-closed 不出包）: {unexpected[:5]}")
+   254	
+   255	    # version 从归档内 system/VERSION 读（制品自述，不用工作树值）。
+   256	    version = "UNKNOWN"
+   257	    vbytes = _read_member_bytes(tar_path, "system/VERSION", limit=4096)
+   258	    if vbytes is not None:
+   259	        version = vbytes.decode("utf-8", "replace").strip() or "UNKNOWN"
+   260	
+   261	    # R7-REL-POLICY-HASH-011 根修：policy_hash 不再烤常量，而是**实算归档内
+   262	    # 方案快照**的 sha256（完整 64hex）落 manifest——并在 build 期对冻结值
+   263	    # fail-closed（快照缺件或与冻结正源漂移都不出包）。
+   264	    plan_rec = next((r for r in records if r["path"] == PLAN_MEMBER), None)
+   265	    if plan_rec is None:
+   266	        os.unlink(tar_path)
+   267	        _die(f"归档缺方案快照 {PLAN_MEMBER!r}——policy_hash 无法实算"
+   268	             f"（fail-closed 不出包）")
+   269	    plan_sha_actual = plan_rec["sha256"]
+   270	    if plan_sha_actual != PLAN_SHA256:
+   271	        os.unlink(tar_path)
+   272	        _die(f"归档内方案快照 sha256 与冻结正源不符: actual={plan_sha_actual} "
+   273	             f"frozen={PLAN_SHA256}——该 commit 的验收目录来源不可信，"
+   274	             f"fail-closed 不出包")
+   275	
+   276	    manifest = {
+   277	        "schema": MANIFEST_SCHEMA,
+   278	        "tool": TOOL_NAME,
+   279	        "tool_version": TOOL_VERSION,
+   280	        "build_id": _build_id(short),
+   281	        "built_at": _utc_now_iso(),
+   282	        "source_commit": full,
+   283	        "source_commit_short": short,
+   284	        "source_commit_subject": subject,
+   285	        "version": version,
+   286	        "policy_hash": {
+   287	            "plan_member": PLAN_MEMBER,
+   288	            "plan_sha256": plan_sha_actual,
+   289	            "plan_sha256_frozen": PLAN_SHA256,
+   290	            "frozen_match": True,
+   291	            "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）",
+   292	        },
+   293	        "builder": {
+   294	            "user": getpass.getuser(),
+   295	            "host": platform.node(),
+   296	            "python": platform.python_version(),
+   297	            "platform": platform.platform(),
+   298	        },
+   299	        "argv": [TOOL_NAME, "build", "--commit", args.commit,
+   300	                 "--prefix", args.prefix],
+   301	        "artifact": {
+   302	            "path": f"{name}.tar.gz",
+   303	            "size": os.path.getsize(tar_path),
+   304	            "sha256": _sha256_file(tar_path),
+   305	            "source": f"git archive {full} (clean tree from commit object)",
+   306	            "deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致",
+   307	        },
+   308	        "n_files": len(records),
+   309	        "files": records,
+   310	    }
+   311	    manifest_path = os.path.join(dist_dir, f"{name}.manifest.json")
+   312	    with open(manifest_path, "w", encoding="utf-8") as fh:
+   313	        json.dump(manifest, fh, ensure_ascii=False, indent=1, sort_keys=True)
+   314	        fh.write("\n")
+   315	
+   316	    print(f"BUILD OK  {name}")
+   317	    print(f"  commit   : {full} ({subject[:60]})")
+   318	    print(f"  version  : {version}  files: {len(records)}")
+   319	    print(f"  plan     : {PLAN_MEMBER}")
+   320	    print(f"             sha256={plan_sha_actual}（实算=冻结，64hex）")
+   321	    print(f"  tar.gz   : {tar_path}")
+   322	    print(f"             sha256={manifest['artifact']['sha256']} "
+   323	          f"size={manifest['artifact']['size']}")
+   324	    print(f"  manifest : {manifest_path}")
+   325	    return 0
+   326	
+   327	
+   328	# ---------------------------------------------------------------------- #
+   329	# sign
+   330	# ---------------------------------------------------------------------- #
+   331	def _load_manifest(manifest_path: str) -> Dict[str, Any]:
+   332	    try:
+   333	        with open(manifest_path, "r", encoding="utf-8") as fh:
+   334	            data = json.load(fh)
+   335	    except (OSError, ValueError) as exc:  # 含 JSONDecodeError/UnicodeDecodeError
+   336	        _die(f"manifest 不可读/非 JSON: {manifest_path!r} ({exc})")
+   337	    if not isinstance(data, dict) or data.get("schema") != MANIFEST_SCHEMA:
+   338	        _die(f"manifest schema 不符（期望 {MANIFEST_SCHEMA}）: {manifest_path!r}")
+   339	    return data
+   340	
+   341	
+   342	def cmd_sign(args: argparse.Namespace) -> int:
+   343	    manifest_path = os.path.abspath(args.manifest)
+   344	    manifest = _load_manifest(manifest_path)
+   345	
+   346	    try:
+   347	        ring = ApprovalKeyring.from_path(os.path.abspath(args.keyring))
+   348	    except (OSError, ValueError, KeyError) as exc:
+   349	        _die(f"keyring 加载失败: {exc}")
+   350	
+   351	    key_id = args.key_id
+   352	    if key_id is None:
+   353	        active = ring.active_key_ids()
+   354	        if not active:
+   355	            _die("keyring 无 active key（全部 rotated/revoked/expired）——拒绝签名")
+   356	        key_id = active[0]
+   357	    try:
+   358	        secret = ring.get_for_signing(key_id)  # rotated/revoked/expired 全拒
+   359	    except KeyError as exc:
+   360	        _die(f"签名取 key 失败: {exc}")
+   361	
+   362	    # 被签信封 = manifest + key_id 绑定（与 verify 侧 ApprovalKeyring.verify
+   363	    # 的 envelope 构造完全一致：verify 从信封读 key_id 查 key 后重算 HMAC——
+   364	    # 签名同时钉住「用哪把 key 签的」）。
+   365	    envelope = dict(manifest)
+   366	    envelope["key_id"] = key_id
+   367	    signature = sign_envelope(secret, envelope)  # canonical JSON HMAC-SHA256
+   368	    # canonical JSON 规范与 approval_keys._canonical_json 同源（排序+紧凑+
+   369	    # 非转义）——此处哈希仅为 sig 内信息性回显，验签权威仍是重算的 HMAC。
+   370	    canonical = json.dumps(envelope, sort_keys=True, separators=(",", ":"),
+   371	                           ensure_ascii=False)
+   372	    sig = {
+   373	        "schema": SIG_SCHEMA,
+   374	        "algorithm": "HMAC-SHA256",
+   375	        "key_id": key_id,
+   376	        "signed_object": "manifest",
+   377	        "signed_manifest_build_id": manifest.get("build_id"),
+   378	        "signed_manifest_canonical_sha256": hashlib.sha256(
+   379	            canonical.encode("utf-8")).hexdigest(),
+   380	        "signature": signature,
+   381	        "signed_at": _utc_now_iso(),
+   382	        "tool": TOOL_NAME,
+   383	        "tool_version": TOOL_VERSION,
+   384	        "honesty": _SIG_HONESTY_NOTE,
+   385	    }
+   386	    out = args.out
+   387	    if out is None:
+   388	        stem = manifest_path[: -len(".manifest.json")] \
+   389	            if manifest_path.endswith(".manifest.json") else manifest_path
+   390	        out = stem + ".release.sig"
+   391	    with open(out, "w", encoding="utf-8") as fh:
+   392	        json.dump(sig, fh, ensure_ascii=False, indent=1, sort_keys=True)
+   393	        fh.write("\n")
+   394	    print(f"SIGN OK  key_id={key_id}  →  {out}")
+   395	    print(f"  signature={signature}")
+   396	    return 0
+   397	
+   398	
+   399	# ---------------------------------------------------------------------- #
+   400	# SBOM（SPDX 2.3 JSON，最简合法文档；依赖只从归档内自述文件提取）
+   401	# ---------------------------------------------------------------------- #
+   402	def _extract_deps(tar_path: str) -> Dict[str, Any]:
+   403	    """从归档内自述依赖文件提取 (name, version) 列表——无网络、无猜测。"""
+   404	    found_files: List[str] = []
+   405	    deps: List[Tuple[str, str]] = []
+   570	# ---------------------------------------------------------------------- #
+   571	# verify（tar ↔ manifest ↔ sig ↔ sbom 三方对账；任一不符 exit 1）
+   572	# ---------------------------------------------------------------------- #
+   573	def _load_json(path: str, what: str) -> Dict[str, Any]:
+   574	    try:
+   575	        with open(path, "r", encoding="utf-8") as fh:
+   576	            data = json.load(fh)
+   577	    except (OSError, ValueError) as exc:  # ValueError 含 JSONDecodeError 与
+   578	        # UnicodeDecodeError——坏字节/坏编码同样按 verify 判 FAIL 收口，
+   579	        # 不允许裸 traceback（对抗实测：翻字节致非 UTF-8 曾打出 crash 栈）。
+   580	        raise VerifyFail(f"{what} 不可读/非 JSON: {path!r} ({exc})")
+   581	    if not isinstance(data, dict):
+   582	        raise VerifyFail(f"{what} 不是 JSON 对象: {path!r}")
+   583	    return data
+   584	
+   585	
+   586	class VerifyFail(Exception):
+   587	    pass
+   588	
+   589	
+   590	def cmd_verify(args: argparse.Namespace) -> int:
+   591	    manifest_path = os.path.abspath(args.manifest)
+   592	    base_dir = os.path.dirname(manifest_path)
+   593	    checks: List[Dict[str, Any]] = []
+   594	    tar_path = sig_path = sbom_path = None
+   595	
+   596	    def record(ok: bool, cid: str, detail: str = "") -> None:
+   597	        checks.append({"check": cid, "ok": bool(ok), "detail": detail[:400]})
+   598	        mark = "PASS" if ok else "FAIL"
+   599	        print(f"  {mark}  {cid}" + (f"  {detail[:200]}" if detail else ""))
+   600	
+   601	    try:
+   602	        manifest = _load_json(manifest_path, "manifest")
+   603	        if manifest.get("schema") != MANIFEST_SCHEMA:
+   604	            raise VerifyFail(f"manifest schema 不符: {manifest.get('schema')!r}")
+   605	        record(True, "manifest-schema", f"build_id={manifest.get('build_id')}")
+   606	
+   607	        # --- 路径解析（dist/ 四件套同目录约定，可显式覆盖）---
+   608	        stem = manifest_path[: -len(".manifest.json")] \
+   609	            if manifest_path.endswith(".manifest.json") else manifest_path
+   610	        tar_path = os.path.abspath(
+   611	            args.tar or os.path.join(base_dir, manifest["artifact"]["path"]))
+   612	        sig_path = os.path.abspath(args.sig or stem + ".release.sig")
+   613	        sbom_path = os.path.abspath(args.sbom or stem + ".sbom.spdx.json")
+   614	
+   615	        # --- 1) 制品 hash/size 对 manifest ---
+   616	        if not os.path.isfile(tar_path):
+   617	            raise VerifyFail(f"制品缺失: {tar_path!r}")
+   618	        actual_sha = _sha256_file(tar_path)
+   619	        actual_size = os.path.getsize(tar_path)
+   620	        exp_sha = str(manifest["artifact"]["sha256"])
+   621	        exp_size = manifest["artifact"]["size"]
+   622	        if actual_sha != exp_sha or actual_size != exp_size:
+   623	            raise VerifyFail(
+   624	                f"制品 hash/size 不符: sha256 {actual_sha} vs {exp_sha}, "
+   625	                f"size {actual_size} vs {exp_size}")
+   626	        record(True, "artifact-hash",
+   627	               f"sha256={actual_sha[:16]}… size={actual_size}")
+   628	
+   629	        # --- 2) tar 逐文件重算 ↔ manifest.files（缺件/多件/漂移全拒）---
+   630	        records, unexpected = _iter_tar_records(tar_path)
+   631	        if unexpected:
+   632	            raise VerifyFail(f"归档含意外成员: {unexpected[:5]}")
+   633	        by_path_m = {r["path"]: r for r in manifest["files"]}
+   634	        by_path_a = {r["path"]: r for r in records}
+   635	        missing = sorted(set(by_path_m) - set(by_path_a))
+   636	        extra = sorted(set(by_path_a) - set(by_path_m))
+   637	        drift = [p for p in sorted(set(by_path_m) & set(by_path_a))
+   638	                 if by_path_m[p] != by_path_a[p]]
+   639	        if missing or extra or drift:
+   640	            raise VerifyFail(
+   641	                f"逐文件对账失败: missing={len(missing)} extra={len(extra)} "
+   642	                f"drift={len(drift)}"
+   643	                + (f" 例missing={missing[:3]}" if missing else "")
+   644	                + (f" 例extra={extra[:3]}" if extra else "")
+   645	                + (f" 例drift={drift[:3]}" if drift else ""))
+   646	        record(True, "files-reconcile", f"{len(records)}/{len(manifest['files'])} "
+   647	                                        "path+type+mode+size+sha256 全符")
+   648	
+   649	        # --- 2b) 方案快照绑定（R7-REL-POLICY-HASH-011：verify 实算等值校验）---
+   650	        # 旧洞：manifest.policy_hash.plan_sha256 是烤死的（且曾为 61hex 截损
+   651	        # 常量），verify 从不实算比对——policy_hash 与制品内容零绑定。现三重
+   652	        # fail-closed：①格式必须 64 位小写 hex（61/62/63 截损值即拒）；
+   653	        # ②归档必须含方案快照成员；③成员实算 sha256 == plan_sha256 等值。
+   654	        ph = manifest.get("policy_hash")
+   655	        if not isinstance(ph, dict):
+   656	            raise VerifyFail("manifest.policy_hash 缺失/非对象——方案绑定断裂")
+   657	        declared_plan = ph.get("plan_sha256")
+   658	        if not isinstance(declared_plan, str) \
+   659	                or not re.fullmatch(r"[0-9a-f]{64}", declared_plan):
+   660	            raise VerifyFail(
+   661	                f"policy_hash.plan_sha256 非法（应 64 位小写 hex，实得 "
+   662	                f"{len(declared_plan) if isinstance(declared_plan, str) else '非字符串'}"
+   663	                f" 字符）: {declared_plan!r}")
+   664	        plan_member = ph.get("plan_member") or PLAN_MEMBER
+   665	        rec_by_path = {r["path"]: r for r in records}
+   666	        if plan_member not in rec_by_path:
+   667	            raise VerifyFail(f"归档缺方案快照成员: {plan_member!r}")
+   668	        actual_plan = rec_by_path[plan_member]["sha256"]
+   669	        if actual_plan != declared_plan:
+   670	            raise VerifyFail(
+   671	                f"方案快照 sha256 与 manifest.policy_hash.plan_sha256 不符: "
+   672	                f"actual={actual_plan} declared={declared_plan}")
+   673	        record(True, "plan-hash",
+   674	               f"{plan_member} sha256={actual_plan[:16]}…（实算等值，64hex）")
+   675	
+   676	        # --- 3) detached 签名验签（keyring 只读；revoked fail-closed）---
+   677	        sig = _load_json(sig_path, "release.sig")
+   678	        if sig.get("schema") != SIG_SCHEMA:
+   679	            raise VerifyFail(f"sig schema 不符: {sig.get('schema')!r}")
+   680	        key_id = sig.get("key_id")
+   681	        signature = sig.get("signature")
+   682	        try:
+   683	            ring = ApprovalKeyring.from_path(os.path.abspath(args.keyring))
+   684	        except (OSError, ValueError, KeyError) as exc:
+   685	            raise VerifyFail(f"keyring 加载失败: {exc}")
+   686	        envelope = dict(manifest)
+   687	        envelope["key_id"] = key_id
+   688	        envelope["signature"] = signature
+   689	        # ApprovalKeyring.verify：未知 key/revoked/签名不符 → False（常量时间比对）
+   690	        if not ring.verify(envelope):
+   691	            raise VerifyFail(
+   692	                f"验签失败（key_id={key_id!r}——未知/吊销/签名不符，fail-closed）")
+   693	        record(True, "signature", f"key_id={key_id} algorithm="
+   694	               f"{sig.get('algorithm')}（HMAC 对称：tamper-evident，非非否认）")
+   695	
+   696	        # --- 4) SBOM 对账 ---
+   697	        sbom = _load_json(sbom_path, "sbom")
+   698	        sbom_problems = _check_sbom(sbom, manifest, actual_sha, records)
+   699	        if sbom_problems:
+   700	            raise VerifyFail("SBOM 对账失败: " + "; ".join(sbom_problems[:5]))
+   701	        record(True, "sbom-reconcile",
+   702	               f"spdxVersion={sbom.get('spdxVersion')} files="
+   703	               f"{len(sbom.get('files', []))} root="
+   704	               f"{[p for p in sbom.get('packages', []) if p.get('SPDXID') == 'SPDXRef-Package-Root'][0].get('versionInfo')}")
+   705	
+   706	        # --- 5) build identity 回显（人工核对 commit/argv/builder）---
+   707	        record(True, "build-identity",
+   708	               f"commit={manifest['source_commit'][:12]}… "
+   709	               f"built_at={manifest.get('built_at')} tool="
+   710	               f"{manifest.get('tool')}@{manifest.get('tool_version')}")
+   711	    except VerifyFail as exc:
+   712	        record(False, "verify", str(exc))
+   713	    except (KeyError, TypeError) as exc:
+   714	        record(False, "verify", f"manifest/sig/sbom 结构缺字段: {exc!r}")
+   715	
+   716	    ok = all(c["ok"] for c in checks)
+   717	    if args.report:
+   718	        payload = {
+   719	            "schema": "wenqu-release-verify-report/1",
+   720	            "verified_at": _utc_now_iso(),
+   721	            "tool": TOOL_NAME,
+   722	            "tool_version": TOOL_VERSION,
+   723	            "manifest": manifest_path,
+   724	            "tar": tar_path,
+   725	            "sig": sig_path,
+   726	            "sbom": sbom_path,
+   727	            "keyring": os.path.abspath(args.keyring),
+   728	            "checks": checks,
+   729	            "result": "PASS" if ok else "FAIL",
+   730	        }
+   731	        with open(args.report, "w", encoding="utf-8") as fh:
+   732	            json.dump(payload, fh, ensure_ascii=False, indent=1, sort_keys=True)
+   733	            fh.write("\n")
+   734	        print(f"  report → {args.report}")
+   735	
+   735	
+   736	    print("VERIFY OK" if ok else "VERIFY FAILED")
+   737	    return 0 if ok else 1
+   738	
+   739	
+   740	def _check_sbom(sbom: Dict[str, Any], manifest: Dict[str, Any],
+   741	                artifact_sha: str, tar_records: List[Dict[str, Any]]
+   742	                ) -> List[str]:
+   743	    problems: List[str] = []
+   744	    if sbom.get("spdxVersion") != SBOM_SPDX_VERSION:
+   745	        problems.append(f"spdxVersion 应为 {SBOM_SPDX_VERSION}: "
+   746	                        f"{sbom.get('spdxVersion')!r}")
+   747	    if sbom.get("dataLicense") != "CC0-1.0":
+   748	        problems.append(f"dataLicense 应为 CC0-1.0: {sbom.get('dataLicense')!r}")
+   749	    if sbom.get("SPDXID") != "SPDXRef-DOCUMENT":
+   750	        problems.append(f"文档 SPDXID 应为 SPDXRef-DOCUMENT")
+   751	    if not sbom.get("documentNamespace"):
+   752	        problems.append("documentNamespace 缺失")
+   753	    ci = sbom.get("creationInfo") or {}
+   754	    if not ci.get("created") or not ci.get("creators"):
+   755	        problems.append("creationInfo.created/creators 缺失")
+   756	    roots = [p for p in sbom.get("packages", [])
+   757	             if isinstance(p, dict) and p.get("SPDXID") == "SPDXRef-Package-Root"]
+   758	    if len(roots) != 1:
+   759	        problems.append(f"根包应恰有 1 个 SPDXRef-Package-Root: {len(roots)}")
+   760	        return problems
+   761	    root = roots[0]
+   762	    if root.get("versionInfo") != manifest.get("version"):
+   763	        problems.append(f"根包 versionInfo {root.get('versionInfo')!r} != "
+   764	                        f"manifest.version {manifest.get('version')!r}")
+   765	    root_shas = [c.get("checksumValue") for c in root.get("checksums", [])
+   766	                 if isinstance(c, dict) and c.get("algorithm") == "SHA256"]
+   767	    if artifact_sha not in root_shas:
+   768	        problems.append(f"根包 SHA256 != 制品实算 sha256（{root_shas}）")
+   769	    if root.get("filesAnalyzed") is not True:
+   770	        problems.append("根包 filesAnalyzed 必须为 true（逐文件对账前提）")
+   771	
+   772	    # SBOM files ↔ tar 实算逐文件对账
+   773	    sbom_files = sbom.get("files", [])
+   774	    sbom_by_name: Dict[str, str] = {}
+   775	    for f in sbom_files:
+   776	        if not isinstance(f, dict):
+   777	            problems.append("files 含非对象条目")
+   778	            continue
+   779	        sha = next((c.get("checksumValue") for c in f.get("checksums", [])
+   780	                    if isinstance(c, dict) and c.get("algorithm") == "SHA256"),
+   781	                   None)
+   782	        fname = f.get("fileName", "")
+   783	        canon = fname[2:] if fname.startswith("./") else fname
+   784	        sbom_by_name[canon] = sha or ""
+   785	    tar_by_path = {r["path"]: r["sha256"] for r in tar_records}
+   786	    if set(sbom_by_name) != set(tar_by_path):
+   787	        only_sbom = sorted(set(sbom_by_name) - set(tar_by_path))[:3]
+   788	        only_tar = sorted(set(tar_by_path) - set(sbom_by_name))[:3]
+   789	        problems.append(f"SBOM 文件集不符: 仅SBOM={only_sbom} 仅TAR={only_tar}")
+   790	    mismatch = [p for p in set(sbom_by_name) & set(tar_by_path)
+   791	                if sbom_by_name[p] != tar_by_path[p]]
+   792	    if mismatch:
+   793	        problems.append(f"SBOM 文件 hash 漂移: {sorted(mismatch)[:3]}")
+   794	
+   795	    # packageVerificationCode 内部一致性（防 SBOM 自身被局部篡改）
+   796	    code = ((root.get("packageVerificationCode") or {})
+   797	            .get("packageVerificationCodeValue"))
+   798	    expected_code = _pkg_verification_code(sbom_files)
+   799	    if code != expected_code:
+   800	        problems.append(f"packageVerificationCode 不符: {code} != {expected_code}")
+   801	
+   802	    rels = sbom.get("relationships", [])
+   803	    if not any(r.get("relationshipType") == "DESCRIBES"
+   804	               and r.get("spdxElementId") == "SPDXRef-DOCUMENT"
+   805	               and r.get("relatedSpdxElement") == "SPDXRef-Package-Root"
+   806	               for r in rels if isinstance(r, dict)):
+   807	        problems.append("缺 DOCUMENT--DESCRIBES-->Root 关系")
+   808	    if not any(r.get("relationshipType") == "CONTAINS"
+   809	               and r.get("spdxElementId") == "SPDXRef-Package-Root"
+   810	               for r in rels if isinstance(r, dict)):
+   811	        problems.append("缺 Root--CONTAINS-->File 关系")
+   812	    return problems
+   813	
+   814	
+   815	# ---------------------------------------------------------------------- #
+   816	def main(argv: Optional[List[str]] = None) -> int:
+   817	    parser = argparse.ArgumentParser(
+   818	        prog=TOOL_NAME,
+   819	        description="release 制品 manifest/签名/SBOM/verify 独立打包工具（纯标准库）")
+   820	    sub = parser.add_subparsers(dest="cmd", required=True)
+   821	
+   822	    p_build = sub.add_parser("build", help="git archive 干净树→tar.gz+manifest")
+   823	    p_build.add_argument("--commit", default="HEAD")
+   824	    p_build.add_argument("--dist-dir", default="dist")
+   825	    p_build.add_argument("--prefix", default="wenqu-dist")
+   826	    p_build.add_argument("--repo", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+   827	    p_build.set_defaults(func=cmd_build)
+   828	
+   829	    p_sign = sub.add_parser("sign", help="对 manifest 做 detached HMAC-SHA256 签名")
+   830	    p_sign.add_argument("--manifest", required=True)
+   831	    p_sign.add_argument("--keyring", required=True)
+   832	    p_sign.add_argument("--key-id", default=None)
+   833	    p_sign.add_argument("--out", default=None)
+   834	    p_sign.set_defaults(func=cmd_sign)
+   835	
+   836	    p_sbom = sub.add_parser("sbom", help="生成 SPDX 2.3 JSON SBOM")
+   837	    p_sbom.add_argument("--manifest", required=True)
+   838	    p_sbom.add_argument("--tar", default=None)
+   839	    p_sbom.add_argument("--out", default=None)
+   840	    p_sbom.set_defaults(func=cmd_sbom)
+   841	
+   842	    p_verify = sub.add_parser("verify", help="tar+manifest+sig+sbom 四件套对账")
+   843	    p_verify.add_argument("--manifest", required=True)
+   844	    p_verify.add_argument("--keyring", required=True)
+   845	    p_verify.add_argument("--tar", default=None)
+   846	    p_verify.add_argument("--sig", default=None)
+   847	    p_verify.add_argument("--sbom", default=None)
+   848	    p_verify.add_argument("--report", default=None)
+   849	    p_verify.set_defaults(func=cmd_verify)
+   850	
+   851	    args = parser.parse_args(argv)
+   852	    return args.func(args)
+   853	
+   854	
+   855	if __name__ == "__main__":
+   856	    raise SystemExit(main())
+
+--- install-release ---
+     1	#!/usr/bin/env bash
+     2	# install-release.sh —— 终态四件套重产 + 不可变激活链（R7-REL-STALE-012 根修）。
+     3	#
+     4	# 背景（Codex 第七轮 P0）：dist/ 签名制品绑旧提交 1620c7c 而非终态；且
+     5	# com.wenqu.scheduler 直接吃共享可变工作树（Documents/wenqu-dist）——并行
+     6	# agent 改工作树 = 生产身份漂移。本脚本把「从哪个 commit 出包、生产跑哪份
+     7	# 代码」钉成一条不可变激活链：
+     8	#
+     9	#   git archive <commit> → build → sign → sbom → verify（dist/ 四件套）
+    10	#     → 部署 ~/.wenqu/releases/<full-sha>/{四件套, tree/（解出的完整树）}
+    11	#     → verify 在部署位复验 → chmod a-w（不可变）
+    12	#     → ~/.wenqu/current 原子切换（临时 symlink + rename(2)，无中间态）
+    13	#
+    14	# 重复可执行：对同一 commit 重跑 = 幂等（部署位四件套已存在且验签通过 →
+    15	# 不重写只重激活）；对不同 commit 重跑 = 追加新 releases/<sha> 并切换。
+    16	# 本波最终 SHA 未定（后续合并）——终局由主会话对本脚本跑一次入仓。
+    17	#
+    18	# 用法：
+    19	#   bash system/install-release.sh [COMMIT] [选项]
+    20	#     COMMIT            目标 commit（默认 HEAD；分支名/SHA 均可）
+    21	#     --keyring PATH    签发 keyring（默认 $WENQU_RELEASE_KEYRING 或
+    22	#                       ~/.wenqu-dist-release/release-keyring.json）
+    23	#     --install-root P  安装根（默认 $WENQU_INSTALL_ROOT 或 ~/.wenqu）
+    24	#     --repo PATH       源仓（默认脚本所在仓根）
+    25	#     --force           部署位已存在但验签失败时强制删除重部署（默认中止）
+    26	#     --reload-scheduler  激活后 launchctl 重载 com.wenqu.scheduler 并 kickstart
+    27	#     --no-activate     只产四件套到 dist/，不部署不切换
+    28	#     --rollback        切回 .last-current 记录的上一个激活目标
+    29	#
+    30	# 密钥纪律：keyring 只传路径给 release_attest（只读 import）；secret 绝不
+    31	# 回显/入档。HMAC 对称签名 = tamper-evident，非非否认（§21.4 诚实边界）。
+    32	#
+    33	# exit：0=激活完成（或幂等复验通过）；1=任一环节 fail-closed 中止。
+    34	set -euo pipefail
+    35	
+    36	SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+    37	DEFAULT_REPO=$(cd "$SCRIPT_DIR/.." && pwd)
+    38	
+    39	COMMIT="HEAD"
+    40	KEYRING="${WENQU_RELEASE_KEYRING:-$HOME/.wenqu-dist-release/release-keyring.json}"
+    41	INSTALL_ROOT="${WENQU_INSTALL_ROOT:-$HOME/.wenqu}"
+    42	REPO="$DEFAULT_REPO"
+    43	FORCE=0
+    44	RELOAD_SCHEDULER=0
+    45	NO_ACTIVATE=0
+    46	ROLLBACK=0
+    47	
+    48	while [ $# -gt 0 ]; do
+    49	  case "$1" in
+    50	    --keyring) KEYRING="${2:?--keyring 缺参数}"; shift 2;;
+    51	    --install-root) INSTALL_ROOT="${2:?--install-root 缺参数}"; shift 2;;
+    52	    --repo) REPO="${2:?--repo 缺参数}"; shift 2;;
+    53	    --force) FORCE=1; shift;;
+    54	    --reload-scheduler) RELOAD_SCHEDULER=1; shift;;
+    55	    --no-activate) NO_ACTIVATE=1; shift;;
+    56	    --rollback) ROLLBACK=1; shift;;
+    57	    -h|--help) sed -n '2,30p' "$0"; exit 0;;
+    58	    *) if [ "$COMMIT" = "HEAD" ]; then COMMIT="$1"; shift;
+    59	       else echo "install-release: 未知参数 $1" >&2; exit 1; fi;;
+    60	  esac
+    61	done
+    62	
+    63	log() { printf '  %s\n' "$*"; }
+    64	die() { echo "install-release: ERROR: $*" >&2; exit 1; }
+    65	
+    66	PY="${WENQU_PYTHON:-python3}"
+    67	RELROOT="$INSTALL_ROOT/releases"
+    68	CURRENT="$INSTALL_ROOT/current"
+    69	LAST_CURRENT="$RELROOT/.last-current"
+    70	UID_N=$(id -u)
+    71	trap 'rm -f "$INSTALL_ROOT/.current.new.$$" \
+    72	      "$INSTALL_ROOT/.current.rollback.$$" 2>/dev/null || true' EXIT
+    73	
+    74	# ---------------------------------------------------------------- 回滚模式
+    75	if [ "$ROLLBACK" = "1" ]; then
+    76	  [ -f "$LAST_CURRENT" ] || die "无 .last-current 记录，无法回滚"
+    77	  PREV=$(cat "$LAST_CURRENT")
+    78	  [ -d "$PREV" ] || die "回滚目标不存在: $PREV"
+    79	  ln -s "$PREV" "$INSTALL_ROOT/.current.rollback.$$"
+    80	  "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
+    81	    "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT"
+    82	  log "ROLLBACK OK  current → $PREV"
+    83	  exit 0
+    84	fi
+    85	
+    86	# ---------------------------------------------------------------- 前置
+    87	[ -d "$REPO/.git" ] || die "不是 git 仓: $REPO"
+    88	[ -f "$KEYRING" ] || die "keyring 不存在: ${KEYRING}（生产签发 key 仓外隔离）"
+    89	command -v git >/dev/null 2>&1 || die "git 不可用"
+    90	
+    91	FULL_SHA=$(git -C "$REPO" rev-parse --verify "$COMMIT^{commit}") \
+    92	  || die "commit 解析失败: $COMMIT"
+    93	FULL_SHA=${FULL_SHA%%[[:space:]]*}
+    94	echo "== install-release: commit $FULL_SHA ($COMMIT) =="
+    95	
+    96	NAME="wenqu-dist-$(git -C "$REPO" rev-parse --short=7 "$FULL_SHA")"
+    97	DIST_DIR="$REPO/dist"
+    98	RELDIR="$RELROOT/$FULL_SHA"
+    99	
+   100	# ------------------------------------------------- 1) 四件套重产（dist/）
+   101	echo "== [1/5] build+sign+sbom+verify → $DIST_DIR =="
+   102	cd "$REPO"
+   103	"$PY" tools/release_attest.py build --commit "$FULL_SHA" \
+   104	  --dist-dir "$DIST_DIR" --repo "$REPO"
+   105	"$PY" tools/release_attest.py sign \
+   106	  --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING"
+   107	"$PY" tools/release_attest.py sbom --manifest "$DIST_DIR/$NAME.manifest.json"
+   108	"$PY" tools/release_attest.py verify \
+   109	  --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING" \
+   110	  --report "$DIST_DIR/$NAME.verify-report.json" \
+   111	  || die "dist 四件套 verify 失败——不出厂（fail-closed）"
+   112	
+   113	if [ "$NO_ACTIVATE" = "1" ]; then
+   114	  log "四件套已产出到 ${DIST_DIR}（--no-activate，未部署）"
+   115	  exit 0
+   116	fi
+   117	
+   118	# ------------------------------------------------- 2) 部署到不可变位
+   119	echo "== [2/5] 部署 $RELDIR =="
+   120	FRESH=0
+   121	if [ -d "$RELDIR" ]; then
+   122	  # 幂等重装：部署位已存在 → 复验既有四件套；通过则不重写（不可变纪律）
+   123	  if "$PY" tools/release_attest.py verify \
+   124	      --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+   125	      >/dev/null 2>&1; then
+   126	    log "部署位已存在且验签通过——保持不可变，仅重新激活"
+   127	  elif [ "$FORCE" = "1" ]; then
+   128	    log "部署位验签失败 + --force → 删除重部署: $RELDIR"
+   129	    chmod -R u+w "$RELDIR" 2>/dev/null || true
+   130	    rm -rf "$RELDIR"
+   131	  else
+   132	    die "部署位已存在但验签失败（不可变位被篡改?）: ${RELDIR}——人工核查或 --force"
+   133	  fi
+   134	fi
+   135	
+   136	if [ ! -d "$RELDIR" ]; then
+   137	  FRESH=1
+   138	  mkdir -p "$RELDIR"
+   139	  for ext in tar.gz manifest.json release.sig sbom.spdx.json; do
+   140	    cp -p "$DIST_DIR/$NAME.$ext" "$RELDIR/$NAME.$ext"
+   141	  done
+   142	  mkdir -p "$RELDIR/tree"
+   143	  tar -xzf "$RELDIR/$NAME.tar.gz" -C "$RELDIR/tree"
+   144	  [ -f "$RELDIR/tree/system/wenqu_core/scheduler.py" ] \
+   145	    || { chmod -R u+w "$RELDIR" 2>/dev/null || true; rm -rf "$RELDIR"; \
+   146	         die "解出的树缺 system/wenqu_core/scheduler.py——非本仓制品"; }
+   147	
+   148	  # ------------------------------------------------- 3) 部署位复验（仅新装：
+   149	  #     防复制/解压损坏；幂等路径上面已复验，不可变位不再写入报告）
+   150	  echo "== [3/5] 部署位 verify 复验 + tree 逐文件对账 =="
+   151	  "$PY" tools/release_attest.py verify \
+   152	    --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+   153	    --report "$RELDIR/verify-report.json" \
+   154	    || { chmod -R u+w "$RELDIR" 2>/dev/null || true; \
+   155	         die "部署位四件套 verify 失败——中止激活（fail-closed）"; }
+   156	  # 解出树与制品内清单逐文件对账（tree 必须逐字节等于 git archive 树）
+   157	  "$PY" - "$RELDIR" "$NAME" <<'PYEOF' || { chmod -R u+w "$RELDIR" 2>/dev/null || true; \
+   158	         die "解出树与 manifest 逐文件对账失败"; }
+   159	import hashlib, json, os, sys
+   160	reldir, name = sys.argv[1], sys.argv[2]
+   161	m = json.load(open(os.path.join(reldir, name + ".manifest.json"),
+   162	                   encoding="utf-8"))
+   163	bad = []
+   164	for rec in m["files"]:
+   165	    if rec["type"] != "file":
+   166	        continue
+   167	    p = os.path.join(reldir, "tree", rec["path"])
+   168	    try:
+   169	        h = hashlib.sha256()
+   170	        with open(p, "rb") as fh:
+   171	            for chunk in iter(lambda: fh.read(1 << 20), b""):
+   172	                h.update(chunk)
+   173	        if h.hexdigest() != rec["sha256"]:
+   174	            bad.append(rec["path"])
+   175	    except OSError:
+   176	        bad.append(rec["path"])
+   177	if bad:
+   178	    print("tree drift: %s" % bad[:5], file=sys.stderr)
+   179	    sys.exit(1)
+   180	print("  tree 与 manifest 逐文件 sha256 全符（%d files）" % len(m["files"]))
+   181	PYEOF
+   182	else
+   183	  log "== [3/5] 幂等路径：部署位四件套已复验，跳过重写"
+   184	fi
+   185	
+   186	# ------------------------------------------------- 4) 不可变化 + 原子切换
+   187	echo "== [4/5] 不可变化 + 原子激活 =="
+   188	if [ "$FRESH" = "1" ]; then
+   189	  chmod -R a-w "$RELDIR" 2>/dev/null || log "（警告）chmod a-w 未完全生效"
+   190	fi
+   191	if [ -e "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
+   192	  die "$CURRENT 已存在且不是 symlink——拒绝覆盖（人工处置）"
+   193	fi
+   194	if [ -L "$CURRENT" ] || [ -e "$CURRENT" ]; then
+   195	  readlink "$CURRENT" > "$LAST_CURRENT" 2>/dev/null \
+   196	    && log "记录上一激活目标 → $(cat "$LAST_CURRENT")"
+   197	fi
+   198	# 原子切换：临时 symlink + rename(2)。不能用 mv——BSD mv 对「目标是
+   199	# symlink→目录」会跟随目标把新链接移进目录（实测踩坑）；rename(2) 语义是
+   200	# 原子替换 symlink 本身（不跟随目标），python os.rename 即此语义。
+   201	ln -s "$RELDIR/tree" "$INSTALL_ROOT/.current.new.$$"
+   202	"$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
+   203	  "$INSTALL_ROOT/.current.new.$$" "$CURRENT"
+   204	log "current → $(readlink "$CURRENT")"
+   205	[ -f "$CURRENT/system/wenqu_core/scheduler.py" ] \
+   206	  || die "激活后 current/system 不可达"
+   207	
+   208	# ------------------------------------------------- 5) 激活位导入冒烟
+   209	echo "== [5/5] 激活位导入冒烟 =="
+   210	PYTHONPATH="$CURRENT/system" "$PY" -c \
+   211	  "import wenqu_core.scheduler as s; import os; \
+   212	   print('  import OK  wenqu_core.scheduler from', os.path.dirname(s.__file__))" \
+   213	  || die "激活位 wenqu_core.scheduler 导入失败"
+   214	
+   215	# 可选：launchd 重载 + 立即 kickstart 一轮
+   216	if [ "$RELOAD_SCHEDULER" = "1" ]; then
+   217	  echo "== reload com.wenqu.scheduler =="
+   218	  PLIST="$HOME/Library/LaunchAgents/com.wenqu.scheduler.plist"
+   219	  [ -f "$PLIST" ] || die "plist 不存在: $PLIST"
+   220	  launchctl bootout "gui/$UID_N/com.wenqu.scheduler" 2>/dev/null || true
+   221	  launchctl bootstrap "gui/$UID_N" "$PLIST" \
+   222	    || die "launchctl bootstrap 失败"
+   223	  launchctl kickstart "gui/$UID_N/com.wenqu.scheduler" \
+   224	    || die "launchctl kickstart 失败"
+   225	  log "scheduler 已重载并 kickstart（活性: launchctl print gui/$UID_N/com.wenqu.scheduler）"
+   226	fi
+   227	
+   228	echo "INSTALL-RELEASE OK  $FULL_SHA"
+   229	echo "  四件套    : $DIST_DIR/$NAME.{tar.gz,manifest.json,release.sig,sbom.spdx.json}"
+   230	echo "  不可变位  : ${RELDIR}（chmod a-w）"
+   231	echo "  激活      : $CURRENT → $RELDIR/tree"
+   232	echo "  回滚      : bash system/install-release.sh --rollback"
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:09Z ===

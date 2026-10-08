@@ -1,0 +1,33 @@
+=== id=008_release_hashes ===
+=== started_utc=2026-10-08T14:56:23Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && shasum -a 256 dist/wenqu-dist-2bd59ab.tar.gz dist/wenqu-dist-2bd59ab.manifest.json dist/wenqu-dist-2bd59ab.release.sig dist/wenqu-dist-2bd59ab.sbom.spdx.json dist/wenqu-dist-2bd59ab.verify-report.json && echo ---declared--- && cat dist/SHA256-vNext-candidate-2bd59ab.txt && echo ---manifest-summary--- && python3 - <<'PY'
+import json
+m=json.load(open('dist/wenqu-dist-2bd59ab.manifest.json'))
+print({k:m.get(k) for k in ['schema','source_commit','version','tool','tool_version','build_id','built_at','policy_hash']})
+print('files',len(m['files']),'artifact',m['artifact'])
+s=json.load(open('dist/wenqu-dist-2bd59ab.sbom.spdx.json'))
+print('sbom',s.get('spdxVersion'),len(s.get('files',[])),len(s.get('packages',[])),len(s.get('relationships',[])))
+r=json.load(open('dist/wenqu-dist-2bd59ab.verify-report.json'))
+print('stored-report',r['result'],len(r['checks']),[(x['check'],x['ok']) for x in r['checks']])
+PY
+=== output ===
+b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236  dist/wenqu-dist-2bd59ab.tar.gz
+cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7  dist/wenqu-dist-2bd59ab.manifest.json
+f47d8469c506f96828ac66a7f5895c481997acdc381fe2f9abc77bce2eb96205  dist/wenqu-dist-2bd59ab.release.sig
+398c015ff13d716933812922768e4019f04c47b454cc524e3194a674453544b5  dist/wenqu-dist-2bd59ab.sbom.spdx.json
+c22dcfc80fe31e74efccfe55725dcb6e9b4e7bd8816f011586dffd1476e67cd9  dist/wenqu-dist-2bd59ab.verify-report.json
+---declared---
+b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236  dist/wenqu-dist-2bd59ab.tar.gz
+cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7  dist/wenqu-dist-2bd59ab.manifest.json
+f47d8469c506f96828ac66a7f5895c481997acdc381fe2f9abc77bce2eb96205  dist/wenqu-dist-2bd59ab.release.sig
+398c015ff13d716933812922768e4019f04c47b454cc524e3194a674453544b5  dist/wenqu-dist-2bd59ab.sbom.spdx.json
+---manifest-summary---
+{'schema': 'wenqu-release-manifest/1', 'source_commit': '2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551', 'version': '3.8.4', 'tool': 'release_attest.py', 'tool_version': '1.1.0', 'build_id': 'rel-2bd59ab-20261008T142740Z', 'built_at': '2026-10-08T14:27:40Z', 'policy_hash': {'frozen_match': True, 'plan_member': 'evidence/00-baseline/codex-external/方案.md', 'plan_sha256': '96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306', 'plan_sha256_frozen': '96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306', 'source': 'tar 内方案快照实算（与 ac_traceability 冻结值等值）'}}
+files 2886 artifact {'deterministic_gzip': 'mtime=0, level=9 —— 同 commit 重建字节一致', 'path': 'wenqu-dist-2bd59ab.tar.gz', 'sha256': 'b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236', 'size': 33139660, 'source': 'git archive 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551 (clean tree from commit object)'}
+sbom SPDX-2.3 2886 1 2887
+stored-report PASS 7 [('manifest-schema', True), ('artifact-hash', True), ('files-reconcile', True), ('plan-hash', True), ('signature', True), ('sbom-reconcile', True), ('build-identity', True)]
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:23Z ===

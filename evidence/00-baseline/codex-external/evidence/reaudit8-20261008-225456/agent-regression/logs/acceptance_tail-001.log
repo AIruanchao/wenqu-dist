@@ -1,0 +1,681 @@
+label: acceptance_tail
+started: 2026-10-08T22:56:26.517777+08:00
+ended: 2026-10-08T22:56:26.569311+08:00
+cwd: /private/tmp/wenqu-reaudit8-20261008-225456
+command: set -o pipefail; wc -l tests/acceptance.sh; nl -ba tests/acceptance.sh | sed -n "260,520p"; printf "== P1f implementation ==\n"; rg -n -C 12 "P1f|assert-baseline|effective_assert|1205|AST|assert True|pytest.skip" tests/acceptance.sh tools/ac_traceability.py system/tests | sed -n "1,1000p"
+exit_code: 0
+--- output ---
+     484 tests/acceptance.sh
+   260	mkdir -p "$RR" "$RR2"; echo "r=1" > "$RR/r.py"; echo "s=1" > "$RR2/s.py"
+   261	python3 "$WQ" --home "$HR" init --path "$RR" >/dev/null 2>&1
+   262	echo '{"neg":{"cmd":["bash","-c","kill -TERM $$"],"sev":"LOW"}}' > "$HR/stations.json"
+   263	python3 "$WQ" --home "$HR" run neg --path "$RR" >/dev/null 2>&1; ck "CX3：信号终止(-15)归环境错误 exit 2" 2 $?
+   264	python3 "$WQ" --home "$HR" findings --path "$RR" --status OEPEN >/dev/null 2>&1; ck "CX4：拼错 --status OEPEN exit 2" 2 $?
+   265	# CX8：跨仓 sweep——对 RR init 的 home，再对 RR2 跑同名 PASS 站，sweep 不应关 RR 的 finding
+   266	echo '{"cx8":{"cmd":["bash","-c","exit 1"],"sev":"HIGH"}}' > "$HR/stations.json"
+   267	python3 "$WQ" --home "$HR" run cx8 --path "$RR" >/dev/null 2>&1
+   268	FID=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+   269	echo '{"cx8":{"cmd":["bash","-c","exit 0"],"sev":"HIGH"}}' > "$HR/stations.json"
+   270	python3 "$WQ" --home "$HR" run cx8 --path "$RR2" >/dev/null 2>&1
+   271	python3 "$WQ" --home "$HR" sweep cx8 --path "$RR2" >/dev/null 2>&1
+   272	ST=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -c "AUTO-")
+   273	[ "$ST" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CX8：跨仓 PASS 不洗白本仓 finding"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ CX8：跨仓 sweep 洗白漏洞"; }
+   274	
+   275	echo "== S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 =="
+   276	HS="$TD/f19bhome"; RS="$TD/f19brepo"; mkdir -p "$HS" "$RS/rs"; echo "t=1" > "$RS/t.py"
+   277	python3 "$WQ" --home "$HS" init --path "$RS" >/dev/null 2>&1
+   278	cp "$ROOT/probes/stations.json" "$HS/stations.json"
+   279	# CX15（Codex 三审#3 修）：先 init 成功再锁子目录——原 chmod 000 仓根导致 init 也挂，测试从未走到 CX12 分支
+   280	if [ "$(id -u)" != "0" ]; then
+   281	  printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/rs/h.sh"
+   282	  chmod 000 "$RS/rs" 2>/dev/null
+   283	  CXOUT=$(python3 "$WQ" --home "$HS" run trap-double --path "$RS" 2>&1); CXRC=$?
+   284	  # fork19-CX20（Codex R5#3）：真断言——CLI 包装语可伪造，读 run 日志验真 Permission denied
+   285	  CXLOG=$(ls -t "$HS"/runs/*trap-double*.log 2>/dev/null | head -1)
+   286	  CXLOGERR=""
+   287	  [ -n "$CXLOG" ] && CXLOGERR=$(grep -ci "denied\|permission" "$CXLOG" 2>/dev/null || echo 0)
+   288	  if [ "$CXRC" = "2" ] && [ "${CXLOGERR:-0}" -ge 1 ]; then
+   289	    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）"
+   290	  else
+   291	    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC logerr=$CXLOGERR"
+   292	  fi
+   293	  chmod 755 "$RS/rs" 2>/dev/null
+   294	else
+   295	  echo "  ⏭ root 豁免：CX12 权限面跳过"
+   296	fi
+   297	
+   298	echo "== H. pytest 契约套件（若 pytest 可用）=="
+   299	if python3 -c "import pytest" 2>/dev/null; then
+   300	  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+   301	else
+   302	  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+   303	fi
+   304	
+   305	echo "== T. P0 auto-merge containment =="
+   306	P0_MSG="auto-merge permanently disabled per P0 containment"
+   307	P0_STUB_LINE="printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1"
+   308	P0_HOME="$TD/p0-home"; mkdir -p "$P0_HOME/daemons" "$P0_HOME/state"
+   309	printf '%s\n' 'touch "$WENQU_HOME/writer-ran"; exit 0' > "$P0_HOME/daemons/auto-merge.sh"
+   310	P0_OUT=$(WENQU_HOME="$P0_HOME" WENQU_REPO="owner/repo" bash "$ROOT/system/bin/wenqu" start 2>&1); P0_RC=$?
+   311	ck "wenqu start 永久拒绝" 1 "$P0_RC"
+   312	if [ "$P0_OUT" = "$P0_MSG" ] && [ ! -e "$P0_HOME/writer-ran" ] && [ ! -e "$P0_HOME/state/auto-merge.pid" ]; then
+   313	  PASS_N=$((PASS_N+1)); echo "  ✅ start 精确报错且未执行 writer/写 PID"
+   314	else
+   315	  FAIL_N=$((FAIL_N+1)); echo "  ❌ start containment 断言失败"
+   316	fi
+   317	
+   318	P0_OUT=$(bash "$ROOT/system/daemons/auto-merge.sh" ignored 2>&1); P0_RC=$?
+   319	ck "源码 auto-merge stub 拒绝" 1 "$P0_RC"
+   320	if [ "$P0_OUT" = "$P0_MSG" ] && [ "$(cat "$ROOT/system/daemons/auto-merge.sh")" = "$P0_STUB_LINE" ] && [ "$(wc -l < "$ROOT/system/daemons/auto-merge.sh" | tr -d ' ')" = "1" ]; then
+   321	  PASS_N=$((PASS_N+1)); echo "  ✅ 源码 stub 唯一内容、单行且消息精确"
+   322	else
+   323	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 源码 stub 形态或消息错误"
+   324	fi
+   325	
+   326	P0_PREFIX="$TD/p0-prefix"; P0_FAKE_HOME="$TD/p0-fake-home"
+   327	mkdir -p "$P0_PREFIX/bin" "$P0_PREFIX/daemons" "$P0_FAKE_HOME"
+   328	printf '%s\n' 'echo unsafe-writer' > "$P0_PREFIX/daemons/auto-merge.sh"
+   329	HOME="$P0_FAKE_HOME" PATH="$P0_PREFIX/bin:$PATH" bash "$ROOT/system/install.sh" --prefix "$P0_PREFIX" >/dev/null 2>&1; ck "隔离安装" 0 $?
+   330	P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+   331	if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+   332	  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+   333	else
+   334	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=${P0_RC}）"
+   335	fi
+   336	
+   337	echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+   338	if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+   339	  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+   340	  CORE_RC=$?
+   341	  if [ $CORE_RC -eq 0 ]; then
+   342	    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+   343	  else
+   344	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=${CORE_RC}）——wenqu_core/schemas/dashboard 缺失或不可导入"
+   345	  fi
+   346	else
+   347	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+   348	fi
+   349	
+   350	echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+   351	if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+   352	  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+   353	  PIPE_RC=$?
+   354	  if [ $PIPE_RC -eq 0 ]; then
+   355	    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+   356	  else
+   357	    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=${PIPE_RC}）——wenqu_pipeline 缺失或行为回归"
+   358	  fi
+   359	else
+   360	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+   361	fi
+   362	
+   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+   364	if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+   365	  # F6-CI-PORT-001：模板必须含 X（Ubuntu mktemp 模板无 X 会报错且旧版吞掉继续绿）；
+   366	  # mktemp 本身失败必须 fail-closed 计 FAIL。（主会话手改版——并行会话勿 git checkout 还原本节）
+   367	  AC_TMP_JSON="$(mktemp -t wq_matrix.XXXXXXXX 2>/dev/null).json" || AC_TMP_JSON=""
+   368	  if [ -z "$AC_TMP_JSON" ]; then
+   369	    FAIL_N=$((FAIL_N+1)); echo "  ❌ mktemp 失败——P1c 无法建立临时输出（fail-closed）"
+   370	  else
+   371	    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+   372	    AC_RC=$?
+   373	    rm -f "$AC_TMP_JSON"
+   374	    if [ $AC_RC -eq 0 ]; then
+   375	      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+   376	    else
+   377	      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+   378	    fi
+   379	  fi
+   380	else
+   381	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   382	fi
+   383	
+   384	echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+   385	P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+   386	P1F_COUNT=0
+   387	P1F_FAIL=0
+   388	for tf in $P1F_FILES; do
+   389	  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+   390	    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+   391	    TF_RC=$?
+   392	    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+   393	    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+   394	      P1F_COUNT=$((P1F_COUNT+NF))
+   395	    else
+   396	      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+   397	      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+   398	    fi
+   399	  else
+   400	    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+   401	  fi
+   402	done
+   403	if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+   404	  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+   405	else
+   406	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+   407	fi
+   408	
+   409	echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红）=="
+   410	if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
+   411	  P1F2_FAIL=0
+   412	  while read -r bf bn; do
+   413	    case "$bf" in ""|\#*) continue ;; esac
+   414	    bp="$ROOT/system/tests/$bf.py"
+   415	    if [ -f "$bp" ]; then
+   416	      an=$(python3 - "$bp" <<'PYP'
+   417	import re, sys
+   418	n = 0
+   419	for line in open(sys.argv[1], encoding="utf-8"):
+   420	    if line.strip().startswith("#"):
+   421	        continue
+   422	    n += len(re.findall(r"\bassert\s+(?!,)(?!\s*(?:True|1)\b)", line))
+   423	    n += len(re.findall(r"\b(?:_ck|_ok|expect)\s*\(", line))
+   424	print(n)
+   425	PYP
+   426	)
+   427	      if [ "${an:-0}" -lt "$bn" ]; then
+   428	        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 $bn（空壳化/恒真化）"
+   429	      fi
+   430	    else
+   431	      P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
+   432	    fi
+   433	  done < "$ROOT/tests/p1f-assert-baseline.txt"
+   434	  if [ $P1F2_FAIL -eq 0 ]; then
+   435	    PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（八文件有效断言 ≥ 冻结基线）"
+   436	  else
+   437	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+   438	  fi
+   439	else
+   440	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tests/p1f-assert-baseline.txt 不存在——棘轮未接线"
+   441	fi
+   442	
+   443	echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+   444	if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+   445	  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+   446	  RA_RC=$?
+   447	  if [ $RA_RC -eq 0 ]; then
+   448	    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+   449	  else
+   450	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+   451	  fi
+   452	else
+   453	  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
+   454	fi
+   455	
+   456	echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+   457	if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   458	  python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+   459	  ADV_RC=$?
+   460	  if [ ${ADV_RC} -eq 0 ]; then
+   461	    PASS_N=$((PASS_N+1)); echo "  ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）"
+   462	  else
+   463	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 对抗自测失败（exit=${ADV_RC}）——洞修复行为回归"
+   464	  fi
+   465	else
+   466	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_adversarial.py 不存在——对抗测试被移出验收面（F4-CI-001 复发）"
+   467	fi
+   468	
+   469	echo "== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）=="
+   470	if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
+   471	  python3 "$ROOT/system/tests/test_infra_hardening.py" >/dev/null 2>&1
+   472	  INF_RC=$?
+   473	  if [ ${INF_RC} -eq 0 ]; then
+   474	    PASS_N=$((PASS_N+1)); echo "  ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）"
+   475	  else
+   476	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归"
+   477	  fi
+   478	else
+   479	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
+   480	fi
+   481	
+   482	echo "================================"
+   483	echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+   484	[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+== P1f implementation ==
+tools/ac_traceability.py-48-# ---------------------------------------------------------------- 冻结目录：§25.1 前缀元数据
+tools/ac_traceability.py-49-# (req, ac, work_packages, evidence_class)
+tools/ac_traceability.py-50-PREFIX_META = {
+tools/ac_traceability.py-51-    "GATE": ("REQ-EVID-001", "AC-EVID-FAIL-CLOSED", "W2/W3A/W3B", "raw rc、CAS、before/after"),
+tools/ac_traceability.py-52-    "AUTH": ("REQ-AUTH-001", "AC-AUTH-ONE-TIME", "W1/W2", "signed payload、replay log"),
+tools/ac_traceability.py-53-    "ACT": ("REQ-ACT-001", "AC-ACT-SAGA", "W2/W3B/W7B", "outbox、external receipt、reconcile"),
+tools/ac_traceability.py-54-    "MRG": ("REQ-MERGE-001", "AC-MERGE-EXACT-SHA", "W3B", "ruleset、check、merge audit"),
+tools/ac_traceability.py-55-    "STATE": ("REQ-STATE-001", "AC-STATE-APPEND-ONLY", "W1/W2", "event log、property/crash run"),
+tools/ac_traceability.py-56-    "MIG": ("REQ-MIG-001", "AC-MIG-RECONCILE", "W5", "row mapping、decision、quarantine"),
+tools/ac_traceability.py-57-    "DB": ("REQ-DB-001", "AC-DB-FOUR-TRACK", "W6C", "catalog diff、DB identity"),
+tools/ac_traceability.py-58-    "SC": ("REQ-SC-001", "AC-SC-FAIL-CLOSED", "W6B", "audit JSON、SBOM、signature"),
+tools/ac_traceability.py-59-    "ADV": ("REQ-ADV-001", "AC-ADV-COMPLETE", "W6B", "pages/ranges fixture"),
+tools/ac_traceability.py:60:    "TEN": ("REQ-TENANT-001", "AC-TENANT-DENOMINATOR", "W6C", "DMMF/AST/runtime probes"),
+tools/ac_traceability.py-61-    "PERF": ("REQ-PERF-001", "AC-PERF-VALID", "W6D", "raw samples/profile/baseline auth"),
+tools/ac_traceability.py-62-    "SCH": ("REQ-SCHED-001", "AC-SCHED-RESULT", "W4", "launchd/job result/freshness"),
+tools/ac_traceability.py-63-    "ALT": ("REQ-ALERT-001", "AC-ALERT-DELIVERED", "W4", "outbox/attempt/receipt/dead-letter"),
+tools/ac_traceability.py-64-    "BAK": ("REQ-BACKUP-001", "AC-BACKUP-RESTORABLE", "W4/W7A", "checkpoint/restore drill"),
+tools/ac_traceability.py-65-    "REL": ("REQ-RELEASE-001", "AC-RELEASE-MANIFEST", "W7A/W7B", "manifest/build identity"),
+tools/ac_traceability.py-66-    "STOP": ("REQ-STOP-001", "AC-STOP-AUTH-AND-FACT", "W1/W2", "nine-type matrix/events"),
+tools/ac_traceability.py-67-    "RUN": ("REQ-RUNNER-001", "AC-RUNNER-ISOLATED", "W2", "sandbox/quota/process-tree logs"),
+tools/ac_traceability.py-68-    "CI": ("REQ-CI-001", "AC-CI-TERMINAL", "W3B", "check runs/ruleset/DAG validation"),
+tools/ac_traceability.py-69-    "COND": ("REQ-COND-001", "AC-COND-NOT-PASS", "W1/W2/W3B", "risk/action auth、attestation、context"),
+tools/ac_traceability.py-70-    "RISK": ("REQ-RISK-001", "AC-RISK-INVALIDATE", "W2/W5", "revoke/invalidate/reopen events"),
+tools/ac_traceability.py-71-    "STA": ("REQ-STATION-001", "AC-STATION-COVERAGE", "W6A~W6D/W3B", "station results/aggregate"),
+tools/ac_traceability.py-72-    "DEP": ("REQ-DEPLOY-001", "AC-DEPLOY-FENCED", "W7A/W7B", "lease/migration/activation events"),
+--
+tests/acceptance.sh-372-    AC_RC=$?
+tests/acceptance.sh-373-    rm -f "$AC_TMP_JSON"
+tests/acceptance.sh-374-    if [ $AC_RC -eq 0 ]; then
+tests/acceptance.sh-375-      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+tests/acceptance.sh-376-    else
+tests/acceptance.sh-377-      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+tests/acceptance.sh-378-    fi
+tests/acceptance.sh-379-  fi
+tests/acceptance.sh-380-else
+tests/acceptance.sh-381-  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+tests/acceptance.sh-382-fi
+tests/acceptance.sh-383-
+tests/acceptance.sh:384:echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+tests/acceptance.sh-385-P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+tests/acceptance.sh-386-P1F_COUNT=0
+tests/acceptance.sh-387-P1F_FAIL=0
+tests/acceptance.sh-388-for tf in $P1F_FILES; do
+tests/acceptance.sh-389-  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+tests/acceptance.sh-390-    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+tests/acceptance.sh-391-    TF_RC=$?
+tests/acceptance.sh-392-    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+tests/acceptance.sh-393-    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+tests/acceptance.sh-394-      P1F_COUNT=$((P1F_COUNT+NF))
+tests/acceptance.sh-395-    else
+tests/acceptance.sh-396-      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+tests/acceptance.sh-397-      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+tests/acceptance.sh-398-    fi
+tests/acceptance.sh-399-  else
+tests/acceptance.sh-400-    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+tests/acceptance.sh-401-  fi
+tests/acceptance.sh-402-done
+tests/acceptance.sh-403-if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+tests/acceptance.sh-404-  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+tests/acceptance.sh-405-else
+tests/acceptance.sh-406-  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+tests/acceptance.sh-407-fi
+tests/acceptance.sh-408-
+tests/acceptance.sh:409:echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红）=="
+tests/acceptance.sh:410:if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
+tests/acceptance.sh-411-  P1F2_FAIL=0
+tests/acceptance.sh-412-  while read -r bf bn; do
+tests/acceptance.sh-413-    case "$bf" in ""|\#*) continue ;; esac
+tests/acceptance.sh-414-    bp="$ROOT/system/tests/$bf.py"
+tests/acceptance.sh-415-    if [ -f "$bp" ]; then
+tests/acceptance.sh-416-      an=$(python3 - "$bp" <<'PYP'
+tests/acceptance.sh-417-import re, sys
+tests/acceptance.sh-418-n = 0
+tests/acceptance.sh-419-for line in open(sys.argv[1], encoding="utf-8"):
+tests/acceptance.sh-420-    if line.strip().startswith("#"):
+tests/acceptance.sh-421-        continue
+tests/acceptance.sh-422-    n += len(re.findall(r"\bassert\s+(?!,)(?!\s*(?:True|1)\b)", line))
+tests/acceptance.sh-423-    n += len(re.findall(r"\b(?:_ck|_ok|expect)\s*\(", line))
+tests/acceptance.sh-424-print(n)
+tests/acceptance.sh-425-PYP
+tests/acceptance.sh-426-)
+tests/acceptance.sh-427-      if [ "${an:-0}" -lt "$bn" ]; then
+tests/acceptance.sh-428-        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 $bn（空壳化/恒真化）"
+tests/acceptance.sh-429-      fi
+tests/acceptance.sh-430-    else
+tests/acceptance.sh-431-      P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
+tests/acceptance.sh-432-    fi
+tests/acceptance.sh:433:  done < "$ROOT/tests/p1f-assert-baseline.txt"
+tests/acceptance.sh-434-  if [ $P1F2_FAIL -eq 0 ]; then
+tests/acceptance.sh-435-    PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（八文件有效断言 ≥ 冻结基线）"
+tests/acceptance.sh-436-  else
+tests/acceptance.sh-437-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+tests/acceptance.sh-438-  fi
+tests/acceptance.sh-439-else
+tests/acceptance.sh:440:  FAIL_N=$((FAIL_N+1)); echo "  ❌ tests/p1f-assert-baseline.txt 不存在——棘轮未接线"
+tests/acceptance.sh-441-fi
+tests/acceptance.sh-442-
+tests/acceptance.sh-443-echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+tests/acceptance.sh-444-if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+tests/acceptance.sh-445-  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+tests/acceptance.sh-446-  RA_RC=$?
+tests/acceptance.sh-447-  if [ $RA_RC -eq 0 ]; then
+tests/acceptance.sh-448-    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+tests/acceptance.sh-449-  else
+tests/acceptance.sh-450-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+tests/acceptance.sh-451-  fi
+tests/acceptance.sh-452-else
+--
+system/tests/test_ac_gate_family.py-200-    """GateAggregator legacy 契约条目（station/outcome/sha/environment）。"""
+system/tests/test_ac_gate_family.py-201-    return {"station": station, "outcome": outcome, "sha": sha, "environment": env}
+system/tests/test_ac_gate_family.py-202-
+system/tests/test_ac_gate_family.py-203-
+system/tests/test_ac_gate_family.py-204-def _freeze_manifest(
+system/tests/test_ac_gate_family.py-205-    now: datetime,
+system/tests/test_ac_gate_family.py-206-    *,
+system/tests/test_ac_gate_family.py-207-    commit_sha: str = "1" * 40,
+system/tests/test_ac_gate_family.py-208-    run_id: str = "gatefam-run",
+system/tests/test_ac_gate_family.py-209-    ruleset: Optional[Dict[str, Any]] = None,
+system/tests/test_ac_gate_family.py-210-    scope: Optional[List[str]] = None,
+system/tests/test_ac_gate_family.py-211-) -> "bo.RunManifest":
+system/tests/test_ac_gate_family.py:212:    """站0 冻结件（FAST 档）——SourceGateAdapter/复用拒绝测试的身份正源。"""
+system/tests/test_ac_gate_family.py-213-    planner = bo.BugscanPlanner()
+system/tests/test_ac_gate_family.py:214:    plan = planner.plan("FAST")
+system/tests/test_ac_gate_family.py-215-    return planner.freeze_run_manifest(
+system/tests/test_ac_gate_family.py-216-        plan,
+system/tests/test_ac_gate_family.py-217-        run_id=run_id,
+system/tests/test_ac_gate_family.py-218-        project_id="gate-family",
+system/tests/test_ac_gate_family.py-219-        commit_sha=commit_sha,
+system/tests/test_ac_gate_family.py-220-        environment="local",
+system/tests/test_ac_gate_family.py-221-        scope=scope if scope is not None else ["src/**"],
+system/tests/test_ac_gate_family.py-222-        ruleset=ruleset if ruleset is not None else {"version": 1},
+system/tests/test_ac_gate_family.py-223-        data_config={"profile": "default"},
+system/tests/test_ac_gate_family.py-224-        now=now,
+system/tests/test_ac_gate_family.py-225-    )
+system/tests/test_ac_gate_family.py-226-
+--
+system/tests/test_ac_gate_family.py-491-    --convergence 0 的查询侧语义）、超过最高档上限（3）、非 int/布尔一律
+system/tests/test_ac_gate_family.py-492-    ConvergenceRoundsError 拒绝开跑，绝不静默钳制。
+system/tests/test_ac_gate_family.py-493-    """
+system/tests/test_ac_gate_family.py-494-    # 注入逐值：-1/0/4（超上限）→ 参数错误；对照组 1/2/3 通过并原样返回
+system/tests/test_ac_gate_family.py-495-    for bad in (-1, 0, 4, 99, True, False, "2", 2.0, None):
+system/tests/test_ac_gate_family.py-496-        exc = _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, bad)
+system/tests/test_ac_gate_family.py-497-        _ok("参数错误" in str(exc) or "GATE-09" in str(exc),
+system/tests/test_ac_gate_family.py-498-            f"N={bad!r} 报错须点名参数错误/GATE-09，got {exc}")
+system/tests/test_ac_gate_family.py-499-    for good in (1, 2, 3):
+system/tests/test_ac_gate_family.py-500-        _ok(bo.validate_convergence_rounds(good) == good,
+system/tests/test_ac_gate_family.py-501-            f"合法 N={good} 应原样通过（边界 3=INCIDENT 契约值）")
+system/tests/test_ac_gate_family.py-502-    # 档位语义：低于生效档契约 N = 弱化收敛环 → 参数错误；更严（≤上限）通过
+system/tests/test_ac_gate_family.py:503:    _ok(bo.validate_convergence_rounds(1, lane="FAST") == 1, "FAST N=1 契约值通过")
+system/tests/test_ac_gate_family.py-504-    exc = _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, 1, lane="STANDARD")
+system/tests/test_ac_gate_family.py-505-    _ok("低于" in str(exc) or "契约" in str(exc), "低于档位契约须点名弱化语义")
+system/tests/test_ac_gate_family.py-506-    _ok(bo.validate_convergence_rounds(3, lane="STANDARD") == 3, "STANDARD 收紧到 3 合法（≤上限）")
+system/tests/test_ac_gate_family.py-507-    _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, 4, lane="INCIDENT")
+system/tests/test_ac_gate_family.py-508-    _expect_raise(bo.BugscanPlanError, bo.validate_convergence_rounds, 1, lane="NOPE")
+system/tests/test_ac_gate_family.py-509-    # 编排器 planner 入口：convergence_rounds 覆盖参数同值域
+system/tests/test_ac_gate_family.py-510-    planner = bo.BugscanPlanner()
+system/tests/test_ac_gate_family.py-511-    for bad in (-1, 0, 4):
+system/tests/test_ac_gate_family.py:512:        _expect_raise(bo.ConvergenceRoundsError, planner.plan, "FAST", convergence_rounds=bad)
+system/tests/test_ac_gate_family.py-513-    _expect_raise(bo.ConvergenceRoundsError, planner.plan, "STANDARD", convergence_rounds=1)
+system/tests/test_ac_gate_family.py-514-    plan = planner.plan("STANDARD", convergence_rounds=3)
+system/tests/test_ac_gate_family.py-515-    _ok(plan.convergence_rounds == 3, "合法覆盖 N=3 应落进计划")
+system/tests/test_ac_gate_family.py:516:    _ok(planner.plan("FAST").convergence_rounds == 1 and
+system/tests/test_ac_gate_family.py-517-        planner.plan("INCIDENT").convergence_rounds == 3,
+system/tests/test_ac_gate_family.py:518:        "未覆盖时取档位表值（FAST=1/INCIDENT=3 回归对照）")
+system/tests/test_ac_gate_family.py-519-    # 对抗负例：伪造 plan（N=0）绕过 planner 直构 tracker → 构造期同样拒绝
+system/tests/test_ac_gate_family.py:520:    forged = replace(planner.plan("FAST"), convergence_rounds=0)
+system/tests/test_ac_gate_family.py-521-    exc2 = _expect_raise(bo.ConvergenceRoundsError, bo.ConvergenceTracker, forged)
+system/tests/test_ac_gate_family.py-522-    _ok("N=0" in str(exc2) or ">= 1" in str(exc2),
+system/tests/test_ac_gate_family.py-523-        "伪造 plan 的 N=0 须在 tracker 构造期被拒（双保险）")
+system/tests/test_ac_gate_family.py-524-
+system/tests/test_ac_gate_family.py-525-
+system/tests/test_ac_gate_family.py-526-def test_GATE_10_round_cap_n_plus_1_blocks_awaiting_human_adjudication(root: Optional[Path] = None) -> None:
+system/tests/test_ac_gate_family.py-527-    """GATE-10｜注入：超过 N+1｜期望：BLOCKED 等人工裁定（非自动重试）。"""
+system/tests/test_ac_gate_family.py-528-    planner = bo.BugscanPlanner()
+system/tests/test_ac_gate_family.py:529:    # FAST：N=1，熔断预算 N+1=2。轮1 有发现、轮2 仍有发现 → 跑满预算未收敛
+system/tests/test_ac_gate_family.py:530:    tracker = bo.ConvergenceTracker(planner.plan("FAST"))
+system/tests/test_ac_gate_family.py-531-    tracker.record_round(argv=["scanner-a"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-532-    status = tracker.record_round(argv=["scanner-b"], source_label="S1", new_findings=2)
+system/tests/test_ac_gate_family.py-533-    _ok(status["state"] == "BLOCKED", f"跑满 N+1 未收敛须 BLOCKED，got {status['state']}")
+system/tests/test_ac_gate_family.py-534-    waiting = status["awaiting_human_adjudication"]
+system/tests/test_ac_gate_family.py-535-    _ok(waiting is not None and waiting["required"] is True,
+system/tests/test_ac_gate_family.py-536-        "BLOCKED 必须携带『等待人工裁定』记录")
+system/tests/test_ac_gate_family.py-537-    _ok(waiting["reason"] == "round_cap_exceeded" and waiting["n"] == 1
+system/tests/test_ac_gate_family.py-538-        and waiting["round_cap"] == 2,
+system/tests/test_ac_gate_family.py-539-        "等待记录须落 n/round_cap/reason 证据")
+system/tests/test_ac_gate_family.py-540-    _ok("人工裁定" in waiting["note"], "等待记录须声明转人工、非自动重试")
+system/tests/test_ac_gate_family.py-541-    # 非自动重试：BLOCKED 后任何追加轮（含换命令/换标签/同命令）一律拒绝
+system/tests/test_ac_gate_family.py-542-    for kwargs in (
+--
+system/tests/test_ac_gate_family.py-545-    ):
+system/tests/test_ac_gate_family.py-546-        exc = _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.record_round, **kwargs)
+system/tests/test_ac_gate_family.py-547-        _ok("人工裁定" in str(exc) and "禁止自动重试" in str(exc),
+system/tests/test_ac_gate_family.py-548-            "BLOCKED 态追加轮须显式拒绝并指向人工裁定唯一通道")
+system/tests/test_ac_gate_family.py-549-    # 人工裁定腿一：STOP → 终态；再追加/再裁定均拒
+system/tests/test_ac_gate_family.py-550-    stopped = tracker.adjudicate("STOP", approver="risk-owner")
+system/tests/test_ac_gate_family.py-551-    _ok(stopped["state"] == "STOPPED", "裁定 STOP 须转终态 STOPPED")
+system/tests/test_ac_gate_family.py-552-    _ok(stopped["adjudications"][0]["approver"] == "risk-owner", "裁定须留痕裁定人")
+system/tests/test_ac_gate_family.py-553-    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.record_round,
+system/tests/test_ac_gate_family.py-554-                  argv=["scanner-d"], source_label="S1", new_findings=0)
+system/tests/test_ac_gate_family.py-555-    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.adjudicate, "CONTINUE", approver="x")
+system/tests/test_ac_gate_family.py-556-    # 人工裁定腿二：CONTINUE → 恰好 +1 轮预算回到 RUNNING；补一轮零发现即收敛
+system/tests/test_ac_gate_family.py:557:    tracker2 = bo.ConvergenceTracker(planner.plan("FAST"))
+system/tests/test_ac_gate_family.py-558-    tracker2.record_round(argv=["scanner-a"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-559-    tracker2.record_round(argv=["scanner-b"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-560-    resumed = tracker2.adjudicate("continue", approver="risk-owner")
+system/tests/test_ac_gate_family.py-561-    _ok(resumed["state"] == "RUNNING" and resumed["round_cap"] == 3,
+system/tests/test_ac_gate_family.py-562-        "CONTINUE 须回到 RUNNING 且预算恰好 +1（2→3），不放大不自动续")
+system/tests/test_ac_gate_family.py-563-    converged = tracker2.record_round(argv=["scanner-c"], source_label="S1", new_findings=0)
+system/tests/test_ac_gate_family.py-564-    _ok(converged["state"] == "CONVERGED", "放行轮零发现应收敛（最近 N=1 轮零新发现）")
+system/tests/test_ac_gate_family.py-565-    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker2.record_round,
+system/tests/test_ac_gate_family.py-566-                  argv=["scanner-e"], source_label="S1", new_findings=0,
+system/tests/test_ac_gate_family.py-567-                  now=datetime.now(_UTC))  # 收敛后不再接受轮次——新发现须新 run
+system/tests/test_ac_gate_family.py-568-    # 对抗负例：裁定本体不可伪造/不可匿名/无第三走向
+system/tests/test_ac_gate_family.py:569:    tracker3 = bo.ConvergenceTracker(planner.plan("FAST"))
+system/tests/test_ac_gate_family.py-570-    tracker3.record_round(argv=["a"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-571-    tracker3.record_round(argv=["b"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-572-    _expect_raise(ValueError, tracker3.adjudicate, "MAYBE", approver="x")
+system/tests/test_ac_gate_family.py-573-    _expect_raise(ValueError, tracker3.adjudicate, "CONTINUE", approver="  ")
+system/tests/test_ac_gate_family.py-574-    _expect_raise(ValueError, tracker3.adjudicate, "CONTINUE", approver="")
+system/tests/test_ac_gate_family.py:575:    _expect_raise(bo.ConvergenceRoundCapExceeded, bo.ConvergenceTracker(planner.plan("FAST")).adjudicate,
+system/tests/test_ac_gate_family.py-576-                  "CONTINUE", approver="x")  # RUNNING 态不可裁定（须先熔断）
+system/tests/test_ac_gate_family.py-577-    # 对照：恰在最后一轮收敛则不熔断（A 有发现、B/C 零发现 → N=2 窗口干净）
+system/tests/test_ac_gate_family.py-578-    tracker4 = bo.ConvergenceTracker(planner.plan("STANDARD"))
+system/tests/test_ac_gate_family.py-579-    tracker4.record_round(argv=["a"], source_label="S1", new_findings=1)
+system/tests/test_ac_gate_family.py-580-    tracker4.record_round(argv=["b"], source_label="S1", new_findings=0)
+system/tests/test_ac_gate_family.py-581-    final = tracker4.record_round(argv=["c"], source_label="S1", new_findings=0)
+system/tests/test_ac_gate_family.py-582-    _ok(final["state"] == "CONVERGED" and final["heterogeneous_rounds"] == 3,
+system/tests/test_ac_gate_family.py-583-        "第 N+1 轮达成收敛窗口应判 CONVERGED 而非熔断")
+system/tests/test_ac_gate_family.py-584-
+system/tests/test_ac_gate_family.py-585-
+system/tests/test_ac_gate_family.py-586-def test_GATE_11_same_command_relabel_not_new_heterogeneous_round(root: Optional[Path] = None) -> None:
+system/tests/test_ac_gate_family.py-587-    """GATE-11｜注入：同命令换 S 标签｜期望：不计异源轮。"""
+--
+system/tests/test_ac_gate_family.py-605-        "空白/空串扰动不改变命令身份")
+system/tests/test_ac_gate_family.py-606-    # 对照：命令身份真变（不同 argv）→ 计新异源轮；即使沿用同一 S 标签
+system/tests/test_ac_gate_family.py-607-    s4 = tracker.record_round(argv=["python3", "other.py"], source_label="S1", new_findings=0)
+system/tests/test_ac_gate_family.py-608-    _ok(s4["heterogeneous_rounds"] == 2,
+system/tests/test_ac_gate_family.py-609-        "不同命令（标签相同）必须计新异源轮——标签不是身份")
+system/tests/test_ac_gate_family.py-610-    # 去重与收敛判据联动：重复轮不推进窗口；真异源轮 B/C 零发现才收敛
+system/tests/test_ac_gate_family.py-611-    s5 = tracker.record_round(argv=["scanner-x"], source_label="S9", new_findings=0)
+system/tests/test_ac_gate_family.py-612-    _ok(s5["state"] == "CONVERGED" and s5["heterogeneous_rounds"] == 3,
+system/tests/test_ac_gate_family.py-613-        "最近 N=2 个异源轮（other.py/scanner-x）零发现须收敛")
+system/tests/test_ac_gate_family.py-614-    _ok(s5["total_rounds_recorded"] == 6 and s5["duplicate_rounds_ignored"] == 3,
+system/tests/test_ac_gate_family.py-615-        "重复轮（含换标签）绝不进入收敛窗口（GATE-11 反向：防标签刷轮）")
+system/tests/test_ac_gate_family.py-616-    # 对抗负例：刷轮攻击——同命令反复换标签无法把异源轮数刷到熔断或收敛
+system/tests/test_ac_gate_family.py:617:    tracker2 = bo.ConvergenceTracker(planner.plan("FAST"))  # N=1, cap 2
+system/tests/test_ac_gate_family.py-618-    tracker2.record_round(argv=["same-tool"], source_label="S1", new_findings=9)
+system/tests/test_ac_gate_family.py-619-    for i in range(5):  # 5 次换标签重跑同一命令
+system/tests/test_ac_gate_family.py-620-        st = tracker2.record_round(argv=["same-tool"], source_label=f"S{i+2}", new_findings=9)
+system/tests/test_ac_gate_family.py-621-        _ok(st["heterogeneous_rounds"] == 1,
+system/tests/test_ac_gate_family.py-622-            f"第 {i+2} 次换标签重跑仍不得计异源轮")
+system/tests/test_ac_gate_family.py-623-        _ok(st["state"] == "RUNNING", "重复轮既不熔断也不收敛（未产生新异源证据）")
+system/tests/test_ac_gate_family.py-624-    # argv 身份校验负例：命令字符串/空 argv/非 str 元素 → 拒绝
+system/tests/test_ac_gate_family.py-625-    for bad_argv in ("python3 scan.py", [], ["a", 3], ()):
+system/tests/test_ac_gate_family.py-626-        _expect_raise(ValueError, bo.normalized_argv_digest, bad_argv)
+system/tests/test_ac_gate_family.py-627-
+system/tests/test_ac_gate_family.py-628-
+system/tests/test_ac_gate_family.py-629-def test_GATE_12_unsigned_flip_or_adjudication_blocked(root: Optional[Path] = None) -> None:
+--
+system/tests/test_gate_manifest_trust.py-69-
+system/tests/test_gate_manifest_trust.py-70-
+system/tests/test_gate_manifest_trust.py-71-def _attacker_rehash(doc):
+system/tests/test_gate_manifest_trust.py-72-    """第七轮攻击者手法：无密钥自行重算 manifest_hash（纯 hash 无信任根）。"""
+system/tests/test_gate_manifest_trust.py-73-    body = {k: v for k, v in doc.items() if k != "manifest_hash"}
+system/tests/test_gate_manifest_trust.py-74-    doc["manifest_hash"] = hashlib.sha256(
+system/tests/test_gate_manifest_trust.py-75-        _canonical(body).encode("utf-8")).hexdigest()
+system/tests/test_gate_manifest_trust.py-76-    return doc
+system/tests/test_gate_manifest_trust.py-77-
+system/tests/test_gate_manifest_trust.py-78-
+system/tests/test_gate_manifest_trust.py-79-def _freeze_signed(keyring, key_id="key_r7_manifest", run_id="run-r7-auth"):
+system/tests/test_gate_manifest_trust.py-80-    planner = BugscanPlanner(default_registry())
+system/tests/test_gate_manifest_trust.py:81:    plan = planner.plan("FAST")  # required={0,1}
+system/tests/test_gate_manifest_trust.py-82-    return planner.freeze_run_manifest(
+system/tests/test_gate_manifest_trust.py-83-        plan, run_id=run_id, project_id="r7/erp",
+system/tests/test_gate_manifest_trust.py-84-        commit_sha=SHA, environment="staging",
+system/tests/test_gate_manifest_trust.py-85-        scope=["src/**", "tests/**", "tools/**"],
+system/tests/test_gate_manifest_trust.py-86-        ruleset={"version": "w6a-r7"}, data_config={"profile": "default"},
+system/tests/test_gate_manifest_trust.py-87-        signing_keyring=keyring, signing_key_id=key_id)
+system/tests/test_gate_manifest_trust.py-88-
+system/tests/test_gate_manifest_trust.py-89-
+system/tests/test_gate_manifest_trust.py-90-def _freeze_unsigned(run_id="run-r7-unsigned"):
+system/tests/test_gate_manifest_trust.py-91-    planner = BugscanPlanner(default_registry())
+system/tests/test_gate_manifest_trust.py:92:    plan = planner.plan("FAST")
+system/tests/test_gate_manifest_trust.py-93-    return planner.freeze_run_manifest(
+system/tests/test_gate_manifest_trust.py-94-        plan, run_id=run_id, project_id="r7/erp",
+system/tests/test_gate_manifest_trust.py-95-        commit_sha=SHA, environment="staging",
+system/tests/test_gate_manifest_trust.py-96-        scope=["src/**", "tests/**", "tools/**"],
+system/tests/test_gate_manifest_trust.py-97-        ruleset={"version": "w6a-r7"}, data_config={"profile": "default"})
+system/tests/test_gate_manifest_trust.py-98-
+system/tests/test_gate_manifest_trust.py-99-
+system/tests/test_gate_manifest_trust.py-100-def _bound(manifest, station, **over):
+system/tests/test_gate_manifest_trust.py-101-    """与 manifest 完全对账的合法 station-result-v2（含全语义身份字段）。"""
+system/tests/test_gate_manifest_trust.py-102-    doc = {
+system/tests/test_gate_manifest_trust.py-103-        "schema_version": "2.0", "run_id": manifest.run_id,
+system/tests/test_gate_manifest_trust.py-104-        "station_id": station, "attempt_id": f"att-r7-{station}",
+--
+system/tests/test_gate_manifest_trust.py-406-        try:
+system/tests/test_gate_manifest_trust.py-407-            RunManifest.load(stpath, keyring=keyring, allow_unsigned=True)
+system/tests/test_gate_manifest_trust.py-408-            _ck("R7-AUTH-001 重算 hash 骗不过签名验签（allow-unsigned 也拒坏签名）",
+system/tests/test_gate_manifest_trust.py-409-                False, "no raise")
+system/tests/test_gate_manifest_trust.py-410-        except ManifestFreezeError:
+system/tests/test_gate_manifest_trust.py-411-            _ck("R7-AUTH-001 重算 hash 骗不过签名验签（allow-unsigned 也拒坏签名）",
+system/tests/test_gate_manifest_trust.py-412-                True)
+system/tests/test_gate_manifest_trust.py-413-
+system/tests/test_gate_manifest_trust.py-414-
+system/tests/test_gate_manifest_trust.py-415-def test_r7auth001_freeze_key_resolution_fail_closed():
+system/tests/test_gate_manifest_trust.py-416-    """freeze 签发面 fail-closed：多 active key 不猜/rotated/revoked 拒签。"""
+system/tests/test_gate_manifest_trust.py-417-    planner = BugscanPlanner(default_registry())
+system/tests/test_gate_manifest_trust.py:418:    plan = planner.plan("FAST")
+system/tests/test_gate_manifest_trust.py-419-    kwargs = dict(run_id="run-r7-fc", project_id="r7/erp", commit_sha=SHA,
+system/tests/test_gate_manifest_trust.py-420-                  environment="staging", scope=["src/**"],
+system/tests/test_gate_manifest_trust.py-421-                  ruleset={"v": 1}, data_config={"p": "d"})
+system/tests/test_gate_manifest_trust.py-422-    multi = ApprovalKeyring({"key_a": "a" * 32, "key_b": "b" * 32})
+system/tests/test_gate_manifest_trust.py-423-    try:
+system/tests/test_gate_manifest_trust.py-424-        planner.freeze_run_manifest(plan, signing_keyring=multi, **kwargs)
+system/tests/test_gate_manifest_trust.py-425-        _ck("R7-AUTH-001 多 active key 未显式 key_id 拒（不猜 key）", False,
+system/tests/test_gate_manifest_trust.py-426-            "no raise")
+system/tests/test_gate_manifest_trust.py-427-    except ManifestFreezeError as exc:
+system/tests/test_gate_manifest_trust.py-428-        _ck("R7-AUTH-001 多 active key 未显式 key_id 拒（不猜 key）",
+system/tests/test_gate_manifest_trust.py-429-            "signing_key_id" in str(exc))
+system/tests/test_gate_manifest_trust.py-430-    rotated = ApprovalKeyring(
+--
+system/tests/test_ac_station_families.py-1191-        rep = _supply_scan(tmp, _j(truncated))
+system/tests/test_ac_station_families.py-1192-        assert rep.result["execution_status"] == "ERROR", rep.result
+system/tests/test_ac_station_families.py-1193-        assert "self-reported" in rep.note, rep.note
+system/tests/test_ac_station_families.py-1194-
+system/tests/test_ac_station_families.py-1195-
+system/tests/test_ac_station_families.py-1196-# ---------------------------------------------------------------------------
+system/tests/test_ac_station_families.py-1197-# TEN 族——租户分母（station3：DMMF 动态分母 + org 过滤矩阵）
+system/tests/test_ac_station_families.py-1198-# ---------------------------------------------------------------------------
+system/tests/test_ac_station_families.py-1199-
+system/tests/test_ac_station_families.py-1200-def test_TEN_01_prisma_alias_reexport_wrapper_in_denominator():
+system/tests/test_ac_station_families.py-1201-    """TEN-01｜注入：Prisma alias/re-export/wrapper｜期望：纳入分析。
+system/tests/test_ac_station_families.py-1202-
+system/tests/test_ac_station_families.py:1203:    覆盖边界：本包不做源级 AST 分析；Prisma 侧分母正源=DMMF（编译后已解析
+system/tests/test_ac_station_families.py-1204-    alias/re-export/wrapper 形态，统一表现为 datamodel.models 条目）。断言：
+system/tests/test_ac_station_families.py-1205-    - 别名/包装形态的模型条目全部计入 prisma_dmmf_model_count 与动态分母；
+system/tests/test_ac_station_families.py-1206-    - 监控面（objects_total）少于含别名的模型全集 → 分母缩水守卫 BLOCKED
+system/tests/test_ac_station_families.py-1207-      （纳入分析=不可因别名形态漏出分母）；
+system/tests/test_ac_station_families.py-1208-    - 重复名（假 alias 双计）被拒绝，防分母虚增。
+system/tests/test_ac_station_families.py-1209-    """
+system/tests/test_ac_station_families.py-1210-    models = ("Order", "User", "Invoice",
+system/tests/test_ac_station_families.py-1211-              "Organization",          # 正主 tenant model
+system/tests/test_ac_station_families.py-1212-              "OrganizationView",      # wrapper 视图模型
+system/tests/test_ac_station_families.py-1213-              "Org")                   # alias 形态
+system/tests/test_ac_station_families.py-1214-    dmmf = {"datamodel": {"models": [{"name": n} for n in models]}}
+system/tests/test_ac_station_families.py-1215-    assert prisma_dmmf_model_count(dmmf) == 6
+--
+system/tests/test_ac_ui_family.py-1-#!/usr/bin/env python3
+system/tests/test_ac_ui_family.py-2-# -*- coding: utf-8 -*-
+system/tests/test_ac_ui_family.py:3:"""§20 验收 ID 专属测试——UI 族七条（P1f 接入件；W8 UI 面激活）。
+system/tests/test_ac_ui_family.py-4-
+system/tests/test_ac_ui_family.py-5-覆盖 §20.4/§20.5 中 UI 前缀全部 7 个验收 ID（注入/期望逐字对齐
+system/tests/test_ac_ui_family.py-6-evidence/00-baseline/codex-external/方案.md §20 表格）：
+system/tests/test_ac_ui_family.py-7-
+system/tests/test_ac_ui_family.py-8-    UI-01  少一个闭合标签                          -> 构建/启动门失败
+system/tests/test_ac_ui_family.py-9-    UI-02  XSS 日志/账本文本                       -> 不执行
+system/tests/test_ac_ui_family.py-10-    UI-03  CSRF/伪 Origin/text/plain 写入           -> 拒绝
+system/tests/test_ac_ui_family.py-11-    UI-04  Gate 红、其他项高分                      -> 总体 BLOCKED
+system/tests/test_ac_ui_family.py-12-    UI-05  ACCEPTED/OTHER/quarantine               -> 均可钻取
+system/tests/test_ac_ui_family.py-13-    UI-06  DNS rebinding/伪 Host/未认证日志读取      -> 拒绝
+system/tests/test_ac_ui_family.py-14-    UI-07  慢请求/高并发/超大日志                    -> 不耗尽资源
+system/tests/test_ac_ui_family.py-15-
+--
+system/tests/test_ac_ui_family.py-779-
+system/tests/test_ac_ui_family.py-780-    真服务面：超大日志（3 文件×~1.5MB）读取有界（行数界 tail -20 + 字节界
+system/tests/test_ac_ui_family.py-781-    1MiB 默认上限）且时延受控；R7 对抗腿（独立实例）：6MiB 病态单行→响应
+system/tests/test_ac_ui_family.py-782-    ≤1MiB + truncated 标记 + 前缀保留；慢速半开请求期间并发服务正常、且被
+system/tests/test_ac_ui_family.py-783-    15s 连读超时收割；超大声明体 413 快拒；60 并发全 200；窗口限速真实触发
+system/tests/test_ac_ui_family.py-784-    429。负例：无限制速假服务被探针必报。
+system/tests/test_ac_ui_family.py-785-    """
+system/tests/test_ac_ui_family.py-786-    with tempfile.TemporaryDirectory(prefix="wq_ui07_") as tmp:
+system/tests/test_ac_ui_family.py-787-        with _Dash(Path(tmp)) as dash:
+system/tests/test_ac_ui_family.py-788-            _write_snapshot(dash.snap, "PASS")
+system/tests/test_ac_ui_family.py-789-            logs_dir = dash.home / "logs"
+system/tests/test_ac_ui_family.py-790-            logs_dir.mkdir(parents=True, exist_ok=True)
+system/tests/test_ac_ui_family.py:791:            first_line, last_line = "FIRST-LINE-MUST-BE-TAILED-OUT", "LAST-LINE-KEEP-0Z71"
+system/tests/test_ac_ui_family.py-792-            for i in range(3):
+system/tests/test_ac_ui_family.py-793-                with open(logs_dir / f"big{i}.log", "w", encoding="utf-8") as fh:
+system/tests/test_ac_ui_family.py-794-                    fh.write(first_line + "\n")
+system/tests/test_ac_ui_family.py-795-                    for j in range(998):
+system/tests/test_ac_ui_family.py-796-                        fh.write(("filler %06d " % j) + "y" * 1500 + "\n")
+system/tests/test_ac_ui_family.py-797-                    fh.write(last_line + "\n")
+system/tests/test_ac_ui_family.py-798-            total_bytes = sum((logs_dir / f"big{i}.log").stat().st_size for i in range(3))
+system/tests/test_ac_ui_family.py-799-            assert total_bytes > 3 * 1024 * 1024, "注入前提：超大日志 ≥3MB"
+system/tests/test_ac_ui_family.py-800-
+system/tests/test_ac_ui_family.py-801-            # 超大日志：读取有界（行数界）+ 时延受控 + tail 语义正确
+system/tests/test_ac_ui_family.py-802-            t0 = time.monotonic()
+system/tests/test_ac_ui_family.py-803-            st, hd, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+--
+system/tests/test_gate_scope_binding.py-63-        print(f"  ✗ {name} {detail}")
+system/tests/test_gate_scope_binding.py-64-
+system/tests/test_gate_scope_binding.py-65-
+system/tests/test_gate_scope_binding.py-66-def _tail(text, n=200):
+system/tests/test_gate_scope_binding.py-67-    return (text or "").replace("\n", " | ")[-n:]
+system/tests/test_gate_scope_binding.py-68-
+system/tests/test_gate_scope_binding.py-69-
+system/tests/test_gate_scope_binding.py-70-# ───────────────────────── fixture：冻结 manifest + 绑定结果 ─────────────────────────
+system/tests/test_gate_scope_binding.py-71-# R7-GATE-MANIFEST-AUTH-001（诚实更新，只增不减）：正门现在必须 --verify-key，
+system/tests/test_gate_scope_binding.py-72-# fixture 相应升级为「签名的 manifest + 验签 keyring 文件」——既有断言全部
+system/tests/test_gate_scope_binding.py-73-# 保留，且全部改走生产正门（签名验签路径）而非降级诊断。
+system/tests/test_gate_scope_binding.py-74-def _freeze(tmp):
+system/tests/test_gate_scope_binding.py:75:    """冻结一个 FAST run（required={0,1}，scope 3 路径 → denominator=3）。
+system/tests/test_gate_scope_binding.py-76-
+system/tests/test_gate_scope_binding.py-77-    以 release/manifest 专用 key 签名（R7-GATE-MANIFEST-AUTH-001），
+system/tests/test_gate_scope_binding.py-78-    同时落一个验签 keyring JSON 供 --verify-key 使用。
+system/tests/test_gate_scope_binding.py-79-    """
+system/tests/test_gate_scope_binding.py-80-    planner = BugscanPlanner(default_registry())
+system/tests/test_gate_scope_binding.py:81:    plan = planner.plan("FAST")
+system/tests/test_gate_scope_binding.py-82-    keyring = ApprovalKeyring.generate("key_f6_manifest")
+system/tests/test_gate_scope_binding.py-83-    manifest = planner.freeze_run_manifest(
+system/tests/test_gate_scope_binding.py-84-        plan, run_id="run-f6-scope", project_id="f6/erp",
+system/tests/test_gate_scope_binding.py-85-        commit_sha=SHA, environment="staging",
+system/tests/test_gate_scope_binding.py-86-        scope=["src/**", "tests/**", "tools/**"],
+system/tests/test_gate_scope_binding.py-87-        ruleset={"version": "w6a-f6"}, data_config={"profile": "default"},
+system/tests/test_gate_scope_binding.py-88-        signing_keyring=keyring, signing_key_id="key_f6_manifest")
+system/tests/test_gate_scope_binding.py-89-    path = os.path.join(tmp, "run-manifest.json")
+system/tests/test_gate_scope_binding.py-90-    manifest.save(path)
+system/tests/test_gate_scope_binding.py-91-    keyring_path = os.path.join(tmp, "manifest-keys.json")
+system/tests/test_gate_scope_binding.py-92-    keyring.save_json(keyring_path)
+system/tests/test_gate_scope_binding.py-93-    return manifest, path, keyring_path
+--
+system/tests/test_ac_act_run.py-951-        m_bomb = td / "BOMB_RAN"
+system/tests/test_ac_act_run.py-952-        bomb_code = (
+system/tests/test_ac_act_run.py-953-            f"open({str(m_bomb)!r}, 'w').write('boom')\n"
+system/tests/test_ac_act_run.py-954-            "import os, time\n"
+system/tests/test_ac_act_run.py-955-            "for _ in range(5):\n"
+system/tests/test_ac_act_run.py-956-            "    if os.fork() == 0:\n"
+system/tests/test_ac_act_run.py-957-            "        time.sleep(30); os._exit(0)\n"
+system/tests/test_ac_act_run.py-958-            "time.sleep(30)\n"
+system/tests/test_ac_act_run.py-959-        )
+system/tests/test_ac_act_run.py-960-        _blocked("fork bomb", [sys.executable, "-c", bomb_code], m_bomb)
+system/tests/test_ac_act_run.py-961-
+system/tests/test_ac_act_run.py-962-        # 注入 b（输出爆量形态）：stdout 灌爆载荷——同样被 allowlist 阻断
+system/tests/test_ac_act_run.py:963:        m_blast = td / "BLAST_RAN"
+system/tests/test_ac_act_run.py-964-        blast_code = (
+system/tests/test_ac_act_run.py-965-            f"open({str(m_blast)!r}, 'w').write('blast')\n"
+system/tests/test_ac_act_run.py-966-            "import sys\n"
+system/tests/test_ac_act_run.py-967-            "for _ in range(1024):\n"
+system/tests/test_ac_act_run.py-968-            "    sys.stdout.write('A' * 1048576)\n"
+system/tests/test_ac_act_run.py-969-        )
+system/tests/test_ac_act_run.py-970-        _blocked("输出爆量", [sys.executable, "-c", blast_code], m_blast)
+system/tests/test_ac_act_run.py-971-
+system/tests/test_ac_act_run.py-972-        # 注入 c（网络外连形态）：urllib 外传载荷——allowlist 阻断于执行前
+system/tests/test_ac_act_run.py-973-        m_net = td / "NET_RAN"
+system/tests/test_ac_act_run.py-974-        net_code = (
+system/tests/test_ac_act_run.py-975-            f"open({str(m_net)!r}, 'w').write('dial')\n"

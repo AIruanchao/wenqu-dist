@@ -1,0 +1,15 @@
+HONEST_REQUIRED [0, 1]
+FORGED_TOP_REQUIRED [0]
+FORGED_PLANNER_REQUIRED [0]
+FORGED_LANE FAST
+FORGED_DROPPED []
+CONSISTENCY_ISSUES []
+LOAD_VERIFIED_REQUIRED [0]
+CMD ["/opt/homebrew/opt/python@3.14/bin/python3.14", "/private/tmp/wenqu-reaudit8-20261008-225456/system/bin/wenquctl", "gate", "--results", "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/r8-known-resign-a9w0cfun/station0.json", "--manifest", "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/r8-known-resign-a9w0cfun/forged-internally-consistent.json", "--verify-key", "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/r8-known-resign-a9w0cfun/keyring.json"]
+RC 1
+STDOUT 
+STDERR File "/private/tmp/wenqu-reaudit8-20261008-225456/system/bin/wenquctl", line 10
+    set -uo pipefail
+            ^^^^^^^^
+SyntaxError: invalid syntax
+VULNERABLE False

@@ -1,0 +1,34 @@
+=== id=006_keyring_safe ===
+=== started_utc=2026-10-08T14:56:12Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+python3 - <<'PY'
+import os,stat,json
+p=os.path.expanduser('~/.wenqu-dist-release/release-keyring.json'); d=json.load(open(p))
+def redact(x):
+ if isinstance(x,dict):
+  return {k: ('<redacted>' if any(t in k.lower() for t in ('secret','key_b64','material')) else redact(v)) for k,v in x.items()}
+ if isinstance(x,list): return [redact(v) for v in x]
+ if isinstance(x,str) and len(x)>20: return '<redacted-string-len-%d>'%len(x)
+ return x
+s=os.stat(p); ps=os.stat(os.path.dirname(p))
+print('file_mode',oct(stat.S_IMODE(s.st_mode)),'dir_mode',oct(stat.S_IMODE(ps.st_mode)),'owner_uid',s.st_uid)
+print(json.dumps(redact(d),ensure_ascii=False,indent=2,sort_keys=True))
+PY
+=== output ===
+file_mode 0o600 dir_mode 0o755 owner_uid 502
+{
+  "keys": {
+    "key_release_w6p1f": "<redacted-string-len-64>"
+  },
+  "meta": {
+    "key_release_w6p1f": {
+      "created_at": "2026-10-08T09:49:43Z",
+      "description": "<redacted-string-len-99>",
+      "status": "active"
+    }
+  }
+}
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:12Z ===

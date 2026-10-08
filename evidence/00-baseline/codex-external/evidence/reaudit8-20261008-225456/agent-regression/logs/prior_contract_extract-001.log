@@ -1,0 +1,623 @@
+label: prior_contract_extract
+started: 2026-10-08T22:56:09.924231+08:00
+ended: 2026-10-08T22:56:09.971724+08:00
+cwd: /private/tmp/wenqu-reaudit8-20261008-225456
+command: set -o pipefail; R=evidence/00-baseline/codex-external/验收报告-第七轮.md; P=evidence/00-baseline/codex-external/方案.md; printf "== report headings ==\n"; rg -n "^#|P0|P1|W[0-9]|三移除|P1f|schema|SC-05|UI-01|BAK-01|§20|§25\.1|TLA|acceptance|selftest|pytest" "$R" | sed -n "1,500p"; printf "== plan section 20..25 ==\n"; awk '/^## 20/{f=1} /^## 26/{f=0} f{print NR ":" $0}' "$P" | sed -n "1,600p"; printf "== plan P1f anchors ==\n"; rg -n "P1f|断言|SC-05|UI-01|BAK-01|三移除|移除|级联|schema" "$P" | sed -n "1,500p"
+exit_code: 0
+--- output ---
+== report headings ==
+1:# 问渠质量工程管线验收报告（第七轮独立复审）
+16:## 1. 最终判定
+18:# **BLOCKED — 64/100**
+20:`d32c859` 相比第六轮有显著、可复核的真实进展：远端 main/双平台 CI、TLC 模型检查、W4 调度/通知/DR、W5 对账、模块化只读 7789、trace parser、删件门和 release 签名机制均获得正证。
+28:5. P1f 只校验文件/函数名计数；整份专属测试替换为同名 `pass` 后，完整 acceptance 仍 `66/66 rc0`。
+32:9. W9/W10 没有可保全、可复核的 clean `c9de6a4` Day-1 样本；现役样本已是 `1495913...` 且 `dirty=true`。
+34:### 第六轮基线纠正
+40:## 2. 身份、隔离与运行时事实
+42:### 2.1 三个身份必须分开
+48:| 共享工作树 / 现役调度输入 | 终点为 `wave6/p1f-gate@1495913...`，dirty，且 `wenqu_pipeline.py`、`approval-v2.schema.json` 被外部并行会话删除 | 不能等同于 d32 部署体 |
+52:### 2.2 现役调度与 7789
+62:## 3. 独立实跑总览
+66:| 完整 acceptance | `PASS=66 FAIL=0` | 0 | `root-regression/05-acceptance-explicit.*` |
+68:| 6 个模块 selftest | 全部 rc0 | 0 | `root-regression/selftests/` |
+69:| 标准 pytest 合并收集 | 236 passed、16 errors、22 warnings | 1 | `root-regression/04-pytest-all.*` |
+71:| 27 条跨族 pytest 抽查 | 27 passed | 0 | `agent-coverage/25-selected-27-pytest.log` |
+74:| W4 production | 36/36 | 0 | `agent-runtime/36-w4-tests-d32.txt` |
+76:| TLA 规约-代码 | 10/10 | 0 | `agent-runtime/29-tla-pytest-tlc.txt` |
+81:标准 pytest 的 16 个错误均来自 `test_ac_auth_cond.py` 请求不存在的 `root` fixture；逐文件自带 runner 能通过，但通用 pytest 收集不能。因此“自定义 20+ 套件全绿”可确认，“仓库可由标准 pytest 全量绿跑”不可确认。
+85:## 4. 第六轮 F6 六项闭环重判
+92:| TRC-GATE | **PARTIAL** | 删除 required 专属文件会使完整 acceptance rc1；但将整个 gate-family 文件替成 24 个 `def test_*(): pass`（0 个 assert），完整 acceptance 仍 66/66 rc0；单独把 SC-05 改成 `assert True`，专属 29/29、trace 131/131 仍 rc0。 |
+93:| TRC-PARSER | **PASS** | 缺 plan、重复相同行、先毒后正、方案 §20/§25 外字节漂移、ID/injection/expectation/§25.1 元数据漂移均 rc2，`catalog_integrity=FAIL`；基线 rc0。 |
+102:## 5. P0 十项同口径重判
+104:| P0 | 判定 | 实证与边界 |
+106:| P0-1 核心接线 | **PASS（仅冻结 d32 候选）** | core wiring、CLI 与 required acceptance 可执行；不扩张为现役不可变部署通过。 |
+107:| P0-2 七段状态机与审批 | **FAIL** | issuer 正向 15/0/1；HMAC、nonce、TTL、轮换、吊销、append-only 审计存在。但 consumer 未把签名 payload 与实际 target 等值绑定；高危单签仍可消费；联签不进入 envelope/consumer 校验；现存 0644 keyring/secret 可加载；消费事件不保留 payload digest/联签。事后对账不能替代事前阻断。 |
+108:| P0-3 契约链/Gate | **FAIL** | manifest 可改 required 后自算摘要假绿；重复件非全等仍被忽略。 |
+109:| P0-4 Schema 不变量 | **PARTIAL** | 已有 12/12 与运行镜像有正证；正式 Schema 对大分母不等值仍接受，双实现不等价。 |
+110:| P0-5 Runner/CAS | **PARTIAL** | Darwin runner、重挂接、CAS/并发回归有正证；Linux `/proc`、容器、低权限、网络/资源强隔离仍未实测。 |
+111:| P0-6 EventStore 唯一正源 | **FAIL** | migrator 新写进入 `pipeline_events`，官方 6/6；但旧 `events` 没有只读 trigger/权限，隔离库 INSERT/UPDATE/DELETE 全成功，迟到写还能二次导入。 |
+112:| P0-7 部署/回滚 | **FAIL（机制局部通过）** | release 签名/SBOM/确定性重建/篡改拒绝机制成立；最终四件套却是 `1620c7c`/3.7.1，非 d32/3.8.3，缺本轮关键文件；方案 hash 错为 61 字符且 verify 不校验；现役无 `~/.wenqu/current` 不可变激活链。 |
+113:| P0-8 auto-merge | **PASS / 保持关闭** | 单行安全 stub 实跑 rc1；未发现 active writer/launchd。 |
+114:| P0-9 7789 控制面 | **PARTIAL（模块化切换窄项 PASS）** | active 四文件与 d32 一致、回环监听、写路由 405；但运行 VERSION=3.8.4 与 d32 3.8.3 不同，health 取数依赖可变树；日志匿名可读且无字节上限；本轮无真实浏览器证据。 |
+115:| P0-10 证据/追踪/制品 | **FAIL** | parser、删件门和签名机制有进展；空壳语义仍全绿、索引严格 5/20、最终制品旧提交且 policy hash 错绑。 |
+117:**P0 汇总：2 PASS / 3 PARTIAL / 5 FAIL。存在多条 fail-open 硬断言，必须 BLOCKED。**
+123:## 6. W0–W10 同口径评分
+127:| W0 快照与危险面隔离 | 8 | 2 | **2** | d32 可冻结、破坏性测试已隔离；但现役 scheduler 仍吃可变共享树，审计中自然 tick 已受外部漂移影响。 |
+128:| W1 契约/Schema/威胁/TLA/红探针 | 10 | 7 | **8** | TLC 真实运行、7 不变量零违例、两类独立变异应红；扣正式 Schema 与运行镜像分叉、模型仅 2 段有界。 |
+129:| W2 Runner/事件/授权/CAS | 15 | 12 | **11** | issuer、CAS、状态机有真证；但审批 exact target/联签/权限未在消费点强制，legacy events 仍可写，均属 P0。 |
+130:| W3 Gate/CI/合流控制 | 15 | 8 | **9** | main CI 双平台和经典保护真实，parser/删件门增强；扣 manifest 可信根旁路、重复语义旁路、专属空壳全绿、无 review/签名/ruleset/action SHA pin。 |
+131:| W4 调度/Outbox/通知/备份 | 10 | 3 | **8** | 36/36、5 分钟自然续跳、双通道 SENT/投递箱对账、DR 五文件字节一致，RPO=2.058311s、RTO=0.475040s；扣生产调度直接绑定可变工作树，osascript 仅提供方成功而非人读回执。 |
+132:| W5 旧账迁移 | 8 | 1 | **5** | 1967 行历史快照可精确复原；16/1950/1/0 四态守恒、两次幂等、源字节不变；live 1974 行亦重跑通过。扣 legacy 表未冻结、唯一正源/切换观察未完成，1950（live 1957）quarantine 待人工。 |
+133:| W6 Bug 八站 | 15 | 9 | **11** | 名称/接线 131/131，27 条跨族抽查 22 完整、5 部分，新增 32 ID 多数有真实断言；扣 SC-05/UI/BAK 五项语义缺口、空壳门、站5/6仍是 placeholder/NOT_APPLICABLE。 |
+134:| W7 制品/安装/部署/回滚 | 8 | 6 | **5** | W7A 签名/SBOM/重建/篡改拒绝通过；W7B 最终集成失败：旧 commit、错误 policy hash、非 immutable activation。 |
+135:| W8 Dashboard/健康/控制面 | 7 | 4 | **5** | 模块化只读 7789 切换与 hash 对账成立；扣匿名日志、无响应字节上限、产品 self-check 漏 span、无真实浏览器证据。 |
+136:| W9 Shadow/Canary/切换 | 2 | 0 | **0** | 48h shadow 投影/canary 尚未到期，无放行证据。 |
+137:| W10 观察窗/演练/收官 | 2 | 0 | **0** | 14 天未到期；且 clean c9 Day-1 样本未保全，当前样本为 1495913 dirty，不能起算。 |
+142:## 7. 131/131 专属覆盖真实性
+144:### 7.1 可确认事实
+150:### 7.2 27 条抽查结论
+154:  - SC-05：合法签名/hash、但 `pagination.complete=false,pages_total=2` 的快照仍 `COMPLETED/PASS 12/12`。
+155:  - BAK-01：有真实 cp 与通用失败，但未注入磁盘满/tar，三腿未齐。
+156:  - UI-01：构建 parser 会抓缺 span，但产品 `--self-check` 删除 `</span>` 后仍 rc0。
+162:### 7.3 覆盖 Gate 结论
+166:- SC-05 函数体换成唯一 `assert True`：专属 29/29、trace 131/131 均 rc0。
+167:- gate family 全部替成 24 个 `pass`：完整 acceptance 仍 66/66 rc0。
+169:因此开发方“§20 专属覆盖 131/131=100%”只能按**目录/名称覆盖 100%**接受，不能按**语义覆盖 100%**接受。
+173:## 8. 常规核验矩阵
+177:| 三移除锚点 | 在三个独立副本分别移除 `wenqu_pipeline.py`、`approval-v2.schema.json`、`tools/ac_traceability.py`，完整 acceptance 均 rc1，并命中对应 P1/P1b/P1c | PASS |
+178:| Schema 变异 | nonce `minLength 16→0` 后 P0-2 suite rc1（9/1） | PASS |
+179:| §20 ID 篡改 | 完整 acceptance rc1，65/1 | PASS |
+180:| §20 injection/expectation 语义篡改 | 完整 acceptance rc1，65/1 | PASS |
+181:| §25.1 四列映射篡改 | 完整 acceptance rc1，65/1 | PASS |
+182:| P1f 删件 | 完整 acceptance rc1，65/1 | PASS |
+183:| P1f 语义清空、保留名称 | 完整 acceptance rc0，66/0 | **FAIL / 旁路** |
+188:| acceptance 本地全量 | 66/66 rc0 | PASS，但被独立旁路反例限制 |
+189:| 标准 pytest 全量 | 236 passed、16 fixture errors，rc1 | FAIL（测试编排兼容性） |
+190:| TLA 规约-代码 | 10/10；TLC rc0；两类独立变异 rc12/rc1 | PASS（有界） |
+197:## 9. 第七轮新增或重新打开的问题
+199:### 9.1 重新打开的 F6 阻断
+201:1. **R7-GATE-MANIFEST-AUTH-001（P0）**：unkeyed manifest hash 可被攻击者随 required 一起重算。
+202:2. **R7-GATE-DUP-EQUIV-002（P0）**：重复件等价键未覆盖规则、工具、执行和发现语义。
+203:3. **R7-TRC-VACUOUS-003（P0/P1）**：required 只盯文件/函数数，恒真与空壳不红。
+204:4. **R7-EVID-CONTRACT-004（P0）**：20 条索引严格仅 5/20。
+206:### 9.2 本轮独立探针新增实证
+208:1. **R7-AUTH-DUAL-CONSUME-005（P0）**：高危联签未进入消费契约，单签仍被接受。
+209:2. **R7-AUTH-KEY-PERM-006（P1）**：loader 对现存 0644 keyring/secret 不 fail-closed。
+210:3. **R7-EVENT-LEGACY-WRITABLE-007（P0）**：收编后的旧表可增删改，并能迟到导入。
+211:4. **R7-SC-PAGINATION-008（P1）**：分页未完成仍 PASS。
+212:5. **R7-UI-LOG-AUTH-009（P0）**：日志 API 无认证读取控制。
+213:6. **R7-UI-LOG-BYTES-010（P1）**：按行限制不能限制超长单行响应字节。
+214:7. **R7-REL-POLICY-HASH-011（P0）**：release policy hash 少 3 字符，verify 未校验。
+215:8. **R7-REL-STALE-012（P0）**：签名制品是旧提交而非最终集成 d32。
+216:9. **R7-PYTEST-HARNESS-013（P1）**：标准 pytest 缺 `root` fixture，16 errors。
+217:10. **R7-OBS-SAMPLE-014（P1）**：声称的 clean c9 Day-1 样本未被保全，现役文件已覆盖为 dirty 其他 SHA。
+221:## 10. 已知诚实缺口
+225:- W9 48h shadow 投影/canary 与 W10 14 天观察窗尚未到期。
+228:- TLA+ 仅为 2 段/有限 attempt 的有界实例。
+235:## 11. 整改优先级
+237:### P0 立即阻断
+245:7. 给 `/api/v1/logs` 加认证/授权和响应字节上限；真实浏览器验收后再放行 W8。
+247:### P1 收口
+250:2. 修 SC-05 分页、UI-01 self-check、BAK-01 磁盘满/tar 三腿。
+251:3. 补标准 pytest fixture/编排，清理返回非 None 的测试函数警告。
+253:5. 从 clean、同 SHA/CI/release 的样本重新起算 W9/W10；样本需入仓或不可变保全，禁止调度覆盖首样本。
+257:## 12. 证据索引
+265:- `agent-f6-p0/`：F6、P0、审批、事件、证据索引独立探针。
+266:- `agent-coverage/`：131 抽查、三重篡改、三移除、P1f、SC/UI/BAK 反例。
+267:- `agent-runtime/`：CI/保护、7789、launchd、W4/W5、TLA、release、观察窗。
+268:- `root-regression/`：acceptance、标准 pytest、逐文件和模块自测。
+275:## 13. 四查过渡状态
+277:本轮未取得可机器验证的 Q4 v2 宿主/账本/permit 闭环，且发现仍有 P0 未拒路径；因此只允许人工告警，不自动宣称固化完成：
+289:## 14. 最终结论
+293:# **最终固定判定：64/100 — BLOCKED**
+295:禁止将本报告解释为：d32 已完成不可变生产部署、F6 六项全关、P0 十项通过、131 条语义覆盖 100%、证据索引 20/20、W9/W10 已有效起算或可进入生产发布。
+== plan section 20..25 ==
+1549:## 20.1 Gate、授权、合流
+1550:
+1551:| ID | 注入 | 期望 |
+1552:|---|---|---|
+1553:| GATE-01 | base ref 不存在/fetch 失败 | ERROR/BLOCKED |
+1554:| GATE-02 | 零测试、scope 未证明纯文档 | BLOCKED |
+1555:| GATE-03 | test runner/依赖缺失 | ERROR |
+1556:| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+1557:| GATE-05 | artifact symlink/hardlink/根外 | BLOCKED |
+1558:| GATE-06 | artifact hash 篡改 | BLOCKED |
+1559:| GATE-07 | commit/env/scope/ruleset 不符 | BLOCKED |
+1560:| GATE-08 | evidence 过 TTL | BLOCKED |
+1561:| GATE-09 | `N=-1/0/超上限` | 参数错误 |
+1562:| GATE-10 | 超过 N+1 | BLOCKED 等人工裁定 |
+1563:| GATE-11 | 同命令换 S 标签 | 不计异源轮 |
+1564:| GATE-12 | unsigned flip/adjudication | BLOCKED |
+1565:| AUTH-01 | 无授权 resume | 拒绝 |
+1566:| AUTH-02 | 过期/重放/扩范围/旧 state_version | 拒绝 |
+1567:| AUTH-03 | AI/runner 尝试自行签发高风险批准 | 拒绝 |
+1568:| ACT-01 | technical PASS，但无 exact merge/release action authorization | context 可表技术 PASS，controller 不动作 |
+1569:| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+1570:| ACT-03 | check 发布前/后 crash 或回执丢失 | outbox 幂等恢复；同一 check_run 更新，不产生伪双绿 |
+1571:| ACT-04 | merge/release 调用前/后 crash 或回执丢失 | 先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试 |
+1572:| ACT-05 | 外部陈旧绿、dispatcher/App 失联 | direct merge 被角色/ruleset 拒绝；动作保持 BLOCKED |
+1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+1574:| MRG-01 | Fast 绿、Security 红 | 不合流 |
+1575:| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+1576:| MRG-03 | check 同名伪造/旧 SHA | 不合流 |
+1577:| MRG-04 | pending/skipped/neutral/cancelled | 不合流 |
+1578:| MRG-05 | head 在聚合后改变 | 旧结论失效 |
+1579:| MRG-06 | GitHub 429/空 JSON/超时 | 断路，不合流 |
+1580:
+1581:## 20.2 状态、账本、迁移
+1582:
+1583:| ID | 注入 | 期望 |
+1584:|---|---|---|
+1585:| STATE-01 | 任意 stage/status | schema 拒绝 |
+1586:| STATE-02 | `../`、绝对路径、NUL、超长 ID | 拒绝 |
+1587:| STATE-03 | 100×100 并发写 | 零丢失/重复 |
+1588:| STATE-04 | 事务各点 kill -9 | 全有或全无 |
+1589:| STATE-05 | 双 writer epoch | 所有写入拒绝 |
+1590:| STATE-06 | WAITING 终态残留 | SUPERSEDED 事件，不静默删 |
+1591:| MIG-01 | 坏 JSON/未知状态 | quarantine+BLOCKED |
+1592:| MIG-02 | 缺审批信息的 ACCEPTED | invalid/reopen |
+1593:| MIG-03 | 两次迁移 | 结果幂等一致 |
+1594:| MIG-04 | 源行数不守恒 | 迁移失败 |
+1595:| MIG-05 | project key 冲突 | 明确冲突，不拆成假项目 |
+1596:
+1597:## 20.3 Bug 扫描器
+1598:
+1599:| ID | 注入 | 期望 |
+1600:|---|---|---|
+1601:| DB-01 | `[+]`/`[-]`/`[*]` | 全识别 |
+1602:| DB-02 | 仅一条 DROP COLUMN/删 FK | FAIL，不因数量少放行 |
+1603:| DB-03 | 未知格式/空输出/命令非零 | ERROR |
+1604:| DB-04 | allowlist 到期/对象 hash 变化 | FAIL |
+1605:| SC-01 | 有效 JSON+HIGH/CRITICAL | FAIL |
+1606:| SC-02 | 空 JSON/registry 超时 | ERROR |
+1607:| SC-03 | install script/resolved/integrity 变化 | FAIL/人工审 |
+1608:| SC-04 | 标题含 `[skip-audit]` | 无绕过效果 |
+1609:| ADV-01 | version parser 异常 | UNKNOWN，不写 seen |
+1610:| ADV-02 | 多页/多 range | 全遍历 |
+1611:| TEN-01 | Prisma alias/re-export/wrapper | 纳入分析 |
+1612:| TEN-02 | 注释含 organizationId | 不能欺骗 |
+1613:| TEN-03 | builder 超 300 字符 | 纳入分析 |
+1614:| TEN-04 | `$queryRaw` 跨租户 | 阻断 |
+1615:| TEN-05 | 路径不含 export/download 的下载 | 纳入扫描 |
+1616:| TEN-06 | Org A 访问/导出 Org B | 动态拒绝 |
+1617:| PERF-01 | HTTP 500 但很快 | FAIL |
+1618:| PERF-02 | SSH/TCC/null 指标 | ERROR |
+1619:| PERF-03 | 尾部极慢样本 | 正确进入 p95/p99 |
+1620:| PERF-04 | 输入 1→100，query count 线性 | FAIL |
+1621:
+1622:## 20.4 调度、发布、UI
+1623:
+1624:| ID | 注入 | 期望 |
+1625:|---|---|---|
+1626:| SCH-01 | launchd 无 Documents 权限 | ERROR+告警 |
+1627:| SCH-02 | 脚本 FAIL 后 touch heartbeat | 测试抓获、last_success 不变 |
+1628:| SCH-03 | 睡眠错过周期 | 唤醒补跑 |
+1629:| ALT-01 | provider 500/超时 | outbox 重试/dead-letter |
+1630:| BAK-01 | 磁盘满/tar/backup 失败 | 不更新 success |
+1631:| REL-01 | manifest 缺件/多件/错 hash | 部署失败 |
+1632:| REL-02 | 部署中 kill -9 | 保持旧 current 或完整新 current |
+1633:| REL-03 | doctor 红 | 部署失败并回退 |
+1634:| UI-01 | 少一个闭合标签 | 构建/启动门失败 |
+1635:| UI-02 | XSS 日志/账本文本 | 不执行 |
+1636:| UI-03 | CSRF/伪 Origin/text/plain 写入 | 拒绝 |
+1637:| UI-04 | Gate 红、其他项高分 | 总体 BLOCKED |
+1638:| UI-05 | ACCEPTED/OTHER/quarantine | 均可钻取 |
+1639:
+1640:## 20.5 补充契约、隔离与治理探针
+1641:
+1642:| ID | 注入 | 期望 |
+1643:|---|---|---|
+1644:| STOP-01 | 九种 stop type 使用错误类型审批 | 全拒绝 |
+1645:| STOP-02 | resource/ext-unavail 未恢复但已批准 | 仍不可 resume |
+1646:| STOP-03 | 九种 stop type 的客观条件已满足但缺一次性授权 | 九类全部拒绝 resume |
+1647:| STATE-07 | 普通事件把 PASSED 改回 RUNNING | 拒绝 |
+1648:| STATE-08 | FAILED 重试 | 新 attempt，旧证据不覆盖 |
+1649:| STATE-09 | SHA/scope/policy 变化 | 强制新 run |
+1650:| STATE-10 | WAITING/FAILED attempt 直接改回 RUNNING | 拒绝；追加新 attempt 后由 stage projection 指向它 |
+1651:| STATE-11 | S7 CONDITIONAL 缺 risk authorization | S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING |
+1652:| AUTH-04 | canonical payload/Unicode/audience 任一字节改变 | 验签失败 |
+1653:| AUTH-05 | 并发双消费 approval | 恰一成功 |
+1654:| AUTH-06 | key revoked/clock rollback/无 user-presence | 拒绝 |
+1655:| RUN-01 | 被测程序读取 Keychain/SSH agent/生产配置 | 隔离拒绝 |
+1656:| RUN-02 | timeout 后子孙进程 | 全部终止，无孤儿写盘 |
+1657:| RUN-03 | fork bomb/输出爆量/网络外连 | 配额/allowlist 阻断 |
+1658:| CI-05 | fork、merge_group、check 不产生 | 明确 FAILURE/BLOCKED |
+1659:| CI-06 | CODEOWNERS 文件存在但 ruleset 未强制 | doctor ERROR |
+1660:| CI-07 | 未授权 App 发布同名 context/旧 details URL | 不可信、阻断 |
+1661:| CI-08 | Wenqu Gate 缺失但 Bugscan 绿 | 不合流 |
+1662:| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+1663:| MRG-07 | 最后校验后 head 变化 | expected-SHA 原子拒绝 |
+1664:| COND-01 | CONDITIONAL 无 risk authorization | technical eligibility=false，技术 context failure |
+1665:| COND-02 | 授权跨 SHA/env/扩 finding 集/重放 | 拒绝 |
+1666:| COND-03 | 合法低风险接受、其余全 PASS、risk 与 action 两类精确授权 | 内部仍 CONDITIONAL；技术 context=`success/AUTHORIZED_CONDITIONAL`；Action Gate 成功后动作恰一次 |
+1667:| COND-04 | P0/P1 尝试风险接受或条件授权 | 拒绝并保持 BLOCKED |
+1668:| COND-05 | 授权后新增 finding、TTL 到期、SHA/scope/policy/watermark 变化 | authorization、attestation、context 失效；动作前重验拒绝 |
+1669:| COND-06 | 并发双消费或动作失败后重放 attestation | 最多一次消费；失败后须新授权 |
+1670:| RISK-01 | 主动撤销或 fingerprint/severity/policy/control 改变 | 追加 REVOKED/INVALIDATED，立即重开并可进入修复链 |
+1671:| DB-05 | 错 DB/role/`transaction_read_only=off` | BLOCKED |
+1672:| DB-06 | catalog 顺序、默认表达式、extension 对象 | golden 规范化正确 |
+1673:| SC-05 | 离线快照签名错误/过期/分页不全 | BLOCKED |
+1674:| TEN-07 | target SHA 新增 tenant model | 分母自动增加 |
+1675:| TEN-08 | 合法管理员跨租户正例/普通角色负例 | 前者通、后者拒 |
+1676:| PERF-05 | 修改 baseline/阈值试图洗绿 | policy hash 阻断 |
+1677:| PERF-06 | 样本/时长/endpoint 分母缩水 | 不得晋升 baseline |
+1678:| STA-01 | 任一站 denominator 缩小 | 整线 BLOCKED |
+1679:| STA-02 | 站2/3/4/7逐站故障 | 继续独立取证，aggregate BLOCKED |
+1680:| SCH-04 | catch-up 与正常调度并发 | 只有一个 logical run |
+1681:| SCH-05 | scheduler 整体故障 | 独立 watchdog 仍告警 |
+1682:| SCH-06 | one-shot job | 只写 wenqu namespace |
+1683:| SCH-07 | `COMPLETED+NOT_APPLICABLE` 或过期/异指纹 PASS | 不刷新任何实体的 `last_success` |
+1684:| DEP-01 | 两个部署者争 lease | 最多一个成功 |
+1685:| DEP-02 | smoke 访问生产 DB/state | 隔离拒绝 |
+1686:| DEP-03 | 新事件后回滚兼容二进制 | 事件零丢失 |
+1687:| DEP-04 | 自签/替换/revoked release key | 拒绝 |
+1688:| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+1689:| DEP-06 | 无迁移锁/未验证备份/expand 超授权 | 激活前 BLOCKED，旧 current 不变 |
+1690:| DEP-07 | ACTIVATING 失败且无预授权 | `FAILED_BLOCKED`；不得自动回滚或继续发布 |
+1691:| DEP-08 | ROLLBACK_FAILED | writer/merge/release 熔断并停等人工恢复 |
+1692:| DEP-09 | 观察窗内夹带 contract/down migration | 拒绝；要求独立授权变更 |
+1693:| RB-01 | 无预授权自动回滚/错误旧版本 | 拒绝 |
+1694:| UI-06 | DNS rebinding/伪 Host/未认证日志读取 | 拒绝 |
+1695:| UI-07 | 慢请求/高并发/超大日志 | 不耗尽资源 |
+1696:| HLT-01 | 聚合期间输入 watermark 变化 | snapshot 作废重算 |
+1697:| DOC-01 | one-shot 停等数量/枚举漂移 | CI 阻断 |
+1698:| DOC-02 | bug skill 版本/清单/验收数量漂移 | CI 阻断 |
+1699:| DOC-03 | policy/Skill 出现 L4、`--admin`、`force-with-lease` 或 skip 绕闸文本 | CI 阻断 |
+1700:| DOC-04 | 文档宣称现役/PASS，但 registry 或 Gate 为 BLOCKED | CI 阻断 |
+1701:| ALT-02 | waiting 到期但零 send attempt/receipt | ERROR+告警，不能以 watchdog exit0 记健康 |
+1702:| CAP-01 | 峰值空间超过安全余量或磁盘满 | 切换 BLOCKED，旧证据和 current 均完整 |
+1703:| DR-01 | 恢复演练 | 实测满足冻结 RPO/RTO |
+1704:
+1705:---
+1706:
+1707:# 21. 项目身份、策略来源与执行隔离
+1708:
+1709:## 21.1 Canonical repo_id
+1710:
+1711:冻结：
+1712:
+1713:```text
+1714:repo_id = forge_host + normalized_owner/repo
+1715:```
+1716:
+1717:无 remote 的仓使用持久 UUID。clone 路径、工作树目录和 remote URL 表达形式仅是 location，不参与业务身份。迁移必须为现有各 ledger 目录生成映射表、检测冲突，禁止继续用不同 URL/path 哈希拆账。
+1718:
+1719:## 21.2 Policy 与被扫代码隔离
+1720:
+1721:- station registry、command allowlist、adapter 和 policy 必须来自受保护 policy commit；
+1722:- 未信任 PR 无权修改用于验证自己的规则；
+1723:- 默认 argv 直执行，禁 `bash -c`；
+1724:- 扫描未信任 PR 时隔离生产凭据、网络和写权限；
+1725:- 签名/attestation 服务只签自己实际 spawn+waitpid 捕获的结果，不签调用者上传的 rc/artifact。
+1726:
+1727:## 21.3 人类授权可信边界
+1728:
+1729:同 UID 的 AI/runner 可能访问普通 Keychain 项，因此仅记录 actor 名或 HMAC 不足以证明真人批准。
+1730:
+1731:高风险 stop point 应使用具备 user-presence 的独立 approval broker：Touch ID/系统认证，或外部已认证渠道回执+nonce。签名必须绑定 scope、TTL、state_version、SHA 和环境；AI 只能消费，不能签发。
+1732:
+1733:在该能力落地前，保持手工受保护流程，并诚实标注“无法机器证明人类身份”；不得恢复 dashboard 一键批准。
+1734:
+1735:## 21.4 签名与 Attestation 可信根
+1736:
+1737:W1 必须分别冻结 approval signer、runner attestor、release signer：
+1738:
+1739:```text
+1740:算法
+1741:canonical serialization/Unicode 规范
+1742:key_id
+1743:signer 身份与 audience
+1744:可信公钥钉扎位置
+1745:私钥隔离边界
+1746:轮换与吊销清单
+1747:有效期和时钟异常策略
+1748:构建 provenance
+1749:```
+1750:
+1751:高风险 approval 由 user-presence broker 签发；release/runner attestation 优先由被测运行体不可访问的 CI 或独立 broker 签发，verifier 只信钉扎公钥。被测程序、普通同 UID 进程和 runner 子进程不得读取私钥。
+1752:
+1753:如果本期无法建立独立 signer，系统只能宣称 `hash drift detection / tamper-evident`，不得声称签名证明来源；对应 release eligibility 保持 BLOCKED 或人工边界明确的候选态。
+1754:
+1755:---
+1756:
+1757:# 22. 容量、留存与隐私
+1758:
+1759:迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+1760:
+1761:```text
+1762:peak = legacy_snapshot + imported_db + WAL_peak + CAS_copy
+1763:     + backup + current_release + next_release + rollback_release
+1764:```
+1765:
+1766:设定最小安全余量；不足即 BLOCKED。禁止自动删除审计证据。留存、压缩、外移均是独立授权动作，操作后必须对账 hash 并做恢复抽验。
+1767:
+1768:证据默认脱敏：不保存 token、Cookie、个人信息、生产秘密或完整业务敏感数据；需要保存时使用加密、最小化和明确 retention policy。
+1769:
+1770:CAS 必须冻结 retention、RPO/RTO 和 GC 规则。GC 前证明目标 digest 没有 event/manifest/backup 引用，并完成恢复抽验；引用图未知或 checkpoint 未锚定时禁止回收。
+1771:
+1772:---
+1773:
+1774:# 23. 发布、回滚与授权边界
+1775:
+1776:## 23.1 必须停等用户授权的动作
+1777:
+1778:1. 停止/启动现役 auto-merge、dashboard、sentinel、LaunchAgent；
+1779:2. 修改 GitHub branch protection/ruleset、App 权限和凭据；
+1780:3. 合并、部署、restart、切换 current；
+1781:4. 首次配置告警通道、合成测试实发或变更通知策略；完成授权后，在绑定 channel/scope/TTL 内的常规告警自动投递，不逐条停等；高风险处置动作仍逐项授权；
+1782:5. 生产 DB、RLS、DDL、迁移；
+1783:6. 生产真单/真实写入；
+1784:7. offsite 备份；
+1785:8. 生产回滚和数据恢复。
+1786:
+1787:ZCode 可在停等前完成代码、测试、dry-run、PR、候选制品、回滚脚本和证据包。
+1788:
+1789:## 23.2 回滚原则
+1790:
+1791:- 代码：current 原子切回上个**兼容 v2 schema**的 release；
+1792:- 数据：expand/contract，观察期不做 destructive down migration；
+1793:- 事件：切换后的新事件永不因回滚被覆盖；
+1794:- CI：故障时保持 required checks，转人工受保护 PR；
+1795:- 自动合流：故障后保持关闭；
+1796:- Dashboard：故障后保持只读/不可用；`underlying_gate_outcome` 保持 aggregator 的真实判定、不被覆盖，`release_readiness` 因必需观测面不可用而 BLOCKED；
+1797:- 分支保护：before JSON 只用于审计和安全恢复，不得恢复已知绕过。
+1798:
+1799:一次部署授权可以预授权“本次 ACTIVATING 失败时，在指定观察窗内切回精确 previous_release_id”；除此之外的独立生产回滚仍需新授权。
+1800:
+1801:---
+1802:
+1803:# 24. 完成定义与证据包
+1804:
+1805:## 24.1 硬完成门
+1806:
+1807:不得用总分作为放行门。只有以下硬条件全部达成才算最终闭环：
+1808:
+1809:- W0–W10 全部 DoD；
+1810:- traceability 零孤儿；
+1811:- 所有旧假绿红探针在新实现中均正确阻断；
+1812:- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+1813:- P0/P1=0；
+1814:- 活跃 ACCEPTED_RISK=0；存在任何合法低风险接受时只能走 `AUTHORIZED_CONDITIONAL`，不得称清零或最终生产闭环；
+1815:- 账本无非法状态、无未裁定 quarantine；
+1816:- 清零范围内无 OPEN/FIXING/FIXED_PENDING_VERIFY；
+1817:- 并发、kill、磁盘满、只读、时钟、网络、TCC 故障注入通过；
+1818:- targeted mutation 和全量测试门达成；
+1819:- 浏览器、launchd、备份恢复、原子部署、回滚均真实演练；
+1820:- shadow/canary/14 天观察窗达标；
+1821:- 独立 S5 与战训四查通过；
+1822:- 未覆盖威胁和生产边界明确列出。
+1823:
+1824:## 24.2 证据包目录
+1825:
+1826:```text
+1827:evidence/<program-run-id>/
+1828:  00-baseline/
+1829:  01-threat-model-and-contracts/
+1830:  02-schemas-and-tla/
+1831:  03-red-probes-before/
+1832:  04-unit-property-mutation/
+1833:  05-concurrency-crash-chaos/
+1834:  06-scanner-goldens/
+1835:  07-migration-reconcile/
+1836:  08-ci-and-branch-rules/
+1837:  09-release-manifest-attestation/
+1838:  10-ui-launchd-alert-backup/
+1839:  11-shadow-canary/
+1840:  12-rollback-drill/
+1841:  13-observation-window/
+1842:  evidence-index.json
+1843:```
+1844:
+1845:每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+1846:
+1847:---
+1848:
+1849:# 25. 本轮复审发现族→工作包→测试→证据追踪矩阵
+1850:
+1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+1852:
+1853:| FND-ID | 复审发现族 | 工作包 | 精确测试 ID | 主要证据 |
+1854:|---|---|---|---|---|
+1855:| FND-001 | auto-merge 子串、UNSTABLE、`--admin` | W0/W3B | MRG-01～07 | containment、branch rules、merge dry-run |
+1856:| FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+1857:| FND-003 | base 不存在/零测试假绿 | W3A | GATE-01～03 | runner 原始日志 |
+1858:| FND-004 | verifier 信任 rc/findings/symlink/N | W2/W3B | GATE-04～12 | red-probes before/after |
+1859:| FND-005 | 任意状态、路径穿越、无授权 clear | W1/W2 | STATE-01～05、AUTH-01 | property/concurrency/crash 日志 |
+1860:| FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+1861:| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+1862:| FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+1863:| FND-009 | 安装器原地覆盖、doctor 吞错 | W7A/W7B | REL-01～03、DEP-01～03 | deploy/rollback drill |
+1864:| FND-010 | DB 至少 280 项仍 CLEAN | W6C | DB-01～06 | canonical diff/golden |
+1865:| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+1866:| FND-012 | advisory UNKNOWN 写 seen | W6B | ADV-01～02 | 分页/版本 fixtures |
+1867:| FND-013 | 租户扫描固定分母、当前约漏 172 | W6C | TEN-01～08 | DMMF/AST/runtime probes |
+1868:| FND-014 | 性能 null/500/错误 p95 | W6D | PERF-01～06 | load profile/raw metrics |
+1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+1870:| FND-016 | 当前 43 ACCEPTED 缺要素 | W5 | MIG-02、RISK-01、COND-01/04/05 | risk acceptance events |
+1871:| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+1872:| FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+1873:| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+1874:| FND-020 | Skill/版本/枚举/数量/状态说明漂移 | W1/W10 | DOC-01～04 | consistency report |
+1875:| FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+1876:
+1877:脚本必须校验每个 `FND-*` 至少映射一个工作包、一个已定义测试 ID 和一个证据路径；每个高风险测试必须反向映射需求。481 条旧记录的逐项映射属于 W5 交付物，不在本方案验证阶段冒充已完成。
+1878:
+1879:## 25.1 全部验收 ID 的反向需求/AC 映射
+1880:
+1881:为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+1882:
+1883:| 测试 ID 范围 | 冻结需求 / AC | 工作包 | 必需证据类 |
+1884:|---|---|---|---|
+1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+1886:| AUTH-01～06 | REQ-AUTH-001 / AC-AUTH-ONE-TIME | W1/W2 | signed payload、replay log |
+1887:| ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+1888:| MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+1889:| STATE-01～11 | REQ-STATE-001 / AC-STATE-APPEND-ONLY | W1/W2 | event log、property/crash run |
+1890:| MIG-01～05 | REQ-MIG-001 / AC-MIG-RECONCILE | W5 | row mapping、decision、quarantine |
+1891:| DB-01～06 | REQ-DB-001 / AC-DB-FOUR-TRACK | W6C | catalog diff、DB identity |
+1892:| SC-01～05 | REQ-SC-001 / AC-SC-FAIL-CLOSED | W6B | audit JSON、SBOM、signature |
+1893:| ADV-01～02 | REQ-ADV-001 / AC-ADV-COMPLETE | W6B | pages/ranges fixture |
+1894:| TEN-01～08 | REQ-TENANT-001 / AC-TENANT-DENOMINATOR | W6C | DMMF/AST/runtime probes |
+1895:| PERF-01～06 | REQ-PERF-001 / AC-PERF-VALID | W6D | raw samples/profile/baseline auth |
+1896:| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+1897:| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+1898:| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+1899:| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+1900:| STOP-01～03 | REQ-STOP-001 / AC-STOP-AUTH-AND-FACT | W1/W2 | nine-type matrix/events |
+1901:| RUN-01～03 | REQ-RUNNER-001 / AC-RUNNER-ISOLATED | W2 | sandbox/quota/process-tree logs |
+1902:| CI-05～09 | REQ-CI-001 / AC-CI-TERMINAL | W3B | check runs/ruleset/DAG validation |
+1903:| COND-01～06 | REQ-COND-001 / AC-COND-NOT-PASS | W1/W2/W3B | risk/action auth、attestation、context |
+1904:| RISK-01 | REQ-RISK-001 / AC-RISK-INVALIDATE | W2/W5 | revoke/invalidate/reopen events |
+1905:| STA-01～02 | REQ-STATION-001 / AC-STATION-COVERAGE | W6A～W6D/W3B | station results/aggregate |
+1906:| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+1907:| RB-01 | REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT | W7B | preauthorization/compatibility/drill |
+1908:| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+1909:| HLT-01 | REQ-HEALTH-001 / AC-HEALTH-ATOMIC | W8 | input watermark/snapshot retry |
+1910:| DOC-01～04 | REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT | W1/W10 | generated consistency report |
+1911:| CAP-01 | REQ-CAP-001 / AC-CAP-SAFE-MARGIN | W0/W7A | peak budget/disk-full injection |
+1912:| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+1913:
+1914:机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+1915:
+1916:---
+1917:
+1918:# 26. ZCode 每个工作包的固定回报格式
+1919:
+1920:```text
+1921:工作包：W?
+1922:状态：候选完成 / 部分完成 / BLOCKED
+1923:正源与 SHA：
+1924:变更文件：
+1925:需求/AC/测试映射：
+1926:正向验证：命令、退出码、工件
+1927:负向验证：注入、预期、实际、工件
+1928:并发/崩溃/恢复验证：
+1929:未覆盖与豁免：
+1930:部署状态：未部署 / 候选 / 已授权部署
+1931:回滚级别：R1记录 / R2演练 / R3执行
+1932:用户停等动作：
+1933:独立复核结论：
+1934:```
+1935:
+1936:严禁只报“测试通过”“HTTP 200”“页面正常”“脚本存在”或一个总分。
+1937:
+1938:---
+1939:
+1940:# 27. 本方案自身验证要求
+1941:
+1942:在交付 ZCode 前必须完成：
+1943:
+1944:1. 当前路径、SHA、数值和运行状态复核；拟建路径明确标注为建议，不冒充已存在。
+1945:2. 发现→工作包→测试→证据追踪矩阵零孤儿。
+1946:3. 依赖 DAG 无环，所有高风险动作均能到达用户停等点。
+1947:4. 全文扫描越界措辞；不得把方案、候选或未授权动作写成已整改/已生产/零盲区。
+1948:5. Markdown UTF-8、标题、代码围栏、表格基本结构校验。
+1949:6. 独立红队复核安全架构、迁移、回滚和完成定义。
+1950:7. 输出文件 SHA256，确保交接后可验真。
+1951:
+1952:最终强调：**方案已验证，不等于整改已验证；当前生产准入结论仍为 BLOCKED。**
+1953:
+1954:---
+1955:
+1956:# 28. ZCode 首轮落刀靶点（快照锚点）
+1957:
+1958:下列行号已在本轮复核时确认存在，仅用于快速定位；ZCode 开工必须先按 W0 记录新 SHA/hash 并重新定位语义，禁止因行号漂移盲改。现役目录只读取证，修复落在对应版本化正源的干净 worktree；尚无远端的 `/Users/maccc/.zcode/quality-system` 先完成 W0 责任仓裁定。
+1959:
+1960:| 目标 | 本轮语义锚点 | 归属工作包 |
+1961:|---|---|---|
+1962:| `/Users/maccc/.wenqu/daemons/auto-merge.sh` | 34–46、68–75：Fast 子串/UNSTABLE/重试合流 | W0/W3B |
+1963:| `/Users/maccc/.zcode/quality-system/bin/pipeline-state.sh` | 34–93：自由状态、路径拼接、直接 clear | W1/W2/W5 |
+1964:| `/Users/maccc/.zcode/quality-system/bin/pending-watch.sh` | 51–68：文本协议、notify bump | W2/W4 |
+1965:| `/Users/maccc/.zcode/quality-system/bin/verify-convergence.py` | 55、100–112、121–179、225–263：N/自报结果/证据/超轮 | W2/W3B |
+1966:| `/Users/maccc/.wenqu/bin/iron-gate.sh` | 18–85：diff 错误传播和文本式检查 | W3A |
+1967:| `/Users/maccc/.wenqu/bin/zero-rework.sh` | 29–65：affected test/无测试分支 | W3A |
+1968:| `/Users/maccc/Documents/wenqu-dist/system/install.sh` | 13–25、49–52：原地复制并吞掉 doctor 失败 | W7A |
+1969:| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+1970:| `/Users/maccc/argus-assemble/scripts/bugscan/judge_drift.py` | 7–8：工具错误 exit 0/文本计数 | W6C |
+1971:| `/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh` | 39–47、63–88：远端错误/空 diff/恒 exit 0 | W4/W6C |
+1972:| `/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh` | 40–56、125–131：吞掉 npm audit 失败且恒 exit 0 | W4/W6B |
+1973:| `/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh` | 37–62：分页/seen/无 verdict gate | W4/W6B |
+1974:| `/Users/maccc/argus-assemble/scripts/bugscan/export-tenant-audit.mjs` | 18–85：固定模型/字符串启发式/心跳 | W6C |
+1975:| `/Users/maccc/argus-assemble/scripts/bugscan/perf-baseline-runner.sh` | 32–127：HTTP/SSH/null/p95/恒 exit 0 | W6D |
+1976:| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+1977:
+1978:首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+1979:
+1980:---
+1981:
+1982:# 29. 本方案实际验证结果
+1983:
+1984:已执行只读验证器：`/private/tmp/codex-test/evidence/reaudit-20261007/validate_plan.py`。验证对象为本文件，未执行任何合流、部署、服务启停、生产写、DDL、真实告警或回滚。
+1985:
+1986:| 验证面 | 实际结果 |
+1987:|---|---|
+1988:| UTF-8 / 控制字符 / front matter | PASS；严格 UTF-8，可解析 front matter，NUL=0 |
+1989:| Markdown 结构 | PASS；代码围栏成对，全部表格列数一致，标题/章节编号唯一，全部 § 引用有本地目标 |
+1990:| 占位符与越界措辞 | PASS；无未决占位标记；现态与方案边界固定为 BLOCKED/未整改 |
+1991:| 工作包引用 | PASS；W0～W10 及 W3A/B、W6A～D、W7A/B 均在允许集合，无未定义引用 |
+1992:| 依赖 DAG | PASS；机检拓扑无环，关键链为 W3A→W6A～D→W3B，W8→W7B→W9→W10 |
+1993:| 测试追踪 | PASS；§20 定义 131 个唯一测试 ID，§25.1 展开映射 131 个，集合完全相等、零重复、零悬空 |
+1994:| 复审发现族 | PASS；FND-001～FND-021 连续唯一，每行均有工作包、已定义测试和证据类 |
+1995:| 旧账边界 | PASS；481 仅为时点投影，明确由 W5 逐项 reconciliation，不冒充已完成 |
+1996:| 停等与授权不变量 | PASS；九类 stop 全部要求一次性授权+客观条件；technical/action eligibility、两类授权和 saga 关键不变量均存在 |
+1997:| 快照靶点 | PASS；§28 的 15 个绝对路径在验证时均存在；行号仍须 W0 重定位 |
+1998:| 本轮证据包 | PASS；`manifest.sha256` 所列工件逐项 SHA256 校验一致 |
+1999:| 独立复核 | PASS；问渠域、Bug 八站域和对抗红队分轮复核，阻断项已逐项回写后再验 |
+2000:
+2001:机器验证结果：**29/29 PASS，exit 0**。最终正文冻结后，以外置 `/private/tmp/codex-test/方案.md.sha256` 作为交接校验；不把自身 hash 嵌入正文，避免自引用失真。验证记录位于同一 evidence 目录。
+2002:
+2003:再次强调：这里通过的是**方案文件的一致性、追踪性和可执行性检查**，不是代码整改验收，不改变当前生产准入 `BLOCKED` 结论。
+== plan P1f anchors ==
+169:schema_version
+233:schema normalizer
+379:`BACKUP_VERIFIED` 表示一致性 checkpoint 已完成恢复抽验；`EXPANDED` 只允许已授权、幂等、前后兼容的 additive migration。`ROLLED_BACK` 为成功回切终态；`FAILED_BLOCKED`、`ROLLBACK_FAILED` 都是硬阻断终态，必须保留 current/现场、熔断 writer/合流/后续发布并停等用户，不得继续自动尝试。每次转换绑定 `deployment_id/release_id/previous_release_id/schema_version/writer_epoch/migration_lock_id/backup_id/authorization_id/state_version/evidence`。部署状态独立于任务 run 状态；destructive contract migration 使用独立状态机和独立后续授权，不得夹带在本次激活中。
+472:ddl:        database_identity + statement_digest + before/after_schema_hash + backup_id + rollback_plan_hash
+475:rollback:   failed_deployment_id + exact_previous_release_id + trigger + schema_compatibility_hash
+508:不能粗暴规定所有内层命令都必须 exit 0；例如“越权请求应被拒绝”的负例可以有非零内层退出码，但外层断言器必须 PASS。Gate 只消费 harness 的可信判定及其原始证据。
+567:| 4 行为 | E2E、真实浏览器、空态/失败态、业务断言 | trace/截图/DB 断言 |
+578:  "schema_version": "2.0",
+639:- 迁移不得先于 schema；
+725:schemas/run-event-v2.schema.json
+726:schemas/station-result-v2.schema.json
+727:schemas/finding-event-v2.schema.json
+728:schemas/evidence-v2.schema.json
+729:schemas/approval-v2.schema.json
+730:schemas/health-v2.schema.json
+739:治理文档必须由同一 machine registry/schema 生成或校验，修复当前漂移：
+904:1. 默认关闭；永久移除 `--admin` 和自动修改 PR 分支能力。
+1018:- `wait-list --jsonl` 带 `schema_version`；
+1137:每站必须冻结：入口、覆盖分母、工具/规则版本、PASS/FAIL/ERROR 判据、TTL、产物 schema、正负测试、责任仓和回滚方式。
+1148:| lane/profile | 不可移除最低集合 | 说明 |
+1173:- 站4：页面/路由/E2E 分母、真实浏览器、截图/trace 和业务断言完整度。
+1184:1. Git `schema.prisma`；
+1187:4. 生产只读 `pg_catalog/information_schema`。
+1189:规范化对象至少包括 schema、table、column(type/null/default)、PK、FK、unique、index、enum、check、trigger、migration history。
+1191:每轮 DB evidence 还必须记录：current database、server/version、schema、role、`transaction_read_only`、Prisma/PostgreSQL 版本、diff 方向、catalog scope、extension-owned object 处理策略、默认值/表达式/顺序规范化规则和 migration checksum。连错数据库、角色非只读、方向反转、未知对象类型均 BLOCKED。
+1193:迁移类变更还必须覆盖 fresh DB、代表性 legacy/minimal schema、前向迁移、迁移后审计以及失败后的回滚/恢复；只证明“看见漂移”不等于迁移安全。
+1224:1. 从 Prisma DMMF/schema 自动生成直接和关系间接租户模型分母，禁止硬编码 27 项。
+1286:built_at, builder, schema_version, policy_hash,
+1289:min_schema_version, max_schema_version,
+1298:2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+1300:4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+1302:6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+1304:8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+1306:10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+1307:11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+1310:并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+1320:- DB schema 与二进制不兼容；
+1502:2. 服务 restart 后 build/manifest/DB schema 对账；
+1515:- 更新 Skill 时同步版本、front matter、机器 schema、实际列表和回归；
+1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+1585:| STATE-01 | 任意 stage/status | schema 拒绝 |
+1630:| BAK-01 | 磁盘满/tar/backup 失败 | 不更新 success |
+1634:| UI-01 | 少一个闭合标签 | 构建/启动门失败 |
+1662:| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+1673:| SC-05 | 离线快照签名错误/过期/分页不全 | BLOCKED |
+1688:| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+1791:- 代码：current 原子切回上个**兼容 v2 schema**的 release；
+1830:  02-schemas-and-tla/
+1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+1873:| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+1875:| FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+1898:| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+1908:| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
