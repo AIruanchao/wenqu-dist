@@ -12,7 +12,7 @@
     "commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
     "commit_full": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
     "subject": "Merge pull request #10 from AIruanchao/wave6/p1f-gate",
-    "ci_conclusion": "in_progress（建档时点实查 in_progress；上一同型 run 37778240376=success，完成后须复核）",
+    "ci_conclusion": "success（双平台 matrix：macos-latest+ubuntu-latest 均 success，gh run view 实查 completed；建档时点曾 in_progress，2026-10-08T14:4xZ 复查转终态）",
     "ci_run_id": "37792468258",
     "ci_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37792468258",
     "note": "第七波终局建档：终 SHA 2bd59ab 制品四件套+索引 20/20 严格重建（PR#10 合流后；前值 07a9494）"
@@ -474,7 +474,7 @@
         "gh pr view 10 --json state,mergedAt,mergeCommit (实查)",
         "gh run view 37792468258 (实查)"
       ],
-      "real_rc": "PR state=MERGED；CI run 37792468258 结论=in_progress（建档时点实查 in_progress；上一同型 run 37778240376=success，完成后须复核）",
+      "real_rc": "PR state=MERGED；CI run 37792468258 结论=success（双平台 macos+ubuntu 均 success，终态实查）",
       "artifact_sha256": "a8edffafac59eb741419525f7cf6ddc6f691dc8fa8f7108b53d30fdfbdf3556e",
       "evidence_path": "tests/p1f-assert-baseline.txt",
       "fresh_until": "2026-10-22",
