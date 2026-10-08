@@ -2,10 +2,10 @@
   "artifact": "ac-state-mig",
   "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（A 组被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py，不依赖 wenqu_pipeline；B 组（STATE-02/05/09/11，wave6/P1F）被测体：wenqu_core/wenqu_pipeline.py）",
   "exit_code": 0,
-  "finished_at": "2026-10-08T10:13:38.893536+00:00",
+  "finished_at": "2026-10-08T10:23:46.624681+00:00",
   "fixture_note": "MIG 族旧账均为本测试内构造的小型合成旧账（临时目录），非生产账本；STATE-04 崩溃注入为真实 SIGKILL 子进程。",
-  "generated_at": "2026-10-08T10:13:38.893568+00:00",
-  "git_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+  "generated_at": "2026-10-08T10:23:46.624718+00:00",
+  "git_head": "95dff5e8fe95be8e92cadb71d42d07da3c30281f",
   "results": {
     "MIG-01": {
       "coverage_boundary": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
@@ -341,7 +341,7 @@
     }
   },
   "run_command": "python3 system/tests/test_ac_state_mig.py",
-  "started_at": "2026-10-08T10:13:35.438559+00:00",
+  "started_at": "2026-10-08T10:23:42.946223+00:00",
   "summary": {
     "failed": 0,
     "ids_total": 16,

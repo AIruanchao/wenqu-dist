@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ui-family",
-    "generated_at": "2026-10-08T10:15:54+00:00",
-    "repo_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+    "generated_at": "2026-10-08T10:24:38+00:00",
+    "repo_head": "95dff5e8fe95be8e92cadb71d42d07da3c30281f",
     "test_file": "system/tests/test_ac_ui_family.py",
     "probe_module": "system/wenqu_core/ui_probe.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",

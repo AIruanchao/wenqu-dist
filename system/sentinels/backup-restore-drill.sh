@@ -92,6 +92,11 @@ ev() {  # $1=event $2=file(空="-") $3=result $4=额外 JSON 片段（可空）
 T_START=$(_epoch)
 
 # ---- 语料收集（生产文件只读） -------------------------------------------
+# 跨平台工具（macOS shasum/stat -f vs GNU sha256sum/stat -c）
+_sha256() { if command -v /usr/bin/shasum >/dev/null 2>&1; then /usr/bin/shasum -a 256 "$@"; else sha256sum "$@"; fi; }
+_file_mtime() { local f="$1"; if stat -f %m "$f" >/dev/null 2>&1; then stat -f %m "$f"; else stat -c %Y "$f"; fi; }
+_file_size() { local f="$1"; if stat -f %z "$f" >/dev/null 2>&1; then stat -f %z "$f"; else stat -c %s "$f"; fi; }
+
 CORPUS_REL=()
 add_corpus() {  # $1=仓库内相对路径（存在且可读才入列）
   [ -f "$WENQU_ROOT/$1" ] && [ -r "$WENQU_ROOT/$1" ] && CORPUS_REL+=("$1")
@@ -104,7 +109,7 @@ latest_json() {  # $1=目录 → 最新 mtime 的 *.json 相对路径（无则�
   [ -d "$dir" ] || { echo ""; return; }
   for name in "$dir"/*.json; do
     [ -f "$name" ] || continue
-    m=$(/usr/bin/stat -f %m "$name" 2>/dev/null || echo 0)
+    m=$(_file_mtime "$name" 2>/dev/null || echo 0)
     if [ "$m" -gt "$bestm" ]; then bestm="$m"; best="${name#"$WENQU_ROOT"/}"; fi
   done
   echo "$best"
@@ -154,8 +159,8 @@ for rel in "${CORPUS_REL[@]}"; do
   mkdir -p "$LIVE/$(dirname "$rel")" "$BACKUP/$(dirname "$rel")"
   cp -p "$WENQU_ROOT/$rel" "$LIVE/$rel"   || fail "snapshot cp live $rel"
   cp -p "$WENQU_ROOT/$rel" "$BACKUP/$rel" || fail "snapshot cp backup $rel"
-  sha=$(/usr/bin/shasum -a 256 "$BACKUP/$rel" | awk '{print $1}')
-  size=$(/usr/bin/stat -f %z "$BACKUP/$rel")
+  sha=$(_sha256 "$BACKUP/$rel" | awk '{print $1}')
+  size=$(_file_size "$BACKUP/$rel")
   [ "$FIRST" -eq 1 ] || SNAP_JSON+=", "; FIRST=0
   SNAP_JSON+="{\"rel\": \"$rel\", \"sha256\": \"$sha\", \"size\": $size}"
   ev snapshot_file "$rel" true "\"sha256\": \"$sha\", \"size\": $size"
@@ -203,8 +208,8 @@ for rel in "${CORPUS_REL[@]}"; do
   if [ "$m" -eq 3 ]; then
     [ ! -e "$LIVE/$rel" ] || TAMPER_VERIFIED=0
   else
-    sha_now=$(/usr/bin/shasum -a 256 "$LIVE/$rel" 2>/dev/null | awk '{print $1}')
-    sha_old=$(/usr/bin/shasum -a 256 "$BACKUP/$rel" | awk '{print $1}')
+    sha_now=$(_sha256 "$LIVE/$rel" 2>/dev/null | awk '{print $1}')
+    sha_old=$(_sha256 "$BACKUP/$rel" | awk '{print $1}')
     [ "$sha_now" != "$sha_old" ] || TAMPER_VERIFIED=0
   fi
 done
@@ -225,8 +230,8 @@ BYTE_MATCH_ALL=1
 RECON_JSON="["
 FIRST=1
 for rel in "${CORPUS_REL[@]}"; do
-  sha_old=$(/usr/bin/shasum -a 256 "$BACKUP/$rel" | awk '{print $1}')
-  sha_now=$(/usr/bin/shasum -a 256 "$LIVE/$rel" | awk '{print $1}')
+  sha_old=$(_sha256 "$BACKUP/$rel" | awk '{print $1}')
+  sha_now=$(_sha256 "$LIVE/$rel" | awk '{print $1}')
   if cmp -s "$BACKUP/$rel" "$LIVE/$rel" && [ "$sha_now" = "$sha_old" ]; then match=true; else match=false; BYTE_MATCH_ALL=0; fi
   [ "$FIRST" -eq 1 ] || RECON_JSON+=", "; FIRST=0
   RECON_JSON+="{\"rel\": \"$rel\", \"cmp\": $match, \"sha_match\": $match, \"sha256\": \"$sha_now\"}"
