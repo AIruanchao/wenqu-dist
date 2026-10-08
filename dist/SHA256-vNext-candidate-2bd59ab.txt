@@ -1,0 +1,4 @@
+b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236  dist/wenqu-dist-2bd59ab.tar.gz
+cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7  dist/wenqu-dist-2bd59ab.manifest.json
+f47d8469c506f96828ac66a7f5895c481997acdc381fe2f9abc77bce2eb96205  dist/wenqu-dist-2bd59ab.release.sig
+398c015ff13d716933812922768e4019f04c47b454cc524e3194a674453544b5  dist/wenqu-dist-2bd59ab.sbom.spdx.json
