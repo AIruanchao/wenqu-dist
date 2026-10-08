@@ -1,0 +1,12 @@
+[started_utc=2026-10-08T06:18:14Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 12
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "12", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "深层 current 使用跨目录相对链接（攻击拓扑成立）", "link_value": "../../../release pool with spaces/20261008T061814Z-9b9d46f125e4", "ok": true}
+{"check": "v2 自检失败对外返回部署失败", "expected_exception": "DeployError", "observed": "DeployError: deploy failed at install self-check: SelfCheckError('install self-check returned falsy: False'); rolled back to /tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4; rollback self-check re-verified", "ok": true}
+{"active": "/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4", "check": "失败升级后 current 精确回到 v1", "expected": "/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4", "ok": true}
+{"check": "回滚目标内容健康", "ok": true}
+{"check": "v1 至少经历首次自检和回滚后再验", "ok": true, "self_check_calls": ["/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4", "/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-79f6ded3cd6c", "/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4", "/private/tmp/reaudit4-p12-cfrhi8vs/release pool with spaces/20261008T061814Z-9b9d46f125e4"]}
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "12", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "升级回滚：release 与深层 current 分离拓扑的相对链接回切"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:18:14Z]

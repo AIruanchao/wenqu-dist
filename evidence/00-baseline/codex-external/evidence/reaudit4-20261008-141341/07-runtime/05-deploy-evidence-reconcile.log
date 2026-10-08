@@ -1,0 +1,30 @@
+$ deployment evidence
+{
+  "entry": "P0-9 runtime deploy",
+  "time": "2026-10-08T13:32:22+08:00",
+  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+  "active_sha256_prefix": "72ba1db7",
+  "repo_candidate_sha256_prefix": "72ba1db7",
+  "match": true,
+  "restart": "launchctl unload+load com.wenqu.dashboard",
+  "new_pid": 64211,
+  "probes": {
+    "GET /api/health": 200,
+    "POST /api/decide (no auth)": "403 forbidden"
+  },
+  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+}EXIT=0
+$ candidate hash at merge baseline 5403220
+git_show_EXIT=0
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  /private/tmp/codex-test/evidence/reaudit4-20261008-141341/07-runtime/merge540-dashboard.py
+hash_EXIT=0
+$ backup read-only stat/hash
+/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008|size=90095|mode=-rwxr-xr-x|mtime=2026-10-08T00:26:16+0800
+stat_EXIT=0
+52aba1b580c809ada269060db9028e781214b8b772f300a1ebb6a5182cdda331  /Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008
+hash_EXIT=0
+$ identity comparisons
+/Users/maccc/.wenqu/bin/wenqu-dashboard.py 72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf prefix_match True
+system/bin/wenqu-dashboard.py 72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf prefix_match True
+recorded_pid 64211
+EXIT=0

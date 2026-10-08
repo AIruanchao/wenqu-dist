@@ -1,0 +1,12 @@
+gh api 'repos/AIruanchao/wenqu-dist/actions/runs/37732630449'
+EXIT=0
+{"id":37732630449,"event":"pull_request","status":"completed","conclusion":"success","head_branch":"wave4/p0-full-hardening","head_sha":"14600f829b6049775c6381cd1e7e7f52ec9fb460","created_at":"2026-10-08T05:29:28Z","updated_at":"2026-10-08T05:29:54Z","run_started_at":"2026-10-08T05:29:28Z","html_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37732630449"}
+gh api 'repos/AIruanchao/wenqu-dist/actions/runs/37732624290'
+EXIT=0
+{"id":37732624290,"event":"push","status":"completed","conclusion":"success","head_branch":"wave4/p0-full-hardening","head_sha":"14600f829b6049775c6381cd1e7e7f52ec9fb460","created_at":"2026-10-08T05:29:24Z","updated_at":"2026-10-08T05:29:51Z","run_started_at":"2026-10-08T05:29:24Z","html_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37732624290"}
+gh api 'repos/AIruanchao/wenqu-dist/actions/runs/37733100994'
+EXIT=0
+{"id":37733100994,"event":"pull_request","status":"completed","conclusion":"success","head_branch":"wave4/evidence-deploy","head_sha":"c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1","created_at":"2026-10-08T05:35:00Z","updated_at":"2026-10-08T05:35:31Z","run_started_at":"2026-10-08T05:35:00Z","html_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37733100994"}
+gh api 'repos/AIruanchao/wenqu-dist/actions/runs/37733093290'
+EXIT=0
+{"id":37733093290,"event":"push","status":"completed","conclusion":"success","head_branch":"wave4/evidence-deploy","head_sha":"c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1","created_at":"2026-10-08T05:34:54Z","updated_at":"2026-10-08T05:35:23Z","run_started_at":"2026-10-08T05:34:54Z","html_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37733093290"}

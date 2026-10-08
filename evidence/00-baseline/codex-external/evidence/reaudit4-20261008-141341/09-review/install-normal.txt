@@ -1,0 +1,30 @@
+timestamp=2026-10-08T14:16:15+08:00
+cwd=/tmp/wenqu-reaudit4-root.KV735X
+command=bash system/install.sh --prefix /tmp/wenqu-reaudit4-install.mGQYHi 
+--- stdout+stderr ---
+╔══════════════════════════════════════╗
+║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+╚══════════════════════════════════════╝
+目标：/tmp/wenqu-reaudit4-install.mGQYHi
+wenqu_core 全模块导入验证通过（15 模块）
+✓ wenqu_core 安装验证通过（全模块可导入，含 wenqu_pipeline）
+✓ PATH 已写入 /Users/maccc/.bashrc（新开终端生效）
+✓ 配置：/tmp/wenqu-reaudit4-install.mGQYHi/env（编辑后 wenqu doctor 校验）
+── 依赖探测 ──
+✓ git git version 2.39.5 (Apple Git-154)
+✓ python3 Python 3.13.13
+✓ node v22.23.2
+△ 缺 psql（仅影响 DB 类组件）
+△ 缺 psycopg2：pip3 install psycopg2-binary
+✓ TLA+ 工具链
+✓ Z3 定理证明器
+── 自检 ──
+△ doctor rc=1：全新安装未配置（容忍）——编辑 /tmp/wenqu-reaudit4-install.mGQYHi/env 后 wenqu doctor 复检
+
+安装完成。三步上手：
+  1. 编辑 /tmp/wenqu-reaudit4-install.mGQYHi/env —— 填你的仓库/DB/告警参数
+  2. cd 你的项目 && wenqu init      —— 初始化项目级质量体系
+  3. wenqu status                   —— 查看全组件状态
+
+--- end ---
+exit_code=0

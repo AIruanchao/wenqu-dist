@@ -1,0 +1,6 @@
+$ list workflows
+.github/workflows/acceptance.yml
+df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592  .github/workflows/acceptance.yml
+EXIT=0
+$ search adversarial/infra suite across workflows/scripts
+EXIT=2

@@ -1,0 +1,11 @@
+[started_utc=2026-10-08T06:17:37Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 03
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "03", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "字符串 ' FALSE ' 不能冒充客观布尔真值", "expected_exception": "ApprovalPreconditionError", "observed": "ApprovalPreconditionError: (\"objective precondition 'evidence_freshness_reverified' must be a real boolean, got str ' FALSE '（自报字符串/数字不作数）\", {'stop_type': 'ext-unavail', 'field': 'evidence_freshness_reverified', 'got_type': 'str'})", "ok": true}
+{"check": "假布尔拒绝后 run 保持 WAITING", "ok": true}
+{"check": "假布尔拒绝不占用 nonce", "ok": true}
+{"check": "真实 bool 正例可恢复", "ok": true}
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "03", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "未恢复资源：另一停等类型的大小写/空白字符串假布尔被拒"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:37Z]

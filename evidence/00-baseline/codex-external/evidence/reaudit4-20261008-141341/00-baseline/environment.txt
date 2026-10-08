@@ -1,0 +1,14 @@
+timestamp=20261008-141341
+cwd=/Users/maccc/Documents/wenqu-dist
+head=e4aba84c1dabe1342ea234321eea3d300bea24a5
+branch=main
+status_begin
+## main...origin/main
+status_end
+方案外部=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+方案仓内=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+报告第三轮外部=b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee
+os=26.5.1
+python=Python 3.13.13
+bash=GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)
+git=git version 2.39.5 (Apple Git-154)

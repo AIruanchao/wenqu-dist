@@ -1,0 +1,12 @@
+$ pwd
+/Users/maccc/Documents/wenqu-dist
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ git status --porcelain=v1 --untracked-files=all
+EXIT=0
+$ shasum -a 256 evidence/00-baseline/codex-external/方案.md /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+EXIT=0

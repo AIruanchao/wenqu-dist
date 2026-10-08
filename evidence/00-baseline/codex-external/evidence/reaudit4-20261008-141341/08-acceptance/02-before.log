@@ -1,0 +1,10 @@
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ git status --porcelain=v1 --untracked-files=all
+EXIT=0
+$ shasum -a 256 evidence/traceability-matrix.json
+0081439c8d25dd375079795ba3e2c3359b4d05a234d0ebf3ab88812b870dcd20  evidence/traceability-matrix.json
+EXIT=0
+$ git diff --exit-code
+EXIT=0

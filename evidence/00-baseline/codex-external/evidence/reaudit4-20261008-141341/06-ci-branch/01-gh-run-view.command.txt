@@ -1,0 +1,1 @@
+gh run view 37733159993 --repo AIruanchao/wenqu-dist --json attempt,conclusion,createdAt,databaseId,displayTitle,event,headBranch,headSha,jobs,name,number,startedAt,status,updatedAt,url,workflowDatabaseId,workflowName

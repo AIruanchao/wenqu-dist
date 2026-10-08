@@ -1,0 +1,7 @@
+timestamp=2026-10-08T14:15:39+08:00
+cwd=/tmp/wenqu-reaudit4-root.KV735X
+command=python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.py /tmp/wenqu-reaudit4-root.KV735X 
+--- stdout+stderr ---
+{'run_id': 'run_20261008T141539Z_9d0c7176', 'approval_consumptions': 0, 'reserved': 'RESERVED', 'started': 'STARTED', 'committed': 'COMMITTED', 'replayed_action': {'action_id': 'act_c8ba7c3d350e', 'action_type': 'release', 'action_target': 'production', 'action_state': 'COMMITTED', 'receipt': 'caller-self-asserted-receipt', 'reserved_at': '2026-10-08T06:15:39Z', 'started_at': '2026-10-08T06:15:39Z', 'committed_at': '2026-10-08T06:15:39Z'}}
+--- end ---
+exit_code=1

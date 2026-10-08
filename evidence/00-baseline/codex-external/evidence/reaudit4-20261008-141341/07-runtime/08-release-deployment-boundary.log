@@ -1,0 +1,100 @@
+$ frozen W7 release layout/manifest excerpt
+  1266	# 16. 工作包 W7：不可变制品、原子部署与运行身份
+  1267	
+  1268	W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+  1269	
+  1270	## 16.1 目标布局
+  1271	
+  1272	```text
+  1273	~/.local/share/wenqu/releases/<release-id>/
+  1274	~/.local/share/wenqu/current -> releases/<release-id>
+  1275	~/.config/wenqu/config.toml
+  1276	~/.local/state/wenqu/
+  1277	~/Library/Logs/Wenqu/
+  1278	```
+  1279	
+  1280	配置、秘密、状态和日志不得进入 release。
+  1281	
+  1282	## 16.2 Release manifest
+  1283	
+  1284	```text
+  1285	version, source_commit, quality_policy_commit, build_id,
+  1286	built_at, builder, schema_version, policy_hash,
+  1287	files[path,size,mode,sha256], artifact_sha256,
+  1288	python/node/runtime identity, dependency lock/SBOM hash,
+  1289	min_schema_version, max_schema_version,
+  1290	attestation/signature
+  1291	```
+  1292	
+  1293	缺件、多件、模式错误、额外未登记可执行文件或 hash 漂移均使安装失败。
+  1294	
+  1295	## 16.3 原子部署
+  1296	
+  1297	1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+  1298	2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+  1299	3. 使用独立临时 DB/state/config 做临时端口 smoke，禁止触发或接触生产 migration/DB/state；`/api/build` 对账；
+  1300	4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+  1301	5. 获取全局 deployment lease、唯一 writer fencing token 和 migration lock；任一锁不唯一或租约失效即 BLOCKED；
+  1302	6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+  1303	7. 仅执行已授权、可重入、向前向后兼容的 **expand migration**；保存逐语句 rc、前后 catalog diff、migration ledger 和 lock 身份；禁止夹带 destructive contract；
+  1304	8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+  1305	9. 原子 rename 成最终 release，再原子切换 `current` 并 restart；
+  1306	10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+  1307	11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+  1308	12. expand 后的字段/表至少保留完整观察与回滚窗口；只有所有 reader/writer 已迁移、旧版本回滚窗口被明确关闭、备份恢复再验证且另获生产 DDL 授权后，才能在独立变更中执行 contract migration。
+  1309	
+  1310	并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+  1311	
+  1312	安装器必须删除 `doctor || true`。doctor 非零、manifest 不符、linter 缺失均导致整次部署失败。禁止 `cp -R` 覆盖现役目录和保留幽灵文件。
+  1313	
+  1314	## 16.4 验收
+  1315	
+  1316	- manifest 缺/多文件、hash 错、版本错、额外脚本；
+  1317	- staging 中途 kill -9；
+  1318	- symlink 切换后启动失败；
+  1319	- 配置/状态被安装器覆盖；
+  1320	- DB schema 与二进制不兼容；
+  1321	- 回滚后 build API/PID/manifest 不一致；
+  1322	- 正源 dashboard 缺闭合标签或缺必需 linter。
+  1323	
+  1324	以上均必须拒绝部署或自动恢复。回滚演练后检查新事件未丢失。
+  1325	
+EXIT=0
+$ runtime active path identity
+-rwxr-xr-x@ 1 maccc  staff  91405 Oct  8 01:28 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+EXIT=0
+active_file_is_symlink=false
+$ expected W7 release root inventory
+/Users/maccc/.local/share/wenqu MISSING
+EXIT=0
+$ deploy evidence fields
+[
+  "active_file",
+  "active_sha256_prefix",
+  "backup",
+  "entry",
+  "match",
+  "new_pid",
+  "probes",
+  "repo_candidate_sha256_prefix",
+  "restart",
+  "time"
+]
+{
+  "entry": "P0-9 runtime deploy",
+  "time": "2026-10-08T13:32:22+08:00",
+  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+  "active_sha256_prefix": "72ba1db7",
+  "repo_candidate_sha256_prefix": "72ba1db7",
+  "match": true,
+  "restart": "launchctl unload+load com.wenqu.dashboard",
+  "new_pid": 64211,
+  "probes": {
+    "GET /api/health": 200,
+    "POST /api/decide (no auth)": "403 forbidden"
+  },
+  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+}
+EXIT=0
+$ current release archive/SBOM inventory
+EXIT=0

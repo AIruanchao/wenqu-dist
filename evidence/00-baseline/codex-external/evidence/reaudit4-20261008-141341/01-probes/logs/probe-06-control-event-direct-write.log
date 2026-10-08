@@ -1,0 +1,11 @@
+[started_utc=2026-10-08T06:17:45Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 06
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "06", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "公共 EventStore.append 拒绝伪造 SUPERSEDED 控制事件", "expected_exception": "ValueError", "observed": "ValueError: pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected via RunManager._emit with an internal seal; bare EventStore.append of control event_type is forbidden (got event_type='SUPERSEDED')", "ok": true}
+{"after": 2, "before": 2, "check": "入口拒绝无事件/状态副作用", "ok": true}
+{"check": "绕过公共 API 后哈希链本身仍可为真（攻击窗口成立）", "ok": true}
+{"check": "偷用另一事件 seal 的控制事件在重放层被拒", "expected_exception": "PipelineCorruptionError", "observed": "PipelineCorruptionError: event 'SUPERSEDED' (hash 2d9d5740f33032ab…) missing/invalid internal seal——事件流疑遭直写注入（Codex 实锤 #7）", "ok": true}
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "06", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "控制事件直写：公共入口拒绝，绕过入口的偷 seal 事件重放拒绝"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:45Z]

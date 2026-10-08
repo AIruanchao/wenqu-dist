@@ -1,0 +1,1 @@
+gh api repos/AIruanchao/wenqu-dist/commits/e4aba84c1dabe1342ea234321eea3d300bea24a5/check-runs -H 'Accept: application/vnd.github+json'

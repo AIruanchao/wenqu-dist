@@ -1,0 +1,64 @@
+$ plan W0-W10 headings/weights
+33:## 1.1 有效评分
+646:# 9. 工作包 W0：现场快照与危险面隔离
+714:# 10. 工作包 W1：契约、Schema、威胁模型、TLA 与红探针
+782:# 11. 工作包 W2：Trusted Runner、事件账本、授权与 CAS
+977:# 13. 工作包 W4：统一调度、Watchdog、Outbox 与备份
+1065:# 14. 工作包 W5：历史账本迁移与裁定
+1123:# 15. 工作包 W6：Bug 八站 Orchestrator 与扫描器重建
+1266:# 16. 工作包 W7：不可变制品、原子部署与运行身份
+1332:# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+1415:# 18. 工作包 W9：Shadow、Canary 与受控切换
+1476:# 19. 工作包 W10：14 天观察、回滚演练与战训收官
+1807:不得用总分作为放行门。只有以下硬条件全部达成才算最终闭环：
+1936:严禁只报“测试通过”“HTTP 200”“页面正常”“脚本存在”或一个总分。
+1969:| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+1991:| 工作包引用 | PASS；W0～W10 及 W3A/B、W6A～D、W7A/B 均在允许集合，无未定义引用 |
+EXIT=0
+$ plan relevant CI/deploy/evidence sections
+59:   - 完整 Gate 不是 required check。
+61:6. Bug 账本实时汇总：481 findings、24 OPEN、4 FIXING、172 FIXED、67 VERIFIED、158 CLOSED、43 ACCEPTED、13 OTHER。
+98:本轮证据包：`/private/tmp/codex-test/evidence/reaudit-20261007/`，索引为其 `manifest.sha256`。其中包含安全负向红探针、wenqu-dist 回归、health、branch required checks、运行/正源哈希、gatedoctor、waiting 和 launchctl 快照；它仍是本轮复审证据，不等同整改后的完整生产证据包。
+115:4. 合流只接受同一 head SHA 的全部 required checks，并另需 exact action authorization；不存在 admin 自动绕闸。
+128:| 发布后闭环完成 | 14 天观察、周任务两轮、强制季度演练、无假绿/漏告警/丢账 | 无限定范围的“绝对安全” |
+491:artifact_sha256, artifact_size, verdict, fresh_until
+496:`fresh_until` 由受保护 policy 按 `trusted_finished_at + policy_ttl` 计算，调用者和工件不得自行声明。Aggregator 每次读取都必须动态判断 evidence、ACCEPTED_RISK、EXM 是否过期；reopen/expiry scheduler 仅用于修正投影和通知，不能成为过期失效的唯一防线。
+526:│ planner → trusted runner → strict normalizer          │
+565:| 2 静态/供应链 | SAST、重复、依赖漏洞、lock、SBOM、安装脚本、来源策略 | 原始 JSON/SBOM/规则哈希 |
+630:W7B ──→ W9 shadow/canary/受控切换
+631:       └─W10 14 天观察、回滚演练与战训收官
+641:- branch protection 不得在聚合检查尚未稳定前错误放宽；
+664:   - branch protection/ruleset JSON；
+710:停止进程、卸载调度、撤销凭据、改 branch protection、改 live dashboard 均须用户逐项授权。
+906:3. 只认 branch protection/ruleset 实时枚举出的 required checks；名称精确匹配，禁止子串匹配。
+956:| required check 缺失/旧 SHA/同名伪造 | 禁止合流 |
+969:branch protection 保存 before JSON，但任何回滚不得恢复不安全规则。新聚合器故障时保持 required checks、暂停自动合流，改走人工受保护 PR；不得关闭检查换取可合流。
+1091:7. 输出守恒报告：源非空行数、合法 JSON 行数、事件数、候选 logical finding、fingerprint 冲突、有效导入、重复、quarantine、需重开项。481 仅是旧 dashboard 启发式折叠数，不能充当原始迁移分母。
+1098:- 481 finding 的 stable fingerprint 和生命周期；
+1161:- SAST、dupscan、持续修复五类、route 静态腿、供应链、Advisory、SBOM。
+1178:W6A～W6D 各自可 shadow 和回退为 BLOCKED，但不得回退为旧 scanner 的 PASS。
+1218:最少覆盖：生产/全依赖 audit、W1 policy 冻结的必需异源漏洞源（初始候选 OSV）、lockfile hash、name+version+integrity+resolved、Git/path/file 依赖、install scripts、SBOM、许可证/registry 策略、直接/传递依赖增删。
+1262:scanner 新版可逐站 shadow；失败时该站保持 BLOCKED，不能回退为旧 scanner 的 PASS。规则更新必须保留旧/新双跑对比证据。
+1288:python/node/runtime identity, dependency lock/SBOM hash,
+1371:每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+1397:## 17.5 Playwright/真实浏览器门
+1422:4. **全线 shadow：** 至少 14 天，覆盖两次周任务、14 次 nightly；季度任务用缩短计划强制模拟。
+1423:5. **低风险测试仓 canary：** 先只读 checks，再启用 GitHub 原生 merge queue；生产仓仍人工。
+1465:evidence/W9/shadow-comparison.jsonl
+1467:evidence/W9/canary-runs/
+1476:# 19. 工作包 W10：14 天观察、回滚演练与战训收官
+1480:至少连续 14 天：
+1779:2. 修改 GitHub branch protection/ruleset、App 权限和凭据；
+1794:- CI：故障时保持 required checks，转人工受保护 PR；
+1812:- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+1820:- shadow/canary/14 天观察窗达标；
+1839:  11-shadow-canary/
+1845:每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+1873:| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+1877:脚本必须校验每个 `FND-*` 至少映射一个工作包、一个已定义测试 ID 和一个证据路径；每个高风险测试必须反向映射需求。481 条旧记录的逐项映射属于 W5 交付物，不在本方案验证阶段冒充已完成。
+1892:| SC-01～05 | REQ-SC-001 / AC-SC-FAIL-CLOSED | W6B | audit JSON、SBOM、signature |
+1908:| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+1995:| 旧账边界 | PASS；481 仅为时点投影，明确由 W5 逐项 reconciliation，不冒充已完成 |
+EXIT=0

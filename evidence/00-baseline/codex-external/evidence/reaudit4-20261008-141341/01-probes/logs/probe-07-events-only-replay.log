@@ -1,0 +1,12 @@
+[started_utc=2026-10-08T06:17:48Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 07
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "07", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "源库 risk nonce 已消费", "ok": true}
+{"check": "仅复制 pipeline_events 后哈希链有效", "copied_rows": 3, "ok": true}
+{"check": "新库消费旁表确为空", "ok": true, "side_rows": 0}
+{"check": "重放由 APPROVAL_CONSUMED 事件还原 nonce 摘要", "ok": true}
+{"check": "旁表为空时同 risk nonce 仍由事件正源拒绝", "expected_exception": "ApprovalReuseError", "observed": "ApprovalReuseError: nonce already consumed (approval apr_reaudit4_p07 不可复用——不变量 #5, 事件正源已登记)", "ok": true}
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "07", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "仅事件重放：risk nonce 在旁表为空的新库仍保持已消费"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:48Z]

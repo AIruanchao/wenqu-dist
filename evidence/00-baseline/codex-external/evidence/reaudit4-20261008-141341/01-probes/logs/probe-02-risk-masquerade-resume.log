@@ -1,0 +1,14 @@
+[started_utc=2026-10-08T06:17:35Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 02
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "02", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "结构合法的 risk 信封投递到 resume API 被路由拒绝", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: consume() only accepts approval_type=resume; got 'risk'（risk/action 类走 consume_authorization）", "ok": true}
+SCHEMA_REJECTION=Additional properties are not allowed ('severity' was unexpected)
+{"check": "正式 approval-v2 Schema 拒绝混合 payload", "ok": true}
+{"check": "Broker 镜像校验也拒绝混合 payload", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: payload not closed for approval_type='resume': foreign/unknown fields ['severity']（判别联合互斥封闭）", "ok": true}
+{"check": "risk 路由/混合 payload 均未恢复 run", "ok": true}
+{"check": "拒绝路径无 nonce 消费副作用", "ok": true}
+{"check": "纯 resume 正例仍可恢复", "ok": true}
+PROBE_RESULT={"checks": 6, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "02", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "risk 冒充 resume：API 路由与 payload 判别联合双层拒绝"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:35Z]

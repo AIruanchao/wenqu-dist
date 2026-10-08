@@ -1,0 +1,22 @@
+$ git clone --no-hardlinks --branch main /Users/maccc/Documents/wenqu-dist /tmp/wenqu-reaudit4-trace20semantic.A3eXSx/repo
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ mutate §20 GATE-01 注入语义，保留 ID 不变
+EXIT=0
+$ git diff -- evidence/00-baseline/codex-external/方案.md
+diff --git "a/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md" "b/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+index 4ab71d8..83571fc 100644
+--- "a/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
++++ "b/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+@@ -1550,7 +1550,7 @@ evidence/W9/rollback-drill.md
+ 
+ | ID | 注入 | 期望 |
+ |---|---|---|
+-| GATE-01 | base ref 不存在/fetch 失败 | ERROR/BLOCKED |
++| GATE-01 | base ref 被攻击者替换后仍放行（语义篡改探针） | ERROR/BLOCKED |
+ | GATE-02 | 零测试、scope 未证明纯文档 | BLOCKED |
+ | GATE-03 | test runner/依赖缺失 | ERROR |
+ | GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+EXIT=0

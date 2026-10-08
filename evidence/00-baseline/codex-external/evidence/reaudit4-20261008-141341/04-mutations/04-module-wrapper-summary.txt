@@ -1,0 +1,3 @@
+02-module-core-wiring.log: EXIT=1
+03-module-pipeline.log: EXIT=1
+04-module-acceptance.log: EXIT=1

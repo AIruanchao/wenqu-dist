@@ -1,0 +1,4 @@
+unintended installer side effect restored: exact appended /tmp PATH line removed
+remaining bashrc:
+export PATH="/Users/maccc/.wenqu/bin:$PATH"
+export PATH="/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp.MRaaBStizX/wenqu-test/bin:$PATH"

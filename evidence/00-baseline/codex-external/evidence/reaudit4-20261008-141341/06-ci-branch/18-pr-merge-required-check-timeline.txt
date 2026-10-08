@@ -1,0 +1,16 @@
+live_required_contexts= ['matrix (ubuntu-latest)', 'matrix (macos-latest)']
+strict= True enforce_admins= True
+
+PR#1 head=14600f829b6049775c6381cd1e7e7f52ec9fb460 merge_commit=54032208b5486d4cbfa4e6bb480714b456588620 mergedAt=2026-10-08T05:30:20Z
+ check= ('matrix (ubuntu-latest)', 'SUCCESS', '2026-10-08T05:29:27Z', '2026-10-08T05:29:48Z', '37732624290')
+ check= ('matrix (macos-latest)', 'SUCCESS', '2026-10-08T05:29:31Z', '2026-10-08T05:29:50Z', '37732624290')
+ check= ('matrix (macos-latest)', 'SUCCESS', '2026-10-08T05:29:35Z', '2026-10-08T05:29:53Z', '37732630449')
+ check= ('matrix (ubuntu-latest)', 'SUCCESS', '2026-10-08T05:29:32Z', '2026-10-08T05:29:53Z', '37732630449')
+each_required_context_success_before_merge= {'matrix (ubuntu-latest)': True, 'matrix (macos-latest)': True} ALL= True
+
+PR#2 head=c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1 merge_commit=e4aba84c1dabe1342ea234321eea3d300bea24a5 mergedAt=2026-10-08T05:35:37Z
+ check= ('matrix (macos-latest)', 'SUCCESS', '2026-10-08T05:35:01Z', '2026-10-08T05:35:20Z', '37733093290')
+ check= ('matrix (ubuntu-latest)', 'SUCCESS', '2026-10-08T05:34:57Z', '2026-10-08T05:35:22Z', '37733093290')
+ check= ('matrix (ubuntu-latest)', 'SUCCESS', '2026-10-08T05:35:03Z', '2026-10-08T05:35:25Z', '37733100994')
+ check= ('matrix (macos-latest)', 'SUCCESS', '2026-10-08T05:35:06Z', '2026-10-08T05:35:30Z', '37733100994')
+each_required_context_success_before_merge= {'matrix (ubuntu-latest)': True, 'matrix (macos-latest)': True} ALL= True

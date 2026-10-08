@@ -1,0 +1,1 @@
+GitHub API/PR 原始响应已裁剪为任务所需字段；提交作者邮箱、签名、actor/profile 扩展未保留。

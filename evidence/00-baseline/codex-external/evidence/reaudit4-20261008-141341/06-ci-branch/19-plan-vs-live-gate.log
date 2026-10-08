@@ -1,0 +1,86 @@
+$ frozen plan contexts and enforcement requirements
+   902	最优默认是删除本地 auto-merge 写控制器，使用 GitHub 原生 merge queue/auto-merge 加 required ruleset；本机只读观察和告警。以下控制器要求只适用于平台能力确实不足、并经独立 ADR 批准的最小权限 GitHub App fallback，绝不再使用 shell daemon、个人 `gh` 或 admin token。
+   903	
+   904	1. 默认关闭；永久移除 `--admin` 和自动修改 PR 分支能力。
+   905	2. PASS 路径首选由已审计的 exact action authorization 触发 GitHub merge queue；CONDITIONAL 禁用 native auto-merge，只允许专用最小权限 App 在动作前重验并 enqueue/merge。
+   906	3. 只认 branch protection/ruleset 实时枚举出的 required checks；名称精确匹配，禁止子串匹配。
+   907	4. 每个 check 必须：
+   908	   - SUCCESS；
+   909	   - 对应当前 head SHA/merge-group SHA；
+   910	   - 在 freshness 窗口；
+   911	   - 来自 policy 钉扎的 GitHub App/integration ID、受保护 workflow/ref 和可信 details URL；仅名称相同不可信。
+   912	5. PR 必须非 draft、CLEAN、mergeable、审批/CODEOWNERS 满足、无 change request。
+   913	6. merge 前重新读取 head/base/ruleset，防 TOCTOU。
+   914	   - 优先只使用 GitHub merge queue；fallback controller 必须调用支持 expected head SHA/等价原子前置条件的 API，无法原子约束时不得直接 merge。
+   915	7. PENDING/SKIPPED/NEUTRAL/CANCELLED/UNSTABLE/DIRTY/UNKNOWN/API 错误全部不合流。
+   916	8. GitHub 429、超时、空 JSON 后断路和告警，不无限重试。
+   917	9. break-glass 只能由人对精确 PR+SHA+动作执行一次性、短 TTL 操作；自动程序既不持有也不能消费 bypass/admin 权限。
+   918	
+   919	## 12.5 CI Required Gate
+   920	
+   921	新增稳定 context：
+   922	
+   923	```text
+   924	Bugscan Required Gate
+   925	Wenqu Required Gate
+   926	Action Authorization Gate
+   927	```
+   928	
+   929	`Bugscan Required Gate` 聚合八站。问渠内部 S7 决策只消费 exact-SHA 的 S1～S6、`Bugscan Required Gate` 和其他冻结的 release inputs；`Wenqu Required Gate` 是 S7 的唯一外部输出，绝不能作为 S7 输入或被 S7 递归聚合。`Action Authorization Gate` 独立表达 §6.1 的 exact action authorization，不能由前两个技术 Gate 推导。三者必须由默认分支固定版本或外部受控 App 发布，冻结 GitHub App/integration ID、workflow commit、expected head/merge-group SHA；PR 不能通过修改自己的 workflow/manifest 自证通过。workflow/action 均钉 commit SHA，workflow 目录受 CODEOWNERS 保护。
+   930	
+   931	Ruleset 必须实际启用 CODEOWNERS review，而不是仅存在 CODEOWNERS 文件。聚合检查对普通 PR、fork PR、synchronize、reopened、merge_group、runner 不可用和 station result 缺失都必须产生明确终态；外部 aggregator 超时后发布 FAILURE/BLOCKED，不能永久 Pending 或根本不生成 check。
+   932	
+   933	经用户批准后，分支保护至少 required：
+   934	
+   935	```text
+   936	Fast (lint+tsc)
+   937	Bugscan Required Gate
+   938	Wenqu Required Gate
+   939	Action Authorization Gate
+   940	```
+   941	
+   942	删除：
+   943	
+   944	- `[skip-audit]`；
+   945	- `continue-on-error`；
+   946	- 工具失败后 warning+success；
+EXIT=0
+$ live required checks/reviews
+{
+  "required_status_checks": {
+    "url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks",
+    "strict": true,
+    "contexts": [
+      "matrix (ubuntu-latest)",
+      "matrix (macos-latest)"
+    ],
+    "contexts_url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts",
+    "checks": [
+      {
+        "context": "matrix (ubuntu-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "matrix (macos-latest)",
+        "app_id": 15368
+      }
+    ]
+  },
+  "enforce_admins": {
+    "url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins",
+    "enabled": true
+  },
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "required_conversation_resolution": {
+    "enabled": false
+  }
+}
+EXIT=0
+$ CODEOWNERS discovery
+EXIT=0
+$ workflow triggers and actions refs
+2:on: [push, pull_request, workflow_dispatch]
+10:      - uses: actions/checkout@v4
+11:      - uses: actions/setup-python@v5
+EXIT=0

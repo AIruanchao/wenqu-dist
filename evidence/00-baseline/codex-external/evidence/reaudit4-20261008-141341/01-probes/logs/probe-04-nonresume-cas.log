@@ -1,0 +1,11 @@
+[started_utc=2026-10-08T06:17:41Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 04
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "04", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "历史 state_version 的 risk 授权被 CAS 拒绝", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: state_version CAS failure（action 类授权同样不得跨状态版本）", "ok": true}
+{"after": 2, "before": 2, "check": "CAS 拒绝不推进 state_version", "ok": true}
+{"check": "CAS 拒绝不消费 risk nonce", "ok": true}
+{"check": "当前版本 risk 正例可消费", "ok": true}
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "04", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "非 resume CAS：风险授权的历史版本拒绝且不消费"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:41Z]

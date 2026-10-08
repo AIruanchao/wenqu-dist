@@ -1,0 +1,1424 @@
+# 第四轮 12 项探针：现役代码行证据（HEAD=e4aba84c1dabe1342ea234321eea3d300bea24a5）
+
+## P01/P02 envelope required、payload 封闭、HMAC 验签
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n '306,343p;1029,1203p;1355,1364p;1460,1469p'
+   306	_APPROVAL_SCHEMA_VERSION = "2.0"
+   307	#: 全部公共字段 required（Codex 实锤 #1：删除绑定字段+伪签名不可再过）
+   308	_APPROVAL_REQUIRED_TOP = (
+   309	    "schema_version", "approval_id", "approval_type", "key_id", "run_id",
+   310	    "task_id", "stop_event_id", "stop_type", "stage", "environment",
+   311	    "authorized_scope", "policy_hash", "ruleset_hash", "input_watermark",
+   312	    "expected_state_version", "actor", "issued_at", "expires_at", "nonce",
+   313	    "decision", "signature", "payload",
+   314	)
+   315	#: 键集封闭：envelope 不再有任何可选顶层字段
+   316	_APPROVAL_ALLOWED_TOP = frozenset(_APPROVAL_REQUIRED_TOP)
+   317	_APPROVAL_TYPES = frozenset({
+   318	    "resume", "risk", "merge", "release", "ddl", "prod_write",
+   319	    "fund_auth", "rollback",
+   320	})
+   321	_APPROVAL_DECISIONS = frozenset({"approve", "deny", "conditional"})
+   322	#: payload 判别封闭（Codex 实锤 #2）：每类 payload 的键集 = 专属字段全集，
+   323	# additionalProperties 语义——出现任何他类/未知字段即 ApprovalRejected。
+   324	_APPROVAL_PAYLOAD_DISCRIMINATOR: Dict[str, Tuple[str, ...]] = {
+   325	    "resume": ("stop_event_id", "stop_type", "objective_precondition_hash"),
+   326	    "risk": ("finding_fingerprints", "severity", "reason",
+   327	             "compensating_controls", "expiry"),
+   328	    "merge": ("repo_id", "base_sha", "head_sha", "merge_method"),
+   329	    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+   330	                "environment", "previous_release_id"),
+   331	    "ddl": ("database_identity", "statement_digest", "before_schema_hash",
+   332	            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+   333	    "prod_write": ("operation_digest", "data_scope_digest",
+   334	                   "idempotency_key", "conservation_hash"),
+   335	    "fund_auth": ("subject_role", "amount_scope_digest",
+   336	                  "positive_negative_test_hash", "audit_target"),
+   337	    "rollback": ("failed_deployment_id", "exact_previous_release_id",
+   338	                 "trigger", "schema_compatibility_hash"),
+   339	}
+   340	_APPROVAL_PAYLOAD_ALLOWED: Dict[str, frozenset] = {
+   341	    atype: frozenset(fields)
+   342	    for atype, fields in _APPROVAL_PAYLOAD_DISCRIMINATOR.items()
+   343	}
+  1029	    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+  1030	        if not isinstance(approval, Mapping):
+  1031	            raise ApprovalRejected("approval is not a JSON object")
+  1032	        ap = dict(approval)
+  1033	        for key in _APPROVAL_REQUIRED_TOP:
+  1034	            if key not in ap:
+  1035	                raise ApprovalRejected(f"missing required field: {key}")
+  1036	        unknown = sorted(set(ap) - _APPROVAL_ALLOWED_TOP)
+  1037	        if unknown:
+  1038	            raise ApprovalRejected(
+  1039	                "additional properties forbidden by schema",
+  1040	                {"unknown_fields": unknown},
+  1041	            )
+  1042	        if ap["schema_version"] != _APPROVAL_SCHEMA_VERSION:
+  1043	            raise ApprovalRejected(
+  1044	                f"schema_version must be {_APPROVAL_SCHEMA_VERSION!r}, "
+  1045	                f"got {ap['schema_version']!r}")
+  1046	        if not (isinstance(ap["approval_id"], str)
+  1047	                and ap["approval_id"].startswith("apr_")
+  1048	                and len(ap["approval_id"]) > 4
+  1049	                and all(c.isalnum() or c == "_" for c in ap["approval_id"][4:])):
+  1050	            raise ApprovalRejected(
+  1051	                "approval_id must match ^apr_[a-zA-Z0-9_]+$")
+  1052	        if ap["approval_type"] not in _APPROVAL_TYPES:
+  1053	            raise ApprovalRejected(
+  1054	                f"invalid approval_type {ap['approval_type']!r}; "
+  1055	                f"valid: {sorted(_APPROVAL_TYPES)}")
+  1056	        if ap["stop_type"] not in STOP_PRECONDITION_SPECS:
+  1057	            raise ApprovalRejected(
+  1058	                f"invalid stop_type {ap['stop_type']!r}; "
+  1059	                f"valid: {SevenStageStateMachine.stop_types()}")
+  1060	        if ap["decision"] not in _APPROVAL_DECISIONS:
+  1061	            raise ApprovalRejected(
+  1062	                f"invalid decision {ap['decision']!r}; "
+  1063	                f"valid: {sorted(_APPROVAL_DECISIONS)}")
+  1064	        if not (isinstance(ap["run_id"], str) and ap["run_id"]):
+  1065	            raise ApprovalRejected("run_id must be a non-empty string")
+  1066	        if not (isinstance(ap["task_id"], str) and ap["task_id"].strip()):
+  1067	            raise ApprovalRejected("task_id must be a non-empty string")
+  1068	        if not (isinstance(ap["stop_event_id"], str) and ap["stop_event_id"]):
+  1069	            raise ApprovalRejected("stop_event_id must be a non-empty string")
+  1070	        if ap["stage"] not in STAGES:
+  1071	            raise ApprovalRejected(
+  1072	                f"invalid stage {ap['stage']!r}; valid: {list(STAGES)}")
+  1073	        if ap["environment"] not in ENVIRONMENTS:
+  1074	            raise ApprovalRejected(
+  1075	                f"invalid environment {ap['environment']!r}; "
+  1076	                f"valid: {sorted(ENVIRONMENTS)}")
+  1077	        if not (isinstance(ap["authorized_scope"], str)
+  1078	                and ap["authorized_scope"].strip()):
+  1079	            raise ApprovalRejected(
+  1080	                "authorized_scope must be a non-empty string")
+  1081	        for hash_field in ("policy_hash", "ruleset_hash"):
+  1082	            if not (isinstance(ap[hash_field], str)
+  1083	                    and ap[hash_field].strip()):
+  1084	                raise ApprovalRejected(
+  1085	                    f"{hash_field} must be a non-empty string（绑定字段必填）")
+  1086	        # P0-4（Codex 实锤 #4）：watermark 必须 40-hex sha1——非 40 位不再
+  1087	        # 被当作"可跳过比较的可选字段"，结构层直接拒绝。
+  1088	        if not _is_sha1_hex(ap["input_watermark"]):
+  1089	            raise ApprovalRejected(
+  1090	                "input_watermark must be a 40-hex git sha（强制绑定 commit_sha）",
+  1091	                {"input_watermark": ap["input_watermark"]})
+  1092	        if ap["expected_state_version"] is None or not (
+  1093	            isinstance(ap["expected_state_version"], int)
+  1094	            and not isinstance(ap["expected_state_version"], bool)
+  1095	            and ap["expected_state_version"] >= 1
+  1096	        ):
+  1097	            raise ApprovalRejected("expected_state_version must be integer >= 1")
+  1098	        if not (isinstance(ap["actor"], str) and ap["actor"].strip()):
+  1099	            raise ApprovalRejected("actor must be a non-empty string")
+  1100	        if not (isinstance(ap["nonce"], str) and len(ap["nonce"]) >= 16):
+  1101	            raise ApprovalRejected("nonce must be a string of >= 16 chars")
+  1102	        # P0-4（Codex 实锤 #1）：signature 必须是 HMAC-SHA256 hex（64 位），
+  1103	        # 真实验签在 _verify_signature（keyring 查 key 重算比对）。
+  1104	        if not (isinstance(ap["signature"], str)
+  1105	                and len(ap["signature"]) == 64
+  1106	                and all(c in _HEX64 for c in ap["signature"].lower())
+  1107	                and ap["signature"] == ap["signature"].lower()):
+  1108	            raise ApprovalRejected(
+  1109	                "signature must be a lowercase 64-hex HMAC-SHA256")
+  1110	        if not (isinstance(ap["key_id"], str)
+  1111	                and ap["key_id"].startswith("key_")
+  1112	                and len(ap["key_id"]) > 4
+  1113	                and all(c.isalnum() or c in "-_" for c in ap["key_id"][4:])):
+  1114	            raise ApprovalRejected(
+  1115	                "key_id must match ^key_[a-zA-Z0-9_-]+$（验签密钥必填）")
+  1116	        for ts_field in ("issued_at", "expires_at"):
+  1117	            try:
+  1118	                _parse_iso_ts(ap[ts_field])
+  1119	            except ValueError as exc:
+  1120	                raise ApprovalRejected(
+  1121	                    f"invalid date-time in {ts_field}: {exc}") from None
+  1122	        if _parse_iso_ts(ap["expires_at"]) <= _parse_iso_ts(ap["issued_at"]):
+  1123	            raise ApprovalRejected("expires_at must be after issued_at")
+  1124	        # payload 判别封闭（Codex 实锤 #2）：键集 = 该 approval_type 的专属
+  1125	        # 字段全集——混入他类字段/未知字段即拒（schema additionalProperties=false）
+  1126	        payload = ap["payload"]
+  1127	        if not isinstance(payload, Mapping):
+  1128	            raise ApprovalRejected("payload must be a JSON object")
+  1129	        atype = ap["approval_type"]
+  1130	        required_payload = _APPROVAL_PAYLOAD_DISCRIMINATOR[atype]
+  1131	        allowed_payload = _APPROVAL_PAYLOAD_ALLOWED[atype]
+  1132	        stray = sorted(set(payload) - allowed_payload)
+  1133	        if stray:
+  1134	            raise ApprovalRejected(
+  1135	                f"payload not closed for approval_type={atype!r}: "
+  1136	                f"foreign/unknown fields {stray}（判别联合互斥封闭）",
+  1137	                {"foreign_fields": stray})
+  1138	        missing = [k for k in required_payload if k not in payload]
+  1139	        if missing:
+  1140	            raise ApprovalRejected(
+  1141	                f"payload discriminator mismatch for "
+  1142	                f"approval_type={atype!r}: missing {missing}")
+  1143	        # 非空校验：risk.finding_fingerprints 允许空列表（精确匹配语义：
+  1144	        # run 无可风险接受 finding 时授权必须声明空覆盖面），其余必非空
+  1145	        nonempty_fields = [k for k in required_payload
+  1146	                           if k != "finding_fingerprints"]
+  1147	        empty = [k for k in nonempty_fields if not _truthy(payload.get(k))]
+  1148	        if empty:
+  1149	            raise ApprovalRejected(
+  1150	                "payload discriminator fields must be non-empty",
+  1151	                {"empty_fields": empty},
+  1152	            )
+  1153	        if atype == "resume":
+  1154	            if not _is_sha256_hex(payload.get("objective_precondition_hash")):
+  1155	                raise ApprovalRejected(
+  1156	                    "payload.objective_precondition_hash must be sha256 hex (64)")
+  1157	            if payload.get("stop_type") != ap["stop_type"]:
+  1158	                raise ApprovalRejected(
+  1159	                    "payload.stop_type conflicts with top-level stop_type")
+  1160	            if payload.get("stop_event_id") != ap["stop_event_id"]:
+  1161	                raise ApprovalRejected(
+  1162	                    "payload.stop_event_id conflicts with top-level stop_event_id")
+  1163	        if atype == "risk":
+  1164	            fps = payload.get("finding_fingerprints")
+  1165	            if (not isinstance(fps, list)
+  1166	                    or not all(isinstance(f, str) and f.strip() for f in fps)):
+  1167	                raise ApprovalRejected(
+  1168	                    "payload.finding_fingerprints must be a list of "
+  1169	                    "non-empty strings")
+  1170	            if payload.get("severity") not in _SEVERITIES:
+  1171	                raise ApprovalRejected(
+  1172	                    f"invalid risk severity {payload.get('severity')!r}; "
+  1173	                    f"valid: {sorted(_SEVERITIES)}")
+  1174	            if not (isinstance(payload.get("compensating_controls"), list)
+  1175	                    and all(isinstance(c, str) and c.strip()
+  1176	                            for c in payload["compensating_controls"])):
+  1177	                raise ApprovalRejected(
+  1178	                    "payload.compensating_controls must be a list of "
+  1179	                    "non-empty strings")
+  1180	            try:
+  1181	                _parse_iso_ts(payload["expiry"])
+  1182	            except ValueError as exc:
+  1183	                raise ApprovalRejected(
+  1184	                    f"invalid date-time in payload.expiry: {exc}") from None
+  1185	        if atype == "release" and payload.get("environment") not in ENVIRONMENTS:
+  1186	            raise ApprovalRejected(
+  1187	                f"invalid payload.environment {payload.get('environment')!r}")
+  1188	        return ap
+  1189	
+  1190	    # ------------------------------------------------------------------ #
+  1191	    # P0-4：HMAC-SHA256 真实验签（Codex 实锤 #1/#4）
+  1192	    # ------------------------------------------------------------------ #
+  1193	    def _verify_signature(self, ap: Mapping[str, Any]) -> None:
+  1194	        key_id = ap.get("key_id")
+  1195	        if not self._keyring.has(key_id):
+  1196	            raise ApprovalRejected(
+  1197	                f"unknown signing key_id {key_id!r}（未登记的签发密钥一律拒）",
+  1198	                {"key_id": key_id,
+  1199	                 "known_keys": self._keyring.key_ids()})
+  1200	        if not self._keyring.verify(ap):
+  1201	            raise ApprovalRejected(
+  1202	                "HMAC-SHA256 signature verification failed（伪签名拒绝）",
+  1203	                {"key_id": key_id, "approval_id": ap.get("approval_id")})
+  1355	                                    本方法负责打 seal 后链式插入）；
+  1356	            objective_preconditions —— 客观前置条件（将对其做规格校验+哈希比对）。
+  1357	        """
+  1358	        ap = self.validate_structure(approval)          # 1. 结构（纯函数）
+  1359	        self._verify_signature(ap)                      # 2. HMAC 真实验签
+  1360	        if ap["approval_type"] != "resume":             # 3. API 路由判别
+  1361	            raise ApprovalRejected(
+  1362	                f"consume() only accepts approval_type=resume; got "
+  1363	                f"{ap['approval_type']!r}（risk/action 类走 consume_authorization）")
+  1364	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1460	        ap = self.validate_structure(approval)
+  1461	        self._verify_signature(ap)
+  1462	        if ap["approval_type"] == "resume":
+  1463	            raise ApprovalRejected(
+  1464	                "resume 审批必须经 consume() 与停等事件绑定消费")
+  1465	        if ap["approval_type"] != expected_approval_type:
+  1466	            raise ApprovalRejected(
+  1467	                f"authorization route mismatch: expected approval_type="
+  1468	                f"{expected_approval_type!r}, got {ap['approval_type']!r}")
+  1469	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+
+## P03 停等布尔前置
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n '284,297p;762,810p'
+   284	    "resource": {
+   285	        "description": "一次性恢复授权 + 资源探针恢复并满足安全余量",
+   286	        "required": (("resource_probe_ref", "probe_recovered",
+   287	                      "safety_margin_met"),),
+   288	        "any_of": (),
+   289	        "bool_fields": ("probe_recovered", "safety_margin_met"),
+   290	    },
+   291	    "ext-unavail": {
+   292	        "description": "一次性恢复授权 + 外部依赖健康探针恢复并重验证据新鲜度",
+   293	        "required": (("dependency_probe_ref", "probe_recovered",
+   294	                      "evidence_freshness_reverified"),),
+   295	        "any_of": (),
+   296	        "bool_fields": ("probe_recovered", "evidence_freshness_reverified"),
+   297	    },
+   762	    def validate_preconditions(
+   763	        cls, stop_type: str, supplied: Optional[Mapping[str, Any]]
+   764	    ) -> Dict[str, Any]:
+   765	        """校验客观前置条件是否齐备（必要条件的客观半边）。
+   766	
+   767	        - supplied 必须是非空映射；
+   768	        - spec.required 的每个键组内所有键必须存在且取值非空；
+   769	        - spec.any_of 至少一组全部非空（exm-fuse 的"实际解除或独立裁定"）；
+   770	        - P0-4 加固（Codex 实锤 #3）：spec.bool_fields 语义为布尔客观事实，
+   771	          取值必须是真正的 bool——字符串 "false"/"yes"、数字 1 等自报值
+   772	          一律 ApprovalPreconditionError（真 false 视为不满足，同规格拒绝）。
+   773	        返回规范化副本；任何缺失即抛 ApprovalPreconditionError。
+   774	        """
+   775	        spec = cls.precondition_spec(stop_type)
+   776	        if not isinstance(supplied, Mapping) or not supplied:
+   777	            raise ApprovalPreconditionError(
+   778	                "objective preconditions missing/empty",
+   779	                {"stop_type": stop_type, "spec": spec["description"]},
+   780	            )
+   781	        supplied = dict(supplied)
+   782	        missing: List[str] = []
+   783	        for group in spec["required"]:
+   784	            missing.extend(k for k in group if not _truthy(supplied.get(k)))
+   785	        if missing:
+   786	            raise ApprovalPreconditionError(
+   787	                "objective preconditions not satisfied",
+   788	                {"stop_type": stop_type, "missing_keys": sorted(set(missing)),
+   789	                 "spec": spec["description"]},
+   790	            )
+   791	        for alternatives in spec["any_of"]:
+   792	            if not any(all(_truthy(supplied.get(k)) for k in group)
+   793	                       for group in alternatives):
+   794	                raise ApprovalPreconditionError(
+   795	                    "objective preconditions not satisfied (no alternative met)",
+   796	                    {"stop_type": stop_type,
+   797	                     "any_of": [list(g) for group in alternatives for g in [group]],
+   798	                     "spec": spec["description"]},
+   799	                )
+   800	        # P0-4：bool 类字段客观化——非 bool（含 "false"/"yes"/1）即拒
+   801	        for bool_key in spec.get("bool_fields", ()):  # type: ignore[union-attr]
+   802	            if bool_key in supplied and not isinstance(supplied[bool_key], bool):
+   803	                raise ApprovalPreconditionError(
+   804	                    f"objective precondition {bool_key!r} must be a real "
+   805	                    f"boolean, got {type(supplied[bool_key]).__name__} "
+   806	                    f"{supplied[bool_key]!r}（自报字符串/数字不作数）",
+   807	                    {"stop_type": stop_type, "field": bool_key,
+   808	                     "got_type": type(supplied[bool_key]).__name__},
+   809	                )
+   810	        return supplied
+
+## P04 risk CAS 与 P05 双轴/risk/P1 终态
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n '819,868p;1471,1542p;2291,2368p'
+   819	    def validate_outcome(execution_status: str, policy_verdict: str,
+   820	                         findings: Sequence[str] = ()) -> None:
+   821	        if execution_status not in EXECUTION_STATUSES:
+   822	            raise InvalidOutcomeError(
+   823	                f"invalid execution_status {execution_status!r}; "
+   824	                f"valid: {sorted(EXECUTION_STATUSES)}")
+   825	        if policy_verdict not in POLICY_VERDICTS:
+   826	            raise InvalidOutcomeError(
+   827	                f"invalid policy_verdict {policy_verdict!r}; "
+   828	                f"valid: {sorted(POLICY_VERDICTS)}")
+   829	        # 契约 §2：阻断态不得折算为 PASS——执行非 COMPLETED 时策略不得 PASS
+   830	        if policy_verdict == "PASS" and execution_status != "COMPLETED":
+   831	            raise InvalidOutcomeError(
+   832	                f"policy PASS requires execution COMPLETED, got {execution_status}"
+   833	            )
+   834	        # 契约 §7 退出码语义：有 findings 即非 0——PASS 不得携带 findings
+   835	        if policy_verdict == "PASS" and findings:
+   836	            raise InvalidOutcomeError(
+   837	                f"policy PASS cannot carry findings ({len(findings)} present); "
+   838	                f"至少应为 CONDITIONAL/FAIL"
+   839	            )
+   840	
+   841	    @staticmethod
+   842	    def verdict_to_attempt_status(policy_verdict: str) -> str:
+   843	        """双轴 verdict → 段终态（契约 §2 从严映射：只有 PASS 是 PASSED）。
+   844	
+   845	        注意：本方法只看策略轴；执行轴的强约束由
+   846	        :meth:`outcome_to_attempt_status` 承担（P0-4 Codex 实锤 #6 根修：
+   847	        execution 非 COMPLETED 不得产出任何完成态，含软终态）。
+   848	        """
+   849	        if policy_verdict == "PASS":
+   850	            return ATTEMPT_PASSED
+   851	        if policy_verdict in ("CONDITIONAL", "NOT_APPLICABLE"):
+   852	            # CONDITIONAL ≠ PASS（契约 §2）；N/A 仅由受保护 applicability rule
+   853	            # 生成，执行完成但策略未判过——均入软终态，不得放行后段。
+   854	            return ATTEMPT_COMPLETED_CONDITIONAL
+   855	        return ATTEMPT_FAILED  # FAIL / NOT_EVALUATED
+   856	
+   857	    @staticmethod
+   858	    def outcome_to_attempt_status(execution_status: str,
+   859	                                  policy_verdict: str) -> str:
+   860	        """双轴 → 段终态（P0-4 Codex 实锤 #6 根修）。
+   861	
+   862	        执行非 COMPLETED（ERROR/BLOCKED/TIMEOUT/CANCELLED）一律 FAILED——
+   863	        TIMEOUT+CONDITIONAL 之类的"双轴洗白"不再可能映射成软终态，
+   864	        进而在 complete_run 也不可能产出 COMPLETED_CONDITIONAL。
+   865	        """
+   866	        if execution_status != "COMPLETED":
+   867	            return ATTEMPT_FAILED
+   868	        return SevenStageStateMachine.verdict_to_attempt_status(policy_verdict)
+  1471	        def _binding(ap: Mapping[str, Any], state: RunState) -> None:
+  1472	            if ap["decision"] != "approve":
+  1473	                raise ApprovalRejected(
+  1474	                    f"decision {ap['decision']!r} 不足以授权（须 approve）")
+  1475	            issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+  1476	            expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+  1477	            if not (issued <= now < expires):
+  1478	                raise ApprovalRejected(
+  1479	                    "approval outside TTL window",
+  1480	                    {"now": now, "expires_at_epoch": expires})
+  1481	            if ap["run_id"] != state.run_id:
+  1482	                raise ApprovalRejected(
+  1483	                    "run_id mismatch",
+  1484	                    {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+  1485	            if ap["task_id"] != state.task_id:
+  1486	                raise ApprovalRejected(
+  1487	                    "task_id mismatch",
+  1488	                    {"approval_task_id": ap["task_id"],
+  1489	                     "run_task_id": state.task_id})
+  1490	            if state.terminal:
+  1491	                raise ApprovalRejected(
+  1492	                    "run is terminal; authorization has no target",
+  1493	                    {"run_state": state.state})
+  1494	            ident = state.identity
+  1495	            if ap["environment"] != ident["environment"]:
+  1496	                raise ApprovalRejected("environment mismatch（审批不得跨环境）")
+  1497	            if ap["authorized_scope"] != ident["scope_hash"]:
+  1498	                raise ApprovalRejected(
+  1499	                    "authorized_scope != run scope_hash（审批不得扩范围）")
+  1500	            if ap["policy_hash"] != ident.get("policy_hash"):
+  1501	                raise ApprovalRejected(
+  1502	                    "policy_hash mismatch（审批必须绑定 run policy）")
+  1503	            if ap["ruleset_hash"] != ident.get("ruleset_hash"):
+  1504	                raise ApprovalRejected(
+  1505	                    "ruleset_hash mismatch（审批必须绑定 run 规则集）")
+  1506	            # 无条件比较（结构层已强制 40-hex）
+  1507	            if ap["input_watermark"] != ident["commit_sha"]:
+  1508	                raise ApprovalRejected(
+  1509	                    "input_watermark != run commit_sha（审批不得跨 SHA）")
+  1510	            # stage exact 绑定：须锚定 run 当前活跃段（全 PASSED 时锚定末段）
+  1511	            anchor_stage = (state.current_stage if state.current_stage is not None
+  1512	                            else STAGES[-1])
+  1513	            if ap["stage"] != anchor_stage:
+  1514	                raise ApprovalRejected(
+  1515	                    "stage mismatch（授权必须锚定 run 当前活跃段）",
+  1516	                    {"approval_stage": ap["stage"], "anchor_stage": anchor_stage})
+  1517	            # P0-4（Codex 实锤 #5）：action 类授权同样强制 state_version CAS
+  1518	            if ap["expected_state_version"] != state.state_version:
+  1519	                raise ApprovalRejected(
+  1520	                    "state_version CAS failure（action 类授权同样不得跨状态版本）",
+  1521	                    {"expected": ap["expected_state_version"],
+  1522	                     "actual": state.state_version})
+  1523	
+  1524	        def _risk_semantics(ap: Mapping[str, Any], state: RunState) -> None:
+  1525	            """risk 专属：HIGH/CRITICAL 机器拒绝 + 指纹与登记面精确匹配。"""
+  1526	            severity = ap["payload"]["severity"]
+  1527	            if severity in _RISK_REFUSED_SEVERITIES:
+  1528	                raise ApprovalRejected(
+  1529	                    f"severity {severity} 不可风险接受（P0/P1 不得风险接受"
+  1530	                    "——机器拒绝，无人工豁免）",
+  1531	                    {"severity": severity})
+  1532	            eligible = sorted({
+  1533	                f["fingerprint"] for f in state.findings.values()
+  1534	                if f.get("severity") in _RISK_ACCEPTABLE_SEVERITIES
+  1535	                and f.get("priority") in _RISK_ACCEPTABLE_PRIORITIES})
+  1536	            claimed = sorted(set(ap["payload"]["finding_fingerprints"]))
+  1537	            if claimed != eligible:
+  1538	                raise ApprovalRejected(
+  1539	                    "risk payload.finding_fingerprints 必须与 run 实际"
+  1540	                    "可风险接受 finding 指纹精确匹配",
+  1541	                    {"claimed": claimed, "run_eligible": eligible})
+  1542	
+  2291	    def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
+  2292	                     reason: str = "", actor: str = "system") -> Dict[str, Any]:
+  2293	        """终态判定（契约 §3/§5 映射到 run-event-v2 双轴）：
+  2294	        七段全 PASSED → SUCCEEDED；末段软终态 + 已消费未过期 risk 授权 →
+  2295	        COMPLETED_CONDITIONAL（无授权即 fail-closed 拒绝）；其余 → FAILED。
+  2296	        WAITING 中的 run 不得直接 complete（先 resume/cancel）。
+  2297	        """
+  2298	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  2299	            state = self._load_state(run_id, conn)
+  2300	            self._require_mutable(state)
+  2301	            if state.state == RUN_WAITING_S:
+  2302	                raise PipelineError(
+  2303	                    f"run {run_id} WAITING——先 resume_waiting 或 cancel_run")
+  2304	            statuses = state.stage_statuses()
+  2305	            all_passed = all(v == ATTEMPT_PASSED for v in statuses.values())
+  2306	            soft = [s for s, v in statuses.items()
+  2307	                    if v == ATTEMPT_COMPLETED_CONDITIONAL]
+  2308	            unfinished = [s for s, v in statuses.items()
+  2309	                          if v in (ATTEMPT_PENDING, ATTEMPT_RUNNING,
+  2310	                                   ATTEMPT_FAILED, ATTEMPT_WAITING)]
+  2311	            if all_passed:
+  2312	                final, execution, verdict = (
+  2313	                    RUN_SUCCEEDED_S, "COMPLETED", "PASS")
+  2314	                terminal_reason = reason or "七段全 PASSED"
+  2315	            elif soft and not unfinished:
+  2316	                # P0-4（Codex 实锤 #6 根修）：run 登记面带 P0/P1/CRITICAL/HIGH
+  2317	                # finding 时机器拒绝——P0/P1 不得风险接受，无人工豁免路径。
+  2318	                severe = {fid: f for fid, f in state.findings.items()
+  2319	                          if f.get("severity") in _RISK_REFUSED_SEVERITIES
+  2320	                          or f.get("priority") in _RISK_REFUSED_PRIORITIES}
+  2321	                if severe:
+  2322	                    raise PipelineError(
+  2323	                        f"run {run_id} 存在不可风险接受 finding "
+  2324	                        f"{sorted(severe)}（P0/P1/CRITICAL/HIGH）——"
+  2325	                        f"COMPLETED_CONDITIONAL 机器拒绝（P0/P1 不得风险接受）")
+  2326	                # risk 授权以事件流为正源（state.risk_authorizations 由
+  2327	                # APPROVAL_CONSUMED 折叠而来），且指纹必须与当前可风险接受
+  2328	                # finding 面精确匹配（防过期授权/移花接木的覆盖）。
+  2329	                eligible = sorted({
+  2330	                    f["fingerprint"] for f in state.findings.values()
+  2331	                    if f.get("severity") in _RISK_ACCEPTABLE_SEVERITIES
+  2332	                    and f.get("priority") in _RISK_ACCEPTABLE_PRIORITIES})
+  2333	                now = _utc_now_epoch()
+  2334	                risk = None
+  2335	                for auth in state.risk_authorizations:
+  2336	                    try:
+  2337	                        unexpired = (_parse_iso_ts(auth["expires_at"]).timestamp()
+  2338	                                     > now)
+  2339	                    except (ValueError, TypeError):
+  2340	                        continue
+  2341	                    if unexpired and sorted(auth["finding_fingerprints"]) == eligible:
+  2342	                        risk = auth
+  2343	                        break
+  2344	                if risk is None or (risk_approval_id is not None
+  2345	                                    and risk["approval_id"] != risk_approval_id):
+  2346	                    raise PipelineError(
+  2347	                        f"run {run_id} 存在软终态段 {soft} 但无可用的已消费、"
+  2348	                        f"未过期且指纹精确匹配的 risk 授权——"
+  2349	                        f"COMPLETED_CONDITIONAL fail-closed")
+  2350	                final, execution, verdict = (
+  2351	                    RUN_COMPLETED_CONDITIONAL_S, "COMPLETED", "CONDITIONAL")
+  2352	                terminal_reason = reason or (
+  2353	                    f"risk authorization {risk['approval_id']} active; "
+  2354	                    f"soft stages: {soft}")
+  2355	            else:
+  2356	                if state.state == RUN_CREATED_S:
+  2357	                    raise InvalidTransitionError(
+  2358	                        "run", RUN_CREATED_S, RUN_FAILED_S)
+  2359	                final, execution, verdict = RUN_FAILED_S, "COMPLETED", "FAIL"
+  2360	                terminal_reason = reason or (
+  2361	                    f"unfinished/failed stages: {unfinished or soft}")
+  2362	            # 双轴终态事件合法性自证（非 COMPLETED 不得 PASS 等）
+  2363	            SevenStageStateMachine.validate_outcome(execution, verdict)
+  2364	            event = self._base_event(
+  2365	                "RUN_COMPLETED", state, execution, verdict, actor=actor,
+  2366	                state_version=state.state_version + 1,
+  2367	                terminal_reason=terminal_reason)
+  2368	            event_hash = self._emit(conn, state, event)  # 折叠内校验终态转换
+
+## P06 控制事件入口守卫 + 重放 seal
+$ nl -ba system/wenqu_core/store.py | sed -n '25,51p;108,162p'
+    25	# ---------------------------------------------------------------------- #
+    26	# P0-4 加固（Codex 实锤 #7）：管线控制事件写入口守卫。
+    27	# wenqu_pipeline 的控制事件（RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/
+    28	# ACTION_*/FINDING_*/SUPERSEDED）只允许经 RunManager._emit 注入——事件
+    29	# 携带内部 HMAC seal，重放时逐条验封。公共 EventStore.append 对控制类型
+    30	# 一律 ValueError：裸 append 注入 RUN_COMPLETED/PASS 伪造终态的路径就此关闭。
+    31	# 外部普通事件（无控制 event_type）保持完全可用。
+    32	# ---------------------------------------------------------------------- #
+    33	
+    34	#: 控制事件类型前缀（与 wenqu_pipeline 事件词表对齐）
+    35	CONTROL_EVENT_TYPE_PREFIXES: Tuple[str, ...] = (
+    36	    "RUN_", "STAGE_", "ATTEMPT_", "WAITING_", "APPROVAL_",
+    37	    "ACTION_", "FINDING_",
+    38	)
+    39	#: 不带前缀的控制事件类型（精确枚举）
+    40	CONTROL_EVENT_TYPE_EXACT: Tuple[str, ...] = ("SUPERSEDED",)
+    41	
+    42	
+    43	def is_control_event(event: Any) -> bool:
+    44	    """判定事件是否为 wenqu_pipeline 控制事件（按 event_type 前缀/枚举）。"""
+    45	    if not isinstance(event, dict):
+    46	        return False
+    47	    etype = event.get("event_type")
+    48	    if not isinstance(etype, str):
+    49	        return False
+    50	    return (etype in CONTROL_EVENT_TYPE_EXACT
+    51	            or etype.startswith(CONTROL_EVENT_TYPE_PREFIXES))
+   108	    def append(self, event: Dict[str, Any]) -> Tuple[str, bool]:
+   109	        """追加一条事件，返回 (event_hash, inserted)。
+   110	
+   111	        P0-4 加固：控制事件类型（is_control_event）一律 ValueError——它们
+   112	        只能经 RunManager._emit 注入（带内部 seal），公共 append 拒绝裸注入。
+   113	
+   114	        P0-6 修：幂等键基于稳定内容（canonical payload），不含 prev_event_hash。
+   115	        重试同一事件 → event_id 相同 → INSERT OR IGNORE 忽略 → inserted=False。
+   116	        P0-6 二次修（duplicate 分支）：命中幂等键时返回 DB 中已存行的真实
+   117	        event_hash（SELECT 查出，绝不按当前 head 重算——重算值在 DB 中不存在，
+   118	        会造成调用方持有悬空 hash）。
+   119	        """
+   120	        if is_control_event(event):
+   121	            raise ValueError(
+   122	                "pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/"
+   123	                "APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected "
+   124	                "via RunManager._emit with an internal seal; bare "
+   125	                "EventStore.append of control event_type is forbidden "
+   126	                f"(got event_type={event.get('event_type')!r})")
+   127	        payload = self._canonical_payload(event)
+   128	        # P0-6: event_id = sha256(canonical_payload)——稳定幂等键
+   129	        event_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+   130	        self._conn.execute("BEGIN IMMEDIATE")
+   131	        try:
+   132	            row = self._conn.execute(
+   133	                "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+   134	            ).fetchone()
+   135	            prev = row[0] if row else GENESIS_HASH
+   136	            computed_hash = self._compute_hash(prev, payload)
+   137	            cur = self._conn.execute(
+   138	                "INSERT OR IGNORE INTO pipeline_events "
+   139	                "(event_id, payload, prev_event_hash, event_hash, created_at) "
+   140	                "VALUES (?, ?, ?, ?, ?)",
+   141	                (event_id, payload, prev, computed_hash, time.time()),
+   142	            )
+   143	            inserted = cur.rowcount == 1
+   144	            if inserted:
+   145	                event_hash = computed_hash
+   146	            else:
+   147	                # duplicate：返回 DB 中已存行的真实 event_hash（事务内读出）
+   148	                stored = self._conn.execute(
+   149	                    "SELECT event_hash FROM pipeline_events WHERE event_id = ?",
+   150	                    (event_id,),
+   151	                ).fetchone()
+   152	                if stored is None or not stored[0]:
+   153	                    raise ChainIntegrityError(
+   154	                        f"duplicate event_id {event_id} not found in store "
+   155	                        "(INSERT OR IGNORE ignored but row missing)"
+   156	                    )
+   157	                event_hash = stored[0]
+   158	            self._conn.execute("COMMIT")
+   159	        except BaseException:
+   160	            self._conn.execute("ROLLBACK")
+   161	            raise
+   162	        return event_hash, inserted
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n '1733,1748p;2012,2024p'
+  1733	    # ------------------------------------------------------------------ #
+  1734	    # 重放：事件流 → RunState（唯一状态推导路径）
+  1735	    # P0-4 加固：每个控制事件先验内部 seal（Codex 实锤 #7）——缺失/不合法
+  1736	    # 即 PipelineCorruptionError；观察类事件（APPROVAL_CONSUMED/
+  1737	    # FINDING_REGISTERED/ACTION_*）不递增 state_version，侧记入登记面。
+  1738	    # ------------------------------------------------------------------ #
+  1739	    def _replay_fold(self, state: Optional[RunState], event_hash: str,
+  1740	                     ev: Mapping[str, Any]) -> RunState:
+  1741	        etype = ev.get("event_type")
+  1742	        # seal 验封：管线控制事件必须携带合法内部 seal（_emit 注入）。
+  1743	        # 密钥按事件 run_id 确定性派生——跨库复制事件流后仍可验证。
+  1744	        if is_control_event(ev) and not _verify_seal(ev.get("run_id"), ev):
+  1745	            raise PipelineCorruptionError(
+  1746	                f"event {etype!r} (hash {event_hash[:16]}…) missing/invalid "
+  1747	                f"internal seal——事件流疑遭直写注入（Codex 实锤 #7）")
+  1748	        if state is None:
+  2012	    def _emit(self, conn: sqlite3.Connection, state: RunState,
+  2013	              event: Mapping[str, Any]) -> str:
+  2014	        """打内部 seal 后追加事件并立即重放折叠进内存 state。
+  2015	
+  2016	        事件须携带 state.state_version + 1；_replay_fold 内部会校验 seal、
+  2017	        单调性、转换表与段序，因此本方法之后的内存状态与事后重放严格一致。
+  2018	        seal 密钥按 run_id 确定性派生——控制事件不可经公共
+  2019	        EventStore.append 注入（append 对控制类型直接 ValueError）。
+  2020	        """
+  2021	        sealed = _seal_event(state.run_id, dict(event))
+  2022	        event_hash, _ = _PipelineDb.append_event(conn, sealed)
+  2023	        self._replay_fold(state, event_hash, sealed)
+  2024	        return event_hash
+
+## P07 事件正源 nonce 查询/折叠
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n '1288,1331p;1366,1378p;1762,1794p'
+  1288	    # ------------------------------------------------------------------ #
+  1289	    # 事件正源查询（Codex 实锤 #8）：nonce 消费以事件流为唯一正源
+  1290	    # ------------------------------------------------------------------ #
+  1291	    @staticmethod
+  1292	    def _nonce_consumed_from_events(conn: sqlite3.Connection,
+  1293	                                    nonce: str) -> bool:
+  1294	        digest = _sha256_hex(nonce)
+  1295	        for _seq, _event_hash, payload in _PipelineDb.read_events(conn):
+  1296	            if (payload.get("event_type") == "APPROVAL_CONSUMED"
+  1297	                    and payload.get("nonce_digest") == digest):
+  1298	                return True
+  1299	        return False
+  1300	
+  1301	    @staticmethod
+  1302	    def _approval_consumed_event(
+  1303	        state: RunState, ap: Mapping[str, Any], nonce_digest: str,
+  1304	        preconditions_hash: Optional[str],
+  1305	    ) -> Dict[str, Any]:
+  1306	        """APPROVAL_CONSUMED 控制事件（nonce/risk 消费的唯一正源，观察类）。"""
+  1307	        event: Dict[str, Any] = {
+  1308	            "schema_version": "2.0",
+  1309	            "event_type": "APPROVAL_CONSUMED",
+  1310	            "run_id": state.run_id,
+  1311	            "task_id": state.task_id,
+  1312	            "execution_status": "COMPLETED",
+  1313	            "policy_verdict": "NOT_EVALUATED",
+  1314	            "identity": dict(state.identity),
+  1315	            "state_version": state.state_version,
+  1316	            "ts": _utc_now_iso(),
+  1317	            "actor": ap["actor"],
+  1318	            "approval_id": ap["approval_id"],
+  1319	            "approval_type": ap["approval_type"],
+  1320	            "nonce_digest": nonce_digest,
+  1321	            "stop_type": ap["stop_type"],
+  1322	            "stop_event_id": ap["stop_event_id"],
+  1323	            "expires_at": ap["expires_at"],
+  1324	        }
+  1325	        if preconditions_hash is not None:
+  1326	            event["preconditions_hash"] = preconditions_hash
+  1327	        if ap["approval_type"] == "risk":
+  1328	            event["finding_fingerprints"] = list(
+  1329	                ap["payload"].get("finding_fingerprints") or [])
+  1330	        return event
+  1331	
+  1366	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1367	            state = run_loader(conn)                    # 事务内新鲜快照
+  1368	            # 重放检测优先（事件流=正源）：已消费即复用，无论 run 现状；
+  1369	            # 旁表命中同样拒绝（旧库兼容）；并发首消费竞态由 INSERT 主键兜底。
+  1370	            if self._nonce_consumed_from_events(conn, ap["nonce"]):
+  1371	                raise ApprovalReuseError(
+  1372	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1373	                    f"不可复用——不变量 #5, 事件正源已登记)")
+  1374	            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+  1375	                            (ap["nonce"],)).fetchone() is not None:
+  1376	                raise ApprovalReuseError(
+  1377	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1378	                    f"不可复用——不变量 #5)")
+  1762	        # ---- 观察类控制事件：登记面侧记，不推进状态机 ----
+  1763	        if etype in OBSERVATION_EVENT_TYPES:
+  1764	            observed_version = ev.get("state_version")
+  1765	            if (not isinstance(observed_version, int)
+  1766	                    or isinstance(observed_version, bool)
+  1767	                    or observed_version != state.state_version):
+  1768	                raise PipelineCorruptionError(
+  1769	                    f"run {state.run_id}: observation event {etype} "
+  1770	                    f"state_version {observed_version!r} != current "
+  1771	                    f"{state.state_version}（登记面事件必须锚定当前版本）")
+  1772	            if etype == "APPROVAL_CONSUMED":
+  1773	                digest = ev.get("nonce_digest")
+  1774	                if not (isinstance(digest, str) and len(digest) == 64):
+  1775	                    raise PipelineCorruptionError(
+  1776	                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+  1777	                        f"nonce_digest（消费正源事件损坏）")
+  1778	                state.consumed_nonce_digests.add(digest)
+  1779	                if ev.get("approval_type") == "risk":
+  1780	                    state.risk_authorizations.append({
+  1781	                        "approval_id": ev.get("approval_id"),
+  1782	                        "nonce_digest": digest,
+  1783	                        "expires_at": ev.get("expires_at"),
+  1784	                        "finding_fingerprints": sorted(
+  1785	                            ev.get("finding_fingerprints") or []),
+  1786	                    })
+  1787	            elif etype == "FINDING_REGISTERED":
+  1788	                fid = ev.get("finding_id")
+  1789	                if not (isinstance(fid, str) and fid.startswith("fnd_")):
+  1790	                    raise PipelineCorruptionError(
+  1791	                        f"run {state.run_id}: FINDING_REGISTERED 非法 "
+  1792	                        f"finding_id {fid!r}")
+  1793	                if (ev.get("severity") not in _SEVERITIES
+  1794	                        or ev.get("priority") not in _PRIORITIES
+
+## P08 v2 聚合与 dashboard 输出/读取
+$ nl -ba system/wenqu_core/gate_aggregator.py | sed -n '158,232p;266,317p;394,415p'
+   158	    @staticmethod
+   159	    def _is_v2(station_result: Mapping) -> bool:
+   160	        """v2 判别：显式 schema_version=2.0，或出现 v2 正式字段组合。"""
+   161	        if str(station_result.get("schema_version", "")).strip() == _V2_SCHEMA_VERSION:
+   162	            return True
+   163	        return "station_id" in station_result and (
+   164	            "policy_verdict" in station_result or "execution_status" in station_result
+   165	        )
+   166	
+   167	    def _parse_v2(self, station_result: Mapping) -> Dict[str, Any]:
+   168	        """解析 v2 条目为内部登记结构；畸形处记 malformed（宽松读），不抛异常。"""
+   169	        sid = station_result.get("station_id")
+   170	        if not isinstance(sid, int) or isinstance(sid, bool):
+   171	            self._malformed.append({
+   172	                "reason": "missing_field:station_id",
+   173	                "entry_keys": sorted(map(str, station_result.keys())),
+   174	            })
+   175	            return {}
+   176	        station = str(sid)
+   177	
+   178	        execution_status = str(station_result.get("execution_status") or "").strip().upper()
+   179	        policy_verdict = str(station_result.get("policy_verdict") or "").strip().upper()
+   180	
+   181	        identity = station_result.get("identity")
+   182	        sha = ""
+   183	        environment = None
+   184	        if isinstance(identity, Mapping):
+   185	            raw_sha = identity.get("commit_sha")
+   186	            if isinstance(raw_sha, str) and raw_sha.strip():
+   187	                sha = raw_sha.strip().lower()
+   188	            env_raw = identity.get("environment")
+   189	            if isinstance(env_raw, str):
+   190	                environment = env_raw
+   191	        else:
+   192	            # identity 缺失/非对象——C5 结构残缺（宽松读不炸，聚合时 BLOCKED）
+   193	            self._malformed.append({
+   194	                "reason": "missing_field:identity" if identity is None
+   195	                else "malformed_field:identity",
+   196	                "station": station,
+   197	            })
+   198	
+   199	        # 铁律 2：执行未完成（ERROR/BLOCKED/TIMEOUT/CANCELLED）→ 整站硬失败
+   200	        if execution_status in _V2_EXEC_HARD_FAIL:
+   201	            outcome = BLOCKED
+   202	            outcome_raw = f"{execution_status}/{policy_verdict or '-'}"
+   203	        elif execution_status == "COMPLETED":
+   204	            outcome = _V2_VERDICT_MAP.get(policy_verdict, BLOCKED)
+   205	            outcome_raw = f"{execution_status}/{policy_verdict or '-'}"
+   206	        else:
+   207	            # execution_status 缺失/未知（宽松读不炸）——fail-closed 硬失败
+   208	            outcome = BLOCKED
+   209	            outcome_raw = f"{execution_status or '-'}/{policy_verdict or '-'}"
+   210	
+   211	        if execution_status and execution_status not in _V2_EXECUTION_STATUS:
+   212	            self._malformed.append({
+   213	                "reason": f"invalid_field:execution_status:{execution_status}",
+   214	                "station": station,
+   215	            })
+   216	        if policy_verdict and policy_verdict not in _V2_POLICY_VERDICTS:
+   217	            self._malformed.append({
+   218	                "reason": f"invalid_field:policy_verdict:{policy_verdict}",
+   219	                "station": station,
+   220	            })
+   221	
+   222	        return {
+   223	            "station": station,
+   224	            "outcome": outcome,
+   225	            "outcome_raw": outcome_raw,
+   226	            "sha": sha,
+   227	            "environment": environment,
+   228	            "required": station in self.required_stations,
+   229	            "input_version": "v2",
+   230	            "execution_status": execution_status or None,
+   231	            "policy_verdict_raw": policy_verdict or None,
+   232	        }
+   266	    def add(self, station_result: dict) -> "GateAggregator":
+   267	        """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
+   268	
+   269	        重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
+   270	        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+   271	        """
+   272	        if not isinstance(station_result, Mapping):
+   273	            self._malformed.append(
+   274	                {"reason": "not_a_json_object", "entry": repr(station_result)[:200]}
+   275	            )
+   276	            return self
+   277	
+   278	        if self._is_v2(station_result):
+   279	            entry = self._parse_v2(station_result)
+   280	        else:
+   281	            entry = self._parse_legacy(station_result)
+   282	        if not entry:
+   283	            return self  # 已记 malformed，aggregate() 时 BLOCKED
+   284	        station = entry["station"]
+   285	
+   286	        previous = self._stations.get(station)
+   287	        if previous is not None:
+   288	            identical = (
+   289	                previous["outcome"] == entry["outcome"]
+   290	                and previous["sha"] == entry["sha"]
+   291	                and previous["environment"] == entry["environment"]
+   292	            )
+   293	            if identical:
+   294	                self._duplicates.append(station)
+   295	            else:
+   296	                self._conflicts.append({"station": station, "first": previous, "second": entry})
+   297	            return self  # 首条为准；冲突已记账，aggregate() 时 BLOCKED
+   298	
+   299	        self._stations[station] = entry
+   300	
+   301	        # C2：SHA 证据绑定（缺失同样无法绑定 -> 违规）
+   302	        if entry["sha"] != self.target_sha:
+   303	            self._sha_violations.append({
+   304	                "station": station,
+   305	                "reason": "missing_sha" if not entry["sha"] else "sha_mismatch",
+   306	                "sha": entry["sha"] or None,
+   307	                "expected": self.target_sha,
+   308	            })
+   309	        # C5：环境证据绑定（缺失同样无法绑定 -> 违规）
+   310	        if entry["environment"] != self.environment:
+   311	            self._env_violations.append({
+   312	                "station": station,
+   313	                "reason": "missing_environment" if entry["environment"] is None else "environment_mismatch",
+   314	                "environment": entry["environment"],
+   315	                "expected": self.environment,
+   316	            })
+   317	        return self
+   394	        return {
+   395	            # dashboard/server.py read_gate_aggregate() 强制要求的契约字段（P0-3 修）
+   396	            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+   397	            "policy_verdict": outcome,
+   398	            # 原有字段（保持稳定）
+   399	            "aggregate_outcome": outcome,
+   400	            "technical_eligible": (not hard) and outcome == PASS,
+   401	            "reason": reason,
+   402	            "reasons": reasons,
+   403	            "counts": {
+   404	                "required_total": len(self.required_stations),
+   405	                "required_reported": len(self.required_stations & reported),
+   406	                "required_missing": len(missing_required),
+   407	                "bypass_stations": len(bypass_reported),
+   408	                "duplicates_ignored": len(self._duplicates),
+   409	                "conflicts": len(self._conflicts),
+   410	                "malformed": len(self._malformed),
+   411	            },
+   412	            "stations": stations_summary,
+   413	            "target_sha": self.target_sha,
+   414	            "environment": self.environment,
+   415	        }
+$ nl -ba system/dashboard/server.py | sed -n '102,132p'
+   102	def read_gate_aggregate():
+   103	    """读权威聚合器原子快照（不变量 10：dashboard 不自算，只透传）。
+   104	    返回 {"ok": True, "data": snapshot} 或 {"ok": False, "code": ..., "detail": ...}。
+   105	    数据源缺失/过期/畸形 → 结构化 ERROR（由调用方以 503 返回，绝不 200+空集）。"""
+   106	    path = os.environ.get("WENQU_GATE_AGGREGATE") or os.path.join(WQ, "state", "gate-aggregate.json")
+   107	    if not os.path.isfile(path):
+   108	        return {"ok": False, "code": "AGGREGATOR_UNAVAILABLE",
+   109	                "detail": "权威聚合器快照不存在：%s（gate_aggregator 产出后自动出现）" % path}
+   110	    try:
+   111	        with open(path, encoding="utf-8") as f:
+   112	            snap = json.load(f)
+   113	    except (OSError, ValueError) as e:
+   114	        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照不可读/无法解析：%s" % e}
+   115	    if not isinstance(snap, dict):
+   116	        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照不是 JSON 对象"}
+   117	    gen = snap.get("generated_at") or snap.get("ts")
+   118	    if not isinstance(gen, str) or not gen:
+   119	        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照缺 generated_at/ts 时间戳字段"}
+   120	    try:
+   121	        dt = datetime.fromisoformat(gen.replace("Z", "+00:00"))
+   122	    except ValueError:
+   123	        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "generated_at 不是 ISO 时间戳"}
+   124	    if dt.tzinfo is None:
+   125	        dt = dt.replace(tzinfo=timezone.utc)
+   126	    age = (datetime.now(timezone.utc) - dt).total_seconds()
+   127	    if age > AGGREGATE_TTL or age < -120:
+   128	        return {"ok": False, "code": "AGGREGATOR_STALE",
+   129	                "detail": "快照龄 %ds 超出 TTL %ds（时间戳异常或聚合器停摆）" % (int(age), int(AGGREGATE_TTL))}
+   130	    if not any(k in snap for k in ("policy_verdict", "overall", "verdict")):
+   131	        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照缺 policy_verdict/overall 判定字段"}
+   132	    return {"ok": True, "data": snap}
+
+## P09 duplicate 真实 hash 与 head 链尖
+$ nl -ba system/wenqu_core/store.py | sed -n '108,179p'
+   108	    def append(self, event: Dict[str, Any]) -> Tuple[str, bool]:
+   109	        """追加一条事件，返回 (event_hash, inserted)。
+   110	
+   111	        P0-4 加固：控制事件类型（is_control_event）一律 ValueError——它们
+   112	        只能经 RunManager._emit 注入（带内部 seal），公共 append 拒绝裸注入。
+   113	
+   114	        P0-6 修：幂等键基于稳定内容（canonical payload），不含 prev_event_hash。
+   115	        重试同一事件 → event_id 相同 → INSERT OR IGNORE 忽略 → inserted=False。
+   116	        P0-6 二次修（duplicate 分支）：命中幂等键时返回 DB 中已存行的真实
+   117	        event_hash（SELECT 查出，绝不按当前 head 重算——重算值在 DB 中不存在，
+   118	        会造成调用方持有悬空 hash）。
+   119	        """
+   120	        if is_control_event(event):
+   121	            raise ValueError(
+   122	                "pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/"
+   123	                "APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected "
+   124	                "via RunManager._emit with an internal seal; bare "
+   125	                "EventStore.append of control event_type is forbidden "
+   126	                f"(got event_type={event.get('event_type')!r})")
+   127	        payload = self._canonical_payload(event)
+   128	        # P0-6: event_id = sha256(canonical_payload)——稳定幂等键
+   129	        event_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+   130	        self._conn.execute("BEGIN IMMEDIATE")
+   131	        try:
+   132	            row = self._conn.execute(
+   133	                "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+   134	            ).fetchone()
+   135	            prev = row[0] if row else GENESIS_HASH
+   136	            computed_hash = self._compute_hash(prev, payload)
+   137	            cur = self._conn.execute(
+   138	                "INSERT OR IGNORE INTO pipeline_events "
+   139	                "(event_id, payload, prev_event_hash, event_hash, created_at) "
+   140	                "VALUES (?, ?, ?, ?, ?)",
+   141	                (event_id, payload, prev, computed_hash, time.time()),
+   142	            )
+   143	            inserted = cur.rowcount == 1
+   144	            if inserted:
+   145	                event_hash = computed_hash
+   146	            else:
+   147	                # duplicate：返回 DB 中已存行的真实 event_hash（事务内读出）
+   148	                stored = self._conn.execute(
+   149	                    "SELECT event_hash FROM pipeline_events WHERE event_id = ?",
+   150	                    (event_id,),
+   151	                ).fetchone()
+   152	                if stored is None or not stored[0]:
+   153	                    raise ChainIntegrityError(
+   154	                        f"duplicate event_id {event_id} not found in store "
+   155	                        "(INSERT OR IGNORE ignored but row missing)"
+   156	                    )
+   157	                event_hash = stored[0]
+   158	            self._conn.execute("COMMIT")
+   159	        except BaseException:
+   160	            self._conn.execute("ROLLBACK")
+   161	            raise
+   162	        return event_hash, inserted
+   163	
+   164	    # ------------------------------------------------------------------
+   165	    def head(self) -> Tuple[Optional[str], int]:
+   166	        """返回 (链头 event_hash, 总条数)。
+   167	
+   168	        P0-6 二次修：链头 = 按 seq 排序的最后一条（此前单条聚合查询在
+   169	        SQLite 下取到首行 hash，head 与 verify_chain 的链尾不一致）。
+   170	        """
+   171	        row = self._conn.execute(
+   172	            "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+   173	        ).fetchone()
+   174	        if row is None or row[0] is None:
+   175	            return None, 0
+   176	        total = self._conn.execute(
+   177	            "SELECT COUNT(*) FROM pipeline_events"
+   178	        ).fetchone()[0]
+   179	        return row[0], total
+
+## P10 CAS dirfd/O_NOFOLLOW/原子打开
+$ nl -ba system/wenqu_core/runner.py | sed -n '280,360p;372,498p'
+   280	class EvidenceStore:
+   281	    """sha256 内容寻址的证据存储（P0-5 CAS 根修）。
+   282	
+   283	    - 寻址：digest = sha256(canonical_json(evidence))，按前 2 位分桶。
+   284	    - 根边界：构造时打开根目录 dirfd 并记录 st_dev；之后一切 shard/文件访问均
+   285	      以 dir_fd 逐组件安全打开（O_NOFOLLOW），打开后 fstat 复核 st_dev 与根一致。
+   286	      父目录在检查后被替换为 symlink 的竞态直接失败（ELOOP→IntegrityError），
+   287	      不存在任何依赖字符串 startswith 的越界判断。
+   288	    - 写入原子化：同目录私有 tmp（O_CREAT|O_EXCL|O_NOFOLLOW）→ 全量写+fsync →
+   289	      os.replace（同目录 rename，原子）→ fsync 目录；任何中途失败清理 tmp。
+   290	      已存在同名摘要：内容一致=幂等成功；残缺（历史毒文件/半写）=检测后原子
+   291	      重建自愈；hardlink 预置（st_nlink>1）或 symlink=IntegrityError 拒绝。
+   292	    - 读取：重新计算 sha256 并与 digest 比对，不匹配即抛 IntegrityError；
+   293	      symlink/hardlink 同样拒绝。
+   294	    """
+   295	
+   296	    def __init__(self, root: str) -> None:
+   297	        self._root = Path(root)
+   298	        self._root.mkdir(parents=True, exist_ok=True)
+   299	        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+   300	        self._root_fd = os.open(str(self._root), flags)
+   301	        self._root_dev = os.fstat(self._root_fd).st_dev
+   302	
+   303	    # ------------------------------------------------------------------
+   304	    @staticmethod
+   305	    def digest_for(evidence: Evidence) -> str:
+   306	        return _sha256_hex(evidence.to_json().encode("utf-8"))
+   307	
+   308	    def _path_for(self, digest: str) -> Path:
+   309	        """仅用于错误消息展示的路径推导（安全边界不依赖本函数）。"""
+   310	        return self._root / digest[:2] / f"{digest}.json"
+   311	
+   312	    @staticmethod
+   313	    def _validate_digest(digest: str) -> str:
+   314	        digest = str(digest).strip().lower()
+   315	        if not _DIGEST_RE.match(digest):
+   316	            raise IntegrityError(f"invalid digest (expect 64-hex): {digest!r}")
+   317	        return digest
+   318	
+   319	    def _shard_dirfd(self, shard: str, *, create: bool = False) -> int:
+   320	        """以根 dirfd 安全打开 shard 目录（O_NOFOLLOW；create 时先 mkdir 再开）。
+   321	
+   322	        返回目录 fd；shard 是 symlink / 跨设备 / 畸形名一律 IntegrityError。
+   323	        """
+   324	        if not re.fullmatch(r"[0-9a-f]{2}", shard):
+   325	            raise IntegrityError(f"invalid shard name: {shard!r}")
+   326	        nofollow = getattr(os, "O_NOFOLLOW", 0)
+   327	        directory = getattr(os, "O_DIRECTORY", 0)
+   328	        try:
+   329	            fd = os.open(shard, os.O_RDONLY | directory | nofollow,
+   330	                         dir_fd=self._root_fd)
+   331	        except FileNotFoundError:
+   332	            if not create:
+   333	                raise
+   334	            try:
+   335	                os.mkdir(shard, 0o755, dir_fd=self._root_fd)
+   336	            except FileExistsError:
+   337	                pass  # 并发创建——直接进入下方带 O_NOFOLLOW 的二次打开
+   338	            except OSError as exc:
+   339	                raise IntegrityError(f"cannot create shard dir {shard!r}: {exc}") from exc
+   340	            # mkdir 与 open 之间 shard 被换成 symlink → O_NOFOLLOW 拒绝（不逃逸）
+   341	            try:
+   342	                fd = os.open(shard, os.O_RDONLY | directory | nofollow,
+   343	                             dir_fd=self._root_fd)
+   344	            except OSError as exc:
+   345	                raise IntegrityError(
+   346	                    f"shard {shard!r} opened as symlink/replaced after mkdir: {exc}"
+   347	                ) from exc
+   348	        except OSError as exc:  # ELOOP（symlink）/ ENOTDIR 等——绝不逃逸
+   349	            raise IntegrityError(
+   350	                f"shard {shard!r} refuses to open safely (symlink/attack?): {exc}"
+   351	            ) from exc
+   352	
+   353	        st = os.fstat(fd)
+   354	        if not _stat.S_ISDIR(st.st_mode) or st.st_dev != self._root_dev:
+   355	            os.close(fd)
+   356	            raise IntegrityError(
+   357	                f"shard {shard!r} is not a dir on the CAS root device "
+   358	                f"(dev {st.st_dev} != root {self._root_dev})"
+   359	            )
+   360	        return fd
+   372	    def _open_file(self, dir_fd: int, name: str, flags: int) -> int:
+   373	        """在 dir_fd 内打开文件（强制 O_NOFOLLOW）；symlink 占位拒绝。"""
+   374	        try:
+   375	            return os.open(name, flags | getattr(os, "O_NOFOLLOW", 0), dir_fd=dir_fd)
+   376	        except OSError as exc:
+   377	            if exc.errno == errno.ELOOP:
+   378	                raise IntegrityError(
+   379	                    f"symlink planted at content path {name!r}; refusing"
+   380	                ) from exc
+   381	            raise
+   382	
+   383	    def _atomic_write(self, dir_fd: int, fname: str, data: bytes) -> None:
+   384	        """同目录私有 tmp → 写+fsync → os.replace 原子落位 → fsync 目录。
+   385	
+   386	        任何中途失败清理 tmp；最终路径上永远只会出现完整内容。
+   387	        """
+   388	        tmp = f".tmp-{fname}.{os.getpid()}.{os.urandom(6).hex()}"
+   389	        try:
+   390	            fd = os.open(
+   391	                tmp,
+   392	                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+   393	                0o640,
+   394	                dir_fd=dir_fd,
+   395	            )
+   396	            try:
+   397	                view = memoryview(data)
+   398	                while view:
+   399	                    written = os.write(fd, view)
+   400	                    view = view[written:]
+   401	                os.fsync(fd)
+   402	            finally:
+   403	                os.close(fd)
+   404	            os.replace(tmp, fname, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+   405	        except BaseException:
+   406	            try:
+   407	                os.unlink(tmp, dir_fd=dir_fd)
+   408	            except OSError:
+   409	                pass
+   410	            raise
+   411	        try:
+   412	            os.fsync(dir_fd)  # 目录项持久化（best-effort：个别 FS 不支持）
+   413	        except OSError:
+   414	            pass
+   415	
+   416	    def _existing_state(self, dir_fd: int, fname: str) -> Optional[os.stat_result]:
+   417	        """lstat 已存在文件；symlink/hardlink 在此返回前不判定（由调用方处置）。"""
+   418	        try:
+   419	            return os.stat(fname, dir_fd=dir_fd, follow_symlinks=False)
+   420	        except FileNotFoundError:
+   421	            return None
+   422	
+   423	    def contains(self, digest: str) -> bool:
+   424	        digest = self._validate_digest(digest)
+   425	        fname = f"{digest}.json"
+   426	        shard_fd = self._shard_dirfd(digest[:2])
+   427	        try:
+   428	            st = self._existing_state(shard_fd, fname)
+   429	        finally:
+   430	            os.close(shard_fd)
+   431	        if st is None or _stat.S_ISLNK(st.st_mode) or st.st_nlink > 1:
+   432	            return False  # 不存在 / symlink / hardlink 预置——一律视为不可用
+   433	        return _stat.S_ISREG(st.st_mode)
+   434	
+   435	    # ------------------------------------------------------------------
+   436	    def put(self, evidence: Evidence) -> str:
+   437	        digest = self.digest_for(evidence)
+   438	        data = evidence.to_json().encode("utf-8")
+   439	        if not _DIGEST_RE.match(digest):  # 理论不可达；防御性保留
+   440	            raise IntegrityError(f"digest computation broken: {digest!r}")
+   441	        fname = f"{digest}.json"
+   442	        shard_fd = self._shard_dirfd(digest[:2], create=True)
+   443	        try:
+   444	            st = self._existing_state(shard_fd, fname)
+   445	            if st is not None:
+   446	                if _stat.S_ISLNK(st.st_mode):
+   447	                    raise IntegrityError(
+   448	                        f"symlink planted at content path {fname}; refusing to write"
+   449	                    )
+   450	                if st.st_nlink > 1:
+   451	                    # P0-5：预置 hardlink 视为可疑——拒绝（可能是根外文件的别名）
+   452	                    raise IntegrityError(
+   453	                        f"hardlink planted at content path {fname} "
+   454	                        f"(st_nlink={st.st_nlink}); refusing"
+   455	                    )
+   456	                # 已存在且声称同 digest：必须内容完整才算幂等成功
+   457	                fd = self._open_file(shard_fd, fname, os.O_RDONLY)
+   458	                try:
+   459	                    existing = self._read_all(fd)
+   460	                finally:
+   461	                    os.close(fd)
+   462	                if _sha256_hex(existing) == digest:
+   463	                    return digest  # 内容寻址幂等成功
+   464	                # 残缺/毒文件（历史半写）——安全原子重建自愈（P0-5）
+   465	            self._atomic_write(shard_fd, fname, data)
+   466	        finally:
+   467	            os.close(shard_fd)
+   468	        return digest
+   469	
+   470	    def get(self, digest: str) -> Optional[Evidence]:
+   471	        digest = self._validate_digest(digest)
+   472	        fname = f"{digest}.json"
+   473	        try:
+   474	            shard_fd = self._shard_dirfd(digest[:2])
+   475	        except FileNotFoundError:
+   476	            return None
+   477	        try:
+   478	            st = self._existing_state(shard_fd, fname)
+   479	            if st is None:
+   480	                return None
+   481	            if _stat.S_ISLNK(st.st_mode):
+   482	                raise IntegrityError(f"symlink at content path {fname}; refusing")
+   483	            if st.st_nlink > 1:
+   484	                raise IntegrityError(
+   485	                    f"hardlink at content path {fname} (st_nlink={st.st_nlink}); refusing"
+   486	                )
+   487	            fd = self._open_file(shard_fd, fname, os.O_RDONLY)
+   488	            try:
+   489	                raw = self._read_all(fd)
+   490	            finally:
+   491	                os.close(fd)
+   492	        finally:
+   493	            os.close(shard_fd)
+   494	        if _sha256_hex(raw) != digest:
+   495	            raise IntegrityError(f"content hash mismatch for digest {digest}")
+   496	        payload = json.loads(raw.decode("utf-8"))
+   497	        payload["argv"] = tuple(payload.get("argv", ()))
+   498	        return Evidence(**payload)
+
+## P11 Runner 现役后代枚举（残余根因：只按当下 PPID 图，已 reparent daemon 不可追溯）
+$ nl -ba system/wenqu_core/runner.py | sed -n '145,197p;214,267p'
+   145	    # ------------------------------------------------------------------
+   146	    # 进程树击杀（P0-5：setsid 子孙逃逸 killpg 的补杀）
+   147	    # ------------------------------------------------------------------
+   148	    @staticmethod
+   149	    def _descendants(root_pid: int) -> Set[int]:
+   150	        """以 `ps -o pid,ppid` 构建全量父子表，返回 root_pid 的全部后代 pid。
+   151	
+   152	        darwin/linux 通用（`ps -axo pid=,ppid=`）。ps 不可用时返回空集
+   153	        （killpg 仍生效，能力降级不静默丢证据——调用方照常记 timed_out）。
+   154	        """
+   155	        try:
+   156	            proc = subprocess.run(
+   157	                ["ps", "-axo", "pid=,ppid="],
+   158	                capture_output=True, text=True, timeout=5, shell=False,
+   159	            )
+   160	        except (OSError, subprocess.SubprocessError):
+   161	            return set()
+   162	        ppids = {}
+   163	        for line in proc.stdout.splitlines():
+   164	            parts = line.split()
+   165	            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+   166	                ppids[int(parts[0])] = int(parts[1])
+   167	        descendants: Set[int] = set()
+   168	        frontier = {root_pid}
+   169	        while frontier:
+   170	            nxt = {p for p, pp in ppids.items() if pp in frontier and p not in descendants}
+   171	            if not nxt:
+   172	                break
+   173	            descendants |= nxt
+   174	            frontier = nxt
+   175	        return descendants
+   176	
+   177	    def _kill_tree(self, proc: subprocess.Popen) -> None:
+   178	        """超时击杀：先快照后代，再 killpg + 逐 pid 补杀；多轮扫荡防快照后新孙。"""
+   179	        import signal as _signal
+   180	
+   181	        for _round in range(3):
+   182	            snap = self._descendants(proc.pid)
+   183	            try:
+   184	                os.killpg(proc.pid, _signal.SIGKILL)
+   185	            except (ProcessLookupError, PermissionError):
+   186	                pass
+   187	            for pid in sorted(snap | {proc.pid}):
+   188	                try:
+   189	                    os.kill(pid, _signal.SIGKILL)
+   190	                except (ProcessLookupError, PermissionError):
+   191	                    pass
+   192	            if proc.poll() is not None:
+   193	                late = self._descendants(proc.pid) - snap
+   194	                if not late:
+   195	                    break
+   196	            time.sleep(0.05)
+   197	
+   214	    def run(self, argv: List[str], cwd: Optional[str] = None) -> Evidence:
+   215	        self._validate_argv(argv)
+   216	        workdir = cwd or self._default_cwd or os.getcwd()
+   217	        timestamp = time.time()
+   218	        fresh_until = timestamp + self._freshness_seconds
+   219	        argv_digest = self.argv_digest(argv)
+   220	        try:
+   221	            # P0-5：独立进程组（start_new_session=True）——超时 killpg 整组
+   222	            proc = subprocess.Popen(
+   223	                list(argv),
+   224	                cwd=workdir,
+   225	                shell=False,
+   226	                stdout=subprocess.PIPE,
+   227	                stderr=subprocess.PIPE,
+   228	                env=self._build_env(),        # P0-5：默认最小化环境白名单
+   229	                start_new_session=True,
+   230	            )
+   231	            try:
+   232	                stdout_bytes, stderr_bytes = proc.communicate(timeout=self._timeout)
+   233	                timed_out = False
+   234	                actual_exit = proc.returncode
+   235	            except subprocess.TimeoutExpired:
+   236	                # P0-5：killpg 之外递归枚举进程树补杀——setsid 逃逸的子孙也必须死
+   237	                self._kill_tree(proc)
+   238	                try:
+   239	                    stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
+   240	                except subprocess.TimeoutExpired:
+   241	                    stdout_bytes, stderr_bytes = b"", b""
+   242	                timed_out = True
+   243	                actual_exit = 124
+   244	        except Exception as exc:
+   245	            return Evidence(
+   246	                argv=tuple(argv),
+   247	                cwd=workdir,
+   248	                actual_exit_code=2,
+   249	                stdout_sha256=_sha256_hex(b""),
+   250	                stderr_sha256=_sha256_hex(str(exc).encode()),
+   251	                argv_digest=argv_digest,
+   252	                timestamp=timestamp,
+   253	                fresh_until=fresh_until,
+   254	                timed_out=False,
+   255	            )
+   256	        if timed_out:
+   257	            return Evidence(
+   258	                argv=tuple(argv),
+   259	                cwd=workdir,
+   260	                actual_exit_code=None,
+   261	                stdout_sha256=_sha256_hex(stdout_bytes or b""),
+   262	                stderr_sha256=_sha256_hex(stderr_bytes or b""),
+   263	                argv_digest=argv_digest,
+   264	                timestamp=timestamp,
+   265	                fresh_until=fresh_until,
+   266	                timed_out=True,
+   267	            )
+
+## P12 previous 相对 current 目录解析、回滚与再验
+$ nl -ba system/wenqu_core/deploy_framework.py | sed -n '224,237p;295,345p;350,410p'
+   224	    # ------------------------------------------------------------------ #
+   225	    # 对账：manifest 校验
+   226	    # ------------------------------------------------------------------ #
+   227	    @staticmethod
+   228	    def _resolve_link_value(link_dir: str, value: str) -> str:
+   229	        """相对链接值一律相对 link 所在目录解析（绝不相对进程 cwd）。
+   230	
+   231	        绝对值原样 normpath 返回。P0-7 修：previous/current 相对链接曾按
+   232	        进程 cwd 解析 → 误判不存在 → 跳过回滚 → current 留在失败版。
+   233	        """
+   234	        if os.path.isabs(value):
+   235	            return os.path.normpath(value)
+   236	        return os.path.normpath(os.path.join(link_dir, value))
+   237	
+   295	    def switch(self, current_symlink: str, target: str) -> Dict[str, Any]:
+   296	        """原子切换 current symlink -> target（D3：临时链接 + os.replace）。"""
+   297	        link = os.path.abspath(current_symlink)
+   298	        target_abs = os.path.abspath(target)
+   299	        if not os.path.isdir(target_abs):
+   300	            raise SwitchError(f"switch target not found: {target_abs}")
+   301	
+   302	        link_dir = os.path.dirname(link) or "."
+   303	        os.makedirs(link_dir, exist_ok=True)
+   304	        if os.path.lexists(link) and not os.path.islink(link):
+   305	            raise SwitchError(f"refuse to replace non-symlink path: {link}")
+   306	
+   307	        previous = os.readlink(link) if os.path.islink(link) else None
+   308	        link_value = os.path.relpath(target_abs, link_dir)  # 相对链接，目录整体迁移不失效
+   309	        tmp_link = os.path.join(
+   310	            link_dir, f".{os.path.basename(link)}.switch-{os.getpid()}")
+   311	        if os.path.lexists(tmp_link):
+   312	            os.remove(tmp_link)
+   313	        os.symlink(link_value, tmp_link)
+   314	        try:
+   315	            os.replace(tmp_link, link)  # D3：rename 原子性，瞬时生效
+   316	        except OSError as exc:
+   317	            if os.path.lexists(tmp_link):
+   318	                os.remove(tmp_link)
+   319	            raise SwitchError(f"atomic symlink switch failed: {link} -> {target_abs}: {exc}") from exc
+   320	
+   321	        return {
+   322	            "current_symlink": link,
+   323	            "previous": previous,
+   324	            "previous_abs": (
+   325	                self._resolve_link_value(link_dir, previous) if previous else None),
+   326	            "target": target_abs,
+   327	            "link_value": link_value,
+   328	        }
+   329	
+   330	    def rollback(self, current: str, previous: str) -> Dict[str, Any]:
+   331	        """切回兼容版：先对 previous release 做 manifest 完好性对账，再原子切回。
+   332	
+   333	        previous 已损坏（缺件/漂移）时拒绝回切并抛错——绝不把流量切到坏包上。
+   334	        P0-7 修：previous 允许是相对链接值——一律相对 current 链接所在目录解析
+   335	        （不相对进程 cwd）。
+   336	        """
+   337	        link = os.path.abspath(current)
+   338	        link_dir = os.path.dirname(link) or "."
+   339	        prev = self._resolve_link_value(link_dir, previous)
+   340	        if not os.path.isdir(prev):
+   341	            raise SwitchError(f"rollback target missing: {prev}")
+   342	        verify_report = self.verify(prev)
+   343	        result = self.switch(link, prev)
+   344	        result.update({"rolled_back": True, "verify": verify_report})
+   345	        return result
+   350	    def deploy(self, source_dir: str) -> Dict[str, Any]:
+   351	        """完整部署：构建 -> 对账 -> 原子切换 -> 安装自检。
+   352	
+   353	        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError。
+   354	        P0-7 修：首次部署无上一版可回滚时，切回空/删除 current link（不留在失败版上）。
+   355	        P0-7 二次修：previous 相对链接值一律相对 current 链接所在目录解析
+   356	        （原按进程 cwd 解析 → 误判不存在 → 跳过回滚 → current 留在失败版）；
+   357	        回滚后对回滚目标再跑一次 self-check 复验。
+   358	        """
+   359	        build_result = self.build(source_dir)
+   360	        verify_report = self.verify(build_result["release_dir"])  # 切换前对账
+   361	
+   362	        # P0-7 修：切换前记录是否存在 current link（首次部署判定）
+   363	        _had_current = os.path.islink(self.current_link) or os.path.exists(self.current_link)
+   364	        _prev_target_raw = None
+   365	        _prev_target_abs = None
+   366	        if _had_current and os.path.islink(self.current_link):
+   367	            _prev_target_raw = os.readlink(self.current_link)
+   368	            # P0-7 修：相对链接值按 link 所在目录解析（不相对进程 cwd）
+   369	            _prev_target_abs = self._resolve_link_value(
+   370	                os.path.dirname(self.current_link) or ".", _prev_target_raw)
+   371	
+   372	        switch_report = self.switch(self.current_link, build_result["release_dir"])
+   373	
+   374	        try:
+   375	            if self.install_self_check is not None:
+   376	                check = self.install_self_check(build_result["release_dir"])
+   377	                if not check:
+   378	                    raise SelfCheckError(f"install self-check returned falsy: {check!r}")
+   379	        except Exception as exc:
+   380	            rollback_note = "no previous release to roll back to"
+   381	            if _prev_target_abs and os.path.isdir(_prev_target_abs):
+   382	                try:
+   383	                    self.rollback(self.current_link, _prev_target_abs)
+   384	                    rollback_note = f"rolled back to {_prev_target_abs}"
+   385	                    # P0-7 修：回滚后对回滚目标再验一次 self-check
+   386	                    if self.install_self_check is not None:
+   387	                        try:
+   388	                            recheck = self.install_self_check(_prev_target_abs)
+   389	                            rollback_note += (
+   390	                                "; rollback self-check re-verified"
+   391	                                if recheck else
+   392	                                "; WARNING: rollback target also fails self-check"
+   393	                            )
+   394	                        except Exception as sc_exc:
+   395	                            rollback_note += (
+   396	                                f"; WARNING: rollback target self-check error: {sc_exc!r}")
+   397	                except DeployError as rb_exc:
+   398	                    rollback_note = (f"ROLLBACK FAILED ({rb_exc}); "
+   399	                                     f"current link remains on failed release "
+   400	                                     f"{build_result['release_dir']}")
+   401	            elif not _had_current:
+   402	                # P0-7 修：首次部署失败——删除 current link（不留在失败版上）
+   403	                try:
+   404	                    os.unlink(self.current_link)
+   405	                    rollback_note = "first deploy: current link removed (no failed release active)"
+   406	                except OSError:
+   407	                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
+   408	            raise DeployError(
+   409	                f"deploy failed at install self-check: {exc!r}; {rollback_note}"
+   410	            ) from exc
+[exit_code=0]

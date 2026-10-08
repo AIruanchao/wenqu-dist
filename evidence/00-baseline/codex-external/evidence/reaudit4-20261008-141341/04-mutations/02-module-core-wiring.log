@@ -1,0 +1,12 @@
+$ python3 system/tests/test_core_wiring.py
+  ✗ test_core_modules_importable: 核心模块 wenqu_pipeline 不可导入: No module named 'wenqu_core.wenqu_pipeline'
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+EXIT=1

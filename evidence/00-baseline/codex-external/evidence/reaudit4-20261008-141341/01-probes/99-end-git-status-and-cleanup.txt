@@ -1,0 +1,11 @@
+$ ps -p 17388,18254,18366,18909,18959 -o pid=,ppid=,stat=,command=
+[exit_code=1]
+[expected: rc=1 and no rows means all probe PIDs gone]
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+[exit_code=0]
+$ git status --porcelain=v1 --untracked-files=all
+[exit_code=0]
+$ git status --short --branch
+## main...origin/main
+[exit_code=0]

@@ -1,0 +1,1 @@
+gh api 'repos/AIruanchao/wenqu-dist/actions/runs/37733159993/artifacts?per_page=100'

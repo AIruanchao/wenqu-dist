@@ -1,0 +1,4 @@
+$ python3 independent-schema-crosscheck.py /tmp/wenqu-reaudit4-schema-tamper.gfNz1C/repo
+CROSSCHECK_DIVERGENCE: schema 与 Broker 判定不一致
+{"broker_rejects": true, "case": "one-byte-nonce", "schema_rejects": false}
+EXIT=7

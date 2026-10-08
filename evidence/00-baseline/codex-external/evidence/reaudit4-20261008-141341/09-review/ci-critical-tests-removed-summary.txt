@@ -1,0 +1,11 @@
+isolation=/tmp/wenqu-reaudit4-ci-anchor.fvpPsU
+home=/tmp/wenqu-reaudit4-home.H2wKKv
+== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）==
+  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+RESULT: PASS=62 FAIL=0
+ALL GREEN
+exit_code=0

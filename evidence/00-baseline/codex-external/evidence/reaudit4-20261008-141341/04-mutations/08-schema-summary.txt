@@ -1,0 +1,3 @@
+06-schema-core-wiring.log: EXIT=1
+07-schema-pipeline.log: EXIT=1
+08-schema-acceptance.log: EXIT=1

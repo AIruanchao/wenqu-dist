@@ -1,3 +1,222 @@
+== commit 14600f8 ==
+commit 14600f829b6049775c6381cd1e7e7f52ec9fb460
+Author:     AIruanchao <AIruanchao@users.noreply.github.com>
+AuthorDate: Thu Oct 8 13:27:09 2026 +0800
+Commit:     AIruanchao <AIruanchao@users.noreply.github.com>
+CommitDate: Thu Oct 8 13:27:09 2026 +0800
+
+    fix(wave4): Codex 三轮 12 对抗 FAIL 全量根修——授权/Schema/基建三簇
+    
+    P0-2/P0-4（agent A）：
+    - approval envelope 22 字段全 required+键集封闭；payload 8 类互斥封闭
+    - HMAC-SHA256 真验签+keyring（approval_keys）；无/未知 key_id 全拒
+    - 九停前置 bool_fields 客观化（'false' 字符串拒）；watermark 强制 40-hex
+    - risk/action 授权 CAS 补齐；CRITICAL/HIGH 机器拒+指纹精确匹配
+    - 双轴三层根修：attempt 层/RUN_COMPLETED 重放/complete_run
+    - EventStore 控制事件守卫+seal 重放验封（裸 append 伪终态必拒）
+    - APPROVAL_CONSUMED 入事件正源（仅复制 pipeline_events 后 nonce 仍拒）
+    - ActionSaga+control_outbox+FAILED_UNKNOWN；wenquctl CLI 接线
+    - 5 个 Schema 跨字段不变量补全（finding 状态机/evidence/station PASS 门槛/run 双轴）
+    
+    P0-3/5/6/7（agent B）：
+    - GateAggregator 吃 v2 正式契约+输出 dashboard 强制字段（端到端 ACCEPT）
+    - CAS dirfd 逐组件安全打开+原子写（tmp+fsync+rename）+拒 hardlink
+    - TrustedRunner 进程树击杀（setsid 逃逸必死）+env 白名单+allowlist
+    - EventStore duplicate 返回 DB 真实 hash+head() 链头
+    - DeployManager 相对链接按 link 目录解析+mode 入 manifest+回滚后再验
+    - install 全模块导入验证（cwd 遮蔽防御）+doctor 真实执行+tar 管道
+    
+    集成修复（ZCode 亲验轮）：
+    - 八站 PASS 工件契约收敛（orchestrator 站1 gate 摘要工件+station2 报告工件）
+    - install 负例 cwd 遮蔽双面修（sys.path 剥离+测试 cwd 固定）
+    - acceptance 多字节变量崩溃隐患 5 处（bash3.2）
+    - P1c 反假绿：§25.1 真解析器+--check+双篡改负例 exit2+矩阵只读化
+    - 证据索引 13 条刷新+三轮报告/141 文件快照+分支保护回读存证
+    
+    验证：pipeline 10/10+adversarial 11/11+infra 66/66+wiring 8/8+
+    5 模块自测 rc0+acceptance 62/62 ALL GREEN
+
+ .../00-baseline/acceptance-mutated-worktree.txt    |   22 +
+ .../00-baseline/capacity-and-identity.txt          |   23 +
+ .../00-baseline/git-status-head.txt                |   20 +
+ .../00-baseline/post-restore-status.txt            |    5 +
+ .../00-baseline/repo-tree.txt                      |  164 ++
+ .../00-baseline/source-hashes.txt                  |    9 +
+ .../01-regression/acceptance-full.txt              |   94 +
+ .../01-regression/dashboard-new-self-check.txt     |   40 +
+ .../01-regression/release-check.txt                |    6 +
+ .../01-regression/test-core-wiring.txt             |   15 +
+ .../01-regression/test-wenqu-pipeline.txt          |   17 +
+ .../workflow-release-check-python3.txt             |    7 +
+ .../01-regression/workflow-release-check.txt       |    8 +
+ .../02-runtime/auto-merge-readonly.txt             |   22 +
+ .../02-runtime/dashboard-identity-readonly.txt     |  106 +
+ .../02-runtime/dashboard-installed-source-diff.txt |   46 +
+ .../02-runtime/observation-window-readonly.txt     |  121 +
+ .../03-adversarial/contract_chain_probe.py         |   21 +
+ .../03-adversarial/deploy-residual.txt             |   11 +
+ .../03-adversarial/deploy_residual_probe.py        |   23 +
+ .../03-adversarial/eventstore-residual.txt         |   14 +
+ .../03-adversarial/eventstore_residual_probe.py    |   23 +
+ .../03-adversarial/p0-3-contract-chain.txt         |    8 +
+ .../03-adversarial/pipeline-extra-cases.txt        |   14 +
+ .../03-adversarial/pipeline_extra_probe.py         |   41 +
+ .../03-adversarial/removal-module.txt              |   22 +
+ .../03-adversarial/removal-root.txt                |    1 +
+ .../03-adversarial/removal-schema.txt              |   30 +
+ .../03-adversarial/removal-tool.txt                |   95 +
+ .../03-adversarial/schema-tamper-crosscheck.txt    |   19 +
+ .../04-evidence/ac-traceability-live.txt           |   50 +
+ .../04-evidence/independent-id-set-check.txt       |   15 +
+ .../04-evidence/independent_id_set_check.py        |   29 +
+ .../04-evidence/snapshot-manifest-verify.txt       |   44 +
+ .../04-evidence/traceability-live.json             | 2037 +++++++++++++++++
+ .../05-ci/branch-protection.txt                    |    8 +
+ .../reaudit3-20261008-122924/05-ci/gh-run-log.txt  |  632 ++++++
+ .../05-ci/gh-run-view.json.txt                     |    6 +
+ .../06-final/EVIDENCE-INDEX.md                     |   46 +
+ .../06-final/agent-core-manifest-verify.txt        |   23 +
+ .../06-final/agent-evidence-manifest-verify.txt    |   48 +
+ .../06-final/final-integrity.txt                   |   19 +
+ .../06-final/preliminary-manifest-verify.txt       |  137 ++
+ .../06-final/release-and-workpack-inventory.txt    |  130 ++
+ .../06-final/report-pointer.txt                    |    1 +
+ .../reaudit3-20261008-122924/MANIFEST.sha256       |  138 ++
+ .../agent-core/00-inventory.log                    |   34 +
+ .../agent-core/01-tree.log                         |  208 ++
+ .../agent-core/02-headings.log                     |  182 ++
+ .../agent-core/03-code-outline.log                 |  509 +++++
+ .../agent-core/04-wenqu_pipeline-numbered.txt      | 1792 +++++++++++++++
+ .../agent-core/05-test_wenqu_pipeline-numbered.txt |  524 +++++
+ .../agent-core/06-test_core_wiring-numbered.txt    |  132 ++
+ .../agent-core/07-approval-schema-numbered.txt     |   71 +
+ .../agent-core/08-test-wenqu-pipeline.log          |   14 +
+ .../agent-core/09-removal-temp-path.txt            |    1 +
+ .../agent-core/09-removal-wenqu_pipeline.log       |   27 +
+ .../agent-core/10-core-wiring-callsites.log        |   98 +
+ .../agent-core/11-adversarial-pipeline.log         |   15 +
+ .../agent-core/12-final-worktree.log               |   14 +
+ .../agent-core/13-static-security-gaps.log         |  142 ++
+ .../agent-core/14-approval-schema-cross-type.log   |    5 +
+ .../agent-core/15-contract-source-excerpts.log     |  526 +++++
+ .../16-removal-installer-still-green.log           |   29 +
+ .../agent-core/17-nonresume-cas-bypass.log         |    3 +
+ .../agent-core/18-final-integrity.log              |   31 +
+ .../agent-core/MANIFEST.sha256                     |   23 +
+ .../agent-core/adversarial_pipeline.py             |  354 +++
+ .../agent-core/findings.md                         |  186 ++
+ .../agent-evidence/00-baseline.log                 |   25 +
+ .../agent-evidence/01-plan-report-headings.log     |  178 ++
+ .../agent-evidence/02-prior-report-full.log        |  484 ++++
+ .../agent-evidence/03-plan-core-workpacks.log      | 1452 ++++++++++++
+ .../agent-evidence/04-plan-probes-matrix.log       |  466 ++++
+ .../agent-evidence/05-repo-inventory.log           |  736 ++++++
+ .../agent-evidence/06-evidence-content.log         |  737 ++++++
+ .../07-acceptance-and-workflow-source.log          |  433 ++++
+ .../agent-evidence/08-traceability-tool-source.log |  624 +++++
+ .../agent-evidence/09-traceability-live.log        |   52 +
+ .../agent-evidence/10-independent-trace-check.log  |  371 +++
+ .../agent-evidence/11-acceptance-isolated.log      |   99 +
+ .../agent-evidence/12-tool-removal-anchor.log      |   96 +
+ .../agent-evidence/13-p0-3-source-review.log       | 2381 ++++++++++++++++++++
+ .../agent-evidence/14-p0-3-callgraph.log           |  109 +
+ .../agent-evidence/14b-p0-3-import-callgraph.log   |   21 +
+ .../agent-evidence/14c-p0-3-import-callgraph.log   |    8 +
+ .../agent-evidence/15-p0-3-contract-probe.log      |  104 +
+ .../agent-evidence/16-p0-6-store-probe.log         |  144 ++
+ .../agent-evidence/17-p0-7-source-review.log       |  612 +++++
+ .../agent-evidence/18-p0-7-deploy-probe.log        |   89 +
+ .../agent-evidence/19-evidence-index-reconcile.log |  265 +++
+ .../19b-evidence-index-reconcile.log               |  285 +++
+ .../agent-evidence/20-ci-run-json.log              |    8 +
+ .../agent-evidence/21-ci-run-log.log               |  634 ++++++
+ .../22-trace-plan20-tamper-default.log             |   53 +
+ .../23-trace-plan20-tamper-check.log               |   54 +
+ .../24-trace-plan251-tamper-check.log              |   52 +
+ .../agent-evidence/25-acceptance-plan20-tamper.log |   96 +
+ .../agent-evidence/26-branch-protection.log        |    8 +
+ .../agent-evidence/27-repo-rulesets.log            |    7 +
+ .../agent-evidence/28-increment-diff.log           |  269 +++
+ .../agent-evidence/29-final-repo-status.log        |    8 +
+ .../agent-evidence/INDEX.txt                       |   47 +
+ .../agent-evidence/MANIFEST.sha256                 |   48 +
+ .../agent-evidence/evidence_reconcile.py           |   51 +
+ .../agent-evidence/findings.md                     |  136 ++
+ .../agent-evidence/import_graph.py                 |   13 +
+ .../agent-evidence/independent_trace_check.py      |   46 +
+ .../agent-evidence/isolation-path.txt              |    1 +
+ .../agent-evidence/p0_3_contract_probe.py          |   49 +
+ .../agent-evidence/p0_6_store_probe.py             |   43 +
+ .../agent-evidence/p0_7_deploy_probe.py            |   55 +
+ .../agent-evidence/plan20-tamper-path.txt          |    1 +
+ .../agent-evidence/plan251-tamper-path.txt         |    1 +
+ .../agent-evidence/run-capture.sh                  |   20 +
+ .../agent-evidence/tamper_plan20.py                |    5 +
+ .../agent-evidence/tamper_plan251.py               |    5 +
+ .../agent-evidence/traceability-live.json          | 2037 +++++++++++++++++
+ .../agent-schema/00-repo-inventory.txt             |  180 ++
+ .../agent-schema/01-baseline-keywords.txt          |  163 ++
+ .../agent-schema/02-requirements-excerpts.txt      |  509 +++++
+ .../agent-schema/03-schema-security-inventory.txt  |  351 +++
+ .../agent-schema/04-all-schemas-numbered.txt       |  386 ++++
+ .../05-approval-validator-numbered.txt             |  294 +++
+ .../06-runner-security-diff-numbered.txt           |  860 +++++++
+ .../agent-schema/07-dashboard-security-code.txt    |  521 +++++
+ .../08-runtime-dashboard-identity-readonly.txt     |  461 ++++
+ .../09-runtime-dashboard-code-drift.txt            |  141 ++
+ .../agent-schema/10-runtime-old-write-handler.txt  |  158 ++
+ .../agent-schema/11-test-coverage-numbered.txt     |  261 +++
+ .../agent-schema/12-approval-binding-code.txt      |  194 ++
+ .../agent-schema/13-authorization-binding-code.txt |  109 +
+ .../14-plan-state-schema-requirements.txt          |  123 +
+ .../agent-schema/15-schema-adversarial-results.txt |   34 +
+ .../16-approval-broker-adversarial-results.txt     |   12 +
+ .../17-cas-runner-adversarial-results.txt          |   18 +
+ .../agent-schema/approval_broker_adversarial.py    |   39 +
+ .../agent-schema/cas_runner_adversarial.py         |   92 +
+ .../agent-schema/schema_adversarial.py             |   98 +
+ .../evidence/reaudit3-20261008-122924/capture.sh   |   14 +
+ ...21\212-\347\254\254\344\270\211\350\275\256.md" |  483 ++++
+ ...\347\254\254\344\270\211\350\275\256.md.sha256" |    1 +
+ .../branch-protection-readback-20261008.json       |    1 +
+ .../rulesets-count-20261008.txt                    |    1 +
+ evidence/evidence-index.json                       |  131 +-
+ system/bin/wenquctl                                |    6 +
+ system/install.sh                                  |   80 +-
+ system/schemas/approval-v2.schema.json             |  167 +-
+ system/schemas/evidence-v2.schema.json             |    7 +-
+ system/schemas/finding-event-v2.schema.json        |   65 +-
+ system/schemas/run-event-v2.schema.json            |   56 +-
+ system/schemas/station-result-v2.schema.json       |   31 +-
+ system/tests/fixtures/approval-keys.json           |    7 +
+ system/tests/test_infra_hardening.py               |  694 ++++++
+ system/tests/test_wenqu_adversarial.py             |  666 ++++++
+ system/tests/test_wenqu_pipeline.py                |  224 +-
+ system/wenqu_core/approval_keys.py                 |  185 ++
+ system/wenqu_core/bugscan_orchestrator.py          |   11 +
+ system/wenqu_core/cli.py                           |  309 +++
+ system/wenqu_core/deploy_framework.py              |  118 +-
+ system/wenqu_core/gate_aggregator.py               |  234 +-
+ system/wenqu_core/runner.py                        |  381 +++-
+ system/wenqu_core/station2_static.py               |   21 +
+ system/wenqu_core/store.py                         |   75 +-
+ system/wenqu_core/wenqu_pipeline.py                | 1104 +++++++--
+ tests/acceptance.sh                                |   18 +-
+ tools/ac_traceability.py                           |   72 +-
+ 167 files changed, 32560 insertions(+), 454 deletions(-)
+== commit c345b7b ==
+commit c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1
+Author:     AIruanchao <AIruanchao@users.noreply.github.com>
+AuthorDate: Thu Oct 8 13:34:47 2026 +0800
+Commit:     AIruanchao <AIruanchao@users.noreply.github.com>
+CommitDate: Thu Oct 8 13:34:47 2026 +0800
+
+    evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）
+
+ .../dashboard-7789-deploy-20261008.json            | 15 ++++
+ evidence/evidence-index.json                       | 88 ++++++++++++++++------
+ 2 files changed, 80 insertions(+), 23 deletions(-)
+== evidence index ==
 {
   "index_version": "1.0.0",
   "created_at": "2026-10-08T00:00:00+08:00",
@@ -9,11 +228,10 @@
     "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
   },
   "repo_head_at_filing": {
-    "commit": "f2b8fc3",
-    "commit_full": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
-    "subject": "Merge pull request #4 wave5/one-shot——一步到位波",
-    "ci_conclusion": "run 37744948480 acceptance success (macOS+Ubuntu)",
-    "note": "第五波上产后刷新；分支保护生效中（required 双平台+strict+enforce_admins）"
+    "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+    "subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
+    "ci_conclusion": "run 37727549548 acceptance success (macOS+Ubuntu 双平台, 62 PASS/0 FAIL)",
+    "note": "本索引 2026-10-08 第四波整改中刷新；后续提交以 git log 为准"
   },
   "entries": [
     {
@@ -207,7 +425,7 @@
       "title": "GitHub Actions acceptance 通过记录（run 37727549548，ff050bb 双平台）",
       "what": "CI 通过记录：commit ff050bb（feat(p0-2+p0-10) 状态机+审批 Broker+追踪矩阵+证据包）在 main 分支 acceptance 工作流 success（macOS+Ubuntu 双 matrix job）；P1/P1b/P1c 三锚点实际执行",
       "run_id": "37727549548",
-      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+      "commit": "ff050bb",
       "environment": "candidate (GitHub Actions, remote)",
       "scope": "acceptance workflow：release-check + tests/acceptance.sh（62 PASS/0 FAIL）+ pytest 20 用例",
       "ruleset": ".github/workflows/acceptance.yml",
@@ -249,7 +467,7 @@
       "title": "Codex 第三轮验收证据包快照（141 文件）",
       "what": "第三轮验收全部对抗探针证据：三移除锚点/Schema 篡改/核心-Schema-CAS-Runner-EventStore-Deploy 动态探针源码与输出/CI JSON 与 branch rules API/运行身份哈希/独立 131 集合与 §25.1 映射解析/子审计发现与分目录 MANIFEST.sha256",
       "run_id": "reaudit3-20261008-122924",
-      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+      "commit": "ff050bb",
       "environment": "local",
       "scope": "141 个证据文件（00-baseline~06-final + agent-* 三子审计）",
       "ruleset": "总索引 06-final/EVIDENCE-INDEX.md",
@@ -305,140 +523,34 @@
       "fresh_until": "随下次 dashboard 变更须重验",
       "verified_by": "ZCode 亲验（hash 双侧实算+探针实跑）",
       "caveat": "回滚备份在 ~/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
-    },
-    {
-      "entry_id": "EV-W5-001",
-      "category": "04-unit-property-mutation",
-      "title": "第五波：四轮 12 探针全闭+专属覆盖 0→99/131（PR#4）",
-      "what": "Runner token 击杀（daemon 3/3 死）/ActionSaga HMAC 授权链+PROVISIONAL-RECONCILED 回执分级/聚合器 Draft-07 镜像前置校验/Schema 五跨字段不变量/§20 逐 ID 语义比对/CLI 断链修/P1d+P1e required 接线/wenquctl gate 生产接线；蜂群七文件 97 条真实现+32 条诚实不可实现登记",
-      "run_id": "wave5-one-shot (PR#4)",
-      "commit": "b08fa7a",
-      "environment": "local",
-      "scope": "14 测试套件+5 模块自测+acceptance",
-      "ruleset": "tests/acceptance.sh@f2b8fc3",
-      "time": "2026-10-08 14:00–15:41 (+08:00)",
-      "argv": [
-        "python3 system/tests/*.py (14 suites)",
-        "bash tests/acceptance.sh"
-      ],
-      "real_rc": "14/14 绿 + 64/64 ALL GREEN + ac_traceability --check rc=0",
-      "artifact_sha256": "7d3b04a863988425d3f38532b2d7642b85004c1e4facc4627d50f086d7aca37e",
-      "evidence_path": "evidence/04-unit-property-mutation/ac-auth-cond.json",
-      "fresh_until": "2026-10-22",
-      "verified_by": "ZCode 终归亲验（2026-10-08 15:3x 全量实跑）",
-      "caveat": "32 ID 不可实现清单见各测试文件模块级登记"
-    },
-    {
-      "entry_id": "EV-CI-004",
-      "category": "08-ci-and-branch-rules",
-      "title": "CI 通过记录（run 37744948480，f2b8fc3）",
-      "what": "PR#4 合流后 main push 的 acceptance 工作流 success（双平台）；分支保护 required checks 双双满足后正门合流",
-      "run_id": "37744948480",
-      "commit": "f2b8fc3",
-      "environment": "candidate (GitHub Actions)",
-      "scope": "acceptance 64 项+pytest",
-      "ruleset": ".github/workflows/acceptance.yml",
-      "time": "2026-10-08T07:41:02Z",
-      "argv": [
-        "gh run list --branch main --limit 1"
-      ],
-      "real_rc": "conclusion=success",
-      "artifact_sha256": null,
-      "evidence_path": "evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json",
-      "fresh_until": "2026-10-22",
-      "verified_by": "ZCode 亲验",
-      "caveat": "同目录另有 rulesets-count 存证"
-    },
-    {
-      "entry_id": "EV-REL-002",
-      "category": "09-release-manifest-attestation",
-      "title": "vNext 候选制品（f2b8fc3 tar.gz + SHA256 清单）",
-      "what": "git archive 从 f2b8fc3 干净树构建的候选发行制品，SHA256 清单同目录",
-      "run_id": null,
-      "commit": "f2b8fc3",
-      "environment": "repo artifact",
-      "scope": "dist/wenqu-vNext-candidate-f2b8fc3.tar.gz (3356318 bytes)",
-      "ruleset": "git archive --prefix=wenqu-f2b8fc3/",
-      "time": "2026-10-08T15:43 (+08:00)",
-      "argv": [
-        "git archive --format=tar.gz -o dist/... f2b8fc3"
-      ],
-      "real_rc": "0",
-      "artifact_sha256": "0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00",
-      "evidence_path": "dist/SHA256-vNext-candidate-f2b8fc3.txt",
-      "fresh_until": "长期（绑定 f2b8fc3）",
-      "verified_by": "ZCode 构建+shasum 实算",
-      "caveat": "无签名/SBOM（签名体系属 §16.2 未实现面）"
-    },
-    {
-      "entry_id": "EV-TRACE-003",
-      "category": "04-unit-property-mutation",
-      "title": "追踪终态：99/131 专属+§20 语义级 --check",
-      "what": "第五波后专属覆盖 75.57%（99 条，含 ACT6/RUN3/AUTH6/COND6/STOP3）；--check 升级为 §20 逐 ID 注入/期望语义比对+§25.1 四列映射+目录完整性三重校验",
-      "run_id": "wave5-final",
-      "commit": "f2b8fc3",
-      "environment": "local",
-      "scope": "tools/ac_traceability.py --check",
-      "ruleset": "方案 SHA256 96b8646f…（仓内快照）",
-      "time": "2026-10-08T15:3x (+08:00)",
-      "argv": [
-        "python3 tools/ac_traceability.py --check --json /tmp/final-matrix.json"
-      ],
-      "real_rc": "0",
-      "artifact_sha256": null,
-      "evidence_path": "evidence/traceability-matrix.json",
-      "fresh_until": "随测试资产变更重跑",
-      "verified_by": "ZCode 终归亲验",
-      "caveat": "32 ID 不可实现（产品语义不存在）已逐条登记"
-    },
-    {
-      "entry_id": "EV-R4-001",
-      "category": "00-baseline",
-      "title": "Codex 第四轮验收总判定：BLOCKED（49/100）——负面结论存档+第五波输入",
-      "what": "四轮报告+248 文件证据已快照入仓；12 旧探针中 11 闭+1 部分（Runner）；新发现 6 项（AUTH/GATE/SCHEMA/CLI/CI/TRC）构成第五波工单",
-      "run_id": "reaudit4-20261008-141341",
-      "commit": "e4aba84c1dabe1342ea234321eea3d300bea24a5",
-      "environment": "local (只读独立复审)",
-      "scope": "wenqu-dist 全仓",
-      "ruleset": "方案 §24.1",
-      "time": "2026-10-08 14:13–14:24 (+08:00)",
-      "argv": [
-        "codex exec (gpt-5.6-sol ultra)"
-      ],
-      "real_rc": "判定=BLOCKED 49/100",
-      "artifact_sha256": null,
-      "evidence_path": "evidence/00-baseline/codex-external/验收报告-第四轮.md",
-      "fresh_until": "长期",
-      "verified_by": "Codex 独立复核（sha256 快照验证 OK）",
-      "caveat": "第五波输入依据"
-    },
-    {
-      "entry_id": "EV-W9W10-001",
-      "category": "13-observation-window",
-      "title": "W10 观察窗+W9 shadow 时钟启动（2026-10-08 起算）",
-      "what": "launchd com.wenqu.observation 每日 09:05 采样（HEAD/CI/7789 健康/磁盘/launchd 状态）+shadow 影子比对（模块化 server vs legacy 7789）；样本落 ~/.wenqu/observation/（仓外防脏树），14 天倒计时中",
-      "run_id": "com.wenqu.observation",
-      "commit": "f2b8fc3",
-      "environment": "local (macOS launchd)",
-      "scope": "tools/observation_daily.py",
-      "ruleset": "com.wenqu.observation.plist",
-      "time": "2026-10-08T14:5x (+08:00) 启动",
-      "argv": [
-        "launchctl kickstart gui/$(id -u)/com.wenqu.observation"
-      ],
-      "real_rc": "首跑 exit 0，样本+shadow 双落盘",
-      "artifact_sha256": null,
-      "evidence_path": "tools/observation_daily.py",
-      "fresh_until": "2026-10-22（观察窗届满）",
-      "verified_by": "挂钟 agent+ZCode 复验",
-      "caveat": "shadow 首日为结构化空态（等 gate-aggregate 状态文件产生自动转真）；样本在仓外需定期快照"
     }
   ],
   "known_gaps": [
-    "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属第六波候选",
-    "W5 旧账 reconciliation 未执行（迁移器仍独立 events 表）；W9 48h shadow 投影+canary、W10 14 天观察窗时序证据未到期（时钟 2026-10-08 已启动，届满 10-22）",
-    "release 制品无签名/SBOM/attestation；7789 仍为 legacy 写版（模块化 405 只读版未切）",
-    "审批签发端（人工 UI+密钥轮换）未建；Runner 容器级隔离/Linux /proc 通路未实测",
-    "root 磁盘 93.2%（采样器发现，接近阈值需关注）"
+    "§20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐",
+    "Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中",
+    "main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置",
+    "W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐",
+    "最终 release 制品（tar+签名 manifest+SBOM）未生成"
   ]
+}
+== branch readback ==
+{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection","required_status_checks":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks","strict":true,"contexts":["matrix (ubuntu-latest)","matrix (macos-latest)"],"contexts_url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts","checks":[{"context":"matrix (ubuntu-latest)","app_id":15368},{"context":"matrix (macos-latest)","app_id":15368}]},"required_signatures":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_signatures","enabled":false},"enforce_admins":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins","enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}
+== rulesets ==
+0
+
+== runtime ==
+{
+  "entry": "P0-9 runtime deploy",
+  "time": "2026-10-08T13:32:22+08:00",
+  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+  "active_sha256_prefix": "72ba1db7",
+  "repo_candidate_sha256_prefix": "72ba1db7",
+  "match": true,
+  "restart": "launchctl unload+load com.wenqu.dashboard",
+  "new_pid": 64211,
+  "probes": {
+    "GET /api/health": 200,
+    "POST /api/decide (no auth)": "403 forbidden"
+  },
+  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
 }

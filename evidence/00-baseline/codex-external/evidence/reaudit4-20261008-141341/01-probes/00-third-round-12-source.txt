@@ -1,0 +1,18 @@
+$ sed -n '291,304p' /private/tmp/codex-test/验收报告-第三轮.md
+| state_version 回绕 | resume 用旧 version | CAS 拒绝 | PASS |
+| 伪签名+缺绑定 | 删除 exact bindings、伪 actor/signature | 成功 resume | **FAIL** |
+| risk 冒充 resume | 混合 discriminator payload | Schema/Broker 接受并 resume | **FAIL** |
+| 未恢复资源 | 字符串 `"false"` 作为前置 | 成功 resume | **FAIL** |
+| 非 resume CAS | risk 包使用旧 state_version | 成功消费 | **FAIL** |
+| TIMEOUT/P1 洗白 | S7 TIMEOUT+CONDITIONAL + 不匹配 HIGH 风险包 | 最终 COMPLETED_CONDITIONAL | **FAIL** |
+| 控制事件直写 | S1 RUNNING 时 append RUN_COMPLETED/PASS | 重放为 SUCCEEDED，chain 仍 ok | **FAIL** |
+| 仅事件重放 | 复制 pipeline_events、不复制消费旁表 | 同 nonce 可再次消费 | **FAIL** |
+| station v2 链 | 合法 v2→aggregator→dashboard | 两段均不兼容 | **FAIL** |
+| EventStore 重试 | A、B、再 A | 返回伪 hash；head 指向 A | **FAIL** |
+| CAS 父目录竞态 | check 后替换 shard 为 symlink | 根外写入/读取成功 | **FAIL** |
+| Runner 逃逸 | 子孙自行 setsid | timeout 后 marker 存在 | **FAIL** |
+| 升级回滚 | v1 成功、v2 selfcheck 失败 | 无 previous rollback，current 留在 v2 | **FAIL** |
+| §20 追踪篡改 | 改 ID 后跑完整 acceptance | 仍 62/0 ALL GREEN | **FAIL / 假绿** |
+[exit_code=0]
+
+口径说明：本子任务的“12项未通过探针”取表中从“伪签名+缺绑定”至“升级回滚”的连续12项；§20/§25.1两项由用户任务第4项常规核验另列，不重复计入本组。

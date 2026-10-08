@@ -1,0 +1,12 @@
+[started_utc=2026-10-08T06:17:32Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 01
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "01", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "完整信封替换另一有效信封的签名仍被 HMAC 拒绝", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: HMAC-SHA256 signature verification failed（伪签名拒绝）", "ok": true}
+{"check": "已签但缺 exact policy_hash 绑定的信封被结构层拒绝", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: missing required field: policy_hash", "ok": true}
+{"check": "两次拒绝均未改变 run 状态", "ok": true, "run_state": "WAITING", "state_version": 3}
+{"check": "两次拒绝均未消费 nonce", "ok": true}
+{"check": "同一基础信封的正确签名正例仍可恢复", "ok": true}
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "01", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "伪签名+缺绑定：跨信封签名替换与已签缺字段均拒绝"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:32Z]
