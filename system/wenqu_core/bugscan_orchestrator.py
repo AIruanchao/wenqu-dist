@@ -32,6 +32,15 @@
   3. validate_manifest_consistency()：顶层与 planner 的 required/TTL/scope/
      分母自一致性校验（独立于签名——即使合法签名/诊断降级路径，任何不一致
      由 CLI 记 manifest_consistency_violation 并整线 BLOCKED）。
+- R8 第八轮 P0-3 残余根修（R8-GATE-LANE-REQ-001/TTL-SEMANTICS-002/
+  SCOPE-HASH-003）——「签名有效 ≠ 语义合法」：持钥者重签后的 lane/required
+  缩水、TTL 扩张、scope 漂移、registry digest 伪造曾仍 rc0/PASS。修法：
+  registry 信任根三件套（TrustedRegistryView 代码锚定视图 /
+  signed_registry_snapshot 快照 HMAC 签发 / load_trusted_registry_snapshot
+  验签读回）+ replay_manifest_semantics() 以信任根重放 lane 表/降档/TTL/
+  收敛轮数并从 scope 内容实算 hash——manifest 字段一律只算"声称值"。
+  station 结果级 freshness（ended_at+TTL ≥ gate 时点）由 gate_aggregator
+  以信任根 TTL 表强制。
 - SourceGateAdapter：站1 源闸适配——只消费 SourceGate 在 exact-SHA 上的
   既有结果并按 §7 退出码契约机械映射，不自行判定、不重跑；SHA 不匹配/
   证据过期/载荷畸形一律 fail-closed 抛错，绝不折算为 PASS（不变量：审批与
@@ -99,6 +108,14 @@ __all__ = [
     "freeze_run_manifest",
     "validate_manifest_consistency",
     "default_registry",
+    "REGISTRY_SNAPSHOT_KIND",
+    "RegistryTrustError",
+    "TrustedRegistryView",
+    "live_registry_view",
+    "registry_snapshot_core",
+    "signed_registry_snapshot",
+    "load_trusted_registry_snapshot",
+    "replay_manifest_semantics",
     "CONVERGENCE_ROUNDS_MIN",
     "CONVERGENCE_ROUNDS_MAX",
     "TRACKER_STATE_RUNNING",
@@ -129,7 +146,7 @@ __version__ = "1.0.0"
 SCHEMA_VERSION = "2.0"
 
 #: 注册表版本——站定义/判据/TTL 任何变更必须递增并同步 schemas/ 与规范文档。
-REGISTRY_VERSION = "w6a-1.0.0"
+REGISTRY_VERSION = "w6a-1.1.0"
 
 LANE_FAST = "FAST"
 LANE_STANDARD = "STANDARD"
@@ -247,6 +264,16 @@ class ConvergenceRoundCapExceeded(RuntimeError):
 
 class ManifestFreezeError(ValueError):
     """站0 冻结失败：身份字段非法、哈希不匹配、冻结件被异内容覆写等。"""
+
+
+class RegistryTrustError(ValueError):
+    """R8-GATE-REGISTRY-ROOT：受保护 registry 快照不可信/不可用（fail-closed）。
+
+    第八轮 P0-3 残余根修（R8-GATE-SCOPE-HASH-003 的 registry 面）：registry
+    digest 此前只在 manifest 内自报，持钥者可伪造后重签。受保护快照
+    （``--registry`` 外部文件）必须 HMAC 验签 + digest 重算一致 + 结构
+    完整，任一不满足即本异常——绝不带着来路不明的注册表做语义重放。
+    """
 
 
 class SourceGateError(ValueError):
@@ -469,7 +496,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         slug="live_fire",
         entry="真实业务流全链操作（生产写须所有者明确口令——一次性 exact-scope 授权）",
         coverage_denominator="业务流断言点数",
-        tools=("真实业务流全链操作",),
+        tools=("wenqu_core.station5_live_fire", "真实业务流全链操作"),
         rules=("W6A-ST5", "规范§1-站5", "停等类型=prod-write/fund-auth"),
         criteria=StationCriteria(
             pass_=("状态断言全 PASS", "数据回基线"),
@@ -478,7 +505,10 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         ),
         evidence_class="general",
         ttl_days=30,
-        notes=("不在任何自动档 required 集内——必须显式授权后加入",),
+        notes=("不在任何自动档 required 集内——必须显式授权后加入",
+               "最小真实扫描器=wenqu_core.station5_live_fire（w6a-1.1.0 起："
+               "授权五要素+exact-scope+日落执法+前后状态/幂等/守恒/补偿/回基线"
+               "证据面真实判定；取代 station7_runtime 占位接口）"),
     ),
     StationSpec(
         station_id=6,
@@ -486,7 +516,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         slug="adversarial",
         entry="`wenqu charter` 发射反方评审（异构端点优先）+ `wenqu ingest` 回收产物",
         coverage_denominator="对抗轴问题数（每轴必问）",
-        tools=("wenqu charter", "wenqu ingest"),
+        tools=("wenqu_core.station6_adversarial", "wenqu charter", "wenqu ingest"),
         rules=("W6A-ST6", "规范§1-站6", "二审定律：零发现结论须 ≥2 独立上下文"),
         criteria=StationCriteria(
             pass_=("每轴必问全覆盖", "零发现结论出自 ≥2 独立上下文"),
@@ -495,7 +525,10 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         ),
         evidence_class="permission_vulnerability",
         ttl_days=7,
-        notes=("上游 charter 模板内嵌 wsl.exe 探测命令——跨平台使用须改本机等价只读探测",),
+        notes=("上游 charter 模板内嵌 wsl.exe 探测命令——跨平台使用须改本机等价只读探测",
+               "最小真实扫描器=wenqu_core.station6_adversarial（w6a-1.1.0 起："
+               "登记完整性/每轴必问/二审定律独立性（同源换标签只计一）/TTL 日落"
+               "合规真实判定；取代 station7_runtime 占位接口）"),
     ),
     StationSpec(
         station_id=7,
@@ -1051,10 +1084,15 @@ class RunManifest:
     @classmethod
     def _from_verified_dict(cls, data: Mapping[str, Any]) -> "RunManifest":
         plan_data = data["planner"]
-        downgrade = (
-            RiskAcceptance.from_mapping(plan_data["downgrade"])
-            if plan_data.get("downgrade") else None
-        )
+        # R8：畸形降档记录（缺五要素等）不在解析层塌缩成异常——load 容错读入
+        # （downgrade=None），由 replay_manifest_semantics 以原始 dict 记
+        # risk_acceptance_invalid 并整线 BLOCKED（语义面正源，非工具 ERROR）。
+        downgrade = None
+        if plan_data.get("downgrade"):
+            try:
+                downgrade = RiskAcceptance.from_mapping(plan_data["downgrade"])
+            except RiskDowngradeError:
+                downgrade = None
         identity = data["identity"]
         plan = BugscanPlan(
             lane_requested=plan_data["lane_requested"],
@@ -1458,6 +1496,493 @@ def validate_manifest_consistency(data: Any) -> List[str]:
     key_id = data.get("key_id")
     if (signature is None) != (key_id is None):
         _err("signature/key_id must appear as a pair (half-signed manifest)")
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# 受保护 registry 快照 + manifest 语义重放（R8-GATE-LANE-REQ-001 /
+# R8-GATE-TTL-SEMANTICS-002 / R8-GATE-SCOPE-HASH-003，第八轮 P0-3 残余根修）
+# ---------------------------------------------------------------------------
+
+#: 受保护 registry 快照的 kind 常量（快照体的第一道判别）。
+REGISTRY_SNAPSHOT_KIND = "wenqu/station-registry-snapshot"
+
+
+@dataclass(frozen=True)
+class TrustedRegistryView:
+    """语义重放的信任根视图（只读）：lane 表 / TTL 表 / 降档底线 / registry 指纹。
+
+    两个正源来源（R8 修法）：
+    1. ``live_registry_view()``——运行中代码锚定的 ``default_registry()``
+       （生产部署里 CLI 从 immutable ``~/.wenqu/current/system`` 运行，
+       代码锚定即受保护快照；manifest 自报的 registry_digest 不再采信）；
+    2. ``load_trusted_registry_snapshot()``——``--registry`` 外部快照，
+       必须 release key HMAC 验签 + digest 重算一致 + 结构完整。
+
+    视图只暴露重放所需的最小只读面，绝不回退到 manifest 自报值。
+    """
+
+    registry_version: str
+    registry_digest: str
+    lane_required_stations: Dict[str, Tuple[int, ...]]
+    lane_convergence_rounds: Dict[str, int]
+    ttl_days: Dict[int, int]
+    downgrade_floor_stations: FrozenSet[int]
+    source: str = "code_anchored"
+
+    def lane_required(self, lane: str) -> Tuple[int, ...]:
+        try:
+            return self.lane_required_stations[lane]
+        except (KeyError, TypeError):
+            raise BugscanPlanError(
+                f"unknown lane {lane!r}; trusted registry knows "
+                f"{sorted(self.lane_required_stations)}"
+            ) from None
+
+    def lane_convergence(self, lane: str) -> int:
+        try:
+            return self.lane_convergence_rounds[lane]
+        except (KeyError, TypeError):
+            raise BugscanPlanError(
+                f"unknown lane {lane!r}; trusted registry knows "
+                f"{sorted(self.lane_convergence_rounds)}"
+            ) from None
+
+    def ttl_for(self, station_id: int) -> int:
+        try:
+            return self.ttl_days[station_id]
+        except (KeyError, TypeError):
+            raise KeyError(
+                f"station {station_id!r} not in trusted registry TTL table"
+            ) from None
+
+
+def live_registry_view(
+    registry: Optional[StationRegistry] = None,
+) -> TrustedRegistryView:
+    """把运行中代码锚定的 StationRegistry 投影为重放信任根视图。"""
+    reg = registry or default_registry()
+    return TrustedRegistryView(
+        registry_version=REGISTRY_VERSION,
+        registry_digest=reg.registry_digest(),
+        lane_required_stations={k: tuple(v)
+                                for k, v in LANE_REQUIRED_STATIONS.items()},
+        lane_convergence_rounds=dict(LANE_CONVERGENCE_ROUNDS),
+        ttl_days={i: reg.ttl_for(i) for i in range(8)},
+        downgrade_floor_stations=DOWNGRADE_FLOOR_STATIONS,
+        source="code_anchored",
+    )
+
+
+def registry_snapshot_core(
+    registry: Optional[StationRegistry] = None,
+) -> Dict[str, Any]:
+    """受保护快照的被签主体：站定义 + lane 表 + 收敛轮数 + 降档底线 + digest。
+
+    ``registry_digest`` 与 ``StationRegistry.registry_digest()`` 同算法
+    （sha256(canonical({registry_version, stations}))）——快照与代码锚定
+    两个信任根对同一 registry 必然给出同一 digest。
+    """
+    reg = registry or default_registry()
+    snap = reg.snapshot()
+    return {
+        "snapshot_kind": REGISTRY_SNAPSHOT_KIND,
+        "registry_version": snap["registry_version"],
+        "stations": snap["stations"],
+        "lane_required_stations": {
+            lane: list(v) for lane, v in LANE_REQUIRED_STATIONS.items()
+        },
+        "lane_convergence_rounds": dict(LANE_CONVERGENCE_ROUNDS),
+        "downgrade_floor_stations": sorted(DOWNGRADE_FLOOR_STATIONS),
+        "registry_digest": reg.registry_digest(),
+    }
+
+
+def signed_registry_snapshot(
+    *,
+    signing_keyring: ApprovalKeyring,
+    signing_key_id: Optional[str] = None,
+    registry: Optional[StationRegistry] = None,
+) -> Dict[str, Any]:
+    """对 registry 快照签发 HMAC-SHA256（release/manifest 专用 key）。
+
+    R8 修法 1（registry 可信根）：``default_registry()`` 的 registry_digest
+    以 keyring HMAC 签名落快照——与 manifest 签名同一 key 域（approval_keys
+    只读复用），签发 key 解析与 freeze_run_manifest 同一纪律（显式
+    key_id > 唯一 active；rotated/revoked/expired/多 active 未显式一律
+    RegistryTrustError，绝不猜 key）。
+    """
+    if not isinstance(signing_keyring, ApprovalKeyring):
+        raise RegistryTrustError(
+            "signing_keyring must be an ApprovalKeyring, got "
+            f"{type(signing_keyring).__name__}"
+        )
+    active = signing_keyring.active_key_ids()
+    if signing_key_id is None:
+        if len(active) != 1:
+            raise RegistryTrustError(
+                "signing_key_id 必须显式指定（active key 数="
+                f"{len(active)}：{active or '无 active key'}）——"
+                "registry 快照签发不得猜 key（R8 registry 可信根）"
+            )
+        resolved = active[0]
+    else:
+        resolved = signing_key_id
+    try:
+        secret = signing_keyring.get_for_signing(resolved)
+    except (KeyNotFoundError, KeyStateError) as exc:
+        raise RegistryTrustError(
+            f"registry 快照签发 key 不可用（{resolved!r}）: {exc}"
+        ) from exc
+    core = registry_snapshot_core(registry)
+    signature = sign_envelope(secret, {**core, "key_id": resolved})
+    return {**core, "key_id": resolved, "signature": signature}
+
+
+def load_trusted_registry_snapshot(
+    path: str | os.PathLike[str],
+    *,
+    keyring: ApprovalKeyring,
+) -> TrustedRegistryView:
+    """读回并验证受保护 registry 快照 → TrustedRegistryView（fail-closed）。
+
+    验证链（任一失败 → RegistryTrustError）：
+    1. JSON 对象 + snapshot_kind 常量；
+    2. signature/key_id 成对，key 在验签 keyring 登记，HMAC 验签通过
+       （revoked 验签即拒——approval_keys 语义）；
+    3. registry_digest == sha256(canonical({registry_version, stations}))
+       重算（不信快照自报 digest）；
+    4. 结构完整：站 0..7 齐全、TTL 在铁律 4 双上限内、lane 表覆盖全部
+       三档且非空、降档底线 ⊆ 每档 required 集、收敛轮数 1..MAX。
+    """
+    if not isinstance(keyring, ApprovalKeyring):
+        raise RegistryTrustError(
+            "keyring must be an ApprovalKeyring, got "
+            f"{type(keyring).__name__}"
+        )
+    raw = Path(path).read_bytes()
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RegistryTrustError(
+            f"{path}: registry snapshot is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(doc, Mapping):
+        raise RegistryTrustError(f"{path}: registry snapshot must be a JSON object")
+    if doc.get("snapshot_kind") != REGISTRY_SNAPSHOT_KIND:
+        raise RegistryTrustError(
+            f"{path}: snapshot_kind must be {REGISTRY_SNAPSHOT_KIND!r}, "
+            f"got {doc.get('snapshot_kind')!r}"
+        )
+    signature = doc.get("signature")
+    key_id = doc.get("key_id")
+    if signature is None or key_id is None:
+        raise RegistryTrustError(
+            f"{path}: registry snapshot 无签名/签名字段残缺"
+            "（受保护快照必须由 release key 签发——未验签的外部文件"
+            "不构成可信根）"
+        )
+    if not isinstance(key_id, str) or not keyring.has(key_id):
+        raise RegistryTrustError(
+            f"{path}: registry snapshot key_id {key_id!r} 未在验签 keyring "
+            "登记（未知 key——fail-closed 拒绝）"
+        )
+    if not keyring.verify(doc):
+        raise RegistryTrustError(
+            f"{path}: registry snapshot 签名验签失败（内容被篡改或 key "
+            "已吊销——外部快照与签发时不符）"
+        )
+
+    version = doc.get("registry_version")
+    stations = doc.get("stations")
+    if not isinstance(version, str) or not version.strip():
+        raise RegistryTrustError(f"{path}: registry_version must be a non-empty string")
+    if not isinstance(stations, Mapping):
+        raise RegistryTrustError(f"{path}: stations must be an object")
+    recomputed = _hash_obj({"registry_version": version, "stations": stations})
+    if doc.get("registry_digest") != recomputed:
+        raise RegistryTrustError(
+            f"{path}: registry_digest mismatch（stored "
+            f"{doc.get('registry_digest')!r} != recomputed {recomputed!r}）"
+            "——快照自报 digest 与内容不符"
+        )
+
+    # -- 结构完整性（即使签名合法，畸形表也绝不当重放正源）------------------
+    def _int_ok(value: Any) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    if sorted(str(i) for i in range(8)) != sorted(stations):
+        raise RegistryTrustError(
+            f"{path}: stations must define exactly 0..7, got {sorted(stations)}"
+        )
+    ttl_days: Dict[int, int] = {}
+    for key, spec in stations.items():
+        if not isinstance(spec, Mapping) or not _int_ok(spec.get("ttl_days")):
+            raise RegistryTrustError(
+                f"{path}: stations[{key!r}].ttl_days must be an int"
+            )
+        ev_class = spec.get("evidence_class")
+        cap = EVIDENCE_TTL_CAP_DAYS.get(ev_class) if isinstance(ev_class, str) else None
+        if cap is None:
+            raise RegistryTrustError(
+                f"{path}: stations[{key!r}].evidence_class unknown: {ev_class!r}"
+            )
+        ttl = spec["ttl_days"]
+        if not 1 <= ttl <= cap:
+            raise RegistryTrustError(
+                f"{path}: stations[{key!r}].ttl_days={ttl} violates 铁律4 "
+                f"cap {cap}d for {ev_class}"
+            )
+        ttl_days[int(key)] = ttl
+
+    lane_tables = doc.get("lane_required_stations")
+    if not isinstance(lane_tables, Mapping) or sorted(lane_tables) != sorted(LANES):
+        raise RegistryTrustError(
+            f"{path}: lane_required_stations must cover exactly {sorted(LANES)}"
+        )
+    parsed_lanes: Dict[str, Tuple[int, ...]] = {}
+    floor_raw = doc.get("downgrade_floor_stations")
+    if (not isinstance(floor_raw, list)
+            or not all(_int_ok(x) and 0 <= x <= 7 for x in floor_raw)):
+        raise RegistryTrustError(
+            f"{path}: downgrade_floor_stations must be a list of station ids"
+        )
+    floor = frozenset(floor_raw)
+    for lane in LANE_REQUIRED_STATIONS:
+        req = lane_tables.get(lane)
+        if (not isinstance(req, list) or not req
+                or not all(_int_ok(x) and 0 <= x <= 7 for x in req)
+                or len(set(req)) != len(req)):
+            raise RegistryTrustError(
+                f"{path}: lane_required_stations[{lane!r}] must be a "
+                "non-empty sorted-unique list of station ids"
+            )
+        if not floor <= set(req):
+            raise RegistryTrustError(
+                f"{path}: lane {lane!r} required {sorted(req)} 低于降档底线 "
+                f"{sorted(floor)}（底线站不得从档位表中消失）"
+            )
+        parsed_lanes[lane] = tuple(sorted(req))
+
+    rounds_table = doc.get("lane_convergence_rounds")
+    if not isinstance(rounds_table, Mapping) or sorted(rounds_table) != sorted(LANES):
+        raise RegistryTrustError(
+            f"{path}: lane_convergence_rounds must cover exactly {sorted(LANES)}"
+        )
+    parsed_rounds: Dict[str, int] = {}
+    for lane in LANE_CONVERGENCE_ROUNDS:
+        value = rounds_table.get(lane)
+        if not _int_ok(value) or not CONVERGENCE_ROUNDS_MIN <= value \
+                <= CONVERGENCE_ROUNDS_MAX:
+            raise RegistryTrustError(
+                f"{path}: lane_convergence_rounds[{lane!r}] must be an int in "
+                f"[{CONVERGENCE_ROUNDS_MIN},{CONVERGENCE_ROUNDS_MAX}]"
+            )
+        parsed_rounds[lane] = value
+
+    return TrustedRegistryView(
+        registry_version=version,
+        registry_digest=recomputed,
+        lane_required_stations=parsed_lanes,
+        lane_convergence_rounds=parsed_rounds,
+        ttl_days=ttl_days,
+        downgrade_floor_stations=floor,
+        source="signed_snapshot",
+    )
+
+
+def replay_manifest_semantics(
+    data: Any,
+    *,
+    registry: StationRegistry | TrustedRegistryView,
+    now: Optional[datetime] = None,
+) -> List[str]:
+    """用受保护 registry 重放 manifest 语义；返回违例清单（空 == 通过）。
+
+    R8 第八轮 P0-3 残余根修——「签名有效 ≠ 语义合法」：持钥者可把 FAST
+    required 同步缩到 [0]、扩 TTL、漂移 scope 内容、伪造 registry digest
+    后重签，旧门全部放行。本重放独立于签名/内部自一致性，逐项以信任根
+    实推（manifest 任何字段只提供"声称值"，判定一律来自 registry 推导）：
+
+    1. registry 指纹对账：registry_version/registry_digest 必须 == 信任根
+       实值（R8-GATE-SCOPE-HASH-003 registry 面）；
+    2. lane/required 重放：lane_effective 已知且不低于 lane_requested（档位
+       只升不降）；required = lane 表 − 合法降档。顶层与 planner 的
+       required_stations 都必须等于重放值（R8-GATE-LANE-REQ-001）；
+    3. 降档重放：downgrade 记录与 dropped_stations 成对；五要素齐备 +
+       30 天日落 + gate 时点未过期；dropped ⊆ lane 基础集且不触底线 {0,1}；
+    4. TTL 重放：station_ttls 必须 == {sid: registry.ttl_for(sid)} 逐站
+       相等（扩/缩/删/漂移全拒，R8-GATE-TTL-SEMANTICS-002）；
+    5. 收敛轮数域：>= lane 契约轮数且 <= 全局上限；
+    6. scope hash 实算：identity.scope_hash 必须 == sha256(canonical(
+       {paths, exclusions})) 从 scope 内容重算——不信字段自报
+       （R8-GATE-SCOPE-HASH-003 scope 面）。
+
+    本函数只判定不抛错（畸形形状计违例）；station 结果级 freshness
+    （ended_at+TTL ≥ gate 时点）在 gate_aggregator 执行（需逐站结果）。
+    """
+    issues: List[str] = []
+    now = now or _utc_now()
+
+    view = (registry if isinstance(registry, TrustedRegistryView)
+            else live_registry_view(registry))
+
+    def _err(msg: str) -> None:
+        issues.append(msg)
+
+    def _int_ok(value: Any) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    if not isinstance(data, Mapping):
+        return ["manifest must be a JSON object"]
+
+    # 1) registry 指纹对账（不信自报）---------------------------------------
+    if data.get("registry_version") != view.registry_version:
+        _err(f"registry_version_mismatch: manifest {data.get('registry_version')!r}"
+             f" != trusted {view.registry_version!r}（判定正源以信任根为准）")
+    if data.get("registry_digest") != view.registry_digest:
+        _err("registry_digest_mismatch: manifest 自报 digest 与受保护 registry "
+             f"实算不符（trusted {view.registry_digest[:16]}…）——伪造/漂移 "
+             "registry 指纹不得进入重放")
+
+    planner = data.get("planner")
+    if not isinstance(planner, Mapping):
+        _err("planner section missing/malformed")
+        planner = {}
+
+    # 2) lane 与 required 重放 ------------------------------------------------
+    lane_eff = planner.get("lane_effective")
+    lane_req = planner.get("lane_requested")
+    for field, lane in (("lane_effective", lane_eff), ("lane_requested", lane_req)):
+        if not isinstance(lane, str) or lane not in view.lane_required_stations:
+            _err(f"planner.{field} unknown lane: {lane!r}")
+    base_set: Optional[set] = None
+    if isinstance(lane_eff, str) and lane_eff in view.lane_required_stations \
+            and isinstance(lane_req, str) and lane_req in view.lane_required_stations:
+        order = {name: i for i, name in enumerate(LANES)}
+        if order[lane_eff] < order[lane_req]:
+            _err(f"lane_downgrade_without_acceptance: lane_requested {lane_req!r} "
+                 f"高于 lane_effective {lane_eff!r}（铁律1 只升不降——档位"
+                 "降档没有合法通道）")
+        escalated = planner.get("escalated")
+        should_escalate = lane_eff != lane_req
+        if bool(escalated) != should_escalate:
+            _err(f"escalation_flag_inconsistent: escalated={escalated!r} 但 "
+                 f"lane_requested={lane_req!r}/lane_effective={lane_eff!r}")
+        reasons = planner.get("escalation_reasons")
+        reasons = reasons if isinstance(reasons, list) else []
+        if should_escalate and not reasons:
+            _err("escalation_reasons_missing: 升档必须携带理由（铁律1 留痕）")
+        if not should_escalate and reasons:
+            _err(f"escalation_reasons_ghost: 未升档却携带理由 {reasons!r}")
+        base_set = set(view.lane_required(lane_eff))
+
+    # 3) 降档重放 -------------------------------------------------------------
+    downgrade = planner.get("downgrade")
+    dropped_raw = planner.get("dropped_stations")
+    dropped_raw = dropped_raw if isinstance(dropped_raw, list) else []
+    dropped: List[int] = [d for d in dropped_raw if _int_ok(d)]
+    if len(dropped) != len(dropped_raw):
+        _err(f"dropped_stations malformed: {dropped_raw!r}")
+    if downgrade is None and dropped:
+        _err(f"downgrade_record_missing: dropped_stations {sorted(dropped)} "
+             "无风险接受记录（降档唯一合法通道缺失）")
+    if downgrade is not None and not dropped:
+        _err("downgrade_record_without_dropped: 有降档记录但 dropped_stations "
+             "为空（记录与事实不成对）")
+    if downgrade is not None and dropped:
+        try:
+            acceptance = RiskAcceptance.from_mapping(downgrade)
+            acceptance.validate(now)
+        except RiskDowngradeError as exc:
+            _err(f"risk_acceptance_invalid: {exc}")
+        if base_set is not None:
+            for station_id in dropped:
+                if station_id not in base_set:
+                    _err(f"downgrade_station_not_in_lane_set: station "
+                         f"{station_id} 不在 {planner.get('lane_effective')!r} "
+                         f"required 集 {sorted(base_set)}（registry 允许集之外）")
+                if station_id in view.downgrade_floor_stations:
+                    _err(f"downgrade_floor_violation: station {station_id} 属"
+                         f"底线站 {sorted(view.downgrade_floor_stations)}"
+                         "（站0 范围冻结与站1 源闸任何情况下不可省略）")
+
+    # 4) required 对账（顶层与 planner 都必须等于重放值）-----------------------
+    if base_set is not None:
+        replayed = tuple(sorted(base_set - set(dropped)))
+        for field, claimed in (("top-level", data.get("required_stations")),
+                               ("planner", planner.get("required_stations"))):
+            if not isinstance(claimed, list) or not all(_int_ok(x) for x in claimed):
+                _err(f"required_stations_not_registry_replayed[{field}]: "
+                     f"malformed {claimed!r} != registry 推导 "
+                     f"{list(replayed)}")
+            elif sorted(set(claimed)) != list(replayed):
+                _err(f"required_stations_not_registry_replayed[{field}]: "
+                     f"{sorted(claimed)} != registry 推导 {list(replayed)}"
+                     "（lane 表−合法降档；缩站/加站都不得按自报口径上绿）")
+        # 5) TTL 重放（逐站相等——扩/缩/删/漂移全拒）--------------------------
+        ttls_raw = data.get("station_ttls")
+        expected_ttls = {str(i): view.ttl_for(i) for i in replayed}
+        if not isinstance(ttls_raw, Mapping):
+            _err(f"station_ttls_not_registry_replayed: must be an object, "
+                 f"got {type(ttls_raw).__name__}; registry 推导 {expected_ttls}")
+        else:
+            claimed_ttls = {str(k): v for k, v in ttls_raw.items()}
+            for key, value in claimed_ttls.items():
+                if not _int_ok(value):
+                    _err(f"station_ttls_not_registry_replayed[{key!r}]: "
+                         f"TTL must be an int, got {value!r}")
+            if all(_int_ok(v) for v in claimed_ttls.values()) \
+                    and claimed_ttls != expected_ttls:
+                _err(f"station_ttls_not_registry_replayed: manifest "
+                     f"{claimed_ttls} != registry 推导 {expected_ttls}"
+                     "（扩 TTL/缩 TTL/删站 TTL 均不得按自报口径上绿）")
+        # 6) 收敛轮数域 ---------------------------------------------------------
+        rounds = planner.get("convergence_rounds")
+        lane_floor = view.lane_convergence(lane_eff)
+        if not _int_ok(rounds):
+            _err(f"convergence_rounds_malformed: {rounds!r} must be an int")
+        elif rounds < lane_floor or rounds > CONVERGENCE_ROUNDS_MAX:
+            _err(f"convergence_rounds_out_of_domain: {rounds} 不在 "
+                 f"[{lane_floor},{CONVERGENCE_ROUNDS_MAX}]"
+                 f"（lane {lane_eff!r} 契约——降档收敛是弱化）")
+
+    # 7) scope hash 实算（不信自报）-------------------------------------------
+    scope = data.get("scope")
+    if not isinstance(scope, Mapping):
+        _err(f"scope section missing/malformed, got {type(scope).__name__}")
+    else:
+        paths = scope.get("paths")
+        exclusions = scope.get("exclusions", [])
+        exclusions = exclusions if isinstance(exclusions, list) else None
+        if (not isinstance(paths, list) or not paths
+                or not all(isinstance(p, str) and p.strip() for p in paths)):
+            _err("scope_paths_malformed: must be a non-empty list of "
+                 "non-empty strings")
+            paths = None
+        elif list(paths) != sorted(set(paths)):
+            _err("scope_paths_not_canonical: paths 必须去重升序"
+                 "（freeze 语义）——非规范 scope 不得参与 hash 对账")
+        if exclusions is None:
+            _err("scope_exclusions_malformed: must be a list of strings")
+        elif not all(isinstance(e, str) and e.strip() for e in exclusions):
+            _err("scope_exclusions_malformed: 空串/非字符串排除项非法")
+        elif list(exclusions) != sorted(set(exclusions)):
+            _err("scope_exclusions_not_canonical: exclusions 必须去重升序"
+                 "（freeze 语义）")
+        identity = data.get("identity")
+        claimed_hash = (identity.get("scope_hash")
+                        if isinstance(identity, Mapping) else None)
+        if paths is not None and exclusions is not None \
+                and list(paths) == sorted(set(paths)) \
+                and list(exclusions) == sorted(set(exclusions)):
+            recomputed = _hash_obj(
+                {"paths": list(paths), "exclusions": list(exclusions)})
+            if claimed_hash != recomputed:
+                _err("scope_hash_recompute_mismatch: identity.scope_hash 自报 "
+                     f"{str(claimed_hash)[:16]}… != scope 内容实算 "
+                     f"{recomputed[:16]}…（scope 漂移/谎报 hash 都拒）")
 
     return issues
 
@@ -2339,6 +2864,83 @@ def _self_test() -> int:
         loaded = RunManifest.load(path)
         assert loaded.manifest_hash == manifest.manifest_hash
         print(f"[6] manifest save/load OK: {path.name} idempotent + hash verified")
+
+    # [7]/[8] 站5/站6 最小真实扫描器（w6a-1.1.0：取代 NOT_APPLICABLE 占位——
+    # 注册表 tools 槽指向 station5_live_fire/station6_adversarial，此处对
+    # 真实语义做正/负路径自证）。
+    # 注：以 ``python3 -m wenqu_core.bugscan_orchestrator`` 直跑时本模块同时
+    # 以 __main__ 与规范名各装载一份；站5/站6 扫描器的 isinstance 门只认
+    # 规范名副本的 RunManifest，故此处从规范名模块重建 manifest（与
+    # ``import wenqu_core.bugscan_orchestrator`` 后调用 _self_test 的场景
+    # 天然一致——两副本退化为同一模块对象）。
+    from . import bugscan_orchestrator as _canon
+    from .station5_live_fire import LiveFireScanner as _St5
+    from .station6_adversarial import AdversarialReviewScanner as _St6
+
+    _canon_manifest = _canon.BugscanPlanner().freeze_run_manifest(
+        _canon.BugscanPlanner().plan("INCIDENT"),
+        run_id="selftest-st56-001",
+        project_id="wenqu-selftest",
+        commit_sha=sha,
+        environment="local",
+        scope=["src/**"],
+        ruleset={"version": "w6a", "rules": ["W6A-ST5", "W6A-ST6"]},
+        data_config={"profile": "default"},
+    )
+
+    now5 = _utc_now()
+    auth5 = {
+        "approver": "biz-owner",
+        "reason": "下单全链实弹验证：一次性 exact-scope 授权",
+        "scope": ["order-create-live"],
+        "expiry": _iso_z(now5 + timedelta(days=1)),
+        "token": "one-time-token-orchestrator-selftest",
+    }
+    flow5 = {
+        "name": "order-create-live",
+        "executed_at": _iso_z(now5),
+        "before_state_hash": "a" * 64,
+        "after_state_hash": "b" * 64,
+        "baseline_state_hash": "a" * 64,  # 清理后回基线
+        "assertions": [{"name": "order-visible", "outcome": "PASS"},
+                       {"name": "stock-deducted", "outcome": "PASS"}],
+        "idempotency": {"replay_effects": 0},
+        "conservation": {"invariant": "stock>=0", "violations": 0},
+        "compensation": {"required": False, "executed": False},
+    }
+    st5 = _St5(_canon_manifest, authorization=auth5, flows=[flow5], now=now5).scan()
+    validate_station_result(st5)
+    assert st5["station_id"] == 5 and st5["policy_verdict"] == "PASS"
+    assert st5["coverage"] == {"denominator": 6, "scanned": 6}  # 2 断言+4 检查点
+    st5_blocked = _St5(_canon_manifest, flows=[flow5], now=now5).scan()
+    validate_station_result(st5_blocked)
+    assert st5_blocked["execution_status"] == "BLOCKED"
+    assert st5_blocked["policy_verdict"] == "NOT_EVALUATED"  # 授权缺失≠通过
+    print(f"[7] station-5 live-fire real scan OK: 授权+前后状态证据面 "
+          f"PASS {st5['coverage']['scanned']}/{st5['coverage']['denominator']}；"
+          f"无授权→BLOCKED/NOT_EVALUATED（注册表 error 判据）")
+
+    now6 = _utc_now()
+    axes6 = ("auth-bypass", "mutation", "concurrency", "out-of-order")
+    answers6 = {axis: {"asked": True, "findings": []} for axis in axes6}
+    ctx_s3 = {"context_id": "s3-cc", "kind": "s3_adversarial",
+              "source_identity": "claude-code/oppo",
+              "captured_at": _iso_z(now6), "answers": dict(answers6)}
+    ctx_s5 = {"context_id": "s5-codex", "kind": "s5_independent_audit",
+              "source_identity": "codex/audit",
+              "captured_at": _iso_z(now6), "answers": dict(answers6)}
+    st6 = _St6(_canon_manifest, axes=axes6, contexts=[ctx_s3, ctx_s5], now=now6).scan()
+    validate_station_result(st6)
+    assert st6["station_id"] == 6 and st6["policy_verdict"] == "PASS"
+    assert st6["coverage"] == {"denominator": 4, "scanned": 4}  # 每轴必问全覆盖
+    st6_single = _St6(_canon_manifest, axes=axes6, contexts=[ctx_s3], now=now6).scan()
+    validate_station_result(st6_single)
+    assert st6_single["execution_status"] == "BLOCKED"  # 异源缺席=error 判据
+    assert st6_single["policy_verdict"] == "NOT_EVALUATED"
+    print(f"[8] station-6 adversarial real scan OK: 每轴必问 {st6['coverage']['scanned']}/"
+          f"{st6['coverage']['denominator']} + 双异源零发现 PASS；异源缺席→"
+          f"BLOCKED/NOT_EVALUATED（注册表 error 判据）")
+
     print("SELF-TEST PASS")
     return 0
 

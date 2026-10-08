@@ -1,0 +1,15 @@
+=== runtime process check 20261008T163305Z ===
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  10136 maccc    3u  IPv4 0x42ccf9468dab72a0      0t0  TCP 127.0.0.1:7789 (LISTEN)
+
+=== process resolved path (immutable tree check) ===
+  PID COMMAND
+10136 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/current/system/dashboard/server.py --port 7789
+
+=== four-file hash: runtime-resolved (current tree) vs current tree vs repo HEAD-worktree ===
+server.py current=02e2691a474342b1628b449b6396cb18c5c9fd03811348f764f54f4a8fb49bac repo==current:DRIFT old-mutable=fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b
+index.html current=caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2 repo==current:OK old-mutable=caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2
+app.js current=fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e repo==current:OK old-mutable=fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e
+app.css current=d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a repo==current:OK old-mutable=d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a
+
+current symlink -> /Users/maccc/.wenqu/releases/2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551/tree

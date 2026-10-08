@@ -20,5 +20,11 @@ jobs:
         run: bash tests/acceptance.sh
       - name: pytest 契约
         run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: Runner Linux /proc token 扫杀真腿（ubuntu 实测；macos 结构腿+SKIP）
+        # 八轮遗留项「Runner Linux /proc 通路未实测」：ubuntu-latest 上真跑
+        # system/tests/test_linux_proc_path.py 的两条真腿（/proc environ token
+        # 扫描命中+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）；
+        # macos-latest 上同文件跑结构腿（monkeypatch /proc 布局）+真腿 SKIP 标注。
+        run: python -m pytest system/tests/test_linux_proc_path.py -v
       - name: selftest
         run: python cli/wenqu selftest

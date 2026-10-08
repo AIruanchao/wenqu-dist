@@ -25,13 +25,21 @@
          缺表不报错；与 JSONL 迁移混合同链；
     UE-06 控制事件守卫不回退：迁移事件类型均非控制类型；统一表上裸
          append 伪造 RUN_*/SUPERSEDED 仍一律 ValueError；
-    UE-07（R7-EVENT-LEGACY-WRITABLE-007 P0 根修）旧表冻结只读+迟到写
-         拒收：收编完成后旧 events 表 INSERT/UPDATE/DELETE 被冻结触发器
-         全拒；绕过触发器（新库模拟：无触发器的旧表）塞入的迟到行在第
-         二次迁移走 quarantine（late_write_after_cutover）绝不入链，且
-         id 通道（id>cutover.max_legacy_id，ts 伪装早也能抓）与 ts 通道
-         （行内 ts/元数据晚于 cutover，id 塞进历史空位也能抓）独立成立；
-         触发器治愈重装、cutover 永不推进、重复收编幂等不重复装触发器。
+    UE-07（R7-EVENT-LEGACY-WRITABLE-007 P0 根修 + 第八轮 P0-6 残余根修）
+         旧表冻结只读+迟到写拒收+行内容快照账本：收编完成后旧 events 表
+         INSERT/UPDATE/DELETE 被冻结触发器全拒；绕过触发器（新库模拟：
+         无触发器的旧表）塞入的迟到行在第二次迁移走 quarantine
+         （late_write_after_cutover）绝不入链，且 id 通道（id>
+         cutover.max_legacy_id，ts 伪装早也能抓）与 ts 通道（行内 ts/
+         元数据晚于 cutover，id 塞进历史空位也能抓）独立成立；触发器
+         治愈重装、cutover 永不推进、重复收编幂等不重复装触发器。
+         第八轮扩展（id/ts 双通道都是 writer 可回填字段）：收编时行内容
+         sha256 记入统一库侧受保护账本 legacy_row_digests（AFTER UPDATE/
+         DELETE 拒绝触发器，append-only 与事件链同库）；二次迁移逐行
+         比对——UPDATE+backdate 的失配行 quarantine
+         （row_mutated_after_cutover）绝不入链且不重基线快照；gap 空位
+         全回填 INSERT（id/ts 双通道全漏）按账本缺席拒收；账本自身
+         UPDATE/DELETE 被触发器关死；合法未动行仍正常 duplicate。
 
 独立运行：python3 system/tests/test_events_unified.py → exit 0 全绿。
 """
@@ -53,7 +61,9 @@ from wenqu_core.store import (                             # noqa: E402
 from wenqu_core.ledger_migrator import (                   # noqa: E402
     LedgerMigrator, migrate_legacy_events, migration_event,
     MIGRATION_EVENT_TYPE, LEGACY_EVENTS_TABLE, LEGACY_RESIDUE_EVENT_TYPE,
-    LATE_WRITE_REASON, LEGACY_FREEZE_TRIGGER_NAMES, LEGACY_CUTOVER_TABLE)
+    LATE_WRITE_REASON, LEGACY_FREEZE_TRIGGER_NAMES, LEGACY_CUTOVER_TABLE,
+    ROW_MUTATED_REASON, LEGACY_ROW_DIGESTS_TABLE,
+    LEGACY_DIGEST_FREEZE_TRIGGER_NAMES)
 
 PASS_N, FAIL_N = 0, 0
 RESULTS = []
@@ -604,6 +614,18 @@ UE7_LATE_RAW_ID = ('{"status": "PASS", "ts": "2026-09-01T00:03:00Z", '
 UE7_LATE_RAW_TS = ('{"status": "FAIL", "ts": "2099-01-01T00:00:00Z", '
                    '"id": "late-ts-channel"}')
 UE7_EARLY_META = "2026-09-01 00:00:00"
+#: 第八轮（UPDATE+backdate 拒收）专用载荷：收编后 UPDATE 旧行改写的
+#: 内容——ts 回填到比原行（2026-09-01）更早的 2026-08-01，id 不变、
+#: ts/migrated_at 全部伪装早时间，id/ts 双通道全漏，只有行内容快照
+#: 账本（第三通道）能抓到
+UE7_MUTATED_RAW = ('{"status": "PASS", "ts": "2026-08-01T00:00:00Z", '
+                   '"mutated": "backdated"}')
+#: 第八轮（gap 空位全回填拒收）专用载荷：塞进历史空位（id 在
+#: max_legacy_id 区间内、该 rowid 在 cutover 时不存在）的行——行内 ts
+#: 与 migrated_at 全部回填早时间，id/ts 双通道全漏，只有账本缺席
+#: （no row digest on record）能抓到
+UE7_GAP_RAW = ('{"status": "PASS", "ts": "2026-09-01T00:05:00Z", '
+               '"gap": "backfilled"}')
 
 
 def _drop_freeze_triggers(conn):
@@ -771,6 +793,117 @@ def test_UE_07_legacy_frozen_readonly_late_write_quarantined():
         assert all(r["reason"] == LATE_WRITE_REASON and r.get("late_evidence")
                    for r in q)
         assert all(r["legacy_id"] == 4 for r in q)
+
+        # ---- (5) 行内容快照账本（第八轮）：UPDATE+backdate 失配行 quarantine ----
+        #    id 不变、ts/migrated_at 全部回填比原行更早——id/ts 双通道全漏，
+        #    只有第三通道（内容快照比对）能抓到
+        db3 = os.path.join(td, "ev3.db")
+        _build_legacy_db(db3, UE7_ROWS)
+        t1 = migrate_legacy_events(db3)
+        assert (t1["imported"], t1["duplicates"], t1["quarantined"]) == (3, 0, 0)
+        assert t1["row_digest_ledger"] == LEGACY_ROW_DIGESTS_TABLE
+        assert t1["row_digests_on_record"] == 3, "首跑未记行内容快照账本"
+        assert t1["row_mutation_alert"] is False
+        rows_t1 = unified_rows(db3)
+        conn = sqlite3.connect(db3)
+        try:
+            # 账本自身 append-only：UPDATE/DELETE 一律触发器关死（与事件链
+            # 同库同级的保护——绕过旧表触发器改不到这里）
+            expect(sqlite3.IntegrityError, lambda: conn.execute(
+                f"UPDATE {LEGACY_ROW_DIGESTS_TABLE} SET row_sha = ? "
+                f"WHERE legacy_id = 1", ("f" * 64,)))
+            expect(sqlite3.IntegrityError, lambda: conn.execute(
+                f"DELETE FROM {LEGACY_ROW_DIGESTS_TABLE} WHERE legacy_id = 1"))
+            conn.rollback()
+            trig_digest = {r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger' "
+                "AND tbl_name=?", (LEGACY_ROW_DIGESTS_TABLE,))}
+            assert set(LEGACY_DIGEST_FREEZE_TRIGGER_NAMES) <= trig_digest, \
+                "快照账本 append-only 触发器缺失"
+            # 绕过旧表冻结触发器（DROP 模拟）：UPDATE 旧行内容并回填早时间
+            _drop_freeze_triggers(conn)
+            conn.execute(
+                f"UPDATE {LEGACY_EVENTS_TABLE} SET line_sha = ?, "
+                f"status = 'PASS', payload = ?, "
+                f"migrated_at = '2026-08-01 00:00:00' WHERE id = 2",
+                (content_sha(UE7_MUTATED_RAW), UE7_MUTATED_RAW))
+            conn.commit()
+        finally:
+            conn.close()
+        t2 = migrate_legacy_events(db3)
+        assert (t2["imported"], t2["duplicates"], t2["quarantined"]) == (0, 2, 1)
+        assert t2["quarantine_reasons"] == {ROW_MUTATED_REASON: 1}
+        assert t2["row_mutation_alert"] is True, "内容失配未告警"
+        assert t2["row_mutation_rows"][0]["legacy_id"] == 2
+        assert t2["row_mutation_rows"][0]["evidence"].startswith("row_sha="), \
+            "失配证据不是内容摘要比对（第三通道未独立命中）"
+        # 失配行绝不入链：行集零变化、篡改内容不在任何链上负载里；
+        # 未动的合法行（1,3）正常 duplicate（duplicates=2）
+        assert unified_rows(db3) == rows_t1, "UPDATE+backdate 行被导入统一链"
+        assert all("backdated" not in r[2] for r in unified_rows(db3))
+        assert t2["legacy_frozen"] is True            # 触发器治愈重装
+        assert (t2["cutover_ts"], t2["cutover_max_legacy_id"]) == \
+            (t1["cutover_ts"], 3)                     # cutover 永不推进
+        # 稳定性：第三次迁移仍失配拒收；快照绝不重基线（不吸收篡改内容）
+        t3 = migrate_legacy_events(db3)
+        assert (t3["imported"], t3["duplicates"], t3["quarantined"]) == (0, 2, 1)
+        assert t3["quarantine_reasons"] == {ROW_MUTATED_REASON: 1}
+        assert t3["row_digests_on_record"] == 3, "快照账本被重基线（白名单篡改）"
+        assert unified_rows(db3) == rows_t1
+        store = EventStore(db3)
+        try:
+            assert store.verify_chain() == {"ok": True, "length": 3,
+                                            "head": rows_t1[-1][4]}
+        finally:
+            store.close()
+        # sidecar quarantine 记录携带 reason 与失配证据（人工裁定线索）
+        recs3 = sidecar_records(db3 + ".legacy-events-sidecar.jsonl")
+        q3 = [r for r in recs3 if r["decision"] == "quarantined"]
+        assert len(q3) == 2                          # t2/t3 各隔离一次
+        assert all(r["reason"] == ROW_MUTATED_REASON and r.get("mutation_evidence")
+                   for r in q3)
+        assert all(r["legacy_id"] == 2 for r in q3)
+
+        # ---- (6) gap 空位全回填 INSERT（第八轮）：id/ts 双通道全漏 ----
+        #    cutover 时 id=2 空位（首跑前已删除）→ 账本缺席即「cutover 后
+        #    才出现」的铁证，按迟到写拒收
+        db4 = os.path.join(td, "ev4.db")
+        _build_legacy_db(db4, UE7_ROWS)
+        conn = sqlite3.connect(db4)
+        try:
+            conn.execute(f"DELETE FROM {LEGACY_EVENTS_TABLE} WHERE id = 2")
+            conn.commit()
+        finally:
+            conn.close()
+        u1 = migrate_legacy_events(db4)
+        assert (u1["imported"], u1["duplicates"], u1["quarantined"]) == (2, 0, 0)
+        assert u1["cutover_max_legacy_id"] == 3
+        assert u1["row_digests_on_record"] == 2       # 只记 cutover 时存在过的行
+        rows_u1 = unified_rows(db4)
+        conn = sqlite3.connect(db4)
+        try:
+            _drop_freeze_triggers(conn)
+            _legacy_insert(conn, content_sha(UE7_GAP_RAW), UE7_GAP_RAW,
+                           legacy_id=2)               # id=2 ≤ max，时间全早
+        finally:
+            conn.close()
+        u2 = migrate_legacy_events(db4)
+        assert (u2["imported"], u2["duplicates"], u2["quarantined"]) == (0, 2, 1)
+        assert u2["quarantine_reasons"] == {LATE_WRITE_REASON: 1}
+        assert u2["late_write_alert"] is True
+        assert u2["late_write_rows"][0]["legacy_id"] == 2
+        assert "no row digest on record" in u2["late_write_rows"][0]["evidence"], \
+            "gap 空位全回填行未被账本缺席通道抓到（id/ts 双通道漏过）"
+        assert u2["row_digests_on_record"] == 2       # quarantine 不重基线快照
+        assert unified_rows(db4) == rows_u1, "gap 回填行被导入统一链"
+        assert all("backfilled" not in r[2] for r in unified_rows(db4))
+        assert u2["legacy_frozen"] is True
+        store = EventStore(db4)
+        try:
+            assert store.verify_chain()["ok"] is True and \
+                store.head()[1] == 2
+        finally:
+            store.close()
     return {"post_cutover_insert_update_delete": "all rejected (freeze trigger)",
             "bypass_late_row_id_channel": "quarantined, never in chain",
             "bypass_late_row_ts_channel": "quarantined (id in range, ts late)",
@@ -778,7 +911,12 @@ def test_UE_07_legacy_frozen_readonly_late_write_quarantined():
             "cutover_never_advanced": True,
             "freeze_triggers_count": len(LEGACY_FREEZE_TRIGGER_NAMES),
             "rerun_idempotent": {"imported": 0, "duplicates": 3,
-                                 "quarantined": 1}}
+                                 "quarantined": 1},
+            "update_backdate_row": "quarantined (row_mutated_after_cutover)",
+            "gap_backfilled_row": "quarantined (no row digest on record)",
+            "row_digest_ledger": "append-only (UPDATE/DELETE trigger-blocked)",
+            "snapshot_never_rebaselined": True,
+            "legal_untouched_rows": "duplicate"}
 
 
 TESTS = [
@@ -794,7 +932,7 @@ TESTS = [
      test_UE_05_legacy_events_residue_one_time_migration),
     ("UE-06", "控制事件守卫不回退（统一表上伪造 RUN_*/SUPERSEDED 全拒）",
      test_UE_06_control_event_guard_not_regressed),
-    ("UE-07", "旧表冻结只读+迟到写拒收（R7 P0：触发器全拒/双通道 quarantine/幂等）",
+    ("UE-07", "旧表冻结只读+迟到写拒收+行内容快照账本（R7 P0+第八轮：三通道 quarantine/幂等）",
      test_UE_07_legacy_frozen_readonly_late_write_quarantined),
 ]
 

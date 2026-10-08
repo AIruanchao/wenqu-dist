@@ -23,6 +23,14 @@ hash 曾截损 61hex 且 verify 不校验绑定）：
   == 冻结正源值；差一位 hex（重签自洽攻击）/ 61hex 截损（重签）/ 缺
   policy_hash / 成员不存在 → verify 必拒（exit 1）。
 
+R8-REL-PIN-ROOT 根修回归钉（2026-10-08 第八轮 P0-7 残余：自洽替换可签
+可验 + source commit 未验受保护根）：
+  外部受保护 plan pin（--plan-pin/$WENQU_PLAN_PIN/默认位）冻结值必须同时
+  == manifest.plan_sha256 == tar 内实算值；tar 方案替换 + manifest/签名/
+  SBOM 全自洽重算的整套伪造 → verify 必拒（pin 断裂）；pin 缺失 / 值篡改 /
+  权限过宽（组其他可写）→ 必拒。manifest.source_commit 指不存在 commit
+  （幽灵 40hex，已重签）→ 必拒；--repo 树内方案 hash 漂移 → 必拒。
+
 密钥纪律：测试只用 system/tests/fixtures/approval-keys.json（测试专用 HMAC
 密钥，仓内公开）与运行时临时目录生成的临时 keyring；生产签发密钥绝不入档、
 绝不回显。HMAC 为对称签名（tamper-evident，非非否认）——诚实边界见工具头注。
@@ -91,10 +99,24 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
+def write_pin(path: str, value: str = PLAN_SHA256_TRUTH,
+              mode: int = 0o600) -> str:
+    """产测试 plan pin（0600 纪律与 install-release.sh 部署 pin 同构）。"""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(value + "\n")
+    os.chmod(path, mode)
+    return path
+
+
 def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
                key_id: str = "key_test_1"
                ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
-    """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。"""
+    """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+
+    R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+    WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+    pin = write_pin(os.path.join(workdir, "plan.pin"))
+    os.environ["WENQU_PLAN_PIN"] = pin
     r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
     assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
     dist = os.path.join(workdir, "dist")
@@ -129,8 +151,8 @@ def test_full_chain_green_and_deterministic():
         tar, manifest, sig, sbom, v = full_chain(tmp)
         assert v.returncode == 0, f"全链 verify 应绿:\n{v.stdout}\n{v.stderr}"
         for line in ("manifest-schema", "artifact-hash", "files-reconcile",
-                     "plan-hash", "signature", "sbom-reconcile",
-                     "build-identity"):
+                     "plan-hash", "plan-pin", "source-commit", "signature",
+                     "sbom-reconcile", "build-identity"):
             assert f"PASS  {line}" in v.stdout, f"缺 PASS {line}:\n{v.stdout}"
         # 四件套齐 + manifest 基本身份字段
         for p in (tar, manifest, sig, sbom):
@@ -455,11 +477,15 @@ def test_verify_report_artifact():
         assert rep["result"] == "PASS"
         ids = [c["check"] for c in rep["checks"]]
         for expect_id in ("manifest-schema", "artifact-hash",
-                          "files-reconcile", "plan-hash", "signature",
-                          "sbom-reconcile", "build-identity"):
+                          "files-reconcile", "plan-hash", "plan-pin",
+                          "source-commit", "signature", "sbom-reconcile",
+                          "build-identity"):
             assert expect_id in ids, f"报告缺检查项 {expect_id}: {ids}"
         assert all(c["ok"] for c in rep["checks"])
         assert rep["keyring"].endswith("approval-keys.json")
+        # R8：报告须回显 pin 与 git 仓（证据链：用了哪个外部根/正源）
+        assert rep["plan_pin"] and rep["plan_pin"].endswith("plan.pin"), rep
+        assert rep["repo"] and os.path.isdir(os.path.join(rep["repo"], ".git")), rep
 
 
 # ====================================================================== #
@@ -537,6 +563,145 @@ def test_plan_hash_binding():
         assert "归档缺方案快照成员" in v5.stdout, v5.stdout
 
 
+# ====================================================================== #
+# 10. R8-REL-PIN-ROOT：外部受保护 plan pin + source commit 树内绑定
+#     （八轮 P0-7 残余：tar 方案替换+四件套全自洽重算曾 7 PASS）
+# ====================================================================== #
+def _repack_replacing_plan(tar_path: str) -> str:
+    """整包重产 tar：替换方案快照成员内容（保持其余成员字节不变）。
+
+    返回替换后方案内容的新 sha256（攻击者的新「冻结值」）。"""
+    with tarfile.open(tar_path, "r:gz") as tf:
+        members = tf.getmembers()
+        payloads: Dict[str, bytes] = {}
+        for m in members:
+            if m.isfile():
+                fh = tf.extractfile(m)
+                payloads[m.name] = b"" if fh is None else fh.read()
+    new_plan = payloads[PLAN_MEMBER] + b"\n<!-- tampered by round8 adversarial -->\n"
+    payloads[PLAN_MEMBER] = new_plan
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as wtf:
+        for m in members:
+            if m.isfile():
+                data = payloads[m.name]
+                m.size = len(data)
+                wtf.addfile(m, io.BytesIO(data))
+            else:
+                wtf.addfile(m)
+    with open(tar_path, "wb") as fh:
+        with gzip.GzipFile(fileobj=fh, mode="wb", compresslevel=9,
+                           mtime=0, filename="") as gz:
+            gz.write(buf.getvalue())
+    return hashlib.sha256(new_plan).hexdigest()
+
+
+def test_plan_pin_and_source_commit_root():
+    saved_pin_env = os.environ.get("WENQU_PLAN_PIN")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            tar, manifest, sig, sbom, v = full_chain(tmp)
+            assert v.returncode == 0, f"前置全链应绿:\n{v.stdout}\n{v.stderr}"
+            for line in ("PASS  plan-pin", "PASS  source-commit"):
+                assert line in v.stdout, f"缺 {line}:\n{v.stdout}"
+
+            # 10a. **八轮 P0-7 案发场景复现**：tar 内方案替换 + manifest
+            #      逐文件/artifact/policy_hash 全自洽重算 + 重签 + SBOM 重产
+            #      → verify 必拒（pin 外部受保护根断裂）。
+            new_plan_sha = _repack_replacing_plan(tar)
+            assert new_plan_sha != PLAN_SHA256_TRUTH
+            m = json.load(open(manifest, encoding="utf-8"))
+            m["artifact"]["sha256"] = sha256_file(tar)
+            m["artifact"]["size"] = os.path.getsize(tar)
+            with tarfile.open(tar, "r:gz") as tf:
+                ti = tf.getmember(PLAN_MEMBER)
+                fh = tf.extractfile(ti)
+                plan_sha_in_tar = hashlib.sha256(fh.read()).hexdigest()
+                plan_size = ti.size
+            for f in m["files"]:
+                if f["path"] == PLAN_MEMBER:
+                    f["sha256"] = plan_sha_in_tar
+                    f["size"] = plan_size
+            # 攻击者连 policy_hash 声明也一并自洽（frozen 值都改成自己的）
+            m["policy_hash"]["plan_sha256"] = plan_sha_in_tar
+            m["policy_hash"]["plan_sha256_frozen"] = plan_sha_in_tar
+            m["policy_hash"]["frozen_match"] = True
+            _rewrite_manifest(manifest, m)
+            _resign(manifest)
+            r_sbom = run_tool("sbom", "--manifest", manifest)
+            assert r_sbom.returncode == 0, r_sbom.stderr
+            forged = run_tool("verify", "--manifest", manifest,
+                              "--keyring", FIXTURE_KEYRING)
+            assert forged.returncode != 0, (
+                "tar 方案替换+四件套全自洽重算后 verify 仍绿——"
+                "八轮 P0-7 自洽替换洞未修!")
+            # 伪造件的内部自洽性须先通过（证明拦截确实来自外部 pin 而非清单
+            # 错配）；签名有效性由 _resign rc=0 保证（sign 产出的签名 verify
+            # 必认）——verify 本身 fail-fast，pin 断裂后不再跑到验签步。
+            for line in ("PASS  artifact-hash", "PASS  files-reconcile",
+                         "PASS  plan-hash"):
+                assert line in forged.stdout, \
+                    f"伪造件应先过内部对账（{line} 未过）:\n{forged.stdout}"
+            assert "外部受保护根拦截" in forged.stdout, \
+                f"应被 plan-pin 拦截:\n{forged.stdout}"
+
+            # 10b. pin 值被改（差一位）→ manifest 与 pin 不符即拒
+            full_chain(tmp)  # 重新拉一条干净链（10a 已污染工作件）
+            pin2 = write_pin(os.path.join(tmp, "plan2.pin"),
+                             value=PLAN_SHA256_TRUTH[:-1] + (
+                                 "0" if PLAN_SHA256_TRUTH[-1] != "0" else "1"))
+            v2 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--plan-pin", pin2)
+            assert v2.returncode != 0, "pin 值篡改（差一位）verify 仍绿"
+            assert "冻结值与 manifest.policy_hash.plan_sha256 不符" in v2.stdout
+
+            # 10c. pin 缺失（显式指向不存在路径；--plan-pin 优先于 env）→ 拒
+            v3 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--plan-pin", os.path.join(tmp, "no-such-pin"))
+            assert v3.returncode != 0, "pin 缺失 verify 仍绿（须 fail-closed）"
+            assert "plan pin 缺失" in v3.stdout, v3.stdout
+
+            # 10d. pin 权限过宽（组/其他可写）→ 受保护根语义破坏即拒
+            pin4 = write_pin(os.path.join(tmp, "plan4.pin"), mode=0o666)
+            v4 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--plan-pin", pin4)
+            assert v4.returncode != 0, "组/其他可写 pin verify 仍绿"
+            assert "权限过宽" in v4.stdout, v4.stdout
+
+            # 10e. manifest.source_commit 指不存在 commit（幽灵 40hex，重签
+            #      自洽）→ git 对象库核验即拒
+            full_chain(tmp)
+            m = json.load(open(manifest, encoding="utf-8"))
+            ghost = "deadbeef" * 5
+            assert not re.fullmatch(ghost, m["source_commit"])
+            m["source_commit"] = ghost
+            m["source_commit_short"] = ghost[:7]
+            _rewrite_manifest(manifest, m)
+            _resign(manifest)
+            v5 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING)
+            assert v5.returncode != 0, "幽灵 source_commit（已重签）verify 仍绿"
+            assert "source_commit 不在 git 对象库" in v5.stdout, v5.stdout
+
+            # 10f. 正向对照：显式 --plan-pin 指向正确 pin → 绿（R8 新入口可用）
+            full_chain(tmp)
+            pin6 = write_pin(os.path.join(tmp, "plan6.pin"))
+            v6 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--plan-pin", pin6)
+            assert v6.returncode == 0, \
+                f"正确显式 pin 应绿:\n{v6.stdout}\n{v6.stderr}"
+    finally:
+        # 环境清洁：恢复/清除本测试注入的 WENQU_PLAN_PIN
+        if saved_pin_env is None:
+            os.environ.pop("WENQU_PLAN_PIN", None)
+        else:
+            os.environ["WENQU_PLAN_PIN"] = saved_pin_env
+
+
 TESTS: List[Tuple[str, Any]] = [
     ("全链绿（build+sign+sbom+verify）+ 确定性构建", test_full_chain_green_and_deterministic),
     ("篡改 tar 一字节 → verify 必拒", test_tamper_tar_one_byte_rejected),
@@ -547,6 +712,7 @@ TESTS: List[Tuple[str, Any]] = [
     ("key 生命周期：rotated 不得签发/revoked 验签即拒", test_key_lifecycle_fail_closed),
     ("verify --report 机器可读报告工件", test_verify_report_artifact),
     ("plan-hash 绑定（正确/差一位/61hex 截损/缺 policy_hash/成员不存在）", test_plan_hash_binding),
+    ("plan-pin 外部根+source commit（自洽替换/pin 缺失/篡改/过宽/幽灵 commit）", test_plan_pin_and_source_commit_root),
 ]
 
 

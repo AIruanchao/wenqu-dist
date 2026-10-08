@@ -1,0 +1,15 @@
+=== three probes on 127.0.0.1:7789 (immutable runtime) 20261008T163328Z ===
+--- probe 1: GET /api/v1/health ---
+{"generated_at": "2026-10-08T16:28:11Z", "policy_verdict": "PASS", "aggregate_outcome": "PASS", "technical_eligible": true, "reason": "all 1 required stations PASS", "reasons": [], "counts": {"required_total": 1, "required_reported": 1, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "stations": {"0": {"outcome": "PASS", "required": true, "sha_bound": true, "environment_ok": true, "input_version": "v2", "schema_valid": true}}, "target_sha": "0000000000000000000000000000000000000000", "environment": "production", "scope_binding": {"mode": "self_declared"}, "inputs": {"paths": 1, "docs": 1, "load_errors": 0, "schema_invalid": 0}, "mode": "self_declared_diagnostic", "source": "wenquctl-gate", "cli_exit": 0}
+HTTP_CODE=200
+--- probe 2: POST /api/decide (write interface must be 405) ---
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+HTTP_CODE=405
+--- probe 2b: POST /api/v1/decide ---
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+HTTP_CODE=405
+--- probe 3: GET / (page) ---
+HTTP_CODE=200 content-type=text/html; charset=utf-8 bytes=11922
+--- probe 3b: GET /app.js + /app.css ---
+app.js HTTP_CODE=200 bytes=36227
+app.css HTTP_CODE=200 bytes=9721

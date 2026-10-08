@@ -29,6 +29,12 @@ NotImplemented 占位），后续接线时替换实现、签发语义不变。
    nonce 明文**——nonce 是消费凭据，审计只留 sha256 指纹供对账）。
 3. 密钥生命周期经 ``approval_keys``（active/rotated/revoked/expiry）：
    只有 active 且未过期的 key 可签发；rotated 可验存量；revoked 验签即拒。
+   R8-KEY-LIFECYCLE-001：消费端进一步按 envelope.issued_at 执法时间窗
+   （退休后手签的批不能消费）——签发端 ``get_for_signing`` 挡不住持
+   secret 手签的旁路面，由消费端闭合。
+   R8-SIGNER-PRINCIPAL-004：key 元数据登记 owner/actors——签发时预检
+   actor ∈ 签名 key 的 actors（登记面 opt-in；消费端 ``_verify_signature``
+   为权威门），联签第二人同理且 second_actor 必须 ≠ actor（真双人）。
 4. 对账（``reconcile_issuance``）：签发审计（批了）× EventStore
    APPROVAL_CONSUMED 事件（用了）双向核对——批了未用（在期/已过期）、
    用了没批（无签发记录的消费=旁路签发或账本损坏）、nonce 指纹不匹配、
@@ -456,6 +462,18 @@ class ApprovalIssuer:
                 raise TwoPersonRuleError(
                     "高危类型必须 --second-actor（第二签发人标识）")
 
+    def _check_principal(self, key_id: str, actor: str) -> None:
+        """R8-SIGNER-PRINCIPAL-004 签发端预检：actor ∈ key 的 actors 登记
+        面（登记面 opt-in——未登记 actors 的存量 key 不受限；消费端
+        ``ApprovalBroker._verify_signature`` 为权威门，此处早失败只为止
+        「签出来消费端一定不收」的浪费签发）。"""
+        actors = self._keyring.key_actors(key_id)
+        if actors is not None and actor not in actors:
+            raise IssuanceError(
+                f"actor {actor!r} 不在 key {key_id!r} 的 actors 登记面 "
+                f"{list(actors)}（R8-SIGNER-PRINCIPAL-004：actor 冒用他人 "
+                "key 签发——消费端同样会拒，签发端先拒止浪费）")
+
     # ------------------------------------------------------------------ #
     def issue(self,  # noqa: C901 —— 校验链显式展开（可读性优先）
               *,
@@ -529,6 +547,8 @@ class ApprovalIssuer:
         # 4. 签发 key 资格
         chosen_key_id = self._pick_signing_key(key_id)
         secret = self._keyring.get_for_signing(chosen_key_id)
+        # R8-SIGNER-PRINCIPAL-004：actor ∈ 主签 key 的 actors 登记面（预检）
+        self._check_principal(chosen_key_id, actor)
 
         # 5. 高危双人规则
         self._check_two_person(
@@ -537,10 +557,16 @@ class ApprovalIssuer:
         co_secret: Optional[str] = None
         if confirm_two_persons and approval_type in HIGH_RISK_APPROVAL_TYPES:
             assert second_key_id is not None  # _check_two_person 已保证
+            assert second_actor is not None
             if second_key_id == chosen_key_id:
                 raise TwoPersonRuleError(
                     "第二签发人 key 不得与主签发 key 相同（真双人，"
                     "同一把 key 签两遍不是联签）")
+            if second_actor == actor:
+                raise TwoPersonRuleError(
+                    "第二签发人标识不得与主签发人相同（真双人——"
+                    "R8-SIGNER-PRINCIPAL-004：同一 actor 不能用两把 "
+                    "key 凑联签，消费端对信封联签条目 actor 互异硬门）")
             try:
                 co_secret = self._keyring.get_for_signing(second_key_id)
             except (KeyNotFoundError, KeyStateError) as exc:
@@ -548,6 +574,8 @@ class ApprovalIssuer:
                 # （fail-closed，不落审计）——不向调用方泄漏底层 KeyError 族。
                 raise IssuanceError(
                     f"第二签发人 key 资格不满足: {exc}") from None
+            # R8-SIGNER-PRINCIPAL-004：second_actor ∈ 第二 key 的 actors（预检）
+            self._check_principal(second_key_id, second_actor)
 
         # 6. 信封构造 + 主签名 +（高危）联签
         issued_at = issued_at or _utc_now_iso(now_epoch)

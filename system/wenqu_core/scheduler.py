@@ -1668,6 +1668,54 @@ def _git_head(repo_root: str) -> Optional[str]:
     return head if _SHA_RE.match(head) else None
 
 
+def capacity_preflight(paths: "ProductionPaths", *,
+                       now: Optional[float] = None) -> Dict[str, Any]:
+    """B5 容量闸前置检查（tick 级，2026-10-09 接线；语义登记于
+    evidence/11-shadow-canary/README.md）。
+
+    - 判定：collect_disk_sample 真实采集 wenqu_home 挂载点 →
+      CapacityMonitor.judge()（默认规格 0.90 阈值/2GiB 最小余量；观察
+      tick 无 §22 峰值预算，peak_budget=0）；severity=CRITICAL →
+      capacity_gate=BLOCKED。
+    - 处置边界（刻意不阻断观察采样）：§22「不足即 BLOCKED」的处置对象
+      是迁移/发布峰值操作（legacy_snapshot+...+rollback_release 八分量）；
+      观察 tick 是 KB 级 JSON 追加写——容量压力下停观测等于自毁唯一
+      告警通道，且 tick 的契约是「活着并如实上报」（tick_rc=0 语义
+      不变）。BLOCKED 时经 outbox 发 CRITICAL 告警（调用方 dedup），
+      移交人类决策。判定链异常 → 如实记 error、gate=UNKNOWN，不猜。
+    """
+    try:
+        from .capacity_monitor import (  # 延迟导入：纯追加节不动模块顶 import 面
+            CapacityMonitor,
+            collect_disk_sample,
+        )
+        sample = collect_disk_sample(paths.wenqu_home)
+        finding = CapacityMonitor().judge(sample)
+        return {
+            "capacity_gate": "BLOCKED" if finding["severity"] == "CRITICAL"
+                             else "OPEN",
+            "code": finding["code"],
+            "severity": finding["severity"],
+            "message": finding["message"],
+            "violations": finding["violations"],
+            "used_ratio": finding["used_ratio"],
+            "used_ratio_threshold": finding["used_ratio_threshold"],
+            "headroom_bytes": finding["headroom_bytes"],
+            "min_headroom_bytes": finding["min_headroom_bytes"],
+            "judged_at": finding["judged_at"],
+            "sample": finding["sample"],
+            "source": "wenqu_core.capacity_monitor.judge(collect_disk_sample"
+                      "(wenqu_home), peak_budget=0)",
+        }
+    except Exception as exc:  # 判定链任何故障如实降级为 UNKNOWN（不猜 OPEN）
+        log.exception("capacity preflight failed")
+        return {
+            "capacity_gate": "UNKNOWN",
+            "error": f"{type(exc).__name__}: {exc}",
+            "judged_at_epoch": _as_epoch(now),
+        }
+
+
 # ---------------------------------------------------------------------------
 # 通知通道（W4 双通道）
 # ---------------------------------------------------------------------------
@@ -2011,6 +2059,30 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             heartbeat=heartbeat_mon,
             commit_sha_provider=lambda: _git_head(paths.repo_root),
         )
+        # ---- B5 容量闸前置检查（2026-10-09 接线）：判定+记录+CRITICAL 告警；
+        # 刻意不阻断观察采样（§22 BLOCKED 处置属迁移/发布峰值操作，观察
+        # tick 是 KB 级写——容量压力下停观测=自毁唯一告警通道）。语义登记
+        # evidence/11-shadow-canary/README.md。 ----
+        cap = capacity_preflight(paths, now=now)
+        if cap.get("capacity_gate") == "BLOCKED":
+            try:
+                outbox.notify(
+                    "CRITICAL",
+                    f"[wenqu] 容量闸 BLOCKED：{cap.get('code')}",
+                    f"{cap.get('message', '')}\n"
+                    f"used_ratio={cap.get('used_ratio')} "
+                    f"threshold={cap.get('used_ratio_threshold')} "
+                    f"headroom={cap.get('headroom_bytes')}B\n"
+                    f"观察采样继续（job={PROD_JOB_ID}）；§22 BLOCKED 处置属"
+                    f"迁移/发布峰值操作，本告警移交人工决策。",
+                    meta={"kind": "capacity_gate", "job_id": PROD_JOB_ID,
+                          "code": cap.get("code"),
+                          "used_ratio": cap.get("used_ratio")},
+                    dedup_key=f"capacitygate:{int(now // 3600)}",
+                    now=now,
+                )
+            except Exception:
+                log.exception("capacity gate CRITICAL notify enqueue failed")
         # 先取既有调度状态：register(replace=True) 会把 next_due_at 重置为
         # now+interval——若不保留，每个 tick 先注册再算到期，到期被永远
         # 推到未来 = 采样作业只在首跑 bootstrap 手动跑一次，此后每 tick 仅
@@ -2097,6 +2169,18 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                      "policy_verdict": gate.get("policy_verdict"),
                      "reason": gate.get("reason"),
                      "cli_exit": gate.get("cli_exit")},
+            "capacity_gate": {
+                "gate": cap.get("capacity_gate"),
+                "code": cap.get("code"),
+                "severity": cap.get("severity"),
+                "used_ratio": cap.get("used_ratio"),
+                "used_ratio_threshold": cap.get("used_ratio_threshold"),
+                "headroom_bytes": cap.get("headroom_bytes"),
+                "violations": [v.get("code") for v in cap.get("violations", [])
+                               if isinstance(v, dict)],
+                "judged_at": cap.get("judged_at"),
+                "error": cap.get("error"),
+            },
             "health": [{"job_id": h.job_id, "state": h.state,
                         "healthy": h.healthy, "severity": h.severity}
                        for h in health],

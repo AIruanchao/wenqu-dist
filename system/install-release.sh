@@ -8,7 +8,10 @@
 #
 #   git archive <commit> → build → sign → sbom → verify（dist/ 四件套）
 #     → 部署 ~/.wenqu/releases/<full-sha>/{四件套, tree/（解出的完整树）}
-#     → verify 在部署位复验 → chmod a-w（不可变）
+#     → 部署树根落 plan.pin（0600，冻结方案 64hex——R8-REL-PIN-ROOT 外部
+#       受保护根：verify 的 pin 缺省位 ~/.wenqu/current/plan.pin 即此文件）
+#     → verify 在部署位复验（--plan-pin 部署树内 pin + --repo 源仓）→
+#       chmod a-w（不可变化，pin 一并只读）
 #     → ~/.wenqu/current 原子切换（临时 symlink + rename(2)，无中间态）
 #
 # 重复可执行：对同一 commit 重跑 = 幂等（部署位四件套已存在且验签通过 →
@@ -24,6 +27,10 @@
 #     --repo PATH       源仓（默认脚本所在仓根）
 #     --force           部署位已存在但验签失败时强制删除重部署（默认中止）
 #     --reload-scheduler  激活后 launchctl 重载 com.wenqu.scheduler 并 kickstart
+#     --reload-dashboard  激活后 launchctl 重载 com.wenqu.dashboard（P0-9/W8：
+#                       现役 dashboard 已改走 ~/.wenqu/current 不可变树——
+#                       current symlink 切换后常驻进程仍持旧树 inode，须重启
+#                       才重解析；与 --reload-scheduler 同范式）
 #     --no-activate     只产四件套到 dist/，不部署不切换
 #     --rollback        切回 .last-current 记录的上一个激活目标
 #
@@ -42,6 +49,7 @@ INSTALL_ROOT="${WENQU_INSTALL_ROOT:-$HOME/.wenqu}"
 REPO="$DEFAULT_REPO"
 FORCE=0
 RELOAD_SCHEDULER=0
+RELOAD_DASHBOARD=0
 NO_ACTIVATE=0
 ROLLBACK=0
 
@@ -52,6 +60,7 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:?--repo 缺参数}"; shift 2;;
     --force) FORCE=1; shift;;
     --reload-scheduler) RELOAD_SCHEDULER=1; shift;;
+    --reload-dashboard) RELOAD_DASHBOARD=1; shift;;
     --no-activate) NO_ACTIVATE=1; shift;;
     --rollback) ROLLBACK=1; shift;;
     -h|--help) sed -n '2,30p' "$0"; exit 0;;
@@ -68,8 +77,9 @@ RELROOT="$INSTALL_ROOT/releases"
 CURRENT="$INSTALL_ROOT/current"
 LAST_CURRENT="$RELROOT/.last-current"
 UID_N=$(id -u)
+PIN_TMP="$INSTALL_ROOT/.plan.pin.$$"
 trap 'rm -f "$INSTALL_ROOT/.current.new.$$" \
-      "$INSTALL_ROOT/.current.rollback.$$" 2>/dev/null || true' EXIT
+      "$INSTALL_ROOT/.current.rollback.$$" "$PIN_TMP" 2>/dev/null || true' EXIT
 
 # ---------------------------------------------------------------- 回滚模式
 if [ "$ROLLBACK" = "1" ]; then
@@ -105,8 +115,30 @@ cd "$REPO"
 "$PY" tools/release_attest.py sign \
   --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING"
 "$PY" tools/release_attest.py sbom --manifest "$DIST_DIR/$NAME.manifest.json"
+
+# R8-REL-PIN-ROOT：受保护 plan pin 的值取冻结正源（ac_traceability 单一
+# 正源），并与刚产 manifest 的实算值互相印证——不等即中止（fail-closed）。
+# dist 阶段 verify 用临时 pin（部署树尚未存在）；部署后 pin 落进不可变树。
+FROZEN_PLAN_SHA=$("$PY" -c \
+  'import sys; sys.path.insert(0, "tools");
+   from ac_traceability import PLAN_SHA256; print(PLAN_SHA256)') \
+  || die "ac_traceability.PLAN_SHA256 读取失败"
+# bash 3.2 兼容的 64hex 校验（ERE {64}；模式侧不加引号）
+if [[ "$FROZEN_PLAN_SHA" =~ ^[0-9a-f]{64}$ ]]; then :; else
+  die "PLAN_SHA256 非 64hex: $FROZEN_PLAN_SHA"
+fi
+MANI_PLAN_SHA=$("$PY" -c \
+  "import json,sys; m=json.load(open(sys.argv[1]));
+   print(m['policy_hash']['plan_sha256'])" "$DIST_DIR/$NAME.manifest.json") \
+  || die "manifest.policy_hash 读取失败"
+[ "$MANI_PLAN_SHA" = "$FROZEN_PLAN_SHA" ] \
+  || die "manifest plan_sha256 ($MANI_PLAN_SHA) != 冻结正源 ($FROZEN_PLAN_SHA)"
+printf '%s\n' "$FROZEN_PLAN_SHA" > "$PIN_TMP"
+chmod 600 "$PIN_TMP"
+
 "$PY" tools/release_attest.py verify \
   --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING" \
+  --plan-pin "$PIN_TMP" --repo "$REPO" \
   --report "$DIST_DIR/$NAME.verify-report.json" \
   || die "dist 四件套 verify 失败——不出厂（fail-closed）"
 
@@ -119,10 +151,22 @@ fi
 echo "== [2/5] 部署 $RELDIR =="
 FRESH=0
 if [ -d "$RELDIR" ]; then
-  # 幂等重装：部署位已存在 → 复验既有四件套；通过则不重写（不可变纪律）
-  if "$PY" tools/release_attest.py verify \
+  # 幂等重装：部署位已存在 → 复验既有四件套；通过则不重写（不可变纪律）。
+  # R8 起 verify 需要 pin + git 仓：优先用部署树内自带的 plan.pin（本脚本
+  # 部署的 release 均已落 pin）；无 pin 的历史 release 会 fail-closed 拒绝
+  # 幂等复验——按不可变纪律人工核查或 --force 重部署（新部署自动带 pin）。
+  if [ -f "$RELDIR/tree/plan.pin" ]; then
+    "$PY" tools/release_attest.py verify \
       --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
-      >/dev/null 2>&1; then
+      --plan-pin "$RELDIR/tree/plan.pin" --repo "$REPO" \
+      >/dev/null 2>&1 || true
+  else
+    "$PY" tools/release_attest.py verify \
+      --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+      --repo "$REPO" \
+      >/dev/null 2>&1 || true
+  fi
+  if [ $? -eq 0 ]; then
     log "部署位已存在且验签通过——保持不可变，仅重新激活"
   elif [ "$FORCE" = "1" ]; then
     log "部署位验签失败 + --force → 删除重部署: $RELDIR"
@@ -145,11 +189,20 @@ if [ ! -d "$RELDIR" ]; then
     || { chmod -R u+w "$RELDIR" 2>/dev/null || true; rm -rf "$RELDIR"; \
          die "解出的树缺 system/wenqu_core/scheduler.py——非本仓制品"; }
 
+  # R8-REL-PIN-ROOT：部署树根落 plan.pin（0600）——verify 的缺省 pin 位
+  # ~/.wenqu/current/plan.pin 激活后即解析到此文件；tree 对账只对 manifest
+  # 内文件逐个核 hash，pin 是部署位元数据不占清单。落 pin 后才 chmod a-w
+  # （步骤 4），pin 随树一并只读（0400）。
+  printf '%s\n' "$FROZEN_PLAN_SHA" > "$RELDIR/tree/plan.pin"
+  chmod 600 "$RELDIR/tree/plan.pin"
+  log "plan.pin 落部署树（0600）: $RELDIR/tree/plan.pin"
+
   # ------------------------------------------------- 3) 部署位复验（仅新装：
   #     防复制/解压损坏；幂等路径上面已复验，不可变位不再写入报告）
   echo "== [3/5] 部署位 verify 复验 + tree 逐文件对账 =="
   "$PY" tools/release_attest.py verify \
     --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+    --plan-pin "$RELDIR/tree/plan.pin" --repo "$REPO" \
     --report "$RELDIR/verify-report.json" \
     || { chmod -R u+w "$RELDIR" 2>/dev/null || true; \
          die "部署位四件套 verify 失败——中止激活（fail-closed）"; }
@@ -225,8 +278,34 @@ if [ "$RELOAD_SCHEDULER" = "1" ]; then
   log "scheduler 已重载并 kickstart（活性: launchctl print gui/$UID_N/com.wenqu.scheduler）"
 fi
 
+# P0-9/W8 联动：dashboard 现役 = ~/.wenqu/current 不可变树上的
+# system/dashboard/server.py（plist 直指 current symlink）。current 切换是
+# rename(2) 原子替换 symlink，常驻进程仍持旧 release 树的 inode——不重载
+# 就继续跑旧版；重载后按新 current 重新解析。
+if [ "$RELOAD_DASHBOARD" = "1" ]; then
+  echo "== reload com.wenqu.dashboard =="
+  PLIST="$HOME/Library/LaunchAgents/com.wenqu.dashboard.plist"
+  [ -f "$PLIST" ] || die "plist 不存在: $PLIST"
+  launchctl bootout "gui/$UID_N/com.wenqu.dashboard" 2>/dev/null || true
+  launchctl bootstrap "gui/$UID_N" "$PLIST" \
+    || die "launchctl bootstrap 失败"
+  # 活性回读：进程必须已在 7789 监听且 argv 解析到新 current 树
+  DASH_PORT=7789
+  READY=0
+  for _ in $(seq 1 20); do
+    if curl -sS -o /dev/null --noproxy '*' \
+        "http://127.0.0.1:$DASH_PORT/api/v1/ping" 2>/dev/null; then
+      READY=1; break
+    fi
+    sleep 0.5
+  done
+  [ "$READY" = "1" ] || die "dashboard 重载后 15s 内未在 $DASH_PORT 就绪"
+  log "dashboard 已重载（current → $(readlink "$CURRENT")；活性: curl 127.0.0.1:$DASH_PORT/api/v1/ping）"
+fi
+
 echo "INSTALL-RELEASE OK  $FULL_SHA"
 echo "  四件套    : $DIST_DIR/$NAME.{tar.gz,manifest.json,release.sig,sbom.spdx.json}"
 echo "  不可变位  : ${RELDIR}（chmod a-w）"
+echo "  plan pin  : $RELDIR/tree/plan.pin（0600→只读；verify 缺省位 ~/.wenqu/current/plan.pin）"
 echo "  激活      : $CURRENT → $RELDIR/tree"
 echo "  回滚      : bash system/install-release.sh --rollback"

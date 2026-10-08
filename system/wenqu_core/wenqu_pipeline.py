@@ -147,6 +147,40 @@ R7 审批消费双洞根修（Codex 第七轮，2026-10-08）：
     （schemas/approval-v2、schemas/run-event-v2）；冻结契约文档
     docs/specs/wenqu-vNext-contract.md 的 v1.0 文本未随行更新（本仓
     工单范围外，登记为后续契约升版工作项）。
+
+R8 审批消费三洞根修（Codex 第八轮 P0-2 残余，2026-10-08）：
+  - R8-KEY-LIFECYCLE-001（残余①：退休后新签仍可消费）——key 生命周期按
+    **envelope.issued_at** 执法：消费点验签时取 key 元数据时间窗，
+    ``issued_at`` 晚于 ``rotated_at``/``expiry`` → ApprovalRejected
+    （退休后签的批不能消费）；早于 ``created_at`` → 拒（时间穿越）；
+    revoked 保持无条件拒（优先级最高）。执法在
+    ``ApprovalBroker._verify_signature``（主签，先于 HMAC 比对）与
+    ``_verify_cosignatures``（联签，经 ``verify_detached`` 前的同款
+    预检）双面闭合；实现于 ``approval_keys.key_lifecycle_rejection``。
+  - R8-ACTUAL-TARGET-003（残余②：actual target 与批准内容未绑定——
+    caller 双自报）——``reserve_action`` 的绑定不再双自报：消费点以
+    **运行时实参重算 descriptor** 与 payload 等值比对（
+    ``_consume_authorization_txn._runtime_descriptor_semantics``）：
+    1) kind ← action_type 封闭映射（运行时实参，既有）；
+    2) env 实况 ← run 事件流冻结的 identity.environment——payload 携带
+       environment 字段的类型（release）必须等值（硬门，无需调用方
+       配合）；
+    3) artifact 路径实算 hash ← ``runtime_evidence["artifact_paths"]``
+       指向的真实文件由消费点现场 sha256（不接受调用方自报哈希）；
+    4) 其余运行时观测（head_sha 等）← ``runtime_evidence[field]``（执行
+       面现场观测；哨兵 ``"RUN_HEAD"`` = 消费点以 run identity.commit_sha
+       实查替换——「当前 HEAD 实查」）。
+    caller 传入的 ``action_descriptor`` 降为**提示（hint）**——形状与
+    等值比对保留为一致性防线（既有拒绝面不回退），但绑定决策以本门
+    重算结果为准，hint 一致不构成授权依据。
+  - R8-SIGNER-PRINCIPAL-004（残余③：两个 key 可由同一自报 actor 使用）——
+    key 元数据登记 ``owner``/``actors``（签发时登记，
+    ``approval_keys._normalize_meta`` 校验）；消费点执法：
+    envelope.actor 必须 ∈ 主签 key 的 actors（``_verify_signature``），
+    联签条目 actor 各自 ∈ 其 key 的 actors 且**两条目 actor 必须不同**
+    （``_verify_cosignatures``——同一 actor 不能用两把不属于他的 key
+    凑联签）；未登记 actors 的存量 key 不受 membership 限制（登记面
+    opt-in 诚实边界），但联签 actor 互异是硬门。
 """
 
 from __future__ import annotations
@@ -728,6 +762,17 @@ def _canonical_json(obj: Any) -> str:
 
 def _sha256_hex(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def _sha256_file(path: str) -> str:
+    """对真实文件流式实算 sha256（R8-ACTUAL-TARGET-003：artifact 路径
+    实算 hash——不接受调用方自报哈希）。路径不可读/不存在抛 OSError
+    （消费点收敛为 ApprovalRejected，fail-closed）。"""
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _truthy(value: Any) -> bool:
@@ -1482,6 +1527,8 @@ class ApprovalBroker:
 
     # ------------------------------------------------------------------ #
     # P0-4：HMAC-SHA256 真实验签（Codex 实锤 #1/#4）
+    # R8-KEY-LIFECYCLE-001：验签前对 issued_at 执法 key 生命周期时间窗
+    # R8-SIGNER-PRINCIPAL-004：验签后执法 envelope.actor ∈ key.actors
     # ------------------------------------------------------------------ #
     def _verify_signature(self, ap: Mapping[str, Any]) -> None:
         key_id = ap.get("key_id")
@@ -1490,6 +1537,28 @@ class ApprovalBroker:
                 f"unknown signing key_id {key_id!r}（未登记的签发密钥一律拒）",
                 {"key_id": key_id,
                  "known_keys": self._keyring.key_ids()})
+        # R8-KEY-LIFECYCLE-001：退休后手签的批不能消费（结构校验已保证
+        # 消费路径 issued_at 在位——时间窗执法在消费链闭合）。
+        lifecycle = self._keyring.key_lifecycle_rejection(
+            key_id, ap.get("issued_at"))
+        if lifecycle is not None:
+            raise ApprovalRejected(
+                f"key 生命周期执法拒绝（R8-KEY-LIFECYCLE-001）：{lifecycle}",
+                {"key_id": key_id, "approval_id": ap.get("approval_id"),
+                 "issued_at": ap.get("issued_at")})
+        # R8-SIGNER-PRINCIPAL-004：actor 冒用他人 key 一律拒（登记面
+        # opt-in——未登记 actors 的存量 key 不受 membership 限制）。
+        # 先于 keyring.verify 的显式门（keyring.verify 内另有同语义兜底，
+        # 此处先行以给出精确拒绝消息）。
+        actors = self._keyring.key_actors(key_id)
+        if actors is not None and ap.get("actor") not in actors:
+            raise ApprovalRejected(
+                f"signer principal 绑定拒绝（R8-SIGNER-PRINCIPAL-004）："
+                f"envelope.actor {ap.get('actor')!r} 不在 key {key_id!r} "
+                f"的 actors 登记面 {list(actors)}（actor 冒用他人 key）",
+                {"key_id": key_id, "actor": ap.get("actor"),
+                 "registered_actors": list(actors),
+                 "approval_id": ap.get("approval_id")})
         if not self._keyring.verify(ap):
             raise ApprovalRejected(
                 "HMAC-SHA256 signature verification failed（伪签名拒绝）",
@@ -1504,9 +1573,13 @@ class ApprovalBroker:
 
         - 缺失 / 空数组 / 单签（<2 条）→ ApprovalRejected；
         - 同 key 双签（key_id 重复）→ ApprovalRejected；
-        - 任一联签 key 未登记 / revoked / HMAC 验签失败 → ApprovalRejected
-          （fail-closed，绝不静默择优；rotated/expired 仍可验存量——与主
-          验签生命周期语义一致，信封 TTL 兜底）。
+        - **联签两条目 actor 必须不同**（R8-SIGNER-PRINCIPAL-004 硬门：
+          同一 actor 不能用两把 key 凑联签——同 actor 即拒）；
+        - 任一联签 key 未登记 / revoked / **issued_at 时间窗外**
+          （R8-KEY-LIFECYCLE-001：退休后手签的联签不能消费）/ HMAC 验签
+          失败 / **actor ∉ 该 key 的 actors 登记面**（R8-SIGNER-PRINCIPAL-
+          004：冒用他人 key 联签）→ ApprovalRejected（fail-closed，绝不
+          静默择优）。
         调用方须已通过 validate_structure（cosignatures 形状已校验）。
         """
         atype = ap["approval_type"]
@@ -1524,6 +1597,7 @@ class ApprovalBroker:
         body = {k: v for k, v in dict(ap).items()
                 if k not in ("signature", "cosignatures")}
         seen_key_ids: List[str] = []
+        seen_actors: List[str] = []
         for idx, entry in enumerate(cosigns):
             key_id = entry["key_id"]
             if key_id in seen_key_ids:
@@ -1532,10 +1606,41 @@ class ApprovalBroker:
                     "同 key 双签不是联签（真双人，R7-AUTH-DUAL-CONSUME-005）",
                     {"duplicate_key_id": key_id})
             seen_key_ids.append(key_id)
+            actor = entry["actor"]
+            # R8-SIGNER-PRINCIPAL-004：联签两条目的 actor 必须不同——
+            # 同一 actor 不能用两把不属于他的 key 凑联签（硬门，与
+            # actors 登记面无关）。
+            if actor in seen_actors:
+                raise ApprovalRejected(
+                    f"cosignatures[{idx}] 与此前条目同 actor（{actor!r}）——"
+                    "联签两条目的 actor 必须不同（同一 actor 不能用两把 "
+                    "key 凑联签，R8-SIGNER-PRINCIPAL-004）",
+                    {"duplicate_actor": actor, "cosign_index": idx})
+            seen_actors.append(actor)
             if not self._keyring.has(key_id):
                 raise ApprovalRejected(
                     f"联签 key_id {key_id!r} 未登记（fail-closed 一律拒）",
                     {"cosign_index": idx, "key_id": key_id})
+            # R8-SIGNER-PRINCIPAL-004：actor 必须在该联签 key 的登记面内
+            # （登记面 opt-in——未登记 actors 的存量 key 不受限制）。
+            actors = self._keyring.key_actors(key_id)
+            if actors is not None and actor not in actors:
+                raise ApprovalRejected(
+                    f"联签 actor {actor!r} 不在 key {key_id!r} 的 actors "
+                    f"登记面 {list(actors)}（冒用他人 key 联签——"
+                    "R8-SIGNER-PRINCIPAL-004）",
+                    {"cosign_index": idx, "key_id": key_id, "actor": actor,
+                     "registered_actors": list(actors)})
+            # R8-KEY-LIFECYCLE-001：联签与主签同一时间窗执法面——
+            # 退休后手签的联签不能消费（verify_detached 内同款兜底）。
+            lifecycle = self._keyring.key_lifecycle_rejection(
+                key_id, body.get("issued_at"))
+            if lifecycle is not None:
+                raise ApprovalRejected(
+                    f"联签 key 生命周期执法拒绝（R8-KEY-LIFECYCLE-001）："
+                    f"{lifecycle}",
+                    {"cosign_index": idx, "key_id": key_id,
+                     "approval_id": ap.get("approval_id")})
             if not self._keyring.verify_detached(key_id, body,
                                                  entry["signature"]):
                 raise ApprovalRejected(
@@ -1835,6 +1940,7 @@ class ApprovalBroker:
         expected_approval_type: str,
         action_descriptor: Optional[Mapping[str, Any]] = None,
         require_descriptor: bool = False,
+        runtime_evidence: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         """consume_authorization 的事务体（在已开启的 BEGIN IMMEDIATE 内执行）。
 
@@ -1846,8 +1952,11 @@ class ApprovalBroker:
         R7-AUTH-DUAL-CONSUME-005（校验次序即拒绝消息语义，勿重排）：
         nonce 复用 → envelope 绑定（env/scope/policy/ruleset/watermark/
         stage/CAS 的既有拒绝消息保持不变）→ **高危联签门**（缺失/单签/
-        同 key/revoked 全拒）→ risk 语义 → **exact action descriptor 门**
-        （payload 与调用方实参逐字段等值比对）→ 全过后才占 nonce 落事件。
+        同 key/revoked/同 actor/actor 冒用/生命周期窗外全拒）→ risk 语义
+        → **action_descriptor 提示一致性门**（形状与等值比对保留——既有
+        拒绝面不回退；hint 非绑定权威）→ **actual-target 运行时重算门**
+        （R8-ACTUAL-TARGET-003：env 实况硬门 + runtime_evidence 重算实参
+        与 payload 等值比对）→ 全过后才占 nonce 落事件。
         """
 
         def _binding(ap: Mapping[str, Any], state: RunState) -> None:
@@ -1923,12 +2032,14 @@ class ApprovalBroker:
                     {"claimed": claimed, "run_eligible": eligible})
 
         def _action_descriptor_semantics() -> None:
-            """R7-AUTH-DUAL-CONSUME-005 洞 1a：payload 与实参 exact 绑定。
+            """R7-AUTH-DUAL-CONSUME-005 洞 1a（R8 降级为**提示**）：hint 一致性。
 
-            reserve_action 的调用方必须以 ``action_descriptor`` 实参声明
-            其将执行的动作描述（键集=该审批类型 payload 判别字段全集），
-            与审批 payload 逐字段等值比对——任何不符即 ApprovalRejected
-            （审批批的是 A、调用方执行 B 的移花接木面在此关闭）。
+            caller 传入的 ``action_descriptor`` 与审批 payload 逐字段等值
+            比对（形状/键集/等值任一不符即 ApprovalRejected——既有拒绝面
+            不回退）。R8-ACTUAL-TARGET-003 起本门只是 hint 一致性防线：
+            payload 与 descriptor 同为调用方自报（caller 双自报），一致
+            **不构成**绑定依据——绑定决策以
+            ``_runtime_descriptor_semantics`` 的运行时重算为准。
             """
             if not require_descriptor:
                 return
@@ -1963,6 +2074,104 @@ class ApprovalBroker:
                          "approval_value": payload.get(field),
                          "caller_value": descriptor[field]})
 
+        def _runtime_descriptor_semantics(state: RunState) -> None:
+            """R8-ACTUAL-TARGET-003：消费点以**运行时实参重算 descriptor**
+            与 payload 等值比对——actual target 绑定不再 caller 双自报。
+
+            重算源（全部独立于 caller 的 payload 自报）：
+            1) kind：action_type 封闭映射 → expected_approval_type
+               （运行时实参；reserve_action 路由门已强制，此处不重复）；
+            2) env 实况：run 事件流冻结的 identity.environment——payload
+               携带 environment 字段的类型（release）必须等值（硬门，
+               无需调用方配合）；
+            3) artifact 路径实算 hash：``runtime_evidence["artifact_paths"]``
+               的 {字段: 路径}——消费点对真实文件现场 sha256（不接受
+               调用方自报哈希；路径不可读 fail-closed 拒）；
+            4) 其余运行时观测：``runtime_evidence[字段]``（执行面现场
+               观测值；哨兵 ``"RUN_HEAD"`` = 消费点以 run
+               identity.commit_sha 实查替换——「当前 HEAD 实查」）。
+            诚实边界：evidence 的非哨兵值仍是执行面自报观测（与 payload
+            分属两个角色通道，非免验正源）；env/kind/文件哈希三项由消费
+            点独立取得，不受调用方文本控制。
+            """
+            payload = dict(ap["payload"])
+            fields = _APPROVAL_PAYLOAD_DISCRIMINATOR[expected_approval_type]
+            # (2) env 实况硬门：payload 声明的目标环境必须等于 run 冻结环境
+            if "environment" in fields and \
+                    payload.get("environment") != state.identity["environment"]:
+                raise ApprovalRejected(
+                    "actual-target 绑定拒绝（R8-ACTUAL-TARGET-003）：审批 "
+                    f"payload 的 environment={payload.get('environment')!r} "
+                    "与运行时实况（run 冻结 environment="
+                    f"{state.identity['environment']!r}）不符——批准内容"
+                    "不得指向另一环境",
+                    {"field": "environment",
+                     "approval_value": payload.get("environment"),
+                     "runtime_value": state.identity["environment"]})
+            if runtime_evidence is None:
+                return
+            if not isinstance(runtime_evidence, Mapping):
+                raise ApprovalRejected(
+                    "runtime_evidence 必须是 JSON 对象（字段→运行时实况"
+                    "观测值；artifact_paths={字段:路径} 由消费点实算）")
+            evidence = dict(runtime_evidence)
+            allowed_keys = set(fields) | {"artifact_paths"}
+            stray = sorted(set(evidence) - allowed_keys)
+            if stray:
+                raise ApprovalRejected(
+                    f"runtime_evidence 含非本类型字段 {stray}（"
+                    f"approval_type={expected_approval_type!r} 的判别字段"
+                    f"全集为 {sorted(fields)}，另有保留键 artifact_paths）")
+            for field, observed in evidence.items():
+                if field == "artifact_paths":
+                    continue
+                actual = observed
+                if isinstance(actual, str) and actual == "RUN_HEAD":
+                    actual = state.identity["commit_sha"]  # 当前 HEAD 实查
+                if payload.get(field) != actual:
+                    raise ApprovalRejected(
+                        "actual-target 绑定拒绝（R8-ACTUAL-TARGET-003）："
+                        f"审批 payload 的 {field!r}={payload.get(field)!r} "
+                        f"与运行时实参 {actual!r} 不符——descriptor 以运行"
+                        "时实参重算比对（caller 自报 payload/descriptor "
+                        "不再是绑定依据）",
+                        {"field": field,
+                         "approval_value": payload.get(field),
+                         "runtime_value": actual})
+            art_paths = evidence.get("artifact_paths")
+            if art_paths is None:
+                return
+            if not isinstance(art_paths, Mapping):
+                raise ApprovalRejected(
+                    "runtime_evidence.artifact_paths 必须是 {字段: 路径} "
+                    "对象（消费点对真实文件现场实算 sha256）")
+            for field, path in art_paths.items():
+                if field not in fields or not field.endswith("_sha256"):
+                    raise ApprovalRejected(
+                        f"runtime_evidence.artifact_paths 的键 {field!r} "
+                        f"必须是 {expected_approval_type!r} payload 的 "
+                        "*_sha256 字段（实算 hash 只对哈希字段开放）")
+                if not (isinstance(path, str) and path.strip()):
+                    raise ApprovalRejected(
+                        f"runtime_evidence.artifact_paths[{field!r}] "
+                        "必须是非空文件路径（实算 hash fail-closed）")
+                try:
+                    computed = _sha256_file(path)
+                except OSError as exc:
+                    raise ApprovalRejected(
+                        f"artifact 路径实算失败（{field!r} → {path!r}）："
+                        f"{exc}——fail-closed 拒绝（不采信任何自报哈希）",
+                        {"field": field, "path": path}) from None
+                if payload.get(field) != computed:
+                    raise ApprovalRejected(
+                        "actual-target 绑定拒绝（R8-ACTUAL-TARGET-003）："
+                        f"审批 payload 的 {field!r}={payload.get(field)!r} "
+                        f"与 artifact 路径实算 sha256（{path!r} → "
+                        f"{computed!r}）不符",
+                        {"field": field, "path": path,
+                         "approval_value": payload.get(field),
+                         "computed_sha256": computed})
+
         def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
             state = run_loader(conn)
             # 重放检测优先（事件正源 + 旁表，同 consume）
@@ -1980,6 +2189,7 @@ class ApprovalBroker:
             if expected_approval_type == "risk":
                 _risk_semantics(ap, state)
             _action_descriptor_semantics()
+            _runtime_descriptor_semantics(state)
             try:
                 conn.execute(
                     "INSERT INTO approval_consumptions "
@@ -3162,6 +3372,7 @@ class RunManager:
                        approval: Optional[Mapping[str, Any]] = None, *,
                        actor: str = "system",
                        action_descriptor: Optional[Mapping[str, Any]] = None,
+                       runtime_evidence: Optional[Mapping[str, Any]] = None,
                        ) -> Dict[str, Any]:
         """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。
 
@@ -3176,15 +3387,26 @@ class RunManager:
         **同一** BEGIN IMMEDIATE 事务内原子成对；重放侧校验授权消费链
         （reserved 必须有对应 APPROVAL_CONSUMED 且类型匹配）。
 
-        R7-AUTH-DUAL-CONSUME-005（两道新消费门，均在 envelope 绑定之后、
+        R7-AUTH-DUAL-CONSUME-005（两道消费门，均在 envelope 绑定之后、
         nonce 占位之前——拒绝零落账零消费）：
-        - ``action_descriptor``（必填实参）：调用方声明的动作描述（键集=
-          该审批类型 payload 判别字段全集），与审批 payload 逐字段等值
-          比对——payload 未绑实参的洞关闭（action/method/head_sha/
-          artifact/env 等任一不符即 ApprovalRejected）；
+        - ``action_descriptor``（必填实参，**R8 起降为提示 hint**）：调用
+          方声明的动作描述（键集=该审批类型 payload 判别字段全集），与
+          审批 payload 逐字段等值比对——形状/等值不符即拒（既有拒绝面
+          不回退），但一致不构成绑定依据（caller 双自报）；
         - 高危类型（prod_write/ddl/release/fund_auth）envelope 必须携带
-          ≥2 名不同 key 的 cosignatures 联签（各自可验、非 revoked）——
-          签发端双人联签进入消费契约，单签高危审批不再可消费。
+          ≥2 名不同 key 的 cosignatures 联签（各自可验、非 revoked、
+          issued_at 在 key 生命周期窗内、条目 actor 互异且各自 ∈ 其
+          key 的 actors 登记面）——签发端双人联签进入消费契约。
+
+        R8-ACTUAL-TARGET-003（actual target 绑定，权威门）：消费点以
+        **运行时实参重算 descriptor** 与 payload 等值比对——
+        - env 实况硬门：release 类 payload.environment 必须 == run 冻结
+          environment（无需调用方配合即执法）；
+        - ``runtime_evidence``（可选实参）：执行面运行时观测值
+          ``{字段: 观测}``（哨兵 ``"RUN_HEAD"`` = 消费点以 run
+          identity.commit_sha 实查替换）+ ``artifact_paths={字段: 路径}``
+          （消费点对真实文件现场实算 sha256）——任一字段与 payload 不符
+          即 ApprovalRejected；含非本类型字段即拒；路径不可读 fail-closed。
         """
         ActionSaga.validate_descriptor(action_type, target)
         if approval is None:
@@ -3211,10 +3433,12 @@ class RunManager:
             # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
             # 任一步失败整体回滚，授权与预留绝不成单只。事务体内依次：
             # nonce 复用 → envelope 绑定 → 高危联签门 → risk 语义（N/A）→
-            # action_descriptor 门 → 占 nonce 落事件。
+            # action_descriptor 提示门 → actual-target 运行时重算门 →
+            # 占 nonce 落事件。
             self.broker._consume_authorization_txn(  # noqa: SLF001
                 conn, ap, self._fenced_loader(run_id), now, expected,
-                action_descriptor=action_descriptor, require_descriptor=True)
+                action_descriptor=action_descriptor, require_descriptor=True,
+                runtime_evidence=runtime_evidence)
             state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
             action_id = f"act_{uuid.uuid4().hex[:12]}"
             event = self._base_event(

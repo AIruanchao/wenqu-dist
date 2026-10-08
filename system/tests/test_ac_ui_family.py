@@ -9,6 +9,9 @@ evidence/00-baseline/codex-external/方案.md §20 表格）：
     UI-02  XSS 日志/账本文本                       -> 不执行
     UI-03  CSRF/伪 Origin/text/plain 写入           -> 拒绝
     UI-04  Gate 红、其他项高分                      -> 总体 BLOCKED
+    UI-04b 零 SHA 身份占位/self-declared 聚合 PASS  -> 拒 PASS（P0-9/W8 根修腿，
+           2026-10-08 增：透传前保守过滤，identity_missing→BLOCKED /
+           self_declared→NOT_EVALUATED；非 PASS 原样透传；正门不误伤）
     UI-05  ACCEPTED/OTHER/quarantine               -> 均可钻取
     UI-06  DNS rebinding/伪 Host/未认证日志读取      -> 拒绝
     UI-07  慢请求/高并发/超大日志                    -> 不耗尽资源
@@ -160,6 +163,33 @@ def _write_snapshot(path: Path, verdict: str, *, score=87, age_seconds: float = 
         "counts": {"total": 131, "passed": 130},
         "stations": {f"S{i}": {"verdict": "PASS", "score": 95 + i % 5} for i in range(1, 8)},
     }
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return gen
+
+
+def _write_snapshot_rich(path: Path, verdict: str, *, target_sha: str | None = None,
+                         mode: str | None = None,
+                         scope_binding_mode: str | None = None) -> str:
+    """P0-9/W8（UI-04b）：带证据身份/聚合模式字段的 aggregator 快照。
+
+    形态对齐真实 gate 快照（wenquctl gate 产出）：target_sha 镜像各站
+    identity.commit_sha；mode/scope_binding.mode 如实携带聚合模式。
+    """
+    gen = _now_iso()
+    payload: dict = {
+        "generated_at": gen, "policy_verdict": verdict,
+        "aggregate_outcome": verdict, "reason": "all 1 required stations PASS",
+        "reasons": [], "counts": {"required_total": 1, "required_reported": 1,
+                                  "required_missing": 0},
+        "stations": {"0": {"outcome": "PASS", "required": True, "sha_bound": True}},
+        "environment": "production",
+    }
+    if target_sha is not None:
+        payload["target_sha"] = target_sha
+    if mode is not None:
+        payload["mode"] = mode
+    if scope_binding_mode is not None:
+        payload["scope_binding"] = {"mode": scope_binding_mode}
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return gen
 
@@ -628,10 +658,119 @@ def test_UI_04_gate_red_with_high_other_scores_is_overall_blocked():
         assert "UI_VERDICT_DIVERGES_FROM_AUTHORITY" in got and "UI_SCORE_RECOMPUTED" in got, \
             f"洗绿负例未被探针报出，实得 {sorted(got)}"
     _record("UI-04",
-            "Gate 红+各站高分（score 87）→health 逐字透传 BLOCKED（score/watermark 同水位，"
+            "Gate 红+各站高分（score 87）→health 逐字透传 BLOCKED（score/watermark 同水位、"
             "source=gate-aggregator）；快照转 PASS 即刻传播；过期→503 AGGREGATOR_STALE 绝不"
             "200 伪绿；前端判定优先级+errBox 源码契约在位；负例自算洗绿（PASS+99）被同水位"
             "探针双报（verdict+score）。浏览器目视读数未验证（已登记）")
+
+
+def test_UI_04b_zero_sha_or_self_declared_pass_is_rejected():
+    """UI-04b | P0-9/W8 残余：零 SHA 身份占位 / self-declared 聚合 → 拒 PASS。
+
+    Codex 八轮 P0-9/W8 实锤：生产 gate 快照 mode=self_declared_diagnostic、
+    target_sha=0*40（各站 identity.commit_sha 全零占位）时 health 仍透传
+    PASS。根修=server.py 透传前保守过滤（不变量 10「只等价或更保守」）：
+      1. 零 SHA + self_declared（生产实锤形态）→ policy_verdict 绝非 PASS
+         （=BLOCKED），reason 注明 identity_missing+self_declared，
+         dashboard_downgrade 审计字段保留 raw=PASS 与双旗标；
+      2. 仅 self_declared（真实 SHA）→ 非 PASS（NOT_EVALUATED）；
+      3. 仅零 SHA（无 mode 字段）→ 非 PASS（BLOCKED——身份是硬完整性问题）；
+      4. 对照：真实 40-hex SHA + manifest 模式 → PASS 原样透传（不误伤正门）；
+      5. 非 PASS（BLOCKED）+ 零 SHA → 原样透传、零降级痕迹（绝不上调）。
+    负例（对抗）：无保守过滤的假服务在同样注入下回 PASS——同水位探针必报
+    （证明探测面不瞎，杜绝假绿）。
+    """
+    ZERO_SHA = "0" * 40
+    REAL_SHA = "ab" * 20
+    with tempfile.TemporaryDirectory(prefix="wq_ui04b_") as tmp:
+        sandbox = Path(tmp)
+        with _Dash(sandbox, ttl_seconds=1800) as dash:
+            # 1) 生产实锤形态：零 SHA + self-declared 诊断模式 → 拒 PASS
+            _write_snapshot_rich(dash.snap, "PASS", target_sha=ZERO_SHA,
+                                 mode="self_declared_diagnostic",
+                                 scope_binding_mode="self_declared")
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] != "PASS", \
+                f"零 SHA+self-declared 快照 PASS 必须被拒，实得 {st} {j}"
+            assert j["policy_verdict"] == "BLOCKED", f"身份占位须 BLOCKED，实得 {j['policy_verdict']}"
+            assert j["aggregate_outcome"] == "BLOCKED", "aggregate_outcome 同步降级（载荷不自相矛盾）"
+            dg = j.get("dashboard_downgrade")
+            assert isinstance(dg, dict) and dg.get("raw_policy_verdict") == "PASS", \
+                f"降级审计字段须保留 raw=PASS，实得 {dg}"
+            assert set(dg.get("flags", [])) == {"identity_missing", "self_declared"}, \
+                f"双旗标必须齐，实得 {dg}"
+            reason = str(j.get("reason", ""))
+            assert "identity_missing" in reason and "self_declared" in reason, \
+                f"reason 必须注明两旗标，实得 {reason}"
+            assert any("identity_missing" in str(x) and "self_declared" in str(x)
+                       for x in j.get("reasons", [])), "reasons 列表须含降级条目"
+            # 同水位探针：降级后的判定即权威期望——真服务面零发现
+            f = probe_health_watermark("127.0.0.1", dash.port,
+                                       {"policy_verdict": "BLOCKED"})
+            assert f == [], f"降级判定同水位探针应零发现，实得 {[x.as_dict() for x in f]}"
+
+            # 2) 仅 self_declared（真实 SHA 绑定）→ 非 PASS（NOT_EVALUATED）
+            _write_snapshot_rich(dash.snap, "PASS", target_sha=REAL_SHA,
+                                 mode="self_declared_diagnostic",
+                                 scope_binding_mode="self_declared")
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] != "PASS", \
+                f"self-declared 模式 PASS 必须被拒，实得 {st} {j}"
+            assert j["policy_verdict"] == "NOT_EVALUATED", \
+                f"仅模式旗标（身份真实）应 NOT_EVALUATED，实得 {j['policy_verdict']}"
+            assert j["dashboard_downgrade"]["flags"] == ["self_declared"], \
+                f"旗标应恰为 self_declared，实得 {j['dashboard_downgrade']}"
+
+            # 2b) 仅 scope_binding.mode=self_declared（无顶层 mode 字段——防御深度：
+            #     检测不得只依赖 cli.py 单一携带点）→ 同样非 PASS
+            _write_snapshot_rich(dash.snap, "PASS", target_sha=REAL_SHA,
+                                 scope_binding_mode="self_declared")
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] == "NOT_EVALUATED" and \
+                j["dashboard_downgrade"]["flags"] == ["self_declared"], \
+                f"仅 scope_binding.mode=self_declared 也须拒 PASS，实得 {st} {j}"
+
+            # 3) 仅零 SHA（无 mode/scope_binding 字段）→ 非 PASS（BLOCKED）
+            _write_snapshot_rich(dash.snap, "PASS", target_sha=ZERO_SHA)
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] == "BLOCKED" and \
+                j["dashboard_downgrade"]["flags"] == ["identity_missing"], \
+                f"仅零 SHA 应 BLOCKED+identity_missing，实得 {st} {j}"
+
+            # 4) 对照：真实 SHA + manifest 正门模式 → PASS 原样透传（不误伤）
+            gen = _write_snapshot_rich(dash.snap, "PASS", target_sha=REAL_SHA,
+                                       mode="manifest", scope_binding_mode="manifest")
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] == "PASS" and \
+                "dashboard_downgrade" not in j and j["generated_at"] == gen, \
+                f"正门 PASS 必须原样透传零降级痕迹，实得 {st} {j}"
+
+            # 5) 非 PASS + 零 SHA → 原样透传（保守过滤绝不上调、零改写）
+            _write_snapshot_rich(dash.snap, "BLOCKED", target_sha=ZERO_SHA,
+                                 mode="self_declared_diagnostic")
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/health")
+            j = json.loads(body)
+            assert st == 200 and j["policy_verdict"] == "BLOCKED" and \
+                "dashboard_downgrade" not in j, \
+                f"非 PASS 须原样透传零降级痕迹，实得 {st} {j}"
+
+    # 负例（对抗）：同样注入下无保守过滤的假服务回 PASS——同水位探针必报
+    # （证明「零 SHA→非 PASS」期望有探针背书，不是只改断言的假绿）
+    with _VulnServer() as vuln:
+        f = probe_health_watermark("127.0.0.1", vuln.port, {"policy_verdict": "BLOCKED"})
+        got = _codes(f)
+        assert "UI_VERDICT_DIVERGES_FROM_AUTHORITY" in got, \
+            f"零 SHA 期望 BLOCKED 而假服务回 PASS 未被探针报出，实得 {sorted(got)}"
+    _record("UI-04b",
+            "P0-9/W8 根修验证：零 SHA(0*40) 或 self-declared 聚合模式下快照透传 PASS "
+            "被保守过滤拒绝（identity_missing→BLOCKED / self_declared→NOT_EVALUATED，"
+            "reason+dashboard_downgrade 注明；非 PASS 原样透传绝不上调；真实 SHA+manifest "
+            "正门 PASS 不误伤）；同水位探针在降级判定上零发现；负例假服务（回 PASS）被探针必报")
 
 
 def test_UI_05_accepted_other_and_quarantine_drilldown():
@@ -999,6 +1138,11 @@ def main() -> int:
                     "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；"
                     "R7 根修后产品配对门覆盖常见标签（删 </span> 必红）；"
                     "server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）",
+                    "UI-04b（P0-9/W8 根修腿，2026-10-08 增）：health 透传前保守过滤——"
+                    "零 SHA(0*40) 身份占位/self-declared 诊断聚合下的 PASS 拒绝"
+                    "（identity_missing→BLOCKED / self_declared→NOT_EVALUATED，"
+                    "reason+dashboard_downgrade 审计注明）；非 PASS 原样透传绝不上调；"
+                    "真实 SHA+manifest 正门 PASS 不误伤；产品 --self-check 同步带双检查腿",
                 ],
             },
             "results": _RESULTS,
