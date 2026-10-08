@@ -1,0 +1,38 @@
+UTC_START=2026-10-08T12:57:11Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=date "+%F %T %z"; git ls-remote origin refs/heads/main; gh run view 37778240376 --json databaseId,event,headBranch,headSha,status,conclusion,workflowName,createdAt,updatedAt,jobs | jq '{databaseId,event,headBranch,headSha,status,conclusion,workflowName,createdAt,updatedAt,jobs:[.jobs[]|{name,status,conclusion,startedAt,completedAt,url}]}'
+--- OUTPUT ---
+2026-10-08 20:57:11 +0800
+d32c859f9043798d9e8a4984e8f57aa64567e33c	refs/heads/main
+{
+  "databaseId": 37778240376,
+  "event": "push",
+  "headBranch": "main",
+  "headSha": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+  "status": "completed",
+  "conclusion": "success",
+  "workflowName": "acceptance",
+  "createdAt": "2026-10-08T12:37:51Z",
+  "updatedAt": "2026-10-08T12:47:18Z",
+  "jobs": [
+    {
+      "name": "matrix (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T12:37:54Z",
+      "completedAt": "2026-10-08T12:40:12Z",
+      "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37778240376/job/113314473537"
+    },
+    {
+      "name": "matrix (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T12:37:57Z",
+      "completedAt": "2026-10-08T12:47:17Z",
+      "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37778240376/job/113314473846"
+    }
+  ]
+}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:57:22Z

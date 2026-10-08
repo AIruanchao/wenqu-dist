@@ -1,0 +1,27 @@
+{
+  "content_digest": "0f9ffa720d97c5c6761c66e1ec20effdb857e1e0749852f308f984f1816ee68d",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "fb65ca919b510292d99d08c026723f9f5ac3054dc9a88624224c1aec7f66912c",
+      "size": 38
+    },
+    {
+      "mode": "0444",
+      "path": "flag-bad-signature1.txt",
+      "sha256": "3f4299a3704bd90746f8ff6bb3ae887d4720efb942afb4b9bd7c8c66bdc3fbaf",
+      "size": 15
+    }
+  ],
+  "release_id": "20261008T125114Z-0f9ffa720d97",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_07_activating_failure0/dep7-bad-signature-v1"
+}

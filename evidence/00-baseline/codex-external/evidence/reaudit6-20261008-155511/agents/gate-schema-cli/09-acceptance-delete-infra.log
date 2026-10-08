@@ -1,0 +1,97 @@
+$ cp -R <b259dac-isolated> <mutation>; unlink system/tests/test_infra_hardening.py
+$ env HOME=<fake> PYTHONDONTWRITEBYTECODE=1 bash tests/acceptance.sh
+started_at=2026-10-08T08:01:07Z
+== A. selftest 契约 ==
+  ✅ selftest (exit=0)
+== B. 新仓三步（预埋缺陷全中+verify 门红）==
+  ✅ init (exit=0)
+  ✅ 探测器真命中 trap-double（标记行在日志）
+  ✅ 探测器真命中 guard-comment-swallow（标记行在日志）
+  ✅ 探测器真命中 cred-cli-expose（标记行在日志）
+  ✅ verify 门红（OPEN 3/0） (exit=1)
+== C. 干净仓不误报 ==
+  ✅ 干净仓 PASS (exit=0)
+  ✅ --home 零写入仓
+== D. fork2：convergence 空转拒绝 ==
+  ✅ 空轮次拒绝 Converged (exit=1)
+== E. fork2：run --round 参与收敛判定（独立 home 防 OPEN 残留掩蔽，F10 修正）==
+  ✅ 有轮次新发现=未收敛 (exit=1)
+== F. fork2/3：超时不落账+值域 ==
+  ✅ 超时 exit 2 (exit=2)
+  ✅ 超时不落账
+== G2. fork3：参数值域守卫 ==
+  ✅ --round 负数拒绝 (exit=2)
+  ✅ --convergence 负数拒绝 (exit=2)
+  ✅ timeout 非数字拒绝 (exit=2)
+  ✅ timeout 负数拒绝 (exit=2)
+== G. 未知站位兜底 ==
+  ✅ 未知站位 exit 2 (exit=2)
+== I. 并发写账本安全（8 进程撞锁）==
+  ✅ 并发 8 进程账本零损坏 (exit=1)
+== J. fork4：repair 不伤审计行+隔离正常+追加式 ==
+  ✅ repair exit 0 (exit=0)
+  ✅ run 审计行经 repair 存活
+  ✅ quarantine 追加式（0到       1）
+== K. fork5：sweep 精确匹配+空格文件名 ==
+  ✅ 子串站名不被误关
+  ✅ 空格文件名真命中 (exit=1)
+== L. fork6：四高防线（并发/非对象行/铸轮/状态机）==
+  ✅ 并发 ingest 后账本可用 (exit=0)
+  ✅ 同 id 不双入账（1 条）
+  ✅ 非对象行 repair 自愈 (exit=0)
+  ✅ charter 铸轮被拒 (exit=1)
+  ✅ ingest 状态机横跳被拒 (exit=2)
+== M. fork7：GBK 字节行不锁死写路径 ==
+  ✅ GBK 行共存下 run 可写 (exit=0)
+  ✅ GBK 行共存下 close 可写 (exit=0)
+  ✅ repair 对 GBK 账本自愈可用 (exit=0)
+== N. fork8：U+2028 往返/伪造 kind/行序无关 ==
+  ✅ U+2028 往返不锁死 (exit=0)
+  ✅ U+2028 账本可查 (exit=0)
+  ✅ 伪造 run 行被拒 (exit=2)
+  ✅ 转移引用同批后行 finding=行序无关 (exit=0)
+== O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）==
+  ✅ rc≥2 die(2) 不落账 (exit=2)
+  ✅ 环境错误 run 行未落账
+  ✅ 纯环境错误轮不铸 Converged (exit=1)
+  ✅ 权限拒泄露文件=环境错误 2 (exit=2)
+== P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）==
+  ✅ GBK .sh 真命中（LC_ALL=C） (exit=1)
+  ✅ GBK 文件命中标记在日志
+  ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）
+  ✅ note 回填行在账本
+  ✅ repair 后 note 行存活
+  ✅ rc≥2+只读 runs 降级分支触发
+  ✅ 环境错误站 die(2) (exit=2)
+== Q. fork16：symlink 排除与 CLI 对齐（S10-FA）==
+  ✅ symlink 指向仓外目标被排除 (exit=0)
+  ✅ CLI 冻结范围排除 symlink（1 文件）
+== R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）==
+  ✅ CX3：信号终止(-15)归环境错误 exit 2 (exit=2)
+  ✅ CX4：拼错 --status OEPEN exit 2 (exit=2)
+  ✅ CX8：跨仓 PASS 不洗白本仓 finding
+== S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 ==
+  ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）
+== H. pytest 契约套件（若 pytest 可用）==
+  ✅ pytest 20 用例 (exit=0)
+== T. P0 auto-merge containment ==
+  ✅ wenqu start 永久拒绝 (exit=1)
+  ✅ start 精确报错且未执行 writer/写 PID
+  ✅ 源码 auto-merge stub 拒绝 (exit=1)
+  ✅ 源码 stub 唯一内容、单行且消息精确
+  ✅ 隔离安装 (exit=0)
+  ✅ 升级安装覆盖旧 writer 为安全 stub
+== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）==
+  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+  ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）
+== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）
+================================
+RESULT: PASS=63 FAIL=1
+finished_at=2026-10-08T08:01:23Z
+exit_code=1

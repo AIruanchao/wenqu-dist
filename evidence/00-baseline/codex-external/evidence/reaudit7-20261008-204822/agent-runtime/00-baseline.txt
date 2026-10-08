@@ -1,0 +1,50 @@
+UTC_START=2026-10-08T12:49:05Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /Users/maccc/Documents/wenqu-dist && printf "HEAD_FULL=" && git rev-parse HEAD && printf "HEAD_SHORT=" && git rev-parse --short=12 HEAD && printf "BRANCH=" && git branch --show-current && printf "REMOTE_MAIN=" && git rev-parse origin/main 2>/dev/null || true; echo "--- STATUS PORCELAIN V2 ---"; git status --porcelain=v2 --branch; echo "--- WORKTREES ---"; git worktree list --porcelain; echo "--- REMOTES ---"; git remote -v; echo "--- AGENTS ---"; find .. -name AGENTS.md -print
+--- OUTPUT ---
+HEAD_FULL=1495913085eae13155f977fcebc8400b9789e04c
+HEAD_SHORT=1495913085ea
+BRANCH=wave6/p1f-gate
+REMOTE_MAIN=d32c859f9043798d9e8a4984e8f57aa64567e33c
+--- STATUS PORCELAIN V2 ---
+# branch.oid 1495913085eae13155f977fcebc8400b9789e04c
+# branch.head wave6/p1f-gate
+# branch.upstream origin/wave6/p1f-gate
+# branch.ab +0 -0
+1 .M N... 100644 100644 100644 269aa9c86de7dc77e2318c699297b92342c63779 269aa9c86de7dc77e2318c699297b92342c63779 system/VERSION
+1 .M N... 100755 100755 100755 6c237dc89a584744ef58dae83097ebeeb46796fd 6c237dc89a584744ef58dae83097ebeeb46796fd system/bin/wenqu-dashboard.py
+? SHA256-v3.8.4.txt
+--- WORKTREES ---
+worktree /Users/maccc/Documents/wenqu-dist
+HEAD 1495913085eae13155f977fcebc8400b9789e04c
+branch refs/heads/wave6/p1f-gate
+
+--- REMOTES ---
+origin	git@github.com:AIruanchao/wenqu-dist.git (fetch)
+origin	git@github.com:AIruanchao/wenqu-dist.git (push)
+--- AGENTS ---
+../wenqu-app/.scan-workspaces/cmuu3vsv4000eo001iu95cqad/repo/AGENTS.md
+../wenqu-app/.scan-workspaces/cmutusd34000esbfyb2ifevb0/repo/AGENTS.md
+../wenqu-app/.scan-workspaces/erp-master-8c616af/AGENTS.md
+../wenqu-app/node_modules/next/AGENTS.md
+../wenqu-app/AGENTS.md
+../EQS-1（zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final-20261007T231511/fixtures/infra-cwd/home/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/zcode-four-checks-upgrade/q4-p0-20261007T230626+0800/snapshot/files/Users/maccc/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/zcode-four-checks-upgrade/q4-p0-20261007T230626+0800/recovery-rehearsal/forensic-baseline/files/Users/maccc/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/zcode-four-checks-upgrade/q4-p0-20261007T230626+0800/recovery-rehearsal/safe-anchor-reconstruction/files/Users/maccc/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/zcode-four-checks-upgrade/q4-p0-20261007T230626+0800/safe-anchor/files/Users/maccc/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final9-20261007T153200Z/snapshot/zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final11-20261007T154052Z/snapshot/contracts/zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final11-20261007T154052Z/fixtures/exm-error/home/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final10-20261007T153647Z/snapshot/contracts/zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final10-20261007T153647Z/fixtures/silent-exm-error/home/.zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final8-20261007T153056Z/snapshot/zcode/AGENTS.md
+../Codex/2026-10-07/new-chat/work/p0_security_audit-final2-20261007T231916/fixtures/infra/home/.zcode/AGENTS.md
+../ERP）Zcode/qisemi-master-full/AGENTS.md
+../ERP）Zcode/qisemi-erp-e2e-tpfix/AGENTS.md
+../ERP）Zcode/真实仓锚定副本-只读/AGENTS.md
+../ERP）Zcode/qisemi-r1246-cibase/AGENTS.md
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:49:17Z

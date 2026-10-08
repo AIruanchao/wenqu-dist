@@ -1,0 +1,13 @@
+[1] supply clean OK: PASS, dynamic denominator=12 (metadata.dependencies.total)
+[2] supply HIGH OK: FAIL, 1 finding HIGH/P1 counted from parsed list
+[3] supply negative OK: empty-json=ERROR / self-report mismatch=ERROR / timeout=TIMEOUT(124) / exit>=2=ERROR
+[4a] dupscan within-baseline OK: PASS, denominator=3 from independent walk
+[4b] dupscan negative OK: over-baseline=FAIL / missing-baseline=ERROR / self-report mismatch=BLOCKED(shrink guard; reason in note)
+[5a] engine all-closed OK: PASS, denominator=5 (five-type universe, dynamic)
+[5b] engine negative OK: open-card=FAIL / dropped-card=BLOCKED(shrink) / missing-state=ERROR
+[6] route OK: hit=FAIL(parsed findings) / env-error=BLOCKED(real rc kept) / exit1-empty=BLOCKED / clean=PASS / unconfigured=BLOCKED / non-route-repo=NOT_APPLICABLE
+[7a] aggregate OK: supply FAIL -> station FAIL, coverage 4/4 scanners, all sub-results schema-valid
+[7b] aggregate negative OK: any non-COMPLETED scanner -> station BLOCKED (denominator-shrink guard), granular ERROR preserved in sub-result
+[7c] aggregate all-green OK: station PASS, unified exit 0
+[8] config negatives OK: bad run_id/identity/repo_dir rejected; explicit scanner subset recorded in coverage.exclusions
+SELF-TEST PASS

@@ -1,0 +1,39 @@
+{
+  "content_digest": "461173a2be7865a1a59031fa2f810ecc50338f9a1f9d05ad19405e8c645788e7",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "ddd8dc6b4cce2862920b11b7a5f891d27795b1501daabb6a05bf17232b4bbf47",
+      "size": 34
+    },
+    {
+      "mode": "0444",
+      "path": "flag-dep9-mixed.txt",
+      "sha256": "a886b602c10d4a229b568c71bbf8fe8fc09e916d281799247e028d6249a675cb",
+      "size": 11
+    },
+    {
+      "mode": "0444",
+      "path": "migrations/001_expand_ok.sql",
+      "sha256": "dacd19598175eabb24771af16cacafb7e8a4c1339bdb16c7f34d61138c60d2c8",
+      "size": 42
+    },
+    {
+      "mode": "0444",
+      "path": "migrations/002_contract_bad.sql",
+      "sha256": "877392cbdfd78dcd9ebde2ff0e97a014d304642b34a5cd0c3e845905450f571c",
+      "size": 37
+    }
+  ],
+  "release_id": "20261008T125114Z-461173a2be78",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed"
+}

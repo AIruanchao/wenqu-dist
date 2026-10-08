@@ -1,0 +1,304 @@
+UTC_START=2026-10-08T12:56:41Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-capture-latest.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+REPO=/Users/maccc/Documents/wenqu-dist
+FROZEN=/private/tmp/reaudit7-d32c859-runtime
+echo "LOCAL_NOW=$(date '+%Y-%m-%dT%H:%M:%S%z')"
+echo "UTC_NOW=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+echo '=== launchd scheduler filtered ==='
+launchctl print gui/$(id -u)/com.wenqu.scheduler 2>&1 | egrep 'state =|path =|program =|runs =|last exit code|run interval|working directory|PYTHONPATH'
+echo "launchctl_rc=${pipestatus[1]}"
+echo '=== live repo identity/status ==='
+git -C "$REPO" rev-parse --abbrev-ref HEAD
+git -C "$REPO" rev-parse HEAD
+git -C "$REPO" status --porcelain=v2 --branch
+echo '=== critical path lstat and hashes ==='
+for f in \
+  system/wenqu_core/wenqu_pipeline.py \
+  system/wenqu_core/w4_scheduler.py \
+  system/dashboard/server.py \
+  system/VERSION; do
+  echo "-- $f"
+  if [[ -e "$REPO/$f" || -L "$REPO/$f" ]]; then
+    stat -f 'type=%HT mode=%Sp size=%z mtime=%Sm inode=%i' -t '%Y-%m-%dT%H:%M:%S%z' "$REPO/$f"
+    shasum -a 256 "$REPO/$f"
+    git -C "$REPO" diff --quiet -- "$f"; echo "worktree_vs_index_rc=$?"
+    git -C "$REPO" diff --quiet d32c859 -- "$f"; echo "worktree_vs_d32_rc=$?"
+  else
+    echo 'LSTAT=MISSING'
+  fi
+  git -C "$REPO" ls-files --stage -- "$f"
+  git -C "$REPO" cat-file -e "d32c859:$f" 2>/dev/null; echo "exists_in_d32_rc=$?"
+done
+echo '=== state file stat/hash ==='
+for f in "$HOME/.wenqu/observation/heartbeat.json" "$HOME/.wenqu/state/gate-aggregate.json" "$HOME/.wenqu/observation/samples/2026-10-08.json"; do
+  echo "-- $f"
+  stat -f 'type=%HT mode=%Sp size=%z mtime=%Sm inode=%i' -t '%Y-%m-%dT%H:%M:%S%z' "$f" 2>&1
+  shasum -a 256 "$f" 2>&1
+done
+echo '=== heartbeat selected/full ==='
+python3 - <<'PY'
+import json, pathlib
+for name,p in [('heartbeat', pathlib.Path.home()/'.wenqu/observation/heartbeat.json'),('aggregate',pathlib.Path.home()/'.wenqu/state/gate-aggregate.json'),('sample',pathlib.Path.home()/'.wenqu/observation/samples/2026-10-08.json')]:
+ print('---',name)
+ try:
+  x=json.loads(p.read_text())
+  print(json.dumps(x,ensure_ascii=False,sort_keys=True,indent=2))
+ except Exception as e: print(type(e).__name__,str(e))
+PY
+echo '=== scheduler logs last 5 structured ==='
+tail -n 5 "$HOME/.wenqu/observation/logs/scheduler-2026-10-08.jsonl" 2>&1
+echo '=== launchd logs last 15 ==='
+tail -n 15 "$HOME/.wenqu/observation/logs/scheduler-launchd-out.log" 2>&1
+tail -n 15 "$HOME/.wenqu/observation/logs/scheduler-launchd-err.log" 2>&1
+echo '=== live health after latest natural tick ==='
+curl -sS -D - --max-time 5 http://127.0.0.1:7789/api/v1/health
+echo "curl_rc=$?"
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:56:41+0800
+UTC_NOW=2026-10-08T12:56:41Z
+=== launchd scheduler filtered ===
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+	state = not running
+	program = /opt/homebrew/bin/python3
+	working directory = /Users/maccc/Documents/wenqu-dist
+	stdout path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+	stderr path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+		PYTHONPATH => /Users/maccc/Documents/wenqu-dist/system
+	runs = 40
+	last exit code = 0
+		state = active
+		state = active
+	run interval = 300 seconds
+launchctl_rc=0
+=== live repo identity/status ===
+wave6/p1f-gate
+1495913085eae13155f977fcebc8400b9789e04c
+# branch.oid 1495913085eae13155f977fcebc8400b9789e04c
+# branch.head wave6/p1f-gate
+# branch.upstream origin/wave6/p1f-gate
+# branch.ab +0 -0
+1 .M N... 100644 100644 100644 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 evidence/04-unit-property-mutation/ac-ops-families.json
+1 .M N... 100644 100644 100644 dc131734b1e5b8915164cb9aed74ccef703220f5 dc131734b1e5b8915164cb9aed74ccef703220f5 evidence/04-unit-property-mutation/ac-ui-family.json
+1 .M N... 100644 100644 100644 269aa9c86de7dc77e2318c699297b92342c63779 269aa9c86de7dc77e2318c699297b92342c63779 system/VERSION
+1 .M N... 100755 100755 100755 6c237dc89a584744ef58dae83097ebeeb46796fd 6c237dc89a584744ef58dae83097ebeeb46796fd system/bin/wenqu-dashboard.py
+1 .D N... 100644 100644 000000 2b000022d18a8c1c6ac5061c1bcc23b2c5a6fcb6 2b000022d18a8c1c6ac5061c1bcc23b2c5a6fcb6 system/schemas/approval-v2.schema.json
+1 .D N... 100644 100644 000000 c3da05429806c69d1cc5a70bf9f1cf88440c627f c3da05429806c69d1cc5a70bf9f1cf88440c627f system/wenqu_core/wenqu_pipeline.py
+? "\"\""
+? SHA256-v3.8.4.txt
+=== critical path lstat and hashes ===
+-- system/wenqu_core/wenqu_pipeline.py
+LSTAT=MISSING
+100644 c3da05429806c69d1cc5a70bf9f1cf88440c627f 0	system/wenqu_core/wenqu_pipeline.py
+exists_in_d32_rc=0
+-- system/wenqu_core/w4_scheduler.py
+LSTAT=MISSING
+exists_in_d32_rc=128
+-- system/dashboard/server.py
+type=Regular File mode=-rw-r--r-- size=40554 mtime=2026-10-07T21:33:10+0800 inode=461113241
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+worktree_vs_index_rc=0
+worktree_vs_d32_rc=0
+100644 ff02eb16662604897a01a1b3997fcec9c765b249 0	system/dashboard/server.py
+exists_in_d32_rc=0
+-- system/VERSION
+type=Regular File mode=-rw-r--r-- size=6 mtime=2026-10-08T18:55:03+0800 inode=466680893
+76b72e6ab52189b694bcab51902d9c233edd39d0258a6120722357a1cfaedbd8  /Users/maccc/Documents/wenqu-dist/system/VERSION
+worktree_vs_index_rc=1
+worktree_vs_d32_rc=1
+100644 269aa9c86de7dc77e2318c699297b92342c63779 0	system/VERSION
+exists_in_d32_rc=0
+=== state file stat/hash ===
+-- /Users/maccc/.wenqu/observation/heartbeat.json
+type=Regular File mode=-rw-r--r-- size=1679 mtime=2026-10-08T20:56:26+0800 inode=468835062
+cb86fed87675322d7cc50b4cb7f1afd613bbd9476addc8e0763242e67c529c44  /Users/maccc/.wenqu/observation/heartbeat.json
+-- /Users/maccc/.wenqu/state/gate-aggregate.json
+type=Regular File mode=-rw-r--r-- size=854 mtime=2026-10-08T20:56:26+0800 inode=468835061
+e6680bfb2e31581e763aa6b6662f967f772174d24e4b9ad3ee41af0959bb549e  /Users/maccc/.wenqu/state/gate-aggregate.json
+-- /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+type=Regular File mode=-rw-r--r-- size=1676 mtime=2026-10-08T20:56:25+0800 inode=468834987
+246c73ff41b8fcc92fa837704c76a3789e303bb111aeb16438a0d41021bbe161  /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+=== heartbeat selected/full ===
+--- heartbeat
+{
+  "bootstrapped": false,
+  "due": [
+    {
+      "reason": "coalesced",
+      "run": true,
+      "scheduled_at": 1791463931.010995
+    }
+  ],
+  "gate": {
+    "aggregate_outcome": "BLOCKED",
+    "cli_exit": 1,
+    "policy_verdict": "BLOCKED",
+    "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"
+  },
+  "health": [
+    {
+      "healthy": true,
+      "job_id": "w4.observation-sample",
+      "severity": null,
+      "state": "FRESH"
+    }
+  ],
+  "job_id": "w4.observation-sample",
+  "label": "com.wenqu.scheduler",
+  "notifications": {
+    "dispatch": {
+      "dead_lettered": 0,
+      "errors": [],
+      "failed": 0,
+      "sent": 0
+    },
+    "outbox_stats": {
+      "SENT": 2
+    }
+  },
+  "paths": {
+    "alerts_dir": "/Users/maccc/.wenqu/observation/alerts",
+    "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json",
+    "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json",
+    "scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db"
+  },
+  "runs": [
+    {
+      "actual_exit_code": 0,
+      "execution_status": "COMPLETED",
+      "notifications_enqueued": 0,
+      "policy_verdict": "PASS",
+      "refreshed_heartbeat": true,
+      "run_id": "job-w4.observation-sample-1791463931011"
+    }
+  ],
+  "station_result": {
+    "coverage": {
+      "denominator": 1,
+      "exclusions": [],
+      "scanned": 1
+    },
+    "execution_status": "COMPLETED",
+    "policy_verdict": "PASS"
+  },
+  "tick_at": "2026-10-08T12:56:22Z",
+  "tick_epoch": 1791464182.5797582,
+  "tick_rc": 0
+}
+--- aggregate
+{
+  "aggregate_outcome": "BLOCKED",
+  "cli_exit": 1,
+  "counts": {
+    "bypass_stations": 0,
+    "conflicts": 0,
+    "duplicates_ignored": 0,
+    "malformed": 0,
+    "required_missing": 0,
+    "required_reported": 0,
+    "required_total": 0
+  },
+  "generated_at": "2026-10-08T12:56:22Z",
+  "policy_verdict": "BLOCKED",
+  "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）",
+  "reasons": [
+    "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"
+  ],
+  "source": "w4-scheduler",
+  "technical_eligible": false
+}
+--- sample
+{
+  "ci_latest_main": {
+    "conclusion": "success",
+    "createdAt": "2026-10-08T12:37:51Z",
+    "databaseId": 37778240376,
+    "displayTitle": "Merge pull request #9 from AIruanchao/wave6/p1f-gate",
+    "headSha": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+    "status": "completed",
+    "workflowName": "acceptance"
+  },
+  "collected_at": "2026-10-08T12:56:22.863406+00:00",
+  "dashboard_launchd": {
+    "error": null,
+    "returncode": 0,
+    "state": "running"
+  },
+  "day_index_note": "14 天观察窗，当日启动（launchd 每日 09:05 触发）",
+  "disk": {
+    "avail_bytes": 25047576576,
+    "mount": "/Users/maccc",
+    "used_bytes": 469337219072,
+    "used_pct": 94.9
+  },
+  "host": "Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64",
+  "legacy_health": {
+    "error": "http_404",
+    "json": {
+      "error": {
+        "code": "API_VERSION_REQUIRED",
+        "detail": "API 已版本化为 /api/v1/*；未版本化路径已废止"
+      }
+    },
+    "status": 404
+  },
+  "repo": {
+    "dirty": true,
+    "dirty_error": null,
+    "dirty_files": [
+      "M evidence/04-unit-property-mutation/ac-ops-families.json",
+      " M evidence/04-unit-property-mutation/ac-ui-family.json",
+      " M system/VERSION",
+      " M system/bin/wenqu-dashboard.py",
+      " D system/schemas/approval-v2.schema.json",
+      " D system/wenqu_core/wenqu_pipeline.py",
+      "?? \"\\\"\\\"\"",
+      "?? SHA256-v3.8.4.txt"
+    ],
+    "head": "1495913085eae13155f977fcebc8400b9789e04c",
+    "head_error": null,
+    "path": "/Users/maccc/Documents/wenqu-dist"
+  },
+  "window": "W10-observation"
+}
+=== scheduler logs last 5 structured ===
+{"label": "com.wenqu.scheduler", "tick_at": "2026-10-08T12:34:50Z", "tick_epoch": 1791462890.7718651, "job_id": "w4.observation-sample", "bootstrapped": false, "due": [{"scheduled_at": 1791462731.010995, "run": true, "reason": "coalesced"}], "runs": [{"run_id": "job-w4.observation-sample-1791462731011", "execution_status": "COMPLETED", "policy_verdict": "PASS", "actual_exit_code": 0, "refreshed_heartbeat": true, "notifications_enqueued": 0}], "station_result": {"policy_verdict": "PASS", "coverage": {"denominator": 1, "scanned": 1, "exclusions": []}, "execution_status": "COMPLETED"}, "gate": {"aggregate_outcome": "PASS", "policy_verdict": "PASS", "reason": "all 1 required stations PASS", "cli_exit": 0}, "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"dispatch": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}, "outbox_stats": {"SENT": 2}}, "paths": {"scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db", "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json", "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json", "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"}, "tick_rc": 0}
+{"label": "com.wenqu.scheduler", "tick_at": "2026-10-08T12:40:16Z", "tick_epoch": 1791463216.106735, "job_id": "w4.observation-sample", "bootstrapped": false, "due": [{"scheduled_at": 1791463031.010995, "run": true, "reason": "coalesced"}], "runs": [{"run_id": "job-w4.observation-sample-1791463031011", "execution_status": "COMPLETED", "policy_verdict": "PASS", "actual_exit_code": 0, "refreshed_heartbeat": true, "notifications_enqueued": 0}], "station_result": {"policy_verdict": "PASS", "coverage": {"denominator": 1, "scanned": 1, "exclusions": []}, "execution_status": "COMPLETED"}, "gate": {"aggregate_outcome": "PASS", "policy_verdict": "PASS", "reason": "all 1 required stations PASS", "cli_exit": 0}, "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"dispatch": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}, "outbox_stats": {"SENT": 2}}, "paths": {"scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db", "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json", "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json", "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"}, "tick_rc": 0}
+{"label": "com.wenqu.scheduler", "tick_at": "2026-10-08T12:45:50Z", "tick_epoch": 1791463550.15851, "job_id": "w4.observation-sample", "bootstrapped": false, "due": [{"scheduled_at": 1791463331.010995, "run": true, "reason": "coalesced"}], "runs": [{"run_id": "job-w4.observation-sample-1791463331011", "execution_status": "COMPLETED", "policy_verdict": "PASS", "actual_exit_code": 0, "refreshed_heartbeat": true, "notifications_enqueued": 0}], "station_result": {"policy_verdict": "PASS", "coverage": {"denominator": 1, "scanned": 1, "exclusions": []}, "execution_status": "COMPLETED"}, "gate": {"aggregate_outcome": "PASS", "policy_verdict": "PASS", "reason": "all 1 required stations PASS", "cli_exit": 0}, "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"dispatch": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}, "outbox_stats": {"SENT": 2}}, "paths": {"scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db", "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json", "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json", "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"}, "tick_rc": 0}
+{"label": "com.wenqu.scheduler", "tick_at": "2026-10-08T12:51:16Z", "tick_epoch": 1791463876.575907, "job_id": "w4.observation-sample", "bootstrapped": false, "due": [{"scheduled_at": 1791463631.010995, "run": true, "reason": "coalesced"}], "runs": [{"run_id": "job-w4.observation-sample-1791463631011", "execution_status": "COMPLETED", "policy_verdict": "PASS", "actual_exit_code": 0, "refreshed_heartbeat": true, "notifications_enqueued": 0}], "station_result": {"policy_verdict": "PASS", "coverage": {"denominator": 1, "scanned": 1, "exclusions": []}, "execution_status": "COMPLETED"}, "gate": {"aggregate_outcome": "BLOCKED", "policy_verdict": "BLOCKED", "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "cli_exit": 1}, "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"dispatch": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}, "outbox_stats": {"SENT": 2}}, "paths": {"scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db", "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json", "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json", "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"}, "tick_rc": 0}
+{"label": "com.wenqu.scheduler", "tick_at": "2026-10-08T12:56:22Z", "tick_epoch": 1791464182.5797582, "job_id": "w4.observation-sample", "bootstrapped": false, "due": [{"scheduled_at": 1791463931.010995, "run": true, "reason": "coalesced"}], "runs": [{"run_id": "job-w4.observation-sample-1791463931011", "execution_status": "COMPLETED", "policy_verdict": "PASS", "actual_exit_code": 0, "refreshed_heartbeat": true, "notifications_enqueued": 0}], "station_result": {"policy_verdict": "PASS", "coverage": {"denominator": 1, "scanned": 1, "exclusions": []}, "execution_status": "COMPLETED"}, "gate": {"aggregate_outcome": "BLOCKED", "policy_verdict": "BLOCKED", "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "cli_exit": 1}, "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"dispatch": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}, "outbox_stats": {"SENT": 2}}, "paths": {"scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db", "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json", "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json", "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"}, "tick_rc": 0}
+=== launchd logs last 15 ===
+{"tick_rc": 0, "tick_at": "2026-10-08T11:43:51Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:48:55Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:54:00Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:59:05Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:04:10Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:09:17Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:14:24Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:19:29Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:24:34Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:29:38Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:34:50Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:40:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:45:50Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:51:16Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:56:22Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+=== live health after latest natural tick ===
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:56:42 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 793
+
+{"generated_at": "2026-10-08T12:56:22Z", "policy_verdict": "BLOCKED", "aggregate_outcome": "BLOCKED", "technical_eligible": false, "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "reasons": ["wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"], "counts": {"required_total": 0, "required_reported": 0, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "source": "w4-scheduler", "cli_exit": 1}curl_rc=0
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:56:42Z

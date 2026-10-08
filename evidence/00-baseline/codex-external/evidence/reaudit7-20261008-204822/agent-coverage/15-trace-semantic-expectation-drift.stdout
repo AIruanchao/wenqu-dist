@@ -1,0 +1,50 @@
+================================================================
+Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+生成时间: 2026-10-08T20:55:11+08:00  HEAD: d32c859f9043798d9e8a4984e8f57aa64567e33c
+目录完整性: FAIL  (冻结 131 ID，期望 131)
+方案交叉校验(§20 集合等式): PASS  方案侧 131 vs 冻结 131
+  仅方案有: []  仅冻结有: []
+方案交叉校验(§20 逐 ID 语义比对): FAIL  解析表格行 131（重复行 0——重复相同行/先毒后正一律红）
+  §20 语义漂移: GATE-01 期望语义漂移: 方案='PASS' 冻结='ERROR/BLOCKED'
+方案文件 sha256 实算比对: FAIL  actual=d47aaf2b7ebcf7cd0e54b19b8886405270c6d0af6c9bf78cab5d1db75035311d
+方案交叉校验(§25.1 映射展开+四列元数据): PASS  展开 131 vs 冻结 131
+----------------------------------------------------------------
+总计测试 ID        : 131
+专属已实现          : 131  (100.0%)
+代理部分覆盖(不计实现): 0
+缺失                : 0
+专属+代理覆盖参考   : 100.0%
+----------------------------------------------------------------
+前缀        总数    专属    代理
+GATE      12    12     0
+STATE     11    11     0
+DEP        9     9     0
+TEN        8     8     0
+MRG        7     7     0
+SCH        7     7     0
+UI         7     7     0
+ACT        6     6     0
+AUTH       6     6     0
+COND       6     6     0
+DB         6     6     0
+PERF       6     6     0
+CI         5     5     0
+MIG        5     5     0
+SC         5     5     0
+DOC        4     4     0
+REL        3     3     0
+RUN        3     3     0
+STOP       3     3     0
+ADV        2     2     0
+ALT        2     2     0
+STA        2     2     0
+BAK        1     1     0
+CAP        1     1     0
+DR         1     1     0
+HLT        1     1     0
+RB         1     1     0
+RISK       1     1     0
+----------------------------------------------------------------
+已实现 ID: ACT-01, ACT-02, ACT-03, ACT-04, ACT-05, ACT-06, ADV-01, ADV-02, ALT-01, ALT-02, AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, BAK-01, CAP-01, CI-05, CI-06, CI-07, CI-08, CI-09, COND-01, COND-02, COND-03, COND-04, COND-05, COND-06, DB-01, DB-02, DB-03, DB-04, DB-05, DB-06, DEP-01, DEP-02, DEP-03, DEP-04, DEP-05, DEP-06, DEP-07, DEP-08, DEP-09, DOC-01, DOC-02, DOC-03, DOC-04, DR-01, GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06, GATE-07, GATE-08, GATE-09, GATE-10, GATE-11, GATE-12, HLT-01, MIG-01, MIG-02, MIG-03, MIG-04, MIG-05, MRG-01, MRG-02, MRG-03, MRG-04, MRG-05, MRG-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07
+输出: ../../../tmp/reaudit7-semantic-expectation-drift.json  (扫描 45 个测试文件)
+================================================================

@@ -1,0 +1,3 @@
+/tmp/wq7b-anchor-pipeline-30260
+/tmp/wq7b-anchor-schema-30260
+/tmp/wq7b-anchor-trace-30260

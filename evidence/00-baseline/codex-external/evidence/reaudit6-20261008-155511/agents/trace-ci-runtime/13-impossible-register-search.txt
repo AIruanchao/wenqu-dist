@@ -1,0 +1,328 @@
+system/tests/test_ac_deploy_release.py-26-    真实 SIGKILL 子进程、真实 HMAC 签名审批、真实 sqlite 事件账本）：
+system/tests/test_ac_deploy_release.py-27-        REL-01 / REL-02 / REL-03 / DEP-03 / RB-01
+system/tests/test_ac_deploy_release.py-28-    其余 8 个（DEP-01/02/04/05/06/07/08/09）在被测体与全仓产品码中
+system/tests/test_ac_deploy_release.py:29:    没有对应可执行语义——逐条理由见模块级 NOT_IMPLEMENTABLE 登记
+system/tests/test_ac_deploy_release.py-30-    （含 grep/通读证据），测试运行时显式输出，不以 skip 冒充通过。
+system/tests/test_ac_deploy_release.py-31-
+system/tests/test_ac_deploy_release.py:32:覆盖边界（同样显式登记，不冒充完整验收面）：
+system/tests/test_ac_deploy_release.py-33-    REL-03 的「doctor」= DeployManager 的 install_self_check 安装自检钩子
+system/tests/test_ac_deploy_release.py-34-    （D2 契约面）；install.sh/hardening-doctor.sh 的安装期 doctor 面由
+system/tests/test_ac_deploy_release.py-35-    test_infra_hardening.py F 节覆盖，本文件不重复。
+system/tests/test_ac_deploy_release.py-36-    RB-01 完整语义 = 预授权腿（wenqu_pipeline F4-AUTH-001）+ 错误旧版本腿
+system/tests/test_ac_deploy_release.py-37-    （deploy_framework rollback 完好性对账）双腿拼合；deploy_framework
+system/tests/test_ac_deploy_release.py-38-    本身的 D2 契约是「自检失败自动回滚」（与 fenced 部署的「无预授权不得
+system/tests/test_ac_deploy_release.py:39:    回滚」是两个不同层的产品决策，后者运行态语义未实现，见登记表）。
+system/tests/test_ac_deploy_release.py-40-
+system/tests/test_ac_deploy_release.py-41-独立运行：python3 system/tests/test_ac_deploy_release.py [--json OUT.json]
+system/tests/test_ac_deploy_release.py-42-exit 0 = 全部已实现用例绿；默认把逐 ID 结果写入
+--
+system/tests/test_ac_deploy_release.py-82-ARTIFACT_PATH = REPO_ROOT / "evidence" / "04-unit-property-mutation" / "ac-deploy-release.json"
+system/tests/test_ac_deploy_release.py-83-
+system/tests/test_ac_deploy_release.py-84-# ---------------------------------------------------------------------- #
+system/tests/test_ac_deploy_release.py:85:# 不可实现登记表（模块级；语义在产品码中不存在，非测试跳过、不 xfail）
+system/tests/test_ac_deploy_release.py-86-# ---------------------------------------------------------------------- #
+system/tests/test_ac_deploy_release.py-87-NOT_IMPLEMENTABLE: Dict[str, str] = {
+system/tests/test_ac_deploy_release.py-88-    "DEP-01": (
+--
+system/tests/test_ac_deploy_release.py-96-        "隔离层（全仓 grep 无 smoke 语义）；install_self_check 钩子只收 "
+system/tests/test_ac_deploy_release.py-97-        "release_dir 一个参数，无 DB/state 访问边界或沙箱判定。"),
+system/tests/test_ac_deploy_release.py-98-    "DEP-04": (
+system/tests/test_ac_deploy_release.py:99:        "「自签/替换/revoked release key→拒绝」：release 签名体系未实现——"
+system/tests/test_ac_deploy_release.py-100-        "manifest.json 无 signature/key 字段，build/verify 只做 SHA256 内容与"
+system/tests/test_ac_deploy_release.py-101-        " mode 对账（deploy_framework D1/D4），无 release key 验证语义；"
+system/tests/test_ac_deploy_release.py-102-        "approval_keys.py 的 HMAC 属审批 envelope 域，非 release 域。"
+system/tests/test_ac_deploy_release.py:103:        "（SBOM/签名按工单预告属未实现面。）"),
+system/tests/test_ac_deploy_release.py-104-    "DEP-05": (
+system/tests/test_ac_deploy_release.py-105-        "「previous release 超 schema 范围→拒绝回滚」：manifest 无 "
+system/tests/test_ac_deploy_release.py-106-        "schema_version/版本范围字段，rollback() 只做完好性对账（missing/"
+--
+system/tests/test_ac_deploy_release.py-680-    tests = _collect_tests()
+system/tests/test_ac_deploy_release.py-681-    print("=" * 72)
+system/tests/test_ac_deploy_release.py-682-    print(f"§20 DEP/RB/REL 族专属验收测试（实现 {len(tests)} 条；"
+system/tests/test_ac_deploy_release.py:683:          f"跳过 {len(NOT_IMPLEMENTABLE)} 条见 NOT_IMPLEMENTABLE 登记表）")
+system/tests/test_ac_deploy_release.py-684-    for tid, reason in NOT_IMPLEMENTABLE.items():
+system/tests/test_ac_deploy_release.py-685-        print(f"  SKIP {tid}: {reason}")
+system/tests/test_ac_deploy_release.py-686-    print("-" * 72)
+--
+system/tests/test_ac_ops_families.py-11-    SCH-04  catch-up 与正常调度并发                  -> 只有一个 logical run
+system/tests/test_ac_ops_families.py-12-    SCH-05  scheduler 整体故障                       -> 独立 watchdog 仍告警
+system/tests/test_ac_ops_families.py-13-    SCH-06  one-shot job                             -> 只写 wenqu namespace
+system/tests/test_ac_ops_families.py:14:    SCH-07  COMPLETED+NOT_APPLICABLE 或过期/异指纹 PASS -> 不刷新任何实体的 last_success
+system/tests/test_ac_ops_families.py-15-    ALT-01  provider 500/超时                        -> outbox 重试/dead-letter
+system/tests/test_ac_ops_families.py-16-    ALT-02  waiting 到期但零 send attempt/receipt    -> ERROR+告警，不能以 watchdog exit0 记健康
+system/tests/test_ac_ops_families.py-17-    HLT-01  聚合期间输入 watermark 变化              -> snapshot 作废重算
+--
+system/tests/test_ac_ops_families.py-583-
+system/tests/test_ac_ops_families.py-584-
+system/tests/test_ac_ops_families.py-585-def test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes():
+system/tests/test_ac_ops_families.py:586:    """SCH-07 | 注入: COMPLETED+NOT_APPLICABLE 或过期/异指纹 PASS | 期望: 不刷新任何实体的 last_success。"""
+system/tests/test_ac_ops_families.py-587-    fp_a = compute_input_fingerprint(argv_digest="a" * 64, commit_sha="1" * 40)
+system/tests/test_ac_ops_families.py-588-    fp_b = compute_input_fingerprint(argv_digest="b" * 64, commit_sha="2" * 40)
+system/tests/test_ac_ops_families.py-589-    assert fp_a != fp_b
+--
+system/tests/test_ac_ops_families.py-594-            hb = HeartbeatMonitor(store)
+system/tests/test_ac_ops_families.py-595-            kw = dict(job_id="sch07", probe_id="p7", station_id=7)
+system/tests/test_ac_ops_families.py-596-
+system/tests/test_ac_ops_families.py:597:            # 注入 1：COMPLETED+NOT_APPLICABLE——只声明"不适用"，不证明健康
+system/tests/test_ac_ops_families.py-598-            na = hb.record_result(input_fingerprint=fp_a, execution_status="COMPLETED",
+system/tests/test_ac_ops_families.py:599:                                  policy_verdict="NOT_APPLICABLE", finished_at=100.0,
+system/tests/test_ac_ops_families.py-600-                                  ttl_seconds=300.0, now=100.0, **kw)
+system/tests/test_ac_ops_families.py:601:            assert na is False, "NOT_APPLICABLE 不得刷新成功时间"
+system/tests/test_ac_ops_families.py-602-            row = store.query("SELECT last_success_at FROM scheduler_heartbeats")[0]
+system/tests/test_ac_ops_families.py-603-            assert row[0] is None, f"NA 后 last_success 应为 None，实为 {row[0]}"
+system/tests/test_ac_ops_families.py-604-
+--
+tools/ac_traceability.py-17-判定口径（诚实优先）：
+tools/ac_traceability.py-18-  implemented=true  仅当：某测试文件中存在「以该 ID 命名/标注的测试函数或用例」
+tools/ac_traceability.py-19-      （.py: ID 出现在 test_*/selftest 函数体内或函数名含 ID；.sh: ID 字面量出现在测试脚本中）。
+tools/ac_traceability.py:20:  implemented=false 但 test_file 非空时，test_file 指向 PROXY_ALIASES 登记的相邻测试
+tools/ac_traceability.py-21-      （部分覆盖，match_type=proxy_partial）——代理测试不冒充专属验收。
+tools/ac_traceability.py-22-证据口径：evidence_path 为 evidence/ 下含该 ID 的非 README 工件（本工具自身输出除外）。
+tools/ac_traceability.py-23-"""
+--
+tools/ac_traceability.py-189-    ("SCH", 4): ("catch-up 与正常调度并发", "只有一个 logical run"),
+tools/ac_traceability.py-190-    ("SCH", 5): ("scheduler 整体故障", "独立 watchdog 仍告警"),
+tools/ac_traceability.py-191-    ("SCH", 6): ("one-shot job", "只写 wenqu namespace"),
+tools/ac_traceability.py:192:    ("SCH", 7): ("COMPLETED+NOT_APPLICABLE 或过期/异指纹 PASS", "不刷新任何实体的 last_success"),
+tools/ac_traceability.py-193-    ("DEP", 1): ("两个部署者争 lease", "最多一个成功"),
+tools/ac_traceability.py-194-    ("DEP", 2): ("smoke 访问生产 DB/state", "隔离拒绝"),
+tools/ac_traceability.py-195-    ("DEP", 3): ("新事件后回滚兼容二进制", "事件零丢失"),
+--
+tools/ac_traceability.py-233-    SECTION_OF[_id] = "20.4"
+tools/ac_traceability.py-234-# 其余（§20.5 补充）在构建目录时兜底。
+tools/ac_traceability.py-235-
+tools/ac_traceability.py:236:# ---------------------------------------------------------------- 代理测试登记（诚实部分覆盖）
+tools/ac_traceability.py:237:# 只登记确实存在且语义相邻的仓内测试；implemented 仍为 false（无 §20 ID 专属用例）。
+tools/ac_traceability.py-238-PROXY_ALIASES = {
+tools/ac_traceability.py-239-    "GATE-02": {
+tools/ac_traceability.py-240-        "test_file": "system/tests/test_core_wiring.py",
+--
+system/tests/test_ac_station_families.py-18-实现口径（诚实边界，逐条落在各测试 docstring）：
+system/tests/test_ac_station_families.py-19-- 全部走模块内既有的桩/合成数据通道（_StubRunner 罐头应答、结构化 payload、
+system/tests/test_ac_station_families.py-20-  本地 127.0.0.1 真实 HTTP 服务、fake-vitest 真子进程）——零外网、零真实 DB 连接。
+system/tests/test_ac_station_families.py:21:- 不可实现的 ID 不硬凑：SC-03/SC-05、TEN-04、PERF-03/PERF-04 共 5 条列入
+system/tests/test_ac_station_families.py-22-  NOT_IMPLEMENTABLE（原因见该常量）；它们不设测试函数，避免追踪矩阵假绿。
+system/tests/test_ac_station_families.py-23-- DB-06/PERF-02/PERF-05/PERF-06/TEN-01~03 为「本发行包可实现子面」的等价语义，
+system/tests/test_ac_station_families.py-24-  覆盖边界在各自 docstring 中显式声明。
+--
+system/tests/test_ac_station_families.py-88-)
+system/tests/test_ac_station_families.py-89-
+system/tests/test_ac_station_families.py-90-# ---------------------------------------------------------------------------
+system/tests/test_ac_station_families.py:91:# 不可实现清单（§20 注入面在本发行包无对应通道——不硬凑、不设测试函数）
+system/tests/test_ac_station_families.py-92-# ---------------------------------------------------------------------------
+system/tests/test_ac_station_families.py-93-
+system/tests/test_ac_station_families.py-94-NOT_IMPLEMENTABLE = {
+--
+system/tests/test_ac_station_families.py-1191-
+system/tests/test_ac_station_families.py-1192-    本地真实 HTTP 服务立即回 500（快）；路由动态腿只认状态语义：探到但
+system/tests/test_ac_station_families.py-1193-    与期望不符 → FAIL+finding。快≠好——速度不参与判定，绝不因响应快折算
+system/tests/test_ac_station_families.py:1194:    通过（覆盖边界：本包不测延迟阈值，分位数面见文件头部不可实现清单）。
+system/tests/test_ac_station_families.py-1195-    """
+system/tests/test_ac_station_families.py-1196-    manifest, _ = _mk_manifest(_next_run_id("perf1"))
+system/tests/test_ac_station_families.py-1197-    server = _http_server(_Fast500Handler)
+--
+system/tests/test_ac_station_families.py-1222-    覆盖边界：SSH/TCC 采集通道不在本包；等价机械语义=指标采集缺口
+system/tests/test_ac_station_families.py-1223-    （null/非数值/NaN）按未扫计：assertion=ERROR、策略 NOT_EVALUATED、
+system/tests/test_ac_station_families.py-1224-    缩水守卫折叠 BLOCKED——绝不折算 PASS，也绝不当作达标值。
+system/tests/test_ac_station_families.py:1225:    （函数名用下划线形态 PERF_02 与连字符形态同时登记追踪。）
+system/tests/test_ac_station_families.py-1226-    """
+system/tests/test_ac_station_families.py-1227-    manifest, now = _mk_manifest(_next_run_id("perf2"))
+system/tests/test_ac_station_families.py-1228-    slos = [{"name": "availability", "target": 0.999, "op": ">="},
+--
+system/tests/test_ac_station_families.py-1431-
+system/tests/test_ac_station_families.py-1432-    print(f"\n§20 六族验收测试: {pass_n} PASS / {fail_n} FAIL "
+system/tests/test_ac_station_families.py-1433-          f"（负责 29 条；实现 {len(IMPLEMENTED_IDS)}；"
+system/tests/test_ac_station_families.py:1434:          f"不可实现 {len(NOT_IMPLEMENTABLE)}）")
+system/tests/test_ac_station_families.py-1435-    for tid, reason in sorted(NOT_IMPLEMENTABLE.items()):
+system/tests/test_ac_station_families.py:1436:        print(f"  [不可实现] {tid}: {reason}")
+system/tests/test_ac_station_families.py-1437-
+system/tests/test_ac_station_families.py-1438-    if json_out:
+system/tests/test_ac_station_families.py-1439-        payload = {
+--
+system/tests/test_ac_act_run.py-57-  allowlist（opt-in）前置阻断：未列名可执行一律 PermissionError、零
+system/tests/test_ac_act_run.py-58-  进程产生（marker 不落盘）。
+system/tests/test_ac_act_run.py-59-
+system/tests/test_ac_act_run.py:60:明确未实现的注入子面（不硬凑、不 xfail，见 BOUNDARIES 登记）：
+system/tests/test_ac_act_run.py-61-容器级隔离（Keychain 直读/SSH agent socket 直连/任意路径文件读）、
+system/tests/test_ac_act_run.py-62-输出爆量字节配额、网络 egress allowlist、真实 GitHub check_run 发布
+system/tests/test_ac_act_run.py-63-outbox、dispatcher/App 失联心跳检测——产品中无对应语义，逐条理由见
+--
+system/tests/test_ac_act_run.py-951-
+system/tests/test_ac_act_run.py-952-
+system/tests/test_ac_act_run.py-953-# ---------------------------------------------------------------------------
+system/tests/test_ac_act_run.py:954:# 未实现注入子面登记（诚实边界；不硬凑、不 xfail）
+system/tests/test_ac_act_run.py-955-# ---------------------------------------------------------------------------
+system/tests/test_ac_act_run.py-956-BOUNDARIES: Dict[str, str] = {
+system/tests/test_ac_act_run.py-957-    "RUN-01": (
+system/tests/test_ac_act_run.py:958:        "容器级隔离未实现：macOS Keychain 直读、SSH agent Unix socket 直连、"
+system/tests/test_ac_act_run.py-959-        "任意路径生产配置文件读不在 TrustedRunner 防线内（全仓无 sandboxexec/"
+system/tests/test_ac_act_run.py-960-        "seatbelt/文件系统边界语义）；已实现半边=env 白名单剥除——进程环境通道"
+system/tests/test_ac_act_run.py-961-        "（SSH_AUTH_SOCK/配置路径变量）在子进程中不存在，隔离拒绝以该腿验证"),
+--
+system/tests/test_ac_gate_family.py-38-- CI-09 S7 递归聚合/重复发布 → station-result-v2 additionalProperties
+system/tests/test_ac_gate_family.py-39-  schema 拒绝 + 聚合输出回灌聚合器缺 station_id 结构 → malformed BLOCKED。
+system/tests/test_ac_gate_family.py-40-
+system/tests/test_ac_gate_family.py:41:明确未实现（本文件不硬凑、不 xfail，见交付报告「不可实现清单」）：
+system/tests/test_ac_gate_family.py-42-GATE-09（N=0/超上限非产品参数错误）、GATE-10（N+1 上限无实现）、
+system/tests/test_ac_gate_family.py-43-GATE-11（异源轮 S 标签追踪无实现）、CI-06（CODEOWNERS/ruleset doctor 无实现）。
+system/tests/test_ac_gate_family.py-44-
+--
+system/tests/test_ac_gate_family.py-267-        _ok(scope["mode"] == "full" and scope["escalated"], "不可解析影响图须升级 full")
+system/tests/test_ac_gate_family.py-268-        _ok("app.py" in scope["behavioral_files"], "app.py 是行为变更")
+system/tests/test_ac_gate_family.py-269-        _ok("notes.md" in scope["non_behavioral_files"], "notes.md 归非行为面")
+system/tests/test_ac_gate_family.py:270:        _ok(result["policy_verdict"] != "NOT_APPLICABLE",
+system/tests/test_ac_gate_family.py:271:            "scope 未证明纯文档，不得记 NOT_APPLICABLE（唯一合法『无测试』）")
+system/tests/test_ac_gate_family.py-272-
+system/tests/test_ac_gate_family.py-273-
+system/tests/test_ac_gate_family.py-274-def test_GATE_03_missing_runner_or_dependency_is_error(root: Optional[Path] = None) -> None:
+--
+system/tests/test_ac_gate_family.py-535-        _ok(verdict["aggregate_outcome"] == BLOCKED, "旧 SHA 证据必须 BLOCKED")
+system/tests/test_ac_gate_family.py-536-        _ok(verdict["counts"].get("required_reported", 0) == 1
+system/tests/test_ac_gate_family.py-537-            and verdict["stations"]["1"]["sha_bound"] is False,
+system/tests/test_ac_gate_family.py:538:            "证据已登记但 SHA 未绑定目标（不静默丢弃也不放行）")
+system/tests/test_ac_gate_family.py-539-        # 腿二：同名 check 二次伪造（不同 SHA）→ 冲突证据 → BLOCKED，绝不静默择优
+system/tests/test_ac_gate_family.py-540-        agg2 = GateAggregator({"1"}, target_sha=sha, environment="test")
+system/tests/test_ac_gate_family.py-541-        agg2.add(_legacy("1", "PASS", sha))
+--
+system/tests/test_ac_gate_family.py-566-            "schema_version": "2.0",
+system/tests/test_ac_gate_family.py-567-            "station_id": 1,
+system/tests/test_ac_gate_family.py-568-            "execution_status": "CANCELLED",
+system/tests/test_ac_gate_family.py:569:            "policy_verdict": "NOT_APPLICABLE",
+system/tests/test_ac_gate_family.py-570-            "identity": {"commit_sha": sha, "environment": "test"},
+system/tests/test_ac_gate_family.py-571-        })
+system/tests/test_ac_gate_family.py-572-        verdict2 = agg2.aggregate()
+--
+system/tests/test_ac_gate_family.py-772-# ---------------------------------------------------------------------------
+system/tests/test_ac_gate_family.py-773-_TEST_NAME_RE = re.compile(r"^test_(GATE|MRG|CI)_(\d{2})_")
+system/tests/test_ac_gate_family.py-774-
+system/tests/test_ac_gate_family.py:775:# 不可实现清单（产品未实现该语义，不硬凑；详见模块 docstring 与交付报告）
+system/tests/test_ac_gate_family.py-776-NOT_IMPLEMENTABLE: Dict[str, str] = {
+system/tests/test_ac_gate_family.py-777-    "GATE-09": "N=-1 已被 tests/acceptance.sh（--convergence -1 拒绝）覆盖；"
+system/tests/test_ac_gate_family.py:778:               "N=0 在 cli/wenqu 是合法『关闭收敛要求』开关而非参数错误、N 超上限无上限校验——注入面后两态无产品语义",
+system/tests/test_ac_gate_family.py-779-    "GATE-10": "超过 N+1 轮 BLOCKED 等人工裁定：仓内无可执行的轮数上限/人工裁定实现（仅 dashboard 文案）",
+system/tests/test_ac_gate_family.py-780-    "GATE-11": "同命令换 S 标签不计异源轮：无可执行的异源轮来源追踪/命令身份判定实现",
+system/tests/test_ac_gate_family.py-781-    "CI-06": "CODEOWNERS 存在但 ruleset 未强制 → doctor ERROR：hardening-doctor.sh 体检 launchd/哨兵/CI 卡死，"
+--
+system/tests/test_ac_auth_cond.py-78-    SevenStageStateMachine as SM,
+system/tests/test_ac_auth_cond.py-79-)
+system/tests/test_ac_auth_cond.py-80-
+system/tests/test_ac_auth_cond.py:81:# ── 测试密钥（fixtures 登记密钥；与生产物理隔离，仅自测签发） ──────────────
+system/tests/test_ac_auth_cond.py-82-_KEYRING_PATH = SYSTEM_DIR / "tests" / "fixtures" / "approval-keys.json"
+system/tests/test_ac_auth_cond.py-83-KEYRING = ApprovalKeyring.from_path(str(_KEYRING_PATH))
+system/tests/test_ac_auth_cond.py-84-KEY_A = "key_test_1"
+--
+system/tests/test_ac_auth_cond.py-359-        _raises(ApprovalRejected,
+system/tests/test_ac_auth_cond.py-360-                lambda: mgr.resume_waiting(run_id, None, VALID_PRECONDITIONS["prod-write"]),
+system/tests/test_ac_auth_cond.py-361-                contains="not a JSON object")
+system/tests/test_ac_auth_cond.py:362:        # 腿三：攻击者自造信封（无登记密钥的伪签发）—— 未知 key 拒
+system/tests/test_ac_auth_cond.py-363-        rogue = _base_envelope(
+system/tests/test_ac_auth_cond.py-364-            approval_type="resume", run_id=run_id, task_id="task_auth01",
+system/tests/test_ac_auth_cond.py-365-            stop_type="prod-write", stage="S1_REQUIREMENT",
+--
+system/tests/test_ac_auth_cond.py-441-def test_AUTH_03_ai_self_issued_high_risk_approval_rejected(root: Path) -> None:
+system/tests/test_ac_auth_cond.py-442-    """AUTH-03｜注入：AI/runner 尝试自行签发高风险批准｜期望：拒绝。"""
+system/tests/test_ac_auth_cond.py-443-    with _sandbox("auth03") as td:
+system/tests/test_ac_auth_cond.py:444:        # 腿一：AI 自建密钥自签（结构/HMAC 全合法但 key 未登记）→ 未知 key 拒
+system/tests/test_ac_auth_cond.py-445-        store1, mgr1 = _mgr(td, "a.db")
+system/tests/test_ac_auth_cond.py-446-        run_id = _soft_terminal_run(mgr1, "task_auth03a", ID_STAGING)
+system/tests/test_ac_auth_cond.py-447-        mgr1.register_finding(run_id, "fnd_auth03_1", "fp-auth03", "HIGH", "P1")
+--
+system/tests/test_ac_auth_cond.py-457-        _ok(mgr1.broker.consumed_approvals(run_id=run_id) == [], "自签审批零消费")
+system/tests/test_ac_auth_cond.py-458-        store1.close()
+system/tests/test_ac_auth_cond.py-459-
+system/tests/test_ac_auth_cond.py:460:        # 腿二：即便拿到登记密钥，HIGH/CRITICAL 高风险内容仍机器拒绝（无人工豁免）
+system/tests/test_ac_auth_cond.py-461-        store2, mgr2 = _mgr(td, "b.db")
+system/tests/test_ac_auth_cond.py-462-        run2 = _soft_terminal_run(mgr2, "task_auth03b", ID_STAGING)
+system/tests/test_ac_auth_cond.py-463-        mgr2.register_finding(run2, "fnd_auth03_2", "fp-high-2", "HIGH", "P1")
+--
+system/tests/test_ac_auth_cond.py-481-        _ok(not mgr3.get_run(run3).actions, "零动作预留")
+system/tests/test_ac_auth_cond.py-482-        store3.close()
+system/tests/test_ac_auth_cond.py-483-
+system/tests/test_ac_auth_cond.py:484:        # 对照组：同一登记密钥签发的合法低风险授权可消费（证明拒的是内容/身份而非密钥存在性）
+system/tests/test_ac_auth_cond.py-485-        store4, mgr4 = _mgr(td, "d.db")
+system/tests/test_ac_auth_cond.py-486-        run4 = _soft_terminal_run(mgr4, "task_auth03d", ID_STAGING)
+system/tests/test_ac_auth_cond.py-487-        mgr4.register_finding(run4, "fnd_auth03_4", "fp-low-4", "LOW", "P3")
+--
+system/tests/test_ac_auth_cond.py-590-    """AUTH-06｜注入：key revoked/clock rollback/无 user-presence｜期望：拒绝。"""
+system/tests/test_ac_auth_cond.py-591-    with _sandbox("auth06") as td:
+system/tests/test_ac_auth_cond.py-592-        now = time.time()
+system/tests/test_ac_auth_cond.py:593:        # 腿一：key revoked —— keyring 移除 key_test_1（仅登记 key_test_2），
+system/tests/test_ac_auth_cond.py-594-        # 用 key_test_1 签发的审批变成未知 key → 拒
+system/tests/test_ac_auth_cond.py-595-        ring_without_a = ApprovalKeyring({"key_test_2": SECRET_B})
+system/tests/test_ac_auth_cond.py-596-        store, mgr = _mgr(td, "a.db", keyring=ring_without_a)
+--
+system/tests/test_ac_auth_cond.py-1029-    with _sandbox("cond04") as td:
+system/tests/test_ac_auth_cond.py-1030-        store, mgr = _mgr(td)
+system/tests/test_ac_auth_cond.py-1031-        run_id = _soft_terminal_run(mgr, "task_cond04", ID_STAGING)
+system/tests/test_ac_auth_cond.py:1032:        # 登记不可风险接受面：HIGH/P1（severity 轴）与 MEDIUM/P0（priority 轴）
+system/tests/test_ac_auth_cond.py-1033-        mgr.register_finding(run_id, "fnd_cond04_sev", "fp-cond04-sev", "HIGH", "P1")
+system/tests/test_ac_auth_cond.py-1034-        mgr.register_finding(run_id, "fnd_cond04_pri", "fp-cond04-pri", "MEDIUM", "P0")
+system/tests/test_ac_auth_cond.py-1035-        # 一个可接受项作为对照（证明拒的是 P0/P1 面而非整 run 死锁）
+--
+system/tests/test_ac_auth_cond.py-1211-# ---------------------------------------------------------------------------
+system/tests/test_ac_auth_cond.py-1212-_TEST_NAME_RE = re.compile(r"^test_(AUTH|STOP|RISK|COND)_(\d{2})_")
+system/tests/test_ac_auth_cond.py-1213-
+system/tests/test_ac_auth_cond.py:1214:# 不可实现清单：本四族 16 条均有真实产品语义可注入，无整条不可实现项。
+system/tests/test_ac_auth_cond.py-1215-NOT_IMPLEMENTABLE: Dict[str, str] = {}
+system/tests/test_ac_auth_cond.py-1216-
+system/tests/test_ac_auth_cond.py-1217-# 诚实映射边界（非整条跳过；语义映射说明见模块 docstring）
+--
+system/tests/test_ac_auth_cond.py-1241-        json_out = argv[argv.index("--json") + 1]
+system/tests/test_ac_auth_cond.py-1242-    tests = _collect_tests()
+system/tests/test_ac_auth_cond.py-1243-    print("=" * 72)
+system/tests/test_ac_auth_cond.py:1244:    print("§20 AUTH/STOP/RISK/COND 四族专属验收测试（16 条；不可实现 0 条）")
+system/tests/test_ac_auth_cond.py-1245-    for tid, note in MAPPING_NOTES.items():
+system/tests/test_ac_auth_cond.py-1246-        print(f"  NOTE {tid}: {note}")
+system/tests/test_ac_auth_cond.py-1247-    print("-" * 72)
+--
+system/tests/test_ac_state_mig.py-18-    本文件对 16 个 ID 中的 11 个给出专属真实测试：
+system/tests/test_ac_state_mig.py-19-        STATE-01/03/04/06/07/08/10、MIG-01/02/03/04
+system/tests/test_ac_state_mig.py-20-    其余 5 个（STATE-02/05/09/11、MIG-05）在被测体（store.py +
+system/tests/test_ac_state_mig.py:21:    ledger_migrator.py）中没有任何对应产品语义——详见模块级登记表
+system/tests/test_ac_state_mig.py-22-    NOT_IMPLEMENTABLE_IN_SCOPE（含逐条证据：语义所在模块或全仓无实现），
+system/tests/test_ac_state_mig.py-23-    测试运行时与证据工件中均显式输出，不以 skip/xfail 冒充。
+system/tests/test_ac_state_mig.py-24-
+system/tests/test_ac_state_mig.py:25:覆盖边界（同样显式登记，不冒充完整验收面）：
+system/tests/test_ac_state_mig.py-26-    STATE-06/07/08/10 的完整语义 = store 层不可变/不可伪造保证 +
+system/tests/test_ac_state_mig.py-27-    RunManager（wenqu_pipeline）层状态机。本文件只测 store 层已实现的那一半
+system/tests/test_ac_state_mig.py-28-    （另一 agent 正在并行改 wenqu_pipeline，本文件禁止 import 它）；
+--
+system/tests/test_ac_state_mig.py-64-    REPO_ROOT, "evidence", "04-unit-property-mutation", "ac-state-mig.json")
+system/tests/test_ac_state_mig.py-65-
+system/tests/test_ac_state_mig.py-66-# ---------------------------------------------------------------------- #
+system/tests/test_ac_state_mig.py:67:# 不可实现登记表（模块级；语义在被测体中不存在，非测试跳过）
+system/tests/test_ac_state_mig.py-68-# ---------------------------------------------------------------------- #
+system/tests/test_ac_state_mig.py-69-NOT_IMPLEMENTABLE_IN_SCOPE = {
+system/tests/test_ac_state_mig.py-70-    "STATE-02": {
+--
+system/tests/test_ac_state_mig.py-84-        "reason": (
+system/tests/test_ac_state_mig.py-85-            "全仓 grep 无 writer epoch/fencing 实现：store.py 无 epoch 字段/比较，"
+system/tests/test_ac_state_mig.py-86-            "wenqu_pipeline 亦无（grep 'epoch' 仅命中 scheduler 时间换算与审批"
+system/tests/test_ac_state_mig.py:87:            " issued/expires）。『旧 epoch writer 的所有写入被拒』这一产品语义未"
+system/tests/test_ac_state_mig.py-88-            "实现，无法对 store/ledger_migrator 做真实注入"),
+system/tests/test_ac_state_mig.py-89-    },
+system/tests/test_ac_state_mig.py-90-    "STATE-09": {
+--
+system/tests/test_ac_state_mig.py-111-        "reason": (
+system/tests/test_ac_state_mig.py-112-            "ledger_migrator.py 全文无 project 概念（grep 'project' 零命中）："
+system/tests/test_ac_state_mig.py-113-            "迁移按行 SHA256 判重导入 events 表，不存在 project key 的映射/冲突"
+system/tests/test_ac_state_mig.py:114:            "检测/报错路径。该语义未实现，无法真实注入"),
+system/tests/test_ac_state_mig.py-115-    },
+system/tests/test_ac_state_mig.py-116-}
+system/tests/test_ac_state_mig.py-117-
+--
+system/tests/test_ac_state_mig.py-1079-            print("       " + traceback.format_exc(limit=8).replace(
+system/tests/test_ac_state_mig.py-1080-                "\n", "\n       "))
+system/tests/test_ac_state_mig.py-1081-            RESULTS.append((tid, name, False, {"error": f"{type(e).__name__}: {e}"}))
+system/tests/test_ac_state_mig.py:1082:    print("\n不可实现登记（被测体无对应产品语义；不硬凑、不 xfail）：")
+system/tests/test_ac_state_mig.py-1083-    for tid, info in NOT_IMPLEMENTABLE_IN_SCOPE.items():
+system/tests/test_ac_state_mig.py-1084-        print(f"  --   {tid}  {info['injection']} → {info['expectation']}"
+system/tests/test_ac_state_mig.py-1085-              f"（详见证据工件 reason）")
+--
+system/tests/test_ac_state_mig.py-1087-    finished_at = datetime.now(timezone.utc).isoformat()
+system/tests/test_ac_state_mig.py-1088-    path = write_artifact(started_at, finished_at, exit_code)
+system/tests/test_ac_state_mig.py-1089-    print(f"\n结果: {PASS_N} PASS / {FAIL_N} FAIL；"
+system/tests/test_ac_state_mig.py:1090:          f"范围内不可实现 {len(NOT_IMPLEMENTABLE_IN_SCOPE)} 条；exit={exit_code}")
+system/tests/test_ac_state_mig.py-1091-    if path:
+system/tests/test_ac_state_mig.py-1092-        print(f"证据工件: {path}")
+system/tests/test_ac_state_mig.py-1093-    return exit_code

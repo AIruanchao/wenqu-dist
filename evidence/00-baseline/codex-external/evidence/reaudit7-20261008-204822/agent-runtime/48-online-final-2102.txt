@@ -1,0 +1,86 @@
+UTC_START=2026-10-08T13:02:03Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-final-online.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+echo 'REMOTE_MAIN'
+git ls-remote origin refs/heads/main
+echo 'RUN'
+gh run view 37778240376 --json databaseId,event,headBranch,headSha,status,conclusion,updatedAt,jobs | jq '{databaseId,event,headBranch,headSha,status,conclusion,updatedAt,jobs:[.jobs[]|{name,status,conclusion}]}'
+echo 'PROTECTION'
+gh api repos/AIruanchao/wenqu-dist/branches/main/protection | jq '{required_status_checks,enforce_admins,required_signatures,required_pull_request_reviews,required_conversation_resolution,allow_force_pushes,allow_deletions}'
+echo 'RULESETS'
+gh api repos/AIruanchao/wenqu-dist/rulesets | jq 'length'
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T21:02:03+0800
+REMOTE_MAIN
+d32c859f9043798d9e8a4984e8f57aa64567e33c	refs/heads/main
+RUN
+{
+  "databaseId": 37778240376,
+  "event": "push",
+  "headBranch": "main",
+  "headSha": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+  "status": "completed",
+  "conclusion": "success",
+  "updatedAt": "2026-10-08T12:47:18Z",
+  "jobs": [
+    {
+      "name": "matrix (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "matrix (macos-latest)",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ]
+}
+PROTECTION
+{
+  "required_status_checks": {
+    "url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks",
+    "strict": true,
+    "contexts": [
+      "matrix (ubuntu-latest)",
+      "matrix (macos-latest)"
+    ],
+    "contexts_url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts",
+    "checks": [
+      {
+        "context": "matrix (ubuntu-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "matrix (macos-latest)",
+        "app_id": 15368
+      }
+    ]
+  },
+  "enforce_admins": {
+    "url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins",
+    "enabled": true
+  },
+  "required_signatures": {
+    "url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_signatures",
+    "enabled": false
+  },
+  "required_pull_request_reviews": null,
+  "required_conversation_resolution": {
+    "enabled": false
+  },
+  "allow_force_pushes": {
+    "enabled": false
+  },
+  "allow_deletions": {
+    "enabled": false
+  }
+}
+RULESETS
+0
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T13:02:18Z

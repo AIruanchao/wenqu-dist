@@ -9,12 +9,21 @@
     快照透传，绝不再自算加权分
 第一阶段（写接口关闭）：POST /api/decide → 405。
 
+R7 加固（第七轮验收根修，2026-10-08）：
+  - R7-UI-LOG-AUTH-009：/api/v1/logs 加鉴权——WENQU_DASHBOARD_KEY 配置后须携带
+    匹配的 X-Auth-Key；未配置 key 时该端点默认 403（fail-closed，与写接口
+    关闭同范式）。日志是敏感数据面，绝不匿名可读。
+  - R7-UI-LOG-BYTES-010：日志响应字节上限（WENQU_LOG_MAX_BYTES，默认 1MiB）——
+    超限按字节截断并带 "truncated": true 标记；病态单行超长只回前缀字节，
+    不再整行返回 6MiB。
+
 用法：
   python3 server.py [--port 7789] [--log]
   python3 server.py --port 7789 --self-check   # 自检输出 PASS 并退出
 """
 import argparse
 import collections
+import hmac
 import json
 import os
 import re
@@ -37,6 +46,60 @@ RATE_MAX = 150                   # 窗口内每客户端 IP 最大请求数（�
 REQUEST_TIMEOUT = 15             # 单连接读超时（秒）
 AGGREGATE_TTL = float(os.environ.get("WENQU_AGGREGATE_TTL", "1800"))  # 快照新鲜度上限（秒）
 HISTORY_INTERVAL = 600           # 健康度走势写入周期（秒）——独立定时任务，不在 GET 路径写
+LOG_MAX_BYTES_DEFAULT = 1048576  # /api/v1/logs 响应字节上限默认 1MiB（R7-UI-LOG-BYTES-010）
+
+
+def _log_max_bytes():
+    """/api/v1/logs 响应字节上限（WENQU_LOG_MAX_BYTES 可配；非法/非正值回落默认）。"""
+    raw = os.environ.get("WENQU_LOG_MAX_BYTES", "")
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return LOG_MAX_BYTES_DEFAULT
+    return n if n > 0 else LOG_MAX_BYTES_DEFAULT
+
+
+def _fit_logs_bytes(out, cap):
+    """日志映射 → 序列化字节，硬保证总长 ≤ cap（R7-UI-LOG-BYTES-010）。
+
+    超限时按「末文件末行」逐字节回裁（保内容前缀，病态单行只回前缀字节），
+    并在载荷中加 "truncated": true 标记；未截断时不加该键——正常响应形状
+    与旧版完全一致（既有消费方零扰动）。cap 连键名都放不下时物理截断兜底。
+    """
+    def ser(obj):
+        return json.dumps(obj, ensure_ascii=False).encode("utf-8")
+
+    obj = dict(out)
+    body = ser(obj)
+    if len(body) <= cap:
+        return body
+    obj["truncated"] = True
+    body = ser(obj)
+    guard = 0
+    while len(body) > cap and guard < 4096:
+        guard += 1
+        names = [k for k in sorted(obj, reverse=True) if k != "truncated" and obj[k]]
+        if not names:
+            break  # 已无内容可裁（cap 极小）——退出走物理兜底
+        key = names[0]
+        lines = obj[key].split("\n")
+        for idx in range(len(lines) - 1, -1, -1):
+            if not lines[idx]:
+                continue
+            cur = lines[idx].encode("utf-8", errors="replace")
+            excess = len(body) - cap
+            keep = max(0, len(cur) - excess - 16)
+            lines[idx] = cur[:keep].decode("utf-8", errors="ignore") if keep else ""
+            break
+        else:
+            obj[key] = ""
+            body = ser(obj)
+            continue
+        obj[key] = "\n".join(lines)
+        body = ser(obj)
+    if len(body) > cap:  # 物理兜底：病态小 cap（连键名+标记都放不下）
+        body = body[:cap]
+    return body
 
 CSP_HEADER = ("default-src 'self'; script-src 'self'; style-src 'self'; "
               "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
@@ -284,7 +347,9 @@ def read_rounds_heat():
 
 
 def read_logs():
-    cached = _cache_get("logs", 15)  # 日志尾 15s 滞后可接受
+    cap = _log_max_bytes()
+    cache_name = "logs:%d" % cap
+    cached = _cache_get(cache_name, 15)  # 日志尾 15s 滞后可接受
     if cached is not None:
         return cached
     out, logdir = {}, os.path.join(WQ, "logs")
@@ -299,8 +364,9 @@ def read_logs():
                     pass
     if not out:
         out["(说明)"] = "哨兵经 wenqu cron 安装后，日志将出现在 ~/.wenqu/logs/"
-    data = json.dumps(out, ensure_ascii=False).encode()
-    _cache_put("logs", data)
+    # R7-UI-LOG-BYTES-010：响应硬字节上限——超限按字节截断 + truncated 标记
+    data = _fit_logs_bytes(out, cap)
+    _cache_put(cache_name, data)
     return data
 
 
@@ -623,6 +689,19 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    # ── /api/v1/logs 鉴权（R7-UI-LOG-AUTH-009）：未配置 WENQU_DASHBOARD_KEY →
+    #    默认 403（fail-closed，与写接口关闭同范式）；配置后须携带匹配的
+    #    X-Auth-Key（hmac 常数时间比较，防时序侧信道）——日志敏感面绝不匿名可读 ──
+    def _logs_auth(self):
+        key = (os.environ.get("WENQU_DASHBOARD_KEY") or "").strip()
+        if not key:
+            return False, "LOGS_AUTH_UNCONFIGURED"
+        provided = self.headers.get("X-Auth-Key") or ""
+        if not hmac.compare_digest(provided.encode("utf-8", "replace"),
+                                   key.encode("utf-8", "replace")):
+            return False, "LOGS_AUTH_FORBIDDEN"
+        return True, ""
+
     # ── 静态文件（白名单精确匹配——无路径参数即无穿越面） ──
     def _serve_static(self, fname, ctype):
         try:
@@ -661,6 +740,12 @@ class Handler(BaseHTTPRequestHandler):
         if ep == "rounds-heat":
             return self._json(200, read_rounds_heat())
         if ep == "logs":
+            ok, code = self._logs_auth()
+            if not ok:
+                self.close_connection = True
+                return self._err(403, code,
+                                 "日志端点需鉴权：配置 WENQU_DASHBOARD_KEY 并携带匹配的 "
+                                 "X-Auth-Key（未配置 key 时默认 403——fail-closed）")
             return self._send(200, read_logs())
         if ep == "health":
             r = read_gate_aggregate()
@@ -784,6 +869,22 @@ def self_check(port):
        all('id="%s"' % x in html for x in ("ov", "pipe", "deck", "bugdeck")) and html.count("data-t=") == 4)
     ck("index.html 无内联事件（onclick=）", "onclick=" not in html)
     ck("index.html div 平衡", html.count("<div") == html.count("</div>"))
+    # UI-01 第七轮根修（R7 实证：只对 div 计数，删 </span> 漏报）——字符串配对门
+    # 补全常见标签开闭计数：任一标签开闭不齐必须红（void 标签 meta/link 不入列）。
+    tag_pairs = ("span", "div", "p", "a", "li", "ul", "ol", "table", "thead",
+                 "tbody", "tr", "td", "th", "script", "style", "title",
+                 "head", "body", "html", "h1", "h2", "h3", "nav", "button",
+                 "details", "summary", "b", "i")
+    imbalance = []
+    for tag in tag_pairs:
+        n_open = len(re.findall(r"<%s(?=[\s/>])" % tag, html, re.I))
+        n_close = len(re.findall(r"</%s\s*>" % tag, html, re.I))
+        if n_open != n_close:
+            imbalance.append("%s 开%d/闭%d" % (tag, n_open, n_close))
+    ck(("index.html 常见标签开闭配对平衡（span/div/p/a/li/…/html 共 %d 类）" % len(tag_pairs))
+       if not imbalance else
+       ("index.html 标签开闭配对失衡（配对门）: " + "; ".join(imbalance)),
+       not imbalance)
     ck("app.js 零 innerHTML/insertAdjacentHTML/document.write（T-05 XSS 面）",
        "innerHTML" not in js and "insertAdjacentHTML" not in js and "document.write" not in js)
     ck("app.js textContent + showTab(data-t) + /api/v1/",
@@ -873,6 +974,28 @@ def self_check(port):
         ck("路径穿越 /../server.py → 404", s == 404)
         s, _, _, _ = req("OPTIONS", "/api/v1/ping")
         ck("OPTIONS（CORS 预检）→ 405 且无 ACAO", s == 405)
+        # 日志端点鉴权（R7-UI-LOG-AUTH-009，沙箱 key 现场注入，跑完还原环境）
+        _saved_key = os.environ.get("WENQU_DASHBOARD_KEY")
+        try:
+            os.environ.pop("WENQU_DASHBOARD_KEY", None)
+            s, _, _, j = req("GET", "/api/v1/logs")
+            ck("/api/v1/logs 未配置 key → 403 LOGS_AUTH_UNCONFIGURED（fail-closed）",
+               s == 403 and isinstance(j, dict)
+               and j.get("error", {}).get("code") == "LOGS_AUTH_UNCONFIGURED")
+            os.environ["WENQU_DASHBOARD_KEY"] = "selfcheck-log-key"
+            s, _, _, j = req("GET", "/api/v1/logs")
+            ck("/api/v1/logs 配置 key 但无 X-Auth-Key → 403",
+               s == 403 and j.get("error", {}).get("code") == "LOGS_AUTH_FORBIDDEN")
+            s, _, _, j = req("GET", "/api/v1/logs", headers={"X-Auth-Key": "wrong-key"})
+            ck("/api/v1/logs 错误 X-Auth-Key → 403",
+               s == 403 and j.get("error", {}).get("code") == "LOGS_AUTH_FORBIDDEN")
+            s, _, _, _ = req("GET", "/api/v1/logs", headers={"X-Auth-Key": "selfcheck-log-key"})
+            ck("/api/v1/logs 正确 X-Auth-Key → 200", s == 200)
+        finally:
+            if _saved_key is None:
+                os.environ.pop("WENQU_DASHBOARD_KEY", None)
+            else:
+                os.environ["WENQU_DASHBOARD_KEY"] = _saved_key
         # 速率限制（放最后：耗尽窗口不影响前面用例）
         limited = 0
         for _ in range(RATE_MAX + 60):

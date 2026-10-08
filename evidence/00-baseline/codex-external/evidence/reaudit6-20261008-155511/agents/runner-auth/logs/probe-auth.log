@@ -1,0 +1,11 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe auth
+START=2026-10-08T16:01:20+0800
+Traceback (most recent call last):
+  File "/private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py", line 797, in main
+    result = PROBES[ns.probe](root)
+  File "/private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py", line 608, in probe_auth
+    ap = action_approval(mgr, run_id, task, "release", **{field: value})
+TypeError: action_approval() got multiple values for argument 'run_id'
+{"probe": "auth", "verdict": "ERROR", "error": "TypeError: action_approval() got multiple values for argument 'run_id'"}
+EXIT_CODE=2
+END=2026-10-08T16:01:20+0800

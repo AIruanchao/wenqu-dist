@@ -1,0 +1,73 @@
+--- missing ID mentions across repo excluding plans/matrix/git ---
+### BAK-01
+./evidence/05-concurrency-crash-chaos/README.md:14:STATE-03/04/05、AUTH-05、COND-06、DEP-01/02、SCH-04/05、ALT-01、ACT-03/04、REL-02、BAK-01、CAP-01。
+./evidence/10-ui-launchd-alert-backup/README.md:10:- **备份（W4/W7A）**：checkpoint/restore 演练记录（BAK-01）。
+./evidence/10-ui-launchd-alert-backup/README.md:14:UI-01～07、HLT-01、SCH-01～03/06/07、ALT-01～02、BAK-01。
+./evidence/10-ui-launchd-alert-backup/README.md:29:| 备份 checkpoint/restore（BAK-01） | **无** |
+### CAP-01
+./evidence/13-observation-window/README.md:12:DEP-09、CAP-01（持续水位）、DOC-04（文档宣称与 registry/Gate 一致性）、DR-01（若窗内含灾备演练）。
+./evidence/09-release-manifest-attestation/README.md:14:REL-01～03、DEP-03～05、RB-01（兼容性证据侧）、CAP-01。
+./evidence/05-concurrency-crash-chaos/README.md:14:STATE-03/04/05、AUTH-05、COND-06、DEP-01/02、SCH-04/05、ALT-01、ACT-03/04、REL-02、BAK-01、CAP-01。
+./evidence/12-rollback-drill/README.md:14:RB-01、DEP-03/05/07/08、REL-02（kill -9 保持旧 current 侧证）、CAP-01（磁盘满时旧 current 完整）。
+### DR-01
+./system/docs/security/threat-model.md:31:| T-09 | 时钟跳变/PID 复用 | UTC aware+boot ID+时钟健康检测 | DR-01 |
+./evidence/13-observation-window/README.md:12:DEP-09、CAP-01（持续水位）、DOC-04（文档宣称与 registry/Gate 一致性）、DR-01（若窗内含灾备演练）。
+### UI-01
+./evidence/10-ui-launchd-alert-backup/README.md:5:- **UI（W8）**：Playwright trace/DOM 断言/截图（UI-01～07）、安全探针（XSS/CSRF/DNS rebinding）
+./evidence/10-ui-launchd-alert-backup/README.md:14:UI-01～07、HLT-01、SCH-01～03/06/07、ALT-01～02、BAK-01。
+### UI-02
+./system/docs/security/threat-model.md:27:| T-05 | 日志/账本 XSS 注入 | textContent 安全模板+CSP | UI-02 |
+### UI-03
+./system/docs/security/threat-model.md:26:| T-04 | localhost CSRF/恶意网页写决策 | Host/Origin/CORS/CSRF 防护+写鉴权 | UI-03 |
+### UI-04
+./evidence/10-ui-launchd-alert-backup/README.md:6:  原始输出、Gate 红时总体必须 BLOCKED 的对照记录（UI-04）、健康分原子性证据（HLT-01）；
+### UI-05
+### UI-06
+### UI-07
+--- all impossible-like registries repo ---
+./evidence/04-unit-property-mutation/ac-state-mig.json:76:      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+./evidence/04-unit-property-mutation/ac-state-mig.json:97:      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+./evidence/04-unit-property-mutation/ac-state-mig.json:188:      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+./evidence/04-unit-property-mutation/ac-state-mig.json:232:      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+./evidence/04-unit-property-mutation/ac-state-mig.json:252:      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+./evidence/04-unit-property-mutation/ac-state-mig.json:261:    "not_implementable_in_scope": 5
+./evidence/04-unit-property-mutation/ac-ops-families.json:71:  "not_implementable": [
+./evidence/04-unit-property-mutation/ac-station-families.json:43:    "not_implementable": 5,
+./evidence/04-unit-property-mutation/ac-station-families.json:193:  "not_implementable": {
+./evidence/evidence-index.json:313:      "what": "Runner token 击杀（daemon 3/3 死）/ActionSaga HMAC 授权链+PROVISIONAL-RECONCILED 回执分级/聚合器 Draft-07 镜像前置校验/Schema 五跨字段不变量/§20 逐 ID 语义比对/CLI 断链修/P1d+P1e required 接线/wenquctl gate 生产接线；蜂群七文件 97 条真实现+32 条诚实不可实现登记",
+./evidence/evidence-index.json:329:      "caveat": "32 ID 不可实现清单见各测试文件模块级登记"
+./evidence/evidence-index.json:438:    "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属第六波候选",
+./system/tests/test_ac_ops_families.py:34:not_implementable 字段）：
+./system/tests/test_ac_ops_families.py:89:_NOT_IMPLEMENTABLE = [
+./system/tests/test_ac_ops_families.py:1300:            "not_implementable": _NOT_IMPLEMENTABLE,
+./system/tests/test_ac_gate_family.py:41:明确未实现（本文件不硬凑、不 xfail，见交付报告「不可实现清单」）：
+./system/tests/test_ac_gate_family.py:775:# 不可实现清单（产品未实现该语义，不硬凑；详见模块 docstring 与交付报告）
+./system/tests/test_ac_gate_family.py:776:NOT_IMPLEMENTABLE: Dict[str, str] = {
+./system/tests/test_ac_gate_family.py:801:    print("§20 GATE/MRG/CI 族专属验收测试（实现 20 条；跳过 4 条见 NOT_IMPLEMENTABLE）")
+./system/tests/test_ac_gate_family.py:802:    for tid, reason in NOT_IMPLEMENTABLE.items():
+./system/tests/test_ac_deploy_release.py:29:    没有对应可执行语义——逐条理由见模块级 NOT_IMPLEMENTABLE 登记
+./system/tests/test_ac_deploy_release.py:85:# 不可实现登记表（模块级；语义在产品码中不存在，非测试跳过、不 xfail）
+./system/tests/test_ac_deploy_release.py:87:NOT_IMPLEMENTABLE: Dict[str, str] = {
+./system/tests/test_ac_deploy_release.py:683:          f"跳过 {len(NOT_IMPLEMENTABLE)} 条见 NOT_IMPLEMENTABLE 登记表）")
+./system/tests/test_ac_deploy_release.py:684:    for tid, reason in NOT_IMPLEMENTABLE.items():
+./system/tests/test_ac_station_families.py:22:  NOT_IMPLEMENTABLE（原因见该常量）；它们不设测试函数，避免追踪矩阵假绿。
+./system/tests/test_ac_station_families.py:91:# 不可实现清单（§20 注入面在本发行包无对应通道——不硬凑、不设测试函数）
+./system/tests/test_ac_station_families.py:94:NOT_IMPLEMENTABLE = {
+./system/tests/test_ac_station_families.py:1194:    通过（覆盖边界：本包不测延迟阈值，分位数面见文件头部不可实现清单）。
+./system/tests/test_ac_station_families.py:1403:assert not (set(IMPLEMENTED_IDS) & set(NOT_IMPLEMENTABLE)), "清单互斥被破坏"
+./system/tests/test_ac_station_families.py:1404:assert set(IMPLEMENTED_IDS) | set(NOT_IMPLEMENTABLE) == {
+./system/tests/test_ac_station_families.py:1434:          f"不可实现 {len(NOT_IMPLEMENTABLE)}）")
+./system/tests/test_ac_station_families.py:1435:    for tid, reason in sorted(NOT_IMPLEMENTABLE.items()):
+./system/tests/test_ac_station_families.py:1446:                "not_implementable": len(NOT_IMPLEMENTABLE),
+./system/tests/test_ac_station_families.py:1451:            "not_implementable": NOT_IMPLEMENTABLE,
+./system/tests/test_ac_auth_cond.py:1214:# 不可实现清单：本四族 16 条均有真实产品语义可注入，无整条不可实现项。
+./system/tests/test_ac_auth_cond.py:1215:NOT_IMPLEMENTABLE: Dict[str, str] = {}
+./system/tests/test_ac_state_mig.py:22:    NOT_IMPLEMENTABLE_IN_SCOPE（含逐条证据：语义所在模块或全仓无实现），
+./system/tests/test_ac_state_mig.py:67:# 不可实现登记表（模块级；语义在被测体中不存在，非测试跳过）
+./system/tests/test_ac_state_mig.py:69:NOT_IMPLEMENTABLE_IN_SCOPE = {
+./system/tests/test_ac_state_mig.py:1021:    for tid, info in NOT_IMPLEMENTABLE_IN_SCOPE.items():
+./system/tests/test_ac_state_mig.py:1024:            "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE",
+./system/tests/test_ac_state_mig.py:1047:            "not_implementable_in_scope": len(NOT_IMPLEMENTABLE_IN_SCOPE),
+./system/tests/test_ac_state_mig.py:1082:    print("\n不可实现登记（被测体无对应产品语义；不硬凑、不 xfail）：")
+./system/tests/test_ac_state_mig.py:1083:    for tid, info in NOT_IMPLEMENTABLE_IN_SCOPE.items():
+./system/tests/test_ac_state_mig.py:1090:          f"范围内不可实现 {len(NOT_IMPLEMENTABLE_IN_SCOPE)} 条；exit={exit_code}")

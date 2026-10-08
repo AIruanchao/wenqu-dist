@@ -1,0 +1,34 @@
+CAPTURED_AT=2026-10-08T15:56:46,789255000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_gate_schema_hardening.py 
+--- OUTPUT ---
+== F4 三洞加固回归（gate/schema/traceability，6 组）==
+-- test_f4_gate001_legal_v2_full_chain_pass_dashboard_accept
+  ✓ F4-GATE-001 合法 v2 双站聚合 PASS
+  ✓ F4-GATE-001 technical_eligible=true
+  ✓ F4-GATE-001 站点登记 schema_valid=true
+  ✓ F4-GATE-001 dashboard 对合法聚合 ACCEPT（ok + PASS）
+  ✓ F4-GATE-001 分母缩水聚合 → dashboard 透传 BLOCKED
+-- test_f4_gate001_mirror_jsonschema_consistency
+  ✓ F4-GATE-001 镜像↔schema 一致性（41 样例零分歧）
+  ✓ F4-GATE-001 边界：>64 缩水镜像仍必拒（schema 级联外）
+  ✓ F4-GATE-001 边界记录：>64 缩水 schema 侧不判（不误拒合法大分母）
+-- test_f4_gate001_schema_invalid_input_blocked
+  ✓ F4-GATE-001 残缺 v2 被正式 schema 拒绝（复刻前提）
+  ✓ F4-GATE-001 镜像校验器同判残缺 v2 非法
+  ✓ F4-GATE-001 残缺 v2 聚合 BLOCKED
+  ✓ F4-GATE-001 technical_eligible=false
+  ✓ F4-GATE-001 记 malformed（schema_invalid）
+  ✓ F4-GATE-001 github 状态不上绿
+-- test_f4_schema001_five_cross_field_rules
+  ✓ F4-SCHEMA-001 五规则 14 样例（schema+镜像谓词零分歧）
+-- test_f4_schema001_station_rules_via_aggregator_mirror
+  ✓ F4-SCHEMA-001 #2 缩水 v2 聚合 BLOCKED
+  ✓ F4-SCHEMA-001 #5 station TIMEOUT+CONDITIONAL 聚合 BLOCKED
+-- test_f4_trc001_semantic_tamper_detected
+  ✓ F4-TRC-001 基线方案 --check rc=0（冻结内容==方案原文）
+  ✓ F4-TRC-001 篡改注入文本 → rc=2（语义漂移必红）
+  ✓ F4-TRC-001 篡改期望文本 → rc=2（语义漂移必红）
+================================================================
+RESULT: PASS=20 FAIL=0
+ALL GREEN
+--- EXIT_CODE=0 ---

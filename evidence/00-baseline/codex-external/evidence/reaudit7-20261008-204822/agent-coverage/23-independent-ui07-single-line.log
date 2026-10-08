@@ -1,0 +1,15 @@
+COMMAND: python3 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-ui07-single-line-probe.py'
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+{
+  "source_bytes": 6291457,
+  "source_lines": 1,
+  "status": 200,
+  "response_bytes": 6291483,
+  "content_length": 6291483,
+  "elapsed_seconds": 0.050012,
+  "response_over_1MiB": true
+}
+UI07_SINGLE_LINE_RESULT=GAP_UNBOUNDED_BYTES
+--- STDERR ---

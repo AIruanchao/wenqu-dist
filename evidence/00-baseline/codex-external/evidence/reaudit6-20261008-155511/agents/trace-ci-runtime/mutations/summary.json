@@ -1,0 +1,288 @@
+[
+  {
+    "case": "00-baseline",
+    "rc": 0,
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": []
+  },
+  {
+    "case": "01-id-text",
+    "rc": 2,
+    "plan_sha256": "e61b02518b16a7fac73af33060f3dd7cd1e8159d42ca14dd4d0589b757b418df",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 3,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [
+      "GATE-99"
+    ],
+    "frozen_only": [
+      "GATE-01"
+    ],
+    "problems": [
+      "方案交叉校验不一致: ['GATE-99']/['GATE-01']",
+      "§20 语义漂移: §20 表格缺 GATE-01 行（或行格式无法解析）",
+      "§20 语义漂移: §20 表格行 GATE-99 不在冻结目录中"
+    ]
+  },
+  {
+    "case": "02-injection-text",
+    "rc": 2,
+    "plan_sha256": "2a350f0b81d8e74b661182819578fd3dfbd69deb368ec0a72b4f009763af7196",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: GATE-01 注入语义漂移: 方案='base ref 不存在/fetch 成功' 冻结='base ref 不存在/fetch 失败'"
+    ]
+  },
+  {
+    "case": "03-expectation-text",
+    "rc": 2,
+    "plan_sha256": "d47aaf2b7ebcf7cd0e54b19b8886405270c6d0af6c9bf78cab5d1db75035311d",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: GATE-01 期望语义漂移: 方案='PASS' 冻结='ERROR/BLOCKED'"
+    ]
+  },
+  {
+    "case": "04-zero-width-unicode",
+    "rc": 2,
+    "plan_sha256": "0a434fe7b73b51c11429dfe0a74c12ceea740e42fe76a79bfb6a8b2c58e1cf1e",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: GATE-01 期望语义漂移: 方案='ERROR/\\u200bBLOCKED' 冻结='ERROR/BLOCKED'"
+    ]
+  },
+  {
+    "case": "05-unicode-homoglyph",
+    "rc": 2,
+    "plan_sha256": "989a359ba2bf694d0dd0a0d294f6ebd9375806799d2685eb57a7e5f2c8752a8f",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: AUTH-04 注入语义漂移: 方案='canonical payload/Unicοde/audience 任一字节改变' 冻结='canonical payload/Unicode/audience 任一字节改变'"
+    ]
+  },
+  {
+    "case": "06-whitespace-inside-token",
+    "rc": 2,
+    "plan_sha256": "5428450535f681955be934a01c79049b2afd4eeb101a7b04a7bcff9122f8b433",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: GATE-01 期望语义漂移: 方案='ERROR / BLOCKED' 冻结='ERROR/BLOCKED'"
+    ]
+  },
+  {
+    "case": "07-benign-format-control",
+    "rc": 0,
+    "plan_sha256": "6c8dfb4ee5e4dd44256f2592829596a914c8775d150f7cec733a25c6f24b5904",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": []
+  },
+  {
+    "case": "08-columns-swapped",
+    "rc": 2,
+    "plan_sha256": "826658130cf070c32a75f52dc6f53e1b3822c12ee7ea39253bce8d50a289da6a",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 2,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: GATE-01 注入语义漂移: 方案='ERROR/BLOCKED' 冻结='base ref 不存在/fetch 失败'",
+      "§20 语义漂移: GATE-01 期望语义漂移: 方案='base ref 不存在/fetch 失败' 冻结='ERROR/BLOCKED'"
+    ]
+  },
+  {
+    "case": "09-extra-table-column",
+    "rc": 2,
+    "plan_sha256": "2bcae3789f0f1610f2a316cf4222cad7bd070aabe8a4d2f2e59c3d7d5d16f78f",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 130,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: §20 表格缺 GATE-01 行（或行格式无法解析）"
+    ]
+  },
+  {
+    "case": "10-range-endpoint",
+    "rc": 2,
+    "plan_sha256": "cd9f4892a0ca294cad527152c354927b3a28ea42840a50b69cea1f2a9f5a73e3",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§25.1 映射交叉校验不一致: §25.1 展开集合≠冻结目录: 仅方案=[] 仅冻结=['GATE-12']"
+    ]
+  },
+  {
+    "case": "11-251-req-meta",
+    "rc": 2,
+    "plan_sha256": "a6f92f776b473a103519aa99538a6286228b5b9cf49927d6775790f95157f114",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§25.1 映射交叉校验不一致: §25.1 前缀 GATE 四列元数据与冻结值不符: 方案=('REQ-EVID-999/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after') 冻结=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after')"
+    ]
+  },
+  {
+    "case": "12-251-columns-swapped",
+    "rc": 2,
+    "plan_sha256": "9659038a1a2ee2fb63fab787e47ab59158640a15070b1c957d6b17b3dfe20da2",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§25.1 映射交叉校验不一致: §25.1 前缀 GATE 四列元数据与冻结值不符: 方案=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'raw rc、CAS、before/after', 'W2/W3A/W3B') 冻结=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after')"
+    ]
+  },
+  {
+    "case": "13-row-format-id-narrative",
+    "rc": 2,
+    "plan_sha256": "b69b6825a5426062bfba0513f464383927da5d68364d65eb6417562eb635e01c",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 1,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 130,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": [
+      "§20 语义漂移: §20 表格缺 GATE-01 行（或行格式无法解析）"
+    ]
+  },
+  {
+    "case": "14-duplicate-exact-row",
+    "rc": 0,
+    "plan_sha256": "fbb059cc7990f0eef22fd160fcc7dae77a1fa0936670b0fbe917f726c359cd50",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": []
+  },
+  {
+    "case": "15-duplicate-poison-first",
+    "rc": 0,
+    "plan_sha256": "e351b367df8c1bca81f5ddf24d95f3a27203dc684eb355cbab849c0692d68fe3",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": []
+  },
+  {
+    "case": "16-fullwidth-id-digits",
+    "rc": 2,
+    "plan_sha256": "43972543a9f206c70a4cafa592c00e93894e8324dfa368c36be949ee8916a288",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 3,
+    "plan_ok": false,
+    "semantic_ok": false,
+    "semantic_rows_parsed": 131,
+    "plan_only": [
+      "GATE-０１"
+    ],
+    "frozen_only": [
+      "GATE-01"
+    ],
+    "problems": [
+      "方案交叉校验不一致: ['GATE-０１']/['GATE-01']",
+      "§20 语义漂移: §20 表格缺 GATE-01 行（或行格式无法解析）",
+      "§20 语义漂移: §20 表格行 GATE-０１ 不在冻结目录中"
+    ]
+  },
+  {
+    "case": "17-frozen-sha-drift-outside",
+    "rc": 0,
+    "plan_sha256": "d7d0d4415f9c622f5209982fd0ebf1f667f90cc124d41daff086483d3ad66b8e",
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": true,
+    "semantic_ok": true,
+    "semantic_rows_parsed": 131,
+    "plan_only": [],
+    "frozen_only": [],
+    "problems": []
+  },
+  {
+    "case": "18-nonexistent-plan",
+    "rc": 0,
+    "plan_sha256": null,
+    "catalog_integrity_field": "OK",
+    "catalog_problem_count": 0,
+    "plan_ok": null,
+    "semantic_ok": null,
+    "semantic_rows_parsed": null,
+    "plan_only": null,
+    "frozen_only": null,
+    "problems": []
+  }
+]

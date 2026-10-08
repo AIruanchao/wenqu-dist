@@ -1,0 +1,11 @@
+$ active anchors
+20:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+241: {n:0,name:'范围冻结',tier:'每次开扫首站',exec:'EQS 前置门禁（eqs-dev-flow ③段）；五元组指纹=SHA+规则版本集+环境+范围哈希+数据/配置版本 → rounds.jsonl',pass:'必跑项与覆盖分母齐全；身份一致三查（commit SHA+构建指纹 GIT_HASH+环境标识）；未知影响面不得自动排除；定级理由（档位+触发面+升降档依据）随指纹落账供复核'},
+243: {n:2,name:'静态与供应链全量',tier:'周',exec:'dupscan-fullscan（jscpd 棘轮，周哨兵周日 04:00）+ 持续修复引擎五类（日档常驻）+ route-integrity 静态腿 + dh-audit（仅 correctness）+ supply-chain-audit（周一 08:30）',pass:'克隆率≤基线；dh-audit exit 0；CVE 零 HIGH 及以上；引擎五类 0 open'},
+247: {n:6,name:'对抗面',tier:'事件（上产 24h 内）',exec:'post-delivery-adversarial-audit 四轴+S3 反例轮+fact-verify；simplify 候选不自动重构（工件化留痕）；支付/第三方对接变更=对抗+实弹+沙箱回读三件',pass:'每轴必问全覆盖+新用例含守卫真拦住负断言；不强制每轴必有发现'},
+320: {n:2,name:'supply-chain-audit',st:'站2',badge:'✅现役',one:'npm audit CVE+lockfile 对账+依赖快照 diff+安装脚本面',det:'launchd 周一 08:30；首跑 CLEAN（CVE 0 HIGH+ / lockfile 0 漂移 / 1472 传递依赖基线 / 9 安装脚本包全良性）'},
+327: {n:9,name:'Z-B export-tenant-audit',st:'—',badge:'🆕v1.7',one:'导出/下载端点租户过滤静态扫',det:'全 export/download 路由查询 builder where 缺 organizationId 且模型属 TENANT_MODELS→违例清单；基线=Z17 修后 0 违例（BSF-20261001-06 双例实证）'},
+539:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+588:        with open(os.path.join(WQ, "VERSION")) as f:
+871:    def do_POST(self):
+872:        if self.path == "/api/decide":

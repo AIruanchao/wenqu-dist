@@ -1,0 +1,14 @@
+timestamp=2026-10-08T20:48:22+08:00
+evidence_root=/private/tmp/codex-test/evidence/reaudit7-20261008-204822
+audit_copy=/private/tmp/wenqu-reaudit7-20261008-204822
+source_repo=/Users/maccc/Documents/wenqu-dist
+source_head=1495913085eae13155f977fcebc8400b9789e04c
+source_branch=wave6/p1f-gate
+source_status_begin
+ M system/VERSION
+ M system/bin/wenqu-dashboard.py
+?? SHA256-v3.8.4.txt
+source_status_end
+plan_sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+snapshot_plan_sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+round6_sha256=1fa4a7f0ef3bb3af51c9276a9f1d9b3a31c43764caacbf0caf8d55854ed7330a

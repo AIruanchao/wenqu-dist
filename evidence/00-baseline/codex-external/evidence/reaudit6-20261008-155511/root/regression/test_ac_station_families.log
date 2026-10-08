@@ -1,0 +1,35 @@
+CAPTURED_AT=2026-10-08T15:57:25,436949000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_station_families.py 
+--- OUTPUT ---
+  ok  STA-01 任一站 denominator 缩小 → 整线 BLOCKED
+  ok  STA-02 站2/3/4/7 逐站故障 → 独立取证 + aggregate BLOCKED
+  ok  DB-01 [+]/[-]/[*] → 全识别
+  ok  DB-02 仅一条 DROP COLUMN/删 FK → FAIL 不因数量少放行
+  ok  DB-03 未知格式/空输出（命令非零同型面）→ ERROR 类拒绝
+  ok  DB-04 allowlist 到期/对象 hash 变化 → FAIL
+  ok  DB-05 错 DB/role/transaction_read_only=off → BLOCKED（fail-closed 拒绝）
+  ok  DB-06 golden 规范化：catalog 键序 canonical + 对象全集去重（边界见 docstring）
+  ok  SC-01 有效 JSON+HIGH/CRITICAL → FAIL
+  ok  SC-02 空 JSON/registry 超时 → ERROR
+  ok  SC-04 标题含 [skip-audit] → 无绕过效果
+  ok  ADV-01 version parser 异常 → UNKNOWN（保守升 HIGH）不写 seen（不静默跳过）
+  ok  ADV-02 多页/多 range → 全遍历（截断=ERROR）
+  ok  TEN-01 Prisma alias/re-export/wrapper → 纳入分析（DMMF 分母）
+  ok  TEN-02 注释含 organizationId → 不能欺骗
+  ok  TEN-03 builder 超 300 字符 → 纳入分析（超长路径入分母并被判定）
+  ok  TEN-05 路径不含 export/download 的下载 → 纳入扫描
+  ok  TEN-06 Org A 访问/导出 Org B → 动态拒绝
+  ok  TEN-07 target SHA 新增 tenant model → 分母自动增加
+  ok  TEN-08 合法管理员跨租户正例/普通角色负例 → 前者通、后者拒
+  ok  PERF-01 HTTP 500 但很快 → FAIL
+  ok  PERF-02 SSH/TCC/null 指标 → ERROR 类（采集缺口缩水折叠）
+  ok  PERF-05 修改 baseline/阈值试图洗绿 → policy hash 阻断
+  ok  PERF-06 样本/时长/endpoint 分母缩水 → 不得晋升 baseline
+
+§20 六族验收测试: 24 PASS / 0 FAIL （负责 29 条；实现 24；不可实现 5）
+  [不可实现] PERF-03: 尾部极慢样本进入 p95/p99 需要分位数计算面；SloMonitorScanner 只消费上游已算好的快照指标值，本包无原始延迟样本聚合通道，无法做真实注入。
+  [不可实现] PERF-04: 输入 1→100 query count 线性度（N+1）检测需要 DB 查询计数探针；本包无该剖析通道。
+  [不可实现] SC-03: install script/resolved/integrity 变化检测需要 lockfile 内容 diff 面；本发行包 SupplyChainScanner 仅消费 npm audit JSON 输出，无 package-lock 解析/比对通道，无真实注入口。
+  [不可实现] SC-05: 离线 registry 快照的签名/时效/分页完整性校验件不在本发行包（SupplyChainScanner 假定在线 audit stdout；无快照签名验证通道）。注：『分页不全=自报计数与解析列表不一致→ERROR（证据损坏）』的机制已在 ADV-02 的截断子例中侧面覆盖。
+  [不可实现] TEN-04: $queryRaw 跨租户阻断需要 SQL/查询构建器分析面；本包站3 只消费结构化探针结果（org_guard/permission_matrix payload），无 SQL 解析/拦截通道。
+--- EXIT_CODE=0 ---

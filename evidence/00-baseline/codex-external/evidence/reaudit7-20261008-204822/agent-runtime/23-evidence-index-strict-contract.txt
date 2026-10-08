@@ -1,0 +1,34 @@
+UTC_START=2026-10-08T12:52:37Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-index-contract.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+python3 /private/tmp/reaudit7-index-contract.py
+--- OUTPUT ---
+EV-CI-001|PASS|
+EV-CI-002|PASS|
+EV-TEST-001|PASS|
+EV-TEST-002|PASS|
+EV-TEST-003|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-ACCEPT-001|FAIL|commit:no_full40
+EV-ACCEPT-002|FAIL|argv:empty
+EV-REL-001|FAIL|run_id:empty;argv:empty;real_rc:empty;commit:no_full40
+EV-TRACE-001|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-CI-003|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-R3-001|PASS|
+EV-R3-002|FAIL|argv:empty;real_rc:empty
+EV-TRACE-002|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-DEP-001|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-W5-001|PASS|
+EV-CI-004|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-REL-002|FAIL|run_id:empty
+EV-TRACE-003|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-R4-001|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+EV-W9W10-001|FAIL|artifact_sha256:empty;artifact_sha256:not_bare64
+STRICT_QUALIFIED=6/20
+REPO_HEAD_COMMIT_FULL=07a94945ba8defe65d3f9ce5a3b7118a38e40328
+INDEX_FILE_SHA256=002484746cc2fcd4c806d47e4e305be348220ff58bf7fde7d49a44a5983a8501
+--- END OUTPUT ---
+EXIT_CODE=1
+UTC_END=2026-10-08T12:52:37Z

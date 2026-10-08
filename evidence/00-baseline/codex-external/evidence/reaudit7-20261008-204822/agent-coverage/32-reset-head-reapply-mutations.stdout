@@ -1,0 +1,13 @@
+mutated=/tmp/wq7b-p1f-vacuous-one-365-67622/system/tests/test_ac_station_families.py function=test_SC_05_snapshot_signature_freshness_fail_closed old_body_lines=56 new_assertions=1(vacuous)
+--- /tmp/wq7b-p1f-delete-gate-365-67622
+ D system/tests/test_ac_gate_family.py
+--- /tmp/wq7b-p1f-delete-ui-365-67622
+ D system/tests/test_ac_ui_family.py
+--- /tmp/wq7b-p1f-vacuous-one-365-67622
+ M system/tests/test_ac_station_families.py
+--- /tmp/wq7b-tamper-id-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+--- /tmp/wq7b-tamper-semantic-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+--- /tmp/wq7b-tamper-251-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"

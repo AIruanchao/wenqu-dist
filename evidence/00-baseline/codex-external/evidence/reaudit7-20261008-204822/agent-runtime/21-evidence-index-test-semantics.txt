@@ -1,0 +1,23 @@
+UTC_START=2026-10-08T12:52:25Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /private/tmp/reaudit7-d32c859-runtime && rg -n "evidence-index|artifact_sha256|20/20|EV-CI|commit_full|file-level|file_path|artifact hash|evidence_path" tests system/tests tools .github evidence/04-unit-property-mutation 2>/dev/null | head -800
+--- OUTPUT ---
+system/tests/test_ac_gate_family.py:407:    """GATE-06｜注入：artifact hash 篡改｜期望：BLOCKED（拒绝消费）。"""
+tools/ac_traceability.py:32:证据口径：evidence_path 为 evidence/ 下含该 ID 的非 README 工件（本工具自身输出除外）。
+tools/ac_traceability.py:90:    ("GATE", 6): ("artifact hash 篡改", "BLOCKED"),
+tools/ac_traceability.py:694:            "evidence_path": "",
+tools/ac_traceability.py:719:            entry["evidence_path"] = evidence_map[tid]
+system/tests/test_ac_ops_families.py:1467:        decision = enforce_capacity_gate(over, evidence_paths=[ev1, ev2],
+system/tests/test_ac_ops_families.py:1479:        open_gate = enforce_capacity_gate(green, evidence_paths=[ev1, ev2],
+system/tests/test_ac_act_run.py:133:        "artifact_sha256": "6" * 64,
+system/tests/test_ac_act_run.py:456:        # 腿 5（artifact 不符）：release 审批签名后篡改 artifact_sha256 → HMAC 拒
+system/tests/test_ac_act_run.py:460:            tampered_artifact["payload"], artifact_sha256="f" * 64)
+system/tests/test_ac_act_run.py:712:            ("release", "artifact_sha256", "ddl"),
+system/tests/test_release_attest.py:205:        # 攻击者自洽更新 manifest：artifact hash/size + 被改文件的逐文件 hash/size
+system/tests/test_wenqu_adversarial.py:161:    "release": {"release_id": "rel-77", "artifact_sha256": "d" * 64,
+system/tests/test_gate_schema_hardening.py:347:            "artifact": {"artifact_sha256": "d" * 64, "artifact_size": 10},
+system/tests/test_ac_deploy_release.py:590:        "artifact_sha256": "a" * 64,
+system/tests/test_ac_deploy_release.py:683:        "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:52:25Z

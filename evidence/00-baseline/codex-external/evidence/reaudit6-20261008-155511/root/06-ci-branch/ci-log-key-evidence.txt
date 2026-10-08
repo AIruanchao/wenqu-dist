@@ -1,0 +1,158 @@
+=== key CI log lines ===
+232:matrix (macos-latest)	acceptance	2026-10-08T07:47:52.4203210Z   ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+233:matrix (macos-latest)	acceptance	2026-10-08T07:47:52.4204250Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+235:matrix (macos-latest)	acceptance	2026-10-08T07:47:53.7605530Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+239:matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159520Z ALL GREEN
+551:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9576128Z   ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+552:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9591146Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+554:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8584663Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+558:matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251764Z ALL GREEN
+=== run log tail ===
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.1258900Z   ✅ 纯环境错误轮不铸 Converged (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.2023721Z   ✅ 权限拒泄露文件=环境错误 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.2038322Z == P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.3389988Z   ✅ GBK .sh 真命中（LC_ALL=C） (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.3428396Z   ✅ GBK 文件命中标记在日志
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4188686Z   ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4208160Z   ✅ note 回填行在账本
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4811917Z   ✅ repair 后 note 行存活
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.5472147Z   ✅ rc≥2+只读 runs 降级分支触发
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.6072330Z   ✅ 环境错误站 die(2) (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.6073887Z == Q. fork16：symlink 排除与 CLI 对齐（S10-FA）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7371136Z   ✅ symlink 指向仓外目标被排除 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7587278Z   ✅ CLI 冻结范围排除 symlink（1 文件）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7588931Z == R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.8790605Z   ✅ CX3：信号终止(-15)归环境错误 exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.9399890Z   ✅ CX4：拼错 --status OEPEN exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.2343910Z   ✅ CX8：跨仓 PASS 不洗白本仓 finding
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.2345314Z == S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3696596Z   ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3709530Z == H. pytest 契约套件（若 pytest 可用）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3832725Z   ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3833839Z == T. P0 auto-merge containment ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3884157Z   ✅ wenqu start 永久拒绝 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3901049Z   ✅ start 精确报错且未执行 writer/写 PID
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3926022Z   ✅ 源码 auto-merge stub 拒绝 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3959401Z   ✅ 源码 stub 唯一内容、单行且消息精确
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9492990Z   ✅ 隔离安装 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9528787Z   ✅ 升级安装覆盖旧 writer 为安全 stub
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9530090Z == P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.1133312Z   ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.1135110Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3456160Z   ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3457492Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3471990Z mktemp: too few X's in template ‘wq_matrix’
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9576128Z   ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9591146Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8582886Z   ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8584663Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2236511Z   ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2250800Z ================================
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251352Z RESULT: PASS=63 FAIL=0
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251764Z ALL GREEN
+matrix (ubuntu-latest)	pytest 契约	﻿2026-10-08T07:48:00.2385342Z ##[group]Run pip install pytest && python -m pytest cli/test_wenqu.py -q
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2385901Z ^[[36;1mpip install pytest && python -m pytest cli/test_wenqu.py -q^[[0m
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2452844Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453136Z env:
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453438Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453940Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454431Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454872Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455327Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455768Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2456169Z ##[endgroup]
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.1882338Z Collecting pytest
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2707491Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2843166Z Collecting iniconfig>=1.0.1 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2983720Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3138625Z Collecting packaging>=22 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3277573Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3408388Z Collecting pluggy<2,>=1.5 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3549511Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3739047Z Collecting pygments>=2.7.2 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3879242Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4077586Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4666166Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4828328Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4991863Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5167534Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5572850Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 37.5 MB/s  0:00:00
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.6349521Z Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6829490Z 
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6840938Z Successfully installed iniconfig-2.3.1 packaging-26.3 pluggy-1.6.0 pygments-2.21.0 pytest-9.1.1
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2772606Z ....................                                                     [100%]
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2773667Z 20 passed in 3.27s
+matrix (ubuntu-latest)	selftest	﻿2026-10-08T07:48:06.3076309Z ##[group]Run python cli/wenqu selftest
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3076703Z ^[[36;1mpython cli/wenqu selftest^[[0m
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3140910Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141241Z env:
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141576Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142366Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142934Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143436Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143945Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144460Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144889Z ##[endgroup]
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4041505Z OK ingest：原子拒绝——0 条入账，2 处问题（--partial 可恢复逐行模式）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4042697Z   拒绝：第2行：id 重复 X-1
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4043609Z   拒绝：第3行：sev 非法（须为 HIGH/MEDIUM/LOW）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4196839Z OK init：范围冻结 1 文件，scope_hash=0a23e51566e5e471，账本在 /tmp/tmp50iewptm/wh/findings.jsonl
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4198166Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-374-fake.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4199282Z FAIL fakebad（exit=1）——已落账 OPEN，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-387-fakebad.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4200727Z OK ingest：入账 1 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201307Z OK close：X-9 OPEN → CLOSED（append-only 转移已入账）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201968Z FAIL verify：schema 净；OPEN 1/0 限额；总 2 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4202603Z   OPEN：AUTO-20261008074806-2853-fakebad-2b7c
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4203483Z OK close：AUTO-20261008074806-2853-fakebad-2b7c OPEN → FIXED（append-only 转移已入账）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4204313Z OK verify：schema 净；OPEN 0/0 限额；总 2 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205075Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-405-fake.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205878Z OK repair：保留 7 行，隔离 0 行 → findings.jsonl.quarantine
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4206698Z FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4207713Z OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	﻿2026-10-08T07:48:06.4384788Z Post job cleanup.
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:06.5727527Z (node:2857) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:06.5729298Z (Use `node --trace-deprecation ...` to show where the warning was created)
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	﻿2026-10-08T07:48:06.6040458Z Post job cleanup.
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7317802Z [command]/usr/bin/git version
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7460732Z git version 2.55.0
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7641103Z Temporarily overriding HOME='/home/runner/work/_temp/0eae98a3-bb34-4db4-a669-6b024ab0a63f' before making global git config changes
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7660780Z Adding repository directory to the temporary git global config as a safe directory
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7670593Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wenqu-dist/wenqu-dist
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7773632Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7915076Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8793061Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8878530Z http.https://github.com/.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8998084Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9036873Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9810470Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9861080Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+matrix (ubuntu-latest)	Complete job	﻿2026-10-08T07:48:07.0280826Z Cleaning up orphan processes
+matrix (ubuntu-latest)	Complete job	2026-10-08T07:48:07.0569409Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+=== workflow at b259 ===
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
+        run: bash tests/acceptance.sh
+      - name: pytest 契约
+        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: selftest
+        run: python cli/wenqu selftest
+=== action pin audit ===
+10:      - uses: actions/checkout@v4
+11:      - uses: actions/setup-python@v5

@@ -1,0 +1,27 @@
+{
+  "content_digest": "922fa2eead54a54b1fdef100baf009ceea2fdb8e5aa5c1dc01d7a4968e1432c7",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "32147e4ecbb2c79f485f67d90bdbfbb0295cef1702a27bdabde6e1568da09748",
+      "size": 26
+    },
+    {
+      "mode": "0444",
+      "path": "flag-s2.txt",
+      "sha256": "b4a7f47b7504602ce10b55a6c40b1758cdd716f0533a594fa426f26418b7d1eb",
+      "size": 3
+    }
+  ],
+  "release_id": "20261008T125114Z-922fa2eead54",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_02_smoke_isolation_de0/dep2-sqlite-v2"
+}

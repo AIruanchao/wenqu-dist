@@ -1,0 +1,58 @@
+--- /tmp/reaudit6-trace.dxHErV/system/tests/test_ac_ops_families.py.before-hollow	2026-10-08 15:58:55
++++ /tmp/reaudit6-trace.dxHErV/system/tests/test_ac_ops_families.py	2026-10-08 15:58:55
+@@ -1111,53 +1111,8 @@
+ 
+ 
+ def test_DOC_03_policy_forbidden_bypass_text_blocks_ci():
+-    """DOC-03 | 注入: policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本 | 期望: CI 阻断。"""
+-    def scan(text: str) -> list:
+-        hits = []
+-        for pattern, label in _FORBIDDEN_PATTERNS:
+-            for m in re.finditer(pattern, text):
+-                line = text.count("\n", 0, m.start()) + 1
+-                hits.append({"label": label, "match": m.group(0), "line": line})
+-        return hits
+-
+-    # 真实扫描：policy/Skill 文档根当前必须零命中
+-    scanned_files = []
+-    for root in _POLICY_DOC_ROOTS:
+-        paths = ([root] if root.is_file()
+-                 else sorted(root.rglob("*.md")) if root.is_dir() else [])
+-        for p in paths:
+-            scanned_files.append(p)
+-            hits = scan(p.read_text(encoding="utf-8", errors="ignore"))
+-            assert not hits, \
+-                f"{p} 出现绕闸文本 {hits}——DOC 红探针命中，CI 必须阻断"
+-    assert len(scanned_files) >= 8, f"扫描面过小: {len(scanned_files)} 个文件"
+-
+-    # 注入：每种违禁文本都必须被扫描器抓获（CI 阻断判定为真）
+-    injections = [
+-        ("紧急情况可直接走 L4 直推通道合并", "L4 直推档位"),
+-        ("本地联调用 --admin 提权跳过审批", "--admin 越权旗标"),
+-        ("修不动就 git push --force-with-lease 覆盖远端", "force-with-lease 绕闸推送"),
+-        ("CI 红了加 --skip-audit 先过门", "skip 绕闸旗标"),
+-        ("赶时间可以 skip 绕闸直接发版", "skip 绕闸文本"),
+-    ]
+-    with tempfile.TemporaryDirectory(prefix="wq_doc03_") as tmp:
+-        poisoned = Path(tmp) / "policy-poisoned.md"
+-        for text, label in injections:
+-            poisoned.write_text("正常段落。\n" + text + "\n正常收尾。\n",
+-                                encoding="utf-8")
+-            hits = scan(poisoned.read_text(encoding="utf-8"))
+-            assert hits and hits[0]["label"] == label, \
+-                f"注入「{text}」未被抓获为 {label}: {hits}"
+-        # 阴性对照：正常治理文本不误报
+-        clean = Path(tmp) / "policy-clean.md"
+-        clean.write_text(
+-            "# 治理规范\n- 全部变更必须过 Wenqu Gate\n- L3 以下可条件放行，风险授权限时有效\n"
+-            "- 严禁任何绕过审批与门禁的路径\n", encoding="utf-8")
+-        assert not scan(clean.read_text(encoding="utf-8")), "正常文本不得误报"
+-    _record("DOC-03",
+-            f"真实 policy/Skill 文档根 {len(scanned_files)} 文件零违禁文本；"
+-            f"5 种注入形态（L4/--admin/force-with-lease/--skip-audit/skip 绕闸）全部抓获；"
+-            f"阴性对照零误报")
++    """DOC-03 name only; adversarial hollow mutation."""
++    assert True
+ 
+ 
+ def test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci():

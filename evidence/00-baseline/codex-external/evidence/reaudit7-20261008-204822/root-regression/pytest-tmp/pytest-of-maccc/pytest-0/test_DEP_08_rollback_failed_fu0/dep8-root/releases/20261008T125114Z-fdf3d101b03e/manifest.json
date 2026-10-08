@@ -1,0 +1,27 @@
+{
+  "content_digest": "fdf3d101b03ed7dc915fbdfa00d73600059f74e48c2f4ec3c7ee39aeebd31e1c",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "1f456b6606120def4ee3b46baa92817834e0ef63e657c71bfd6752b7b726eedf",
+      "size": 27
+    },
+    {
+      "mode": "0444",
+      "path": "flag-v2.txt",
+      "sha256": "81db67b6a5702b9b68f0016f061c409bf3fb16d062fc854d1b424bb4e9c28c56",
+      "size": 3
+    }
+  ],
+  "release_id": "20261008T125114Z-fdf3d101b03e",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_08_rollback_failed_fu0/dep8-v2"
+}

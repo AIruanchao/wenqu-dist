@@ -1,0 +1,18 @@
+{
+  "path": "/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist",
+  "exists": true,
+  "Label": "com.wenqu.dashboard",
+  "ProgramArguments": [
+    "/opt/homebrew/bin/python3",
+    "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+    "7789"
+  ],
+  "RunAtLoad": true,
+  "KeepAlive": true,
+  "StandardOutPath": "/Users/maccc/.wenqu/logs/dashboard-launchd.log",
+  "StandardErrorPath": "/Users/maccc/.wenqu/logs/dashboard-launchd.log",
+  "EnvironmentVariables_keys": [
+    "WENQU_REPO_DIR"
+  ],
+  "EnvironmentVariables_values": "[REDACTED]"
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/Users/maccc/Library/LaunchAgents/com.wenqu.observation.plist",
+    "exists": true,
+    "Label": "com.wenqu.observation",
+    "ProgramArguments": [
+      "/opt/homebrew/bin/python3",
+      "/Users/maccc/Documents/wenqu-dist/tools/observation_daily.py"
+    ],
+    "RunAtLoad": false,
+    "StandardOutPath": "/Users/maccc/.wenqu/observation/logs/out.log",
+    "StandardErrorPath": "/Users/maccc/.wenqu/observation/logs/err.log",
+    "StartCalendarInterval": {
+      "Hour": 9,
+      "Minute": 5
+    },
+    "EnvironmentVariables_keys": [
+      "PATH"
+    ],
+    "EnvironmentVariables_values": "[REDACTED]"
+  },
+  {
+    "path": "/Users/maccc/.wenqu/launchd/com.wenqu.observation.plist",
+    "exists": false
+  }
+]

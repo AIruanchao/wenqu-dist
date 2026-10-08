@@ -1,0 +1,7 @@
+{
+  "detail": "activation failed without valid pre-authorized rollback: SelfCheckError('install self-check returned falsy: False')",
+  "last_activated_at": 1791463874.494947,
+  "release_id": "20261008T125114Z-0f07f42d439d",
+  "status": "FAILED_BLOCKED",
+  "updated_at": "2026-10-08T12:51:14Z"
+}

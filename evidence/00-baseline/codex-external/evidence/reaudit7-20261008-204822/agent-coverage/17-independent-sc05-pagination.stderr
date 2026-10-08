@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-sc05-pagination-probe.py", line 42, in <module>
+    envelope = build_snapshot_envelope(payload, key=KEY)
+TypeError: build_snapshot_envelope() missing 1 required keyword-only argument: 'captured_at'

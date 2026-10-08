@@ -1,0 +1,1 @@
+set -o pipefail; rg -n "def cmd_gate|def.*gate|--manifest|allow-self-declared|RunManifest|freeze_run_manifest" system/wenquctl system/bin system/wenqu_core | head -400; find system -maxdepth 2 -type f -perm -111 -print | sort

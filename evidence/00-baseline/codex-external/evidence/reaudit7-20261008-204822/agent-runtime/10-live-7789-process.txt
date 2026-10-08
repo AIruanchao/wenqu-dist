@@ -1,0 +1,109 @@
+UTC_START=2026-10-08T12:50:16Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'; echo LSOF_LISTENER; lsof -nP -iTCP:7789 -sTCP:LISTEN || true; PID=78778; echo PID=; if test -n ""; then echo PS; ps -ww -p "" -o pid=,ppid=,uid=,user=,lstart=,etime=,command=; echo PROC_PATH; proc_pidpath "" 2>&1 || true; echo LSOF_CWD_TXT; lsof -a -p "" -d cwd,txt 2>&1; echo ENV_SELECTED; ps eww -p "" -o command= | sed -E 's/([^ ]*(TOKEN|KEY|SECRET|PASSWORD|PASS|AUTH)[^ ]*=)[^ ]+/\1<REDACTED>/Ig' | tr ' ' '\n' | grep -E '^(WENQU_|PATH=|HOME=)' || true; fi; echo PGREP; pgrep -fal 'wenqu|dashboard|scheduler' || true
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:50:16+0800
+LSOF_LISTENER
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  78778 maccc    3u  IPv4 0x9927b5e8d82c6445      0t0  TCP 127.0.0.1:7789 (LISTEN)
+PID=
+PGREP
+758 /opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.hermes/profiles/dachui80/scripts/ops-dashboard/server.py --port 8199
+832 /opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.hermes/profiles/dachui80/scripts/watchdog_dashboard.py
+12627 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /opt/wenqu-app-relay/relay.py
+21081 node /Users/maccc/.local/bin/codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C /Users/maccc/Documents/wenqu-dist 你是独立质量验收方（第七轮复审），对我们自建的质量工程管线仓库 /Users/maccc/Documents/wenqu-dist 做例行验收复审。这是内部工程质量审计，目的是验证我们自己代码的缺陷修复是否真实生效。
+
+## 背景与增量
+
+- 方案正源（冻结，SHA256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306）：
+  - /private/tmp/codex-test/方案.md
+  - 仓内快照 evidence/00-baseline/codex-external/方案.md
+- 你的第六轮验收报告：/private/tmp/codex-test/验收报告-第六轮.md（判定 54/100 BLOCKED；仓内有快照）
+- 第六轮基线 main@b259dac；本轮 HEAD=d32c859（工作树可能含其他并行会话的少量在途改动，以 HEAD 内容为准验收）。第六轮之后增量（PR#8 c9de6a4 + PR#9 d32c859，均经分支保护正门合流）：
+  1. F6 六项收口：Gate manifest 冻结正门（required/coverage/scope 对账，自报分母与缺站 BLOCKED）；镜像 RFC3339 与重复站全等等价键；分母等值镜像无界强制；追踪 parser 重复行/缺 plan/PLAN_SHA256 实算/catalog 失败全收口；mktemp 模板 fail-closed；P1f 八专属文件接入 required（计数≥95）；P1g 签名制品测试接入
+  2. 审批签发端（P0-2 残余）：wenquctl approve/keys——HMAC 签发/nonce/payload 判别、密钥生命周期（0600 keyring/轮换/吊销）、高危类型双人联签、append-only 签发审计、与 APPROVAL_CONSUMED 双向对账、飞书接口占位（system/wenqu_core/approval_issue.py）
+  3. 事件正源统一（P0-6）：迁移器直连 EventStore 单表单 API；旧 events 表 DDL 删除+migrate_legacy_events 一次性收编；统一自测 test_events_unified
+  4. W4 生产闭环：launchd com.wenqu.scheduler 每 5 分钟真实运行（gate-aggregate.json 产出、心跳、多轮自然续跳）；通知双通道真实投递（osascript+投递箱，回执与死信审计）；备份恢复演练字节级对账+DR 模式 RPO/RTO 实测计时（system/tests/test_w4_production.py 36 用例）
+  5. W5 旧账 reconciliation：legacy engine-rounds.jsonl 实际 1967 行逐行对账（与 481 口径不同源已如实登记）；四态守恒；两次幂等；源字节不变；产物 evidence/07-migration-reconcile/
+  6. 32 个产品面 ID 全部补齐：GATE-09/10/11、CI-06、STATE-02/05/09/11、DEP-01~09、SC-03/05、TEN-04、PERF-03/04、CAP-01、BAK-01、DR-01、UI-01~07——含 lease 仲裁/smoke 隔离沙箱/release 密钥签名/fenced 部署状态机/回滚熔断/观察窗甄别/writer epoch fencing/queryRaw 租户静态分析/分位数计算/容量峰值预算/真演练/UI 协议级验证等真实语义
+  7. TLA+ 形式化（W1）：specs/tla/wenqu_pipeline.tla 七段状态机+审批消费规约；TLC 真实模型检查（2442 状态/7 不变量零违例）；6 个变异探针全红；规约-代码对照测试 test_tla_spec
+  8. release 签名/SBOM（W7）：tools/release_attest.py 四命令（build/sign/SBOM SPDX 2.3/verify）；确定性构建；重打包攻击拦截；产物 dist/wenqu-dist-1620c7c 四件套；test_release_attest 8 用例
+  9. 7789 运行时切换：模块化 405 只读版（system/dashboard/server.py），/api/v1/health 返回真实聚合数据、写接口 405 WRITE_DISABLED、active 与仓内候选 hash 一致（存证 evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json）
+  10. 证据索引 20 条实算达标（全 40 位 SHA/文件级路径/实算 hash 自检 20/20）；观察窗自干净 SHA 样本起算（samples/2026-10-08.json 绑 d32c859 前身 c9de6a4 clean）
+- 开发方声称：20+ 测试套件全绿、6 模块自测 rc0、acceptance 66/66、追踪 --check rc0 且 §20 专属覆盖 131/131=100%；main CI run 37778240376 success（d32c859 双平台）
+
+## 你的任务（与前几轮同等严格，禁止降低标准）
+
+1. 逐条复核第六轮 F6 新发现（GATE-SCOPE/GATE-FORMAT-DUP/SCHEMA-BOUND/TRC-GATE/TRC-PARSER/EVID）与 P0 残余（P0-2 签发端/P0-6 正源统一/P0-9 模块化切换）——自行设计新验证用例（不要照抄修复方测试），/tmp 隔离副本运行并记录命令+退出码+输出
+2. P0 十项同口径重判
+3. W0–W10 同口径重新评分；131/131 专属覆盖抽查真实性（抽至少 15 条跨族核对断言与 §20 注入/期望对应性）
+4. 常规核验：三移除锚点、schema 变异、§20 ID/语义/§25.1 三重篡改必红、P1f 删件必红、证据索引对账（20 条逐条实算）、CI 真实性（gh run view 37778240376）、分支保护回读、7789 运行身份（应=模块化版）、acceptance 全量本地复跑、TLA+ 规约-代码一致性抽查、launchd 调度器活性（launchctl print com.wenqu.scheduler）、观察窗样本存在性与 SHA 绑定
+5. 证据落盘 /private/tmp/codex-test/evidence/reaudit7-<时间戳>/
+6. 报告落盘 /private/tmp/codex-test/验收报告-第七轮.md（最终判定、0-100 总分、W0-W10 分项、P0 十项、F6 六项闭环判定、131 覆盖抽查结论、剩余缺口、证据索引）+ .sha256
+
+## 约束
+
+- 只读验收为原则；破坏性验证一律在 /tmp 隔离副本做；不得改产物仓工作树（其他并行会话的在途改动如实记录为环境事实，不归属本验收对象）
+- 不得以提交说明或文档声明作为通过依据；以实跑命令+退出码+输出为准
+- 已知诚实缺口（不重复记为新发现但计入分数）：W9 48h shadow 投影+canary 与 W10 14 天观察窗时序证据未到期（时钟 10-08 已启动）；HMAC 对称签名非非否认（已声明）；飞书签发为占位接口；TLA+ 为有界实例（2 段）；Runner 容器级隔离与 linux /proc 通路未实测；旧账 1950 条 quarantine 行待人工裁定
+- 禁止自我认证；证据不足即记缺口
+- 中文输出
+21084 /Users/maccc/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C /Users/maccc/Documents/wenqu-dist 你是独立质量验收方（第七轮复审），对我们自建的质量工程管线仓库 /Users/maccc/Documents/wenqu-dist 做例行验收复审。这是内部工程质量审计，目的是验证我们自己代码的缺陷修复是否真实生效。
+
+## 背景与增量
+
+- 方案正源（冻结，SHA256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306）：
+  - /private/tmp/codex-test/方案.md
+  - 仓内快照 evidence/00-baseline/codex-external/方案.md
+- 你的第六轮验收报告：/private/tmp/codex-test/验收报告-第六轮.md（判定 54/100 BLOCKED；仓内有快照）
+- 第六轮基线 main@b259dac；本轮 HEAD=d32c859（工作树可能含其他并行会话的少量在途改动，以 HEAD 内容为准验收）。第六轮之后增量（PR#8 c9de6a4 + PR#9 d32c859，均经分支保护正门合流）：
+  1. F6 六项收口：Gate manifest 冻结正门（required/coverage/scope 对账，自报分母与缺站 BLOCKED）；镜像 RFC3339 与重复站全等等价键；分母等值镜像无界强制；追踪 parser 重复行/缺 plan/PLAN_SHA256 实算/catalog 失败全收口；mktemp 模板 fail-closed；P1f 八专属文件接入 required（计数≥95）；P1g 签名制品测试接入
+  2. 审批签发端（P0-2 残余）：wenquctl approve/keys——HMAC 签发/nonce/payload 判别、密钥生命周期（0600 keyring/轮换/吊销）、高危类型双人联签、append-only 签发审计、与 APPROVAL_CONSUMED 双向对账、飞书接口占位（system/wenqu_core/approval_issue.py）
+  3. 事件正源统一（P0-6）：迁移器直连 EventStore 单表单 API；旧 events 表 DDL 删除+migrate_legacy_events 一次性收编；统一自测 test_events_unified
+  4. W4 生产闭环：launchd com.wenqu.scheduler 每 5 分钟真实运行（gate-aggregate.json 产出、心跳、多轮自然续跳）；通知双通道真实投递（osascript+投递箱，回执与死信审计）；备份恢复演练字节级对账+DR 模式 RPO/RTO 实测计时（system/tests/test_w4_production.py 36 用例）
+  5. W5 旧账 reconciliation：legacy engine-rounds.jsonl 实际 1967 行逐行对账（与 481 口径不同源已如实登记）；四态守恒；两次幂等；源字节不变；产物 evidence/07-migration-reconcile/
+  6. 32 个产品面 ID 全部补齐：GATE-09/10/11、CI-06、STATE-02/05/09/11、DEP-01~09、SC-03/05、TEN-04、PERF-03/04、CAP-01、BAK-01、DR-01、UI-01~07——含 lease 仲裁/smoke 隔离沙箱/release 密钥签名/fenced 部署状态机/回滚熔断/观察窗甄别/writer epoch fencing/queryRaw 租户静态分析/分位数计算/容量峰值预算/真演练/UI 协议级验证等真实语义
+  7. TLA+ 形式化（W1）：specs/tla/wenqu_pipeline.tla 七段状态机+审批消费规约；TLC 真实模型检查（2442 状态/7 不变量零违例）；6 个变异探针全红；规约-代码对照测试 test_tla_spec
+  8. release 签名/SBOM（W7）：tools/release_attest.py 四命令（build/sign/SBOM SPDX 2.3/verify）；确定性构建；重打包攻击拦截；产物 dist/wenqu-dist-1620c7c 四件套；test_release_attest 8 用例
+  9. 7789 运行时切换：模块化 405 只读版（system/dashboard/server.py），/api/v1/health 返回真实聚合数据、写接口 405 WRITE_DISABLED、active 与仓内候选 hash 一致（存证 evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json）
+  10. 证据索引 20 条实算达标（全 40 位 SHA/文件级路径/实算 hash 自检 20/20）；观察窗自干净 SHA 样本起算（samples/2026-10-08.json 绑 d32c859 前身 c9de6a4 clean）
+- 开发方声称：20+ 测试套件全绿、6 模块自测 rc0、acceptance 66/66、追踪 --check rc0 且 §20 专属覆盖 131/131=100%；main CI run 37778240376 success（d32c859 双平台）
+
+## 你的任务（与前几轮同等严格，禁止降低标准）
+
+1. 逐条复核第六轮 F6 新发现（GATE-SCOPE/GATE-FORMAT-DUP/SCHEMA-BOUND/TRC-GATE/TRC-PARSER/EVID）与 P0 残余（P0-2 签发端/P0-6 正源统一/P0-9 模块化切换）——自行设计新验证用例（不要照抄修复方测试），/tmp 隔离副本运行并记录命令+退出码+输出
+2. P0 十项同口径重判
+3. W0–W10 同口径重新评分；131/131 专属覆盖抽查真实性（抽至少 15 条跨族核对断言与 §20 注入/期望对应性）
+4. 常规核验：三移除锚点、schema 变异、§20 ID/语义/§25.1 三重篡改必红、P1f 删件必红、证据索引对账（20 条逐条实算）、CI 真实性（gh run view 37778240376）、分支保护回读、7789 运行身份（应=模块化版）、acceptance 全量本地复跑、TLA+ 规约-代码一致性抽查、launchd 调度器活性（launchctl print com.wenqu.scheduler）、观察窗样本存在性与 SHA 绑定
+5. 证据落盘 /private/tmp/codex-test/evidence/reaudit7-<时间戳>/
+6. 报告落盘 /private/tmp/codex-test/验收报告-第七轮.md（最终判定、0-100 总分、W0-W10 分项、P0 十项、F6 六项闭环判定、131 覆盖抽查结论、剩余缺口、证据索引）+ .sha256
+
+## 约束
+
+- 只读验收为原则；破坏性验证一律在 /tmp 隔离副本做；不得改产物仓工作树（其他并行会话的在途改动如实记录为环境事实，不归属本验收对象）
+- 不得以提交说明或文档声明作为通过依据；以实跑命令+退出码+输出为准
+- 已知诚实缺口（不重复记为新发现但计入分数）：W9 48h shadow 投影+canary 与 W10 14 天观察窗时序证据未到期（时钟 10-08 已启动）；HMAC 对称签名非非否认（已声明）；飞书签发为占位接口；TLA+ 为有界实例（2 段）；Runner 容器级隔离与 linux /proc 通路未实测；旧账 1950 条 quarantine 行待人工裁定
+- 禁止自我认证；证据不足即记缺口
+- 中文输出
+23179 /bin/zsh -c set -o pipefail
+C=/private/tmp/wenqu-reaudit7-20261008-204822
+E=/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression
+mkdir -p "$E/home" "$E/tmp"
+printf '%s\n' 'env HOME=<isolated> TMPDIR=<isolated> bash tests/acceptance.sh' > "$E/01-acceptance.cmd"
+cd "$C"
+env HOME="$E/home" TMPDIR="$E/tmp" bash tests/acceptance.sh 2>&1 | tee "$E/01-acceptance.log"
+rc=${PIPESTATUS[0]}; echo "$rc" | tee "$E/01-acceptance.rc"; exit "$rc"
+24777 /bin/bash /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/run-cmd.sh 05-dedicated-baseline /tmp/wenqu-reaudit7-coverage-b-22841 set -o pipefail; total=0; for f in system/tests/test_ac_gate_family.py system/tests/test_ac_state_mig.py system/tests/test_ac_deploy_release.py system/tests/test_ac_station_families.py system/tests/test_ac_ops_families.py system/tests/test_ac_auth_cond.py system/tests/test_ac_act_run.py system/tests/test_ac_ui_family.py; do echo "=== $f ==="; python3 "$f"; rc=$?; echo "FILE_RC=$rc"; [ "$rc" -eq 0 ] || exit "$rc"; n=$(grep -c "^def test_" "$f"); total=$((total+n)); done; echo "DEDICATED_FUNCTIONS=$total"; [ "$total" -eq 131 ]
+24787 /bin/bash /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/run-cmd.sh 05-dedicated-baseline /tmp/wenqu-reaudit7-coverage-b-22841 set -o pipefail; total=0; for f in system/tests/test_ac_gate_family.py system/tests/test_ac_state_mig.py system/tests/test_ac_deploy_release.py system/tests/test_ac_station_families.py system/tests/test_ac_ops_families.py system/tests/test_ac_auth_cond.py system/tests/test_ac_act_run.py system/tests/test_ac_ui_family.py; do echo "=== $f ==="; python3 "$f"; rc=$?; echo "FILE_RC=$rc"; [ "$rc" -eq 0 ] || exit "$rc"; n=$(grep -c "^def test_" "$f"); total=$((total+n)); done; echo "DEDICATED_FUNCTIONS=$total"; [ "$total" -eq 131 ]
+26061 /opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_ui_family.py
+27025 /opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python /private/tmp/wenqu-reaudit7-20261008-204822/system/dashboard/server.py --port 56674
+27417 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /private/tmp/wenqu-reaudit7-coverage-b-22841/system/dashboard/server.py --port 57281
+27422 /bin/zsh /private/tmp/reaudit7-run-cmd.zsh /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-runtime 10-live-7789-process date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'; echo LSOF_LISTENER; lsof -nP -iTCP:7789 -sTCP:LISTEN || true; PID=78778; echo PID=; if test -n ""; then echo PS; ps -ww -p "" -o pid=,ppid=,uid=,user=,lstart=,etime=,command=; echo PROC_PATH; proc_pidpath "" 2>&1 || true; echo LSOF_CWD_TXT; lsof -a -p "" -d cwd,txt 2>&1; echo ENV_SELECTED; ps eww -p "" -o command= | sed -E 's/([^ ]*(TOKEN|KEY|SECRET|PASSWORD|PASS|AUTH)[^ ]*=)[^ ]+/\1<REDACTED>/Ig' | tr ' ' '\n' | grep -E '^(WENQU_|PATH=|HOME=)' || true; fi; echo PGREP; pgrep -fal 'wenqu|dashboard|scheduler' || true
+27423 /bin/zsh /private/tmp/reaudit7-run-cmd.zsh /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-runtime 11-launchd-inventory UIDN=502; echo UID=; echo LAUNCHCTL_LIST; launchctl list | grep -i wenqu || true; echo USER_PLISTS; find "/Users/maccc/Library/LaunchAgents" -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true; echo SYSTEM_PLISTS; find /Library/LaunchDaemons /Library/LaunchAgents -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true
+27433 /bin/zsh -lc set -o pipefail; UIDN=502; echo UID=; echo LAUNCHCTL_LIST; launchctl list | grep -i wenqu || true; echo USER_PLISTS; find "/Users/maccc/Library/LaunchAgents" -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true; echo SYSTEM_PLISTS; find /Library/LaunchDaemons /Library/LaunchAgents -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true
+27452 /bin/zsh -lc set -o pipefail; date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'; echo LSOF_LISTENER; lsof -nP -iTCP:7789 -sTCP:LISTEN || true; PID=78778; echo PID=; if test -n ""; then echo PS; ps -ww -p "" -o pid=,ppid=,uid=,user=,lstart=,etime=,command=; echo PROC_PATH; proc_pidpath "" 2>&1 || true; echo LSOF_CWD_TXT; lsof -a -p "" -d cwd,txt 2>&1; echo ENV_SELECTED; ps eww -p "" -o command= | sed -E 's/([^ ]*(TOKEN|KEY|SECRET|PASSWORD|PASS|AUTH)[^ ]*=)[^ ]+/\1<REDACTED>/Ig' | tr ' ' '\n' | grep -E '^(WENQU_|PATH=|HOME=)' || true; fi; echo PGREP; pgrep -fal 'wenqu|dashboard|scheduler' || true
+27467 find /Users/maccc/Library/LaunchAgents -maxdepth 1 -iname *wenqu* -print -exec plutil -p {} ;
+78778 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/dashboard/server.py --port 7789
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:50:16Z

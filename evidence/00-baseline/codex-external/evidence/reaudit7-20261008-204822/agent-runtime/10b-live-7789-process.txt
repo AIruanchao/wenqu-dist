@@ -1,0 +1,60 @@
+UTC_START=2026-10-08T12:50:33Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-liveproc.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+echo LSOF_LISTENER
+lsof -nP -iTCP:7789 -sTCP:LISTEN || true
+PID=$(lsof -nP -t -iTCP:7789 -sTCP:LISTEN | head -1)
+echo PID=$PID
+if test -n "$PID"; then
+  echo PS
+  ps -ww -p "$PID" -o pid=,ppid=,uid=,user=,lstart=,etime=,command=
+  echo PROC_PATH
+  proc_pidpath "$PID" 2>&1 || true
+  echo LSOF_CWD_TXT
+  lsof -a -p "$PID" -d cwd,txt 2>&1
+fi
+echo PGREP_RELEVANT
+pgrep -fal '^.*\.wenqu/dashboard/server\.py|wenqu_core\.scheduler' || true
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:50:33+0800
+LSOF_LISTENER
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  78778 maccc    3u  IPv4 0x9927b5e8d82c6445      0t0  TCP 127.0.0.1:7789 (LISTEN)
+PID=78778
+PS
+78778     1   502 maccc Thu Oct  8 18:40:20 2026     02:10:13 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/dashboard/server.py --port 7789
+PROC_PATH
+/private/tmp/reaudit7-cmd-liveproc.zsh:12: command not found: proc_pidpath
+LSOF_CWD_TXT
+COMMAND   PID  USER   FD   TYPE DEVICE SIZE/OFF                NODE NAME
+Python  78778 maccc  cwd    DIR   1,16      704                   2 /
+Python  78778 maccc  txt    REG   1,16    33568           405770174 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+Python  78778 maccc  txt    REG   1,16    72912           405771093 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_json.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16  2374000 1152921500312573277 /usr/lib/dyld
+Python  78778 maccc  txt    REG   1,16    53120           405771130 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/fcntl.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    54784           405771101 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_posixsubprocess.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    74992           405771137 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/select.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    54416           405771128 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/binascii.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    93456           405771132 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/math.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    77888           405771113 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_struct.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    76192           405771144 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/zlib.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16   115872           405771109 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_socket.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    55056           405771072 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_bz2.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    74624           405771095 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_lzma.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16    96752           405771126 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_zstd.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16  5468144           405770167 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Python
+Python  78778 maccc  txt    REG   1,16   205312           405771111 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_ssl.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16   167520           405757828 /opt/homebrew/Cellar/xz/5.8.4/lib/liblzma.5.dylib
+Python  78778 maccc  txt    REG   1,16   890256           405759450 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libssl.3.dylib
+Python  78778 maccc  txt    REG   1,16   653328             4836761 /opt/homebrew/Cellar/zstd/1.5.7_1/lib/libzstd.1.5.7.dylib
+Python  78778 maccc  txt    REG   1,16   783632           405771140 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/unicodedata.cpython-314-darwin.so
+Python  78778 maccc  txt    REG   1,16  4874336           405759443 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libcrypto.3.dylib
+PGREP_RELEVANT
+78778 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/dashboard/server.py --port 7789
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:50:33Z

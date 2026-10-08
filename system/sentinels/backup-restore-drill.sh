@@ -28,10 +28,23 @@
 #   冻结目标（本脚本内冻结，不接受 CLI 覆盖）：RPO<=300s、RTO<=60s。
 #   DR PASS = 字节对账全等 && rpo_ok && rto_ok。
 #
+# 故障注入模式（--fault，R7-BAK-01 三腿补齐；演练在故障下必须 FAIL 且
+# 不更新 success 工件——失败运行只写自己的 FAIL 报告，绝不改写既有 PASS）：
+#   --fault enospc     磁盘满腿（等价模拟，诚实登记）：对恢复写路径注入
+#         「文件大小上限」——小配额 tmpfs 在 macOS/无 root 不可移植，
+#         以 ulimit -f 1（512B 块）子壳包裹恢复 cp，写出超限即写失败
+#         （ENOSPC 同族：cp 非零退出/SIGXFSZ）。若注入未生效（语料全在
+#         上限之下）也按 FAIL 拒绝——故障模式下绝不允许 PASS。
+#   --fault tar-broken tar 腿：归档步骤（快照后 backup/ → backup.tar.gz
+#         + tar -tzf 清单回读校验）经 PATH 解析真实 tar；本模式自注入假
+#         tar 二进制（PATH 前置），归档必须失败 → 演练 FAIL。外部 PATH
+#         注入（测试前置假 tar 目录）同效——脚本对 tar 无任何豁免。
+#
 # 用法：
 #   bash system/sentinels/backup-restore-drill.sh [--wenqu-root DIR]
 #        [--report-dir DIR] [--keep-workdir]
 #        [--mode backup|dr] [--fault-delay SEC]（dr 专用，默认 1）
+#        [--fault none|enospc|tar-broken]（默认 none）
 set -uo pipefail
 
 WENQU_ROOT="${WENQU_HOME:-$HOME/.wenqu}"
@@ -39,6 +52,7 @@ REPORT_DIR=""
 KEEP_WORK=0
 MODE="backup"
 FAULT_DELAY="1"
+FAULT="none"
 # 冻结 RPO/RTO 目标（秒）：DR-01 语义「实测满足冻结 RPO/RTO」的正源。
 DR_RPO_TARGET_S=300
 DR_RTO_TARGET_S=60
@@ -49,11 +63,13 @@ while [ $# -gt 0 ]; do
     --keep-workdir) KEEP_WORK=1; shift ;;
     --mode) MODE="${2:?}"; shift 2 ;;
     --fault-delay) FAULT_DELAY="${2:?}"; shift 2 ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    --fault) FAULT="${2:?}"; shift 2 ;;
+    -h|--help) sed -n '2,45p' "$0"; exit 0 ;;
     *) echo "drill: unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 case "$MODE" in backup|dr) ;; *) echo "drill: --mode must be backup|dr" >&2; exit 1 ;; esac
+case "$FAULT" in none|enospc|tar-broken) ;; *) echo "drill: --fault must be none|enospc|tar-broken" >&2; exit 1 ;; esac
 case "$FAULT_DELAY" in
   ''|*[!0-9.]*) echo "drill: --fault-delay must be a positive number" >&2; exit 1 ;;
 esac
@@ -136,6 +152,7 @@ write_report() {  # $1=result $2=reason；其余步骤事实由调用方拼进 $
   "drill": "backup-restore",
   "stamp": "$STAMP",
   "mode": "$MODE",
+  "fault": "$FAULT",
   "wenqu_root": "$WENQU_ROOT",
   "workdir": "$WORK",
   "corpus_count": ${#CORPUS_REL[@]},
@@ -166,6 +183,32 @@ for rel in "${CORPUS_REL[@]}"; do
   ev snapshot_file "$rel" true "\"sha256\": \"$sha\", \"size\": $size"
 done
 SNAP_JSON+="]"
+
+# ---- 步骤 1b：归档腿（tar 真实通道；R7-BAK-01 补齐） ----------------------
+# backup/ → backup.tar.gz + tar -tzf 清单回读校验（逐文件精确行匹配）。
+# tar 经 PATH 解析（无豁免）：--fault tar-broken 自注入假 tar（PATH 前置），
+# 外部 PATH 注入假 tar 同效——归档/清单任一失败 → 演练 FAIL（fail-closed）。
+TAR_BIN="tar"
+if [ "$FAULT" = "tar-broken" ]; then
+  FAULT_BIN="$WORK/fault-bin"
+  mkdir -p "$FAULT_BIN" || exit 1
+  printf '#!/bin/sh\necho "drill fault: tar broken (injected)" >&2\nexit 1\n' \
+    > "$FAULT_BIN/tar" || exit 1
+  chmod +x "$FAULT_BIN/tar" || exit 1
+  TAR_BIN="$FAULT_BIN/tar"
+fi
+ARCHIVE="$WORK/backup.tar.gz"
+"$TAR_BIN" -czf "$ARCHIVE" -C "$BACKUP" "${CORPUS_REL[@]}" \
+  || fail "archive tar leg failed under fault=$FAULT (rc=$?)"
+"$TAR_BIN" -tzf "$ARCHIVE" > "$WORK/archive.list" 2>/dev/null \
+  || fail "archive listing tar -tzf failed under fault=$FAULT (rc=$?)"
+ARCHIVE_LIST_OK=1
+for rel in "${CORPUS_REL[@]}"; do
+  grep -Fxq "$rel" "$WORK/archive.list" || ARCHIVE_LIST_OK=0
+done
+[ "$ARCHIVE_LIST_OK" -eq 1 ] \
+  || fail "archive listing incomplete: tar -tzf 清单与语料集不一致（tar 腿证据损坏）"
+ev archive_ok - true "\"files\": ${#CORPUS_REL[@]}, \"bytes\": $(_file_size "$ARCHIVE" 2>/dev/null || echo 0)"
 
 # ---- DR 计时：快照点 -> 故障注入点（已知延迟窗口，可控制 RPO） -----------
 if [ "$MODE" = "dr" ]; then
@@ -217,13 +260,32 @@ done
 ev tamper_verified - true "\"actions\": ${TAMPER_JSON}"
 
 # ---- 步骤 3：恢复（DR：恢复开始即 RTO 起表） ------------------------------
+# --fault enospc：恢复写路径注入「文件大小上限」（ulimit -f 1 = 512B，子壳
+# 包裹——等价模拟磁盘满写出失败；只作用于恢复写，快照/归档/对账不受影响）。
+# 故障模式下注入必须生效：若全部语料都在上限之下（注入未咬合）也按 FAIL
+# 拒绝——故障注入演练绝不允许 PASS。
 [ "$MODE" = "dr" ] && T_RESTORE_START=$(_epoch)
 RESTORE_N=0
+RESTORE_FAULT_HIT=0
 for rel in "${CORPUS_REL[@]}"; do
-  cp -p "$BACKUP/$rel" "$LIVE/$rel" || fail "restore cp $rel"
+  if [ "$FAULT" = "enospc" ]; then
+    if ( ulimit -f 1 2>/dev/null; exec cp -p "$BACKUP/$rel" "$LIVE/$rel" ); then
+      :
+    else
+      FRC=$?
+      RESTORE_FAULT_HIT=1
+      ev restore_file "$rel" false "\"fault\": \"enospc\", \"rc\": $FRC"
+      fail "restore cp $rel (enospc fault: write size cap hit, rc=$FRC)"
+    fi
+  else
+    cp -p "$BACKUP/$rel" "$LIVE/$rel" || fail "restore cp $rel"
+  fi
   RESTORE_N=$((RESTORE_N+1))
   ev restore_file "$rel" true "\"n\": $RESTORE_N"
 done
+if [ "$FAULT" = "enospc" ] && [ "$RESTORE_FAULT_HIT" -eq 0 ]; then
+  fail "enospc fault did not trigger (all corpus files under the 512B write cap) — injection ineffective, refusing to PASS"
+fi
 
 # ---- 步骤 4：字节级对账 ---------------------------------------------------
 BYTE_MATCH_ALL=1

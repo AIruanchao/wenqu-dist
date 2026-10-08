@@ -1,0 +1,1 @@
+set -o pipefail; rg -n "manifest|required_stations|coverage|scope_hash|scope|duplicate|RFC3339|date-time|denominator|traceability" system/wenqu_core system/tests/test_gate_scope_binding.py system/tests/test_gate_schema_hardening.py system/tests/test_wenqu_adversarial.py tests/acceptance.sh | head -1200

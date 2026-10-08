@@ -1,0 +1,14 @@
+TIMESTAMP_UTC: 2026-10-08T13:03:33Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: /tmp/reaudit7-p07-live.sh 
+OUTPUT_BEGIN
+PATH=/Users/maccc/.wenqu TYPE=directory
+PATH=/Users/maccc/.wenqu/current ABSENT
+PATH=/Users/maccc/.wenqu/dashboard TYPE=directory
+PATH=/Users/maccc/.wenqu/bin/wenqu TYPE=regular
+CURRENT_LINK_SEARCH_BEGIN
+CURRENT_LINK_SEARCH_END
+KEYRING path=/Users/maccc/.wenqu-dist-release/release-keyring.json mode=-rw------- bytes=354
+KEYRING path=/Users/maccc/.wenqu/release-keyring.json ABSENT
+OUTPUT_END
+EXIT_CODE: 0

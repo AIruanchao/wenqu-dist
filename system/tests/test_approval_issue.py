@@ -389,9 +389,21 @@ def test_two_person_rule():
     ap = r["approval"]
     assert verify_envelope(kr.get("key_test_1"), ap, ap["signature"])
     assert verify_envelope(kr.get("key_test_2"), ap, co["co_signature"])
+    # R7-AUTH-DUAL-CONSUME-005：联签必须嵌入信封（消费端契约）——
+    # 两名不同 key、键集封闭、逐条独立可验（对信封体 detached HMAC）
+    env_cos = ap.get("cosignatures")
+    assert env_cos and len(env_cos) == 2
+    assert {c["key_id"] for c in env_cos} == {"key_test_1", "key_test_2"}
+    assert {c["actor"] for c in env_cos} == {"chaoge", "erge"}
+    assert all(set(c) == {"key_id", "actor", "signature"} for c in env_cos)
+    body = {k: v for k, v in ap.items()
+            if k not in ("signature", "cosignatures")}
+    assert all(kr.verify_detached(c["key_id"], body, c["signature"])
+               for c in env_cos)
     assert r["audit_record"]["two_person"] is True \
         and r["audit_record"]["high_risk"] is True \
         and r["audit_record"]["second_key_id"] == "key_test_2"
+    assert r["audit_record"]["cosign_key_ids"] == ["key_test_1", "key_test_2"]
     # 篡改信封后两个签名都失效（同体联签——改一字全崩）
     tampered = dict(ap)
     tampered["decision"] = "deny"
@@ -399,6 +411,10 @@ def test_two_person_rule():
                                ap["signature"])
     assert not verify_envelope(kr.get("key_test_2"), tampered,
                                co["co_signature"])
+    # 篡改联签名本身（替换为伪签名）→ detached 验签失败
+    bad_cos = [dict(c) for c in env_cos]
+    bad_cos[1]["signature"] = "0" * 64
+    assert not kr.verify_detached("key_test_2", body, bad_cos[1]["signature"])
     store.close()
 
 
@@ -516,7 +532,7 @@ def test_revocation_semantics():
 
 
 # ====================================================================== #
-# 9. 高危联签审批 → reserve_action 消费 → 重放拒
+# 9. 高危联签审批（信封内嵌 cosignatures）→ reserve_action 消费 → 重放拒
 # ====================================================================== #
 def test_high_risk_cosigned_reserve_action():
     tmp, store, mgr, kr = fresh()
@@ -533,10 +549,21 @@ def test_high_risk_cosigned_reserve_action():
         payload=dict(PROD_WRITE_PAYLOAD), key_id="key_test_1",
         confirm_two_persons=True, second_key_id="key_test_2",
         second_actor="erge")
+    # R7-AUTH-DUAL-CONSUME-005：联签嵌入信封——两名不同 key、各自可验
+    cos = r["approval"]["cosignatures"]
+    assert len(cos) == 2
+    assert {c["key_id"] for c in cos} == {"key_test_1", "key_test_2"}
+    assert {c["actor"] for c in cos} == {"chaoge", "erge"}
+    assert r["co_signature"]["second_key_id"] == "key_test_2"  # 外置面兼容
+    assert r["audit_record"]["payload_digest"] and \
+        len(r["audit_record"]["payload_digest"]) == 64
+    # 消费必须凭 exact action descriptor（payload 与实参逐字段等值）
     rec = mgr.reserve_action(run_id, "prod-write", "erp://prod/batch-77",
-                             r["approval"], actor="system")
+                             r["approval"], actor="system",
+                             action_descriptor=dict(PROD_WRITE_PAYLOAD))
     assert rec["action_state"] == "RESERVED" \
         and rec["approval_id"] == r["approval"]["approval_id"]
+    assert rec["payload_digest"] == r["audit_record"]["payload_digest"]
     # 消费侧回读：prod_write 消费折叠入 consumed_nonce_*/actions
     # （risk_authorizations 只收集 risk 类授权——消费端正源语义）
     st = mgr.get_run(run_id)
@@ -544,9 +571,22 @@ def test_high_risk_cosigned_reserve_action():
     assert st.consumed_nonce_types[rec["nonce_digest"]] == "prod_write"
     assert st.actions[rec["action_id"]]["approval_id"] == \
         r["approval"]["approval_id"]
+    # APPROVAL_CONSUMED 事件携带 payload_digest + 双联签摘要（对账面）
+    rows = store._conn.execute(  # noqa: SLF001 —— 测试读事件正源
+        "SELECT payload FROM pipeline_events WHERE json_extract("
+        "payload, '$.event_type') = 'APPROVAL_CONSUMED'").fetchall()
+    consumed_ev = json.loads(next(rw[0] for rw in rows
+                                  if json.loads(rw[0]).get("run_id")
+                                  == run_id))
+    assert consumed_ev["payload_digest"] == \
+        r["audit_record"]["payload_digest"]
+    assert len(consumed_ev["cosign_digests"]) == 2
+    assert {c["key_id"] for c in consumed_ev["cosign_digests"]} == \
+        {"key_test_1", "key_test_2"}
     # 重放：同一 nonce 再 reserve → 拒
     expect(ApprovalReuseError, lambda: mgr.reserve_action(
-        run_id, "prod-write", "erp://prod/batch-77", r["approval"]))
+        run_id, "prod-write", "erp://prod/batch-77", r["approval"],
+        action_descriptor=dict(PROD_WRITE_PAYLOAD)))
     assert store.verify_chain()["ok"]
     store.close()
 

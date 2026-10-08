@@ -1,0 +1,6 @@
+COMMAND: python3 -m pytest --version
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+pytest 8.4.2
+--- STDERR ---

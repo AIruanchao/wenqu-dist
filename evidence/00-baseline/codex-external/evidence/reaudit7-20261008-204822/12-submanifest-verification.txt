@@ -1,0 +1,7 @@
+第七轮证据子清单校验
+执行目录：各子证据目录
+命令：shasum -a 256 -c MANIFEST.sha256
+agent-f6-p0: rc=0, all OK
+agent-coverage: rc=0, all OK
+agent-runtime: rc=0, all OK
+校验时间：2026-10-08T21:12:00+08:00

@@ -1,0 +1,13 @@
+COMMAND: python3 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-gate-probe.py'
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 1
+--- STDOUT ---
+--- STDERR ---
+Traceback (most recent call last):
+  File "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-gate-probe.py", line 48, in <module>
+    manifest = planner.freeze_run_manifest(
+  File "/private/tmp/wenqu-reaudit7-coverage-b-22841/system/wenqu_core/bugscan_orchestrator.py", line 819, in freeze_run_manifest
+    return freeze_run_manifest(
+  File "/private/tmp/wenqu-reaudit7-coverage-b-22841/system/wenqu_core/bugscan_orchestrator.py", line 1115, in freeze_run_manifest
+    raise ManifestFreezeError(
+wenqu_core.bugscan_orchestrator.ManifestFreezeError: environment must be one of ('local', 'staging', 'production'), got 'reaudit7'

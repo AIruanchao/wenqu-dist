@@ -1,0 +1,11 @@
+UTC_START=2026-10-08T12:49:35Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /Users/maccc/Documents/wenqu-dist && echo "LS_REMOTE:" && git ls-remote origin refs/heads/main && echo "GH_API_BRANCH:" && gh api repos/AIruanchao/wenqu-dist/branches/main --jq '{name:.name,commit_sha:.commit.sha,protected:.protected,protection:.protection}'
+--- OUTPUT ---
+LS_REMOTE:
+d32c859f9043798d9e8a4984e8f57aa64567e33c	refs/heads/main
+GH_API_BRANCH:
+{"commit_sha":"d32c859f9043798d9e8a4984e8f57aa64567e33c","name":"main","protected":true,"protection":{"enabled":true,"required_status_checks":{"checks":[{"app_id":15368,"context":"matrix (ubuntu-latest)"},{"app_id":15368,"context":"matrix (macos-latest)"}],"contexts":["matrix (ubuntu-latest)","matrix (macos-latest)"],"enforcement_level":"everyone"}}}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:49:42Z

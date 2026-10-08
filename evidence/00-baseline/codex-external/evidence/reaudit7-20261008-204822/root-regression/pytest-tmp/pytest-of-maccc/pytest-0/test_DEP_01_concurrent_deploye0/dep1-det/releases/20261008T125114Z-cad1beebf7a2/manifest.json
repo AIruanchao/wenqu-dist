@@ -1,0 +1,27 @@
+{
+  "content_digest": "cad1beebf7a253137879cbb0e8d4e556a8720554b9531a5467f2ec3f2cc4817b",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "8fe71f52ae340d3a6136d7918652c3dd15a760765278a9841a2895032161c647",
+      "size": 25
+    },
+    {
+      "mode": "0444",
+      "path": "flag-b.txt",
+      "sha256": "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f",
+      "size": 2
+    }
+  ],
+  "release_id": "20261008T125114Z-cad1beebf7a2",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_01_concurrent_deploye0/dep1-det-b"
+}

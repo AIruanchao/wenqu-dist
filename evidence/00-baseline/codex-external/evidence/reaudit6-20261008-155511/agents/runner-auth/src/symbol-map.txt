@@ -1,0 +1,222 @@
+system/wenqu_core/station3_contract.py:1423:    def run(
+system/wenqu_core/store.py:83:class EventStore:
+system/wenqu_core/store.py:108:    def append(self, event: Dict[str, Any]) -> Tuple[str, bool]:
+system/wenqu_core/wenqu_pipeline.py:69:  #8 第二正源 → nonce/risk 消费以 pipeline_events 的 APPROVAL_CONSUMED
+system/wenqu_core/wenqu_pipeline.py:74:      COMMITTED / FAILED_UNKNOWN；control_outbox 事件；receipt 对账占位）。
+system/wenqu_core/wenqu_pipeline.py:83:    授权消费（APPROVAL_CONSUMED）与 ACTION_AUTH_RESERVED 同事务原子成对；
+system/wenqu_core/wenqu_pipeline.py:84:  - receipt 分级：调用方自报 receipt 只能记 PROVISIONAL（事件 receipt
+system/wenqu_core/wenqu_pipeline.py:85:    字符串带内前缀 ``PROVISIONAL|…``，不扩 schema），start 后停在该态；
+system/wenqu_core/wenqu_pipeline.py:88:    事件 receipt 记 ``RECONCILED|<sha256>|<外部引用>``；对账不了/外部声明
+system/wenqu_core/wenqu_pipeline.py:89:    失败的动作走 fail_action → FAILED_UNKNOWN 终态；
+system/wenqu_core/wenqu_pipeline.py:91:    APPROVAL_CONSUMED 且 approval_type 与 action_type 匹配）与 receipt
+system/wenqu_core/wenqu_pipeline.py:92:    分级（COMMITTED 出现非 RECONCILED 分级回执即 Corruption）。
+system/wenqu_core/wenqu_pipeline.py:135:    "RECEIPT_PROVISIONAL",
+system/wenqu_core/wenqu_pipeline.py:136:    "RECEIPT_RECONCILED",
+system/wenqu_core/wenqu_pipeline.py:448:ACTION_FAILED_UNKNOWN = "FAILED_UNKNOWN"
+system/wenqu_core/wenqu_pipeline.py:451:    ACTION_RESERVED, ACTION_STARTED, ACTION_COMMITTED, ACTION_FAILED_UNKNOWN,
+system/wenqu_core/wenqu_pipeline.py:453:TERMINAL_ACTION_STATES = frozenset({ACTION_COMMITTED, ACTION_FAILED_UNKNOWN})
+system/wenqu_core/wenqu_pipeline.py:454:#: saga 转换表：RESERVED→STARTED|FAILED_UNKNOWN；STARTED→COMMITTED|FAILED_UNKNOWN
+system/wenqu_core/wenqu_pipeline.py:456:    ACTION_RESERVED: frozenset({ACTION_STARTED, ACTION_FAILED_UNKNOWN}),
+system/wenqu_core/wenqu_pipeline.py:457:    ACTION_STARTED: frozenset({ACTION_COMMITTED, ACTION_FAILED_UNKNOWN}),
+system/wenqu_core/wenqu_pipeline.py:479:#:   ``PROVISIONAL|<调用方自报文本>``    ACTION_STARTED 携带的自报回执；
+system/wenqu_core/wenqu_pipeline.py:480:#:   ``RECONCILED|<sha256>|<外部引用>``  ACTION_COMMITTED 携带的外部正源
+system/wenqu_core/wenqu_pipeline.py:482:#: 重放按前缀强校验：COMMITTED 出现非 RECONCILED 分级的回执即 Corruption。
+system/wenqu_core/wenqu_pipeline.py:483:RECEIPT_PROVISIONAL = "PROVISIONAL"
+system/wenqu_core/wenqu_pipeline.py:484:RECEIPT_RECONCILED = "RECONCILED"
+system/wenqu_core/wenqu_pipeline.py:504:    "APPROVAL_CONSUMED", "FINDING_REGISTERED",
+system/wenqu_core/wenqu_pipeline.py:506:    "ACTION_FAILED_UNKNOWN",
+system/wenqu_core/wenqu_pipeline.py:557:class ApprovalError(PipelineError):
+system/wenqu_core/wenqu_pipeline.py:561:class ApprovalRejected(ApprovalError):
+system/wenqu_core/wenqu_pipeline.py:570:class ApprovalReuseError(ApprovalError):
+system/wenqu_core/wenqu_pipeline.py:574:class ApprovalPreconditionError(ApprovalError):
+system/wenqu_core/wenqu_pipeline.py:578:class ActionError(PipelineError):
+system/wenqu_core/wenqu_pipeline.py:694:    """外部回执 → 事件流登记的 RECONCILED 分级 receipt 字符串。"""
+system/wenqu_core/wenqu_pipeline.py:696:        RECEIPT_RECONCILED, _sha256_hex(_canonical_json(dict(rc))),
+system/wenqu_core/wenqu_pipeline.py:763:      （APPROVAL_CONSUMED 事件——approval_consumptions 旁表仅加速查询）；
+system/wenqu_core/wenqu_pipeline.py:1050:    def append_event(conn: sqlite3.Connection,
+system/wenqu_core/wenqu_pipeline.py:1088:class ApprovalBroker:
+system/wenqu_core/wenqu_pipeline.py:1111:    「占 nonce 旁表（加速索引）+ 追加 APPROVAL_CONSUMED 控制事件（唯一
+system/wenqu_core/wenqu_pipeline.py:1420:            if (payload.get("event_type") == "APPROVAL_CONSUMED"
+system/wenqu_core/wenqu_pipeline.py:1430:        """APPROVAL_CONSUMED 控制事件（nonce/risk 消费的唯一正源，观察类）。"""
+system/wenqu_core/wenqu_pipeline.py:1433:            "event_type": "APPROVAL_CONSUMED",
+system/wenqu_core/wenqu_pipeline.py:1457:    # 原子消费（resume 专用：nonce + APPROVAL_CONSUMED + WAITING_RESUMED 同事务）
+system/wenqu_core/wenqu_pipeline.py:1459:    def consume(
+system/wenqu_core/wenqu_pipeline.py:1517:            # —— 写半边（同事务）：旁表索引 → APPROVAL_CONSUMED 正源事件
+system/wenqu_core/wenqu_pipeline.py:1567:    def consume_authorization(
+system/wenqu_core/wenqu_pipeline.py:1582:        → 同事务原子「旁表索引 + APPROVAL_CONSUMED 正源事件（带 seal）」。
+system/wenqu_core/wenqu_pipeline.py:1610:        事务内复用——授权消费（旁表 + APPROVAL_CONSUMED 正源事件）与
+system/wenqu_core/wenqu_pipeline.py:1736:    def consumed_approvals(self, run_id: Optional[str] = None,
+system/wenqu_core/wenqu_pipeline.py:1739:        """查询消费台账（加速索引；正源是 APPROVAL_CONSUMED 事件流）。"""
+system/wenqu_core/wenqu_pipeline.py:1773:            if (payload.get("event_type") != "APPROVAL_CONSUMED"
+system/wenqu_core/wenqu_pipeline.py:1808:class RunManager:
+system/wenqu_core/wenqu_pipeline.py:1880:    # 即 PipelineCorruptionError；观察类事件（APPROVAL_CONSUMED/
+system/wenqu_core/wenqu_pipeline.py:1916:            if etype == "APPROVAL_CONSUMED":
+system/wenqu_core/wenqu_pipeline.py:1920:                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+system/wenqu_core/wenqu_pipeline.py:1925:                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+system/wenqu_core/wenqu_pipeline.py:2115:          对应 APPROVAL_CONSUMED（其 approval_type 与 action_type 匹配）；
+system/wenqu_core/wenqu_pipeline.py:2116:        - STARTED 的自报 receipt 必须是 PROVISIONAL 分级（带内前缀）；
+system/wenqu_core/wenqu_pipeline.py:2117:        - COMMITTED 的 receipt 必须是 RECONCILED|<sha256>|<外部引用> 分级
+system/wenqu_core/wenqu_pipeline.py:2118:          ——自报裸串/PROVISIONAL 分级出现在 COMMITTED 即 Corruption。
+system/wenqu_core/wenqu_pipeline.py:2125:            "ACTION_FAILED_UNKNOWN": ACTION_FAILED_UNKNOWN,
+system/wenqu_core/wenqu_pipeline.py:2148:                    f"APPROVAL_CONSUMED（授权消费链缺失——F4-AUTH-001）")
+system/wenqu_core/wenqu_pipeline.py:2179:                        RECEIPT_PROVISIONAL + "|")):
+system/wenqu_core/wenqu_pipeline.py:2182:                        f"非 PROVISIONAL 分级 receipt（自报分级越权"
+system/wenqu_core/wenqu_pipeline.py:2185:                current["receipt_status"] = RECEIPT_PROVISIONAL
+system/wenqu_core/wenqu_pipeline.py:2189:            if (len(parts) != 3 or parts[0] != RECEIPT_RECONCILED
+system/wenqu_core/wenqu_pipeline.py:2193:                    f"非外部正源对账分级（RECONCILED|<sha256>|<外部引用>）"
+system/wenqu_core/wenqu_pipeline.py:2196:            current["receipt_status"] = RECEIPT_RECONCILED
+system/wenqu_core/wenqu_pipeline.py:2442:    def resume_waiting(
+system/wenqu_core/wenqu_pipeline.py:2533:                # APPROVAL_CONSUMED 折叠而来），且指纹必须与当前可风险接受
+system/wenqu_core/wenqu_pipeline.py:2670:    # RESERVED → STARTED → COMMITTED / FAILED_UNKNOWN（终态）
+system/wenqu_core/wenqu_pipeline.py:2673:    def reserve_action(self, run_id: str, action_type: str, target: str,
+system/wenqu_core/wenqu_pipeline.py:2685:        授权消费（APPROVAL_CONSUMED 正源事件）与 ACTION_AUTH_RESERVED 在
+system/wenqu_core/wenqu_pipeline.py:2687:        （reserved 必须有对应 APPROVAL_CONSUMED 且类型匹配）。
+system/wenqu_core/wenqu_pipeline.py:2711:            # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
+system/wenqu_core/wenqu_pipeline.py:2715:            state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
+system/wenqu_core/wenqu_pipeline.py:2756:    def start_action(self, run_id: str, action_id: str, *,
+system/wenqu_core/wenqu_pipeline.py:2762:        PROVISIONAL 分级登记（事件 receipt 记 ``PROVISIONAL|<自报文本>``），
+system/wenqu_core/wenqu_pipeline.py:2770:            if receipt.startswith((RECEIPT_PROVISIONAL + "|",
+system/wenqu_core/wenqu_pipeline.py:2771:                                   RECEIPT_RECONCILED + "|")):
+system/wenqu_core/wenqu_pipeline.py:2775:            extra["receipt"] = f"{RECEIPT_PROVISIONAL}|{receipt}"
+system/wenqu_core/wenqu_pipeline.py:2780:    def commit_action(self, run_id: str, action_id: str,
+system/wenqu_core/wenqu_pipeline.py:2785:        F4-AUTH-001 根修：调用方自报回执（裸字符串）只能停在 PROVISIONAL
+system/wenqu_core/wenqu_pipeline.py:2790:        对账不了 / 外部声明 FAILED 的动作走 fail_action → FAILED_UNKNOWN
+system/wenqu_core/wenqu_pipeline.py:2791:        终态。事件 receipt 记 ``RECONCILED|<sha256>|<外部引用>``（重放强校验）。
+system/wenqu_core/wenqu_pipeline.py:2797:                "（只能 PROVISIONAL——F4-AUTH-001）")
+system/wenqu_core/wenqu_pipeline.py:2811:                    f"对账为失败：动作应 fail_action → FAILED_UNKNOWN 终态")
+system/wenqu_core/wenqu_pipeline.py:2822:                    "receipt_status": RECEIPT_RECONCILED,
+system/wenqu_core/wenqu_pipeline.py:2827:    def fail_action(self, run_id: str, action_id: str, detail: str = "",
+system/wenqu_core/wenqu_pipeline.py:2829:        """动作结果未知（RESERVED/STARTED → FAILED_UNKNOWN 终态）。
+system/wenqu_core/wenqu_pipeline.py:2833:        return self._advance_action(run_id, action_id, ACTION_FAILED_UNKNOWN,
+system/wenqu_core/wenqu_pipeline.py:2834:                                    event_type="ACTION_FAILED_UNKNOWN",
+system/wenqu_core/wenqu_pipeline.py:2876:    def reconcile_receipt(self, run_id: str, action_id: str,
+system/wenqu_core/wenqu_pipeline.py:2885:          的动作走 fail_action → FAILED_UNKNOWN 终态；
+system/wenqu_core/wenqu_pipeline.py:2886:        - FAILED_UNKNOWN 终态动作 → reconciled=None（终态不可再裁决）。
+system/wenqu_core/wenqu_pipeline.py:2892:        if action["action_state"] == ACTION_FAILED_UNKNOWN:
+system/wenqu_core/wenqu_pipeline.py:2895:                    "note": "FAILED_UNKNOWN 终态——不可再对账，须外部正源/"
+system/wenqu_core/wenqu_pipeline.py:2906:                    "note": "对账失败：fail_action → FAILED_UNKNOWN 终态"}
+system/wenqu_core/wenqu_pipeline.py:2911:                            "FAILED_UNKNOWN 终态"}
+system/wenqu_core/wenqu_pipeline.py:2926:class ActionSaga:
+system/wenqu_core/wenqu_pipeline.py:2927:    """action 编排 saga 规则：RESERVED→STARTED→COMMITTED / FAILED_UNKNOWN。
+system/wenqu_core/wenqu_pipeline.py:2944:                f"(allowed: RESERVED→STARTED|FAILED_UNKNOWN, "
+system/wenqu_core/wenqu_pipeline.py:2945:                f"STARTED→COMMITTED|FAILED_UNKNOWN)")
+system/wenqu_core/runner.py:17:  唯一 run token（环境变量 ``__WENQU_RUN_TOKEN__``，在环境白名单剥除
+system/wenqu_core/runner.py:19:  之外按 token 全系统扫杀——linux 逐 pid 读 ``/proc/<pid>/environ``，
+system/wenqu_core/runner.py:20:  darwin 用 ``ps -AxE -o pid=,command=``（含环境输出）逐行匹配完整
+system/wenqu_core/runner.py:52:# P0-8：run token 哨兵环境变量名——每次 run() 注入唯一 crypto 随机值，
+system/wenqu_core/runner.py:55:RUN_TOKEN_ENV: str = "__WENQU_RUN_TOKEN__"
+system/wenqu_core/runner.py:92:class TrustedRunner:
+system/wenqu_core/runner.py:165:    def _descendants(root_pid: int) -> Set[int]:
+system/wenqu_core/runner.py:183:        descendants: Set[int] = set()
+system/wenqu_core/runner.py:186:            nxt = {p for p, pp in ppids.items() if pp in frontier and p not in descendants}
+system/wenqu_core/runner.py:189:            descendants |= nxt
+system/wenqu_core/runner.py:191:        return descendants
+system/wenqu_core/runner.py:195:        """超时击杀：killpg + 进程树扫荡 + run token 全系统扫杀（P0-8）。
+system/wenqu_core/runner.py:197:        三层互补：killpg 杀整进程组；_descendants 按 PPID 图补杀 setsid
+system/wenqu_core/runner.py:213:            snap = self._descendants(proc.pid)
+system/wenqu_core/runner.py:223:                late = self._descendants(proc.pid) - snap
+system/wenqu_core/runner.py:231:    # P0-8：按 run token 全系统扫描存活进程（daemon 化逃逸的收网）
+system/wenqu_core/runner.py:235:        """返回 environ 携带本 run token 的全部进程 pid。
+system/wenqu_core/runner.py:237:        - linux：逐 pid 读 ``/proc/<pid>/environ``（本用户进程可读；
+system/wenqu_core/runner.py:239:        - darwin/BSD：``ps -AxE -o pid=,command=``（``-E`` 附带环境输出）
+system/wenqu_core/runner.py:248:        if os.path.isdir("/proc"):
+system/wenqu_core/runner.py:250:                names = os.listdir("/proc")
+system/wenqu_core/runner.py:257:                    with open(os.path.join("/proc", name, "environ"),
+system/wenqu_core/runner.py:293:        """在白名单环境之上注入本次执行的唯一 run token（P0-8 内部哨兵）。
+system/wenqu_core/runner.py:303:        env[RUN_TOKEN_ENV] = token_value
+system/wenqu_core/runner.py:309:    def run(self, argv: List[str], cwd: Optional[str] = None) -> Evidence:
+system/wenqu_core/runner.py:315:        # P0-8：每次执行注入唯一 run token——超时按 token 全系统扫杀
+system/wenqu_core/runner.py:317:        run_token = secrets.token_hex(24)
+system/wenqu_core/runner.py:318:        token_pair = f"{RUN_TOKEN_ENV}={run_token}"
+system/wenqu_core/runner.py:327:                env=self._build_run_env(run_token),  # P0-5 白名单 + P0-8 token
+system/wenqu_core/station2_static.py:422:    def run_captured(self, argv: List[str], cwd: Optional[str] = None) -> CapturedRun:
+system/wenqu_core/station2_static.py:1730:        def run_captured(self, argv, cwd=None):
+system/wenqu_core/scheduler.py:1317:    def run_job(self, job_id: str, *, scheduled_at: Optional[float] = None,
+system/wenqu_core/approval_keys.py:85:class ApprovalKeyring:
+system/tests/test_wenqu_adversarial.py:20:      判别+state_version CAS）；自报 receipt 只能 PROVISIONAL，commit 必须
+system/tests/test_wenqu_adversarial.py:22:      重放校验授权消费链（reserved 必须有对应 APPROVAL_CONSUMED）。
+system/tests/test_wenqu_adversarial.py:42:    RECEIPT_PROVISIONAL, RECEIPT_RECONCILED,
+system/tests/test_wenqu_adversarial.py:468:    for etype in ("WAITING_RAISED", "APPROVAL_CONSUMED", "ACTION_STARTED",
+system/tests/test_wenqu_adversarial.py:517:    assert st2.consumed_nonce_digests, "APPROVAL_CONSUMED 应折叠进消费面"
+system/tests/test_wenqu_adversarial.py:657:    # RESERVED → STARTED（自报 receipt 只能 PROVISIONAL 分级）
+system/tests/test_wenqu_adversarial.py:661:    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+system/tests/test_wenqu_adversarial.py:662:    assert st.actions[aid]["receipt"].startswith("PROVISIONAL|")
+system/tests/test_wenqu_adversarial.py:665:    # F4-AUTH-001：自报字符串 commit 必拒——必须停在 PROVISIONAL 不可 COMMITTED
+system/tests/test_wenqu_adversarial.py:669:    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+system/tests/test_wenqu_adversarial.py:686:    assert c["receipt_status"] == RECEIPT_RECONCILED
+system/tests/test_wenqu_adversarial.py:688:    assert st.actions[aid]["receipt"].startswith("RECONCILED|")
+system/tests/test_wenqu_adversarial.py:689:    assert st.actions[aid]["receipt_status"] == RECEIPT_RECONCILED
+system/tests/test_wenqu_adversarial.py:693:    # FAILED_UNKNOWN 终态路径（另一个 action：ddl 审批 + 对账不了收口）
+system/tests/test_wenqu_adversarial.py:700:    assert f["action_state"] == "FAILED_UNKNOWN"
+system/tests/test_wenqu_adversarial.py:702:    # FAILED_UNKNOWN 终态：reconcile 不再裁决（reconciled=None，终态收口）
+system/tests/test_wenqu_adversarial.py:704:    assert rec["reconciled"] is None and "FAILED_UNKNOWN" in rec["note"]
+system/tests/test_wenqu_adversarial.py:722:    assert st2.actions[aid]["receipt_status"] == RECEIPT_RECONCILED
+system/tests/test_wenqu_adversarial.py:724:    assert st2.actions[aid2]["action_state"] == "FAILED_UNKNOWN"
+system/tests/test_wenqu_adversarial.py:746:    (2) 自报 receipt 的 commit 必须停在 PROVISIONAL 不可 COMMITTED；
+system/tests/test_wenqu_adversarial.py:766:    # -- 探针 (2)+(3)：合法链走通 + 自报 receipt 停 PROVISIONAL --
+system/tests/test_wenqu_adversarial.py:781:    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+system/tests/test_wenqu_adversarial.py:787:    # -- 重放授权消费链：伪造无 APPROVAL_CONSUMED 的 RESERVED → Corruption --
+system/tests/test_wenqu_adversarial.py:833:    def run(*args, expect_rc=0):
+system/tests/test_wenqu_adversarial.py:905:    ("#8 第二正源 → APPROVAL_CONSUMED 事件为唯一正源", adv8_event_source_of_truth),
+system/tests/test_wenqu_adversarial.py:908:    ("#11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门", adv11_action_auth_gate),
+system/tests/test_ac_auth_cond.py:67:    ACTION_FAILED_UNKNOWN,
+system/tests/test_ac_auth_cond.py:76:    RECEIPT_RECONCILED,
+system/tests/test_ac_auth_cond.py:991:            and committed["receipt_status"] == RECEIPT_RECONCILED,
+system/tests/test_ac_auth_cond.py:1184:        _ok(failed["action_state"] == ACTION_FAILED_UNKNOWN, "动作失败收口 FAILED_UNKNOWN")
+system/tests/test_ac_auth_cond.py:1187:        _ok(rec["reconciled"] is None and "FAILED_UNKNOWN" in rec["note"],
+system/tests/test_ac_auth_cond.py:1202:        _ok(mgr.get_run(run_id).actions[aid]["action_state"] == ACTION_FAILED_UNKNOWN,
+system/tests/test_ac_act_run.py:13:    _ACTION_APPROVAL_TYPE 封闭映射、receipt PROVISIONAL/RECONCILED 分级、
+system/tests/test_ac_act_run.py:14:    commit 只收外部验签回执、FAILED_UNKNOWN、重放授权消费链校验）
+system/tests/test_ac_act_run.py:17:    TrustedRunner（run token 注入 + 超时三层击杀 killpg+进程树+token 全
+system/tests/test_ac_act_run.py:38:  COMMITTED 或 FAILED_UNKNOWN；绝不盲重试」→ reconcile_receipt（只读
+system/tests/test_ac_act_run.py:40:  FAILED → fail_action=FAILED_UNKNOWN 终态；终态与一次性 nonce 封死
+system/tests/test_ac_act_run.py:44:  回执拒绝——动作停留 STARTED/PROVISIONAL（不可 COMMITTED）；ruleset/
+system/tests/test_ac_act_run.py:92:from wenqu_core.runner import RUN_TOKEN_ENV, TrustedRunner  # noqa: E402
+system/tests/test_ac_act_run.py:100:    RECEIPT_PROVISIONAL,
+system/tests/test_ac_act_run.py:101:    RECEIPT_RECONCILED,
+system/tests/test_ac_act_run.py:258:    for etype in ("APPROVAL_CONSUMED", "ACTION_AUTH_RESERVED", "ACTION_STARTED",
+system/tests/test_ac_act_run.py:259:                  "ACTION_COMMITTED", "ACTION_FAILED_UNKNOWN"):
+system/tests/test_ac_act_run.py:400:        _ok(_count_events(mgr, "APPROVAL_CONSUMED", run_c) == 1,
+system/tests/test_ac_act_run.py:406:            _ok(_count_events(mgr, "APPROVAL_CONSUMED", rid) == 0
+system/tests/test_ac_act_run.py:499:        _ok(st_rc.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL,
+system/tests/test_ac_act_run.py:500:            "恢复重放应还原 PROVISIONAL 分级")
+system/tests/test_ac_act_run.py:538:            and st_after.actions[aid]["receipt_status"] == RECEIPT_RECONCILED,
+system/tests/test_ac_act_run.py:539:            "最终重放：恰一次 COMMITTED 且为 RECONCILED 分级")
+system/tests/test_ac_act_run.py:543:        #    原子成对——伪造"无 APPROVAL_CONSUMED 的 RESERVED"直插事件流，
+system/tests/test_ac_act_run.py:562:#         期望：先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试
+system/tests/test_ac_act_run.py:571:        #    → FAILED_UNKNOWN 终态；绝不盲重试（nonce 已消费、终态封死）
+system/tests/test_ac_act_run.py:584:        _ok(f["action_state"] == "FAILED_UNKNOWN",
+system/tests/test_ac_act_run.py:585:            "对账不了必须收口 FAILED_UNKNOWN（绝不猜 COMMITTED）")
+system/tests/test_ac_act_run.py:607:            and c2["receipt_status"] == RECEIPT_RECONCILED,
+system/tests/test_ac_act_run.py:608:            "凭外部事实落 COMMITTED（RECONCILED 分级）")
+system/tests/test_ac_act_run.py:611:        #    走 fail_action → FAILED_UNKNOWN
+system/tests/test_ac_act_run.py:620:        _ok("FAILED_UNKNOWN" in str(exc),
+system/tests/test_ac_act_run.py:623:                "action_state"] == "FAILED_UNKNOWN", "FAILED → FAILED_UNKNOWN")
+system/tests/test_ac_act_run.py:625:        # -- 重放终态面：三动作全部闭口于 {FAILED_UNKNOWN, COMMITTED}，
+system/tests/test_ac_act_run.py:629:        _ok(states[a1["action_id"]] == "FAILED_UNKNOWN"
+system/tests/test_ac_act_run.py:631:            and states[a3["action_id"]] == "FAILED_UNKNOWN",
+system/tests/test_ac_act_run.py:633:        _ok(all(s in ("COMMITTED", "FAILED_UNKNOWN")
+system/tests/test_ac_act_run.py:664:        #    全拒——动作停留 STARTED+PROVISIONAL（BLOCKED，不可 COMMITTED）
+system/tests/test_ac_act_run.py:676:        _ok(st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL,
+system/tests/test_ac_act_run.py:677:            "回执分级必须停留 PROVISIONAL，不得自宣 RECONCILED")
+system/tests/test_ac_act_run.py:799:            _ok(RUN_TOKEN_ENV in keys, "内部 run token 哨兵应在位（扫杀锚点）")
+system/tests/test_ac_act_run.py:865:def test_RUN_02_timeout_kills_all_descendants_no_orphan_writes(
+system/tests/test_ac_act_run.py:970:        "（event_id INSERT OR IGNORE）+ APPROVAL_CONSUMED/ACTION_AUTH_RESERVED "
+system/tests/test_ac_act_run.py:974:        "不可得时动作停留 STARTED/PROVISIONAL 不可 COMMITTED（BLOCKED），"
+system/tests/test_ac_station_families.py:144:    def run_captured(self, argv, cwd=None):
+system/tests/test_infra_hardening.py:22:        -> test_p05_runner_setsid_descendant_marker_must_fail
+system/tests/test_infra_hardening.py:375:def test_p05_runner_setsid_descendant_marker_must_fail():
+system/tests/test_infra_hardening.py:390:                f"open({marker!r}, 'w').write('descendant survived killpg')\n"
+system/tests/test_ac_deploy_release.py:483:    def run_current(script: str, *args: str) -> str:
+system/tests/test_runner_daemon.py:6:daemon 被 PID 1 收养；TrustedRunner 超时时 _descendants(root_pid) 从已死
+system/tests/test_runner_daemon.py:10:根修：每次 run() 注入唯一 run token（__WENQU_RUN_TOKEN__，环境白名单剥除
+system/tests/test_runner_daemon.py:12:按 token 全系统扫杀（darwin：ps -AxE -o pid=,command= 含环境输出逐行匹配；
+system/tests/test_runner_daemon.py:13:linux：逐 pid 读 /proc/<pid>/environ）。reparent 后的 daemon 在 environ
+system/tests/test_runner_daemon.py:32:    RUN_TOKEN_ENV,
+system/tests/test_runner_daemon.py:125:    token_pair = f"{RUN_TOKEN_ENV}={token_value}"
+system/tests/test_runner_daemon.py:141:    env[RUN_TOKEN_ENV] = token_value
+system/tests/test_runner_daemon.py:184:            _ck("P0-8 run token 哨兵随子进程环境（扫杀锚点在位）",
+system/tests/test_runner_daemon.py:185:                RUN_TOKEN_ENV in keys)
+system/tests/test_runner_daemon.py:187:                RUN_TOKEN_ENV not in os.environ)
+system/tests/test_gate_schema_hardening.py:362:    def run_event(**over):
+system/tests/test_wenqu_pipeline.py:328:    def resume(ap, pre=None):

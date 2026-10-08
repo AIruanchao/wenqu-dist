@@ -1,0 +1,11 @@
+COMMAND: cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-p1f-delete-gate-365-67622'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-p1f-delete-ui-365-67622'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-p1f-vacuous-one-365-67622'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-tamper-id-365-67622'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-tamper-semantic-365-67622'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-tamper-251-365-67622'; for d in '/tmp/wq7b-p1f-delete-gate-365-67622' '/tmp/wq7b-p1f-delete-ui-365-67622' '/tmp/wq7b-p1f-vacuous-one-365-67622' '/tmp/wq7b-tamper-id-365-67622' '/tmp/wq7b-tamper-semantic-365-67622' '/tmp/wq7b-tamper-251-365-67622'; do printf '%s ' "$d"; git -C "$d" rev-parse HEAD; done
+WORKDIR: /tmp
+EXIT_CODE: 0
+--- STDOUT ---
+/tmp/wq7b-p1f-delete-gate-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+/tmp/wq7b-p1f-delete-ui-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+/tmp/wq7b-p1f-vacuous-one-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+/tmp/wq7b-tamper-id-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+/tmp/wq7b-tamper-semantic-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+/tmp/wq7b-tamper-251-365-67622 d32c859f9043798d9e8a4984e8f57aa64567e33c
+--- STDERR ---

@@ -1,0 +1,15 @@
+TIMESTAMP_UTC: 2026-10-08T12:52:59Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/gate_independent_probe.py /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+{"counts": {"bypass_stations": 0, "conflicts": 0, "duplicates_ignored": 0, "malformed": 0, "required_missing": 0, "required_reported": 2, "required_total": 2, "scope_violations": 0}, "mode": "manifest", "outcome": "PASS", "probe": "legitimate_manifest_control", "rc": 0, "reason": "all 2 required stations PASS"}
+{"counts": {"bypass_stations": 0, "conflicts": 0, "duplicates_ignored": 0, "malformed": 0, "required_missing": 0, "required_reported": 1, "required_total": 1, "scope_violations": 0}, "mode": "manifest", "outcome": "PASS", "probe": "rehashed_required_shrink", "rc": 0, "reason": "all 1 required stations PASS"}
+forged_top_required= [0] planner_required= [0, 1]
+{"counts": {"bypass_stations": 0, "conflicts": 0, "duplicates_ignored": 1, "malformed": 0, "required_missing": 0, "required_reported": 2, "required_total": 2, "scope_violations": 0}, "mode": "manifest", "outcome": "PASS", "probe": "duplicate_semantic_conflict_ignored", "rc": 0, "reason": "all 2 required stations PASS"}
+{"counts": {"bypass_stations": 0, "conflicts": 0, "duplicates_ignored": 0, "malformed": 1, "required_missing": 0, "required_reported": 2, "required_total": 2, "scope_violations": 0}, "mode": "manifest", "outcome": "BLOCKED", "probe": "rfc3339_pure_date_rejected", "rc": 2, "reason": "station-result-v2 schema violation x1 [first=execution.started_at must be an RFC3339 date-time (full date+time+timezone; bare date/timezone-less rejected)]"}
+formal_schema_65_66_error_count= 0
+mirror_65_66_error_count= 1 first= PASS coverage.scanned(65) != denominator(66) — denominator shrinkage
+{"counts": {"bypass_stations": 0, "conflicts": 0, "duplicates_ignored": 0, "malformed": 1, "required_missing": 0, "required_reported": 1, "required_total": 1}, "mode": "self_declared_diagnostic", "outcome": "BLOCKED", "probe": "gate_mirror_65_66_rejected", "rc": 2, "reason": "station-result-v2 schema violation x1 [first=PASS coverage.scanned(65) != denominator(66) — denominator shrinkage]"}
+RESULT: independent gate probes completed; two bypasses reproduced
+OUTPUT_END
+EXIT_CODE: 0

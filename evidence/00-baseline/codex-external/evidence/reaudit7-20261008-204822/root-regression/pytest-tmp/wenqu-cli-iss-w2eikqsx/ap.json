@@ -1,0 +1,28 @@
+{
+  "schema_version": "2.0",
+  "approval_id": "apr_746f9eca8b14429685a26f32fd54a553",
+  "approval_type": "resume",
+  "key_id": "key_cli_a",
+  "run_id": "run_20261008T205206Z_0a5e43bc",
+  "task_id": "task_cli_iss",
+  "stop_event_id": "f0447c56cb4d15473240cfb165020bf45cfd02ad2eb9fd585167f5435992cc8a",
+  "stop_type": "prod-write",
+  "stage": "S1_REQUIREMENT",
+  "environment": "staging",
+  "authorized_scope": "scope-hash-001",
+  "policy_hash": "policy-sha-001",
+  "ruleset_hash": "rules-7",
+  "input_watermark": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_state_version": 3,
+  "actor": "chaoge",
+  "issued_at": "2026-10-08T12:52:07Z",
+  "expires_at": "2026-10-08T13:52:07Z",
+  "nonce": "015c91c974efb98f4a1a0faf88d42b9c",
+  "decision": "approve",
+  "payload": {
+    "stop_event_id": "f0447c56cb4d15473240cfb165020bf45cfd02ad2eb9fd585167f5435992cc8a",
+    "stop_type": "prod-write",
+    "objective_precondition_hash": "2f678321afe42f5e89e03d9afd72894893bdd35312ac2b76562eede846c94684"
+  },
+  "signature": "cd8e8bf3072c11642d184f3df94a16df0be9251e73f6e1a2cfea97d8aa8ff3c1"
+}

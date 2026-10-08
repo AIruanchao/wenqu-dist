@@ -1,0 +1,3 @@
+{"id": "G-1", "sev": "HIGH", "status": "FIXED", "kind": "finding", "ts": "2026-10-08T12:54:34Z"}
+{"kind": "transition", "id": "G-1", "from": "FIXED", "to": "OPEN", "note": "重开合法", "ts": "2026-10-08T12:54:34Z"}
+{"kind": "transition", "id": "G-1", "from": "OPEN", "to": "FIXING", "note": "allow-any 逃生门", "ts": "2026-10-08T12:54:34Z"}

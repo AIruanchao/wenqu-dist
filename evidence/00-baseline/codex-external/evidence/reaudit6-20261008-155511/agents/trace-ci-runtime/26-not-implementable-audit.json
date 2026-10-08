@@ -1,0 +1,12 @@
+{
+  "matrix_missing_count": 32,
+  "whole_id_module_registrations_count": 22,
+  "registered_missing_ids": [
+    "CI-06", "DEP-01", "DEP-02", "DEP-04", "DEP-05", "DEP-06", "DEP-07", "DEP-08", "DEP-09",
+    "GATE-09", "GATE-10", "GATE-11", "MIG-05", "PERF-03", "PERF-04", "SC-03", "SC-05",
+    "STATE-02", "STATE-05", "STATE-09", "STATE-11", "TEN-04"
+  ],
+  "missing_but_not_module_registered_count": 10,
+  "missing_but_not_module_registered_ids": ["BAK-01", "CAP-01", "DR-01", "UI-01", "UI-02", "UI-03", "UI-04", "UI-05", "UI-06", "UI-07"],
+  "note": "BOUNDARIES/_NOT_IMPLEMENTABLE 中对已实现 ID 的子面边界不计作32个整ID不可实现登记；全仓检索仅README/威胁模型提及上述10项，无各测试文件模块级逐ID理由。"
+}

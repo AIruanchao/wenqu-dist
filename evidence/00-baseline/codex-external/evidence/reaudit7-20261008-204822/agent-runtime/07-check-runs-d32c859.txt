@@ -1,0 +1,8 @@
+UTC_START=2026-10-08T12:49:48Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=gh api repos/AIruanchao/wenqu-dist/commits/d32c859f9043798d9e8a4984e8f57aa64567e33c/check-runs --jq '{total_count:.total_count,check_runs:[.check_runs[]|{name,status,conclusion,details_url,started_at,completed_at,app:.app.slug}]}'
+--- OUTPUT ---
+{"check_runs":[{"app":"github-actions","completed_at":"2026-10-08T12:47:17Z","conclusion":"success","details_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37778240376/job/113314473846","name":"matrix (macos-latest)","started_at":"2026-10-08T12:37:57Z","status":"completed"},{"app":"github-actions","completed_at":"2026-10-08T12:40:12Z","conclusion":"success","details_url":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37778240376/job/113314473537","name":"matrix (ubuntu-latest)","started_at":"2026-10-08T12:37:54Z","status":"completed"}],"total_count":2}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:49:50Z

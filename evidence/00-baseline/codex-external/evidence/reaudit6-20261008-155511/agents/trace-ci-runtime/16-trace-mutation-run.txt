@@ -1,0 +1,21 @@
+case	rc	catalog_field	problem_count	plan_ok	semantic_ok	rows	sha
+00-baseline	0	OK	0	True	True	131	96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+01-id-text	2	OK	3	False	False	131	e61b02518b16a7fac73af33060f3dd7cd1e8159d42ca14dd4d0589b757b418df
+02-injection-text	2	OK	1	False	False	131	2a350f0b81d8e74b661182819578fd3dfbd69deb368ec0a72b4f009763af7196
+03-expectation-text	2	OK	1	False	False	131	d47aaf2b7ebcf7cd0e54b19b8886405270c6d0af6c9bf78cab5d1db75035311d
+04-zero-width-unicode	2	OK	1	False	False	131	0a434fe7b73b51c11429dfe0a74c12ceea740e42fe76a79bfb6a8b2c58e1cf1e
+05-unicode-homoglyph	2	OK	1	False	False	131	989a359ba2bf694d0dd0a0d294f6ebd9375806799d2685eb57a7e5f2c8752a8f
+06-whitespace-inside-token	2	OK	1	False	False	131	5428450535f681955be934a01c79049b2afd4eeb101a7b04a7bcff9122f8b433
+07-benign-format-control	0	OK	0	True	True	131	6c8dfb4ee5e4dd44256f2592829596a914c8775d150f7cec733a25c6f24b5904
+08-columns-swapped	2	OK	2	False	False	131	826658130cf070c32a75f52dc6f53e1b3822c12ee7ea39253bce8d50a289da6a
+09-extra-table-column	2	OK	1	False	False	130	2bcae3789f0f1610f2a316cf4222cad7bd070aabe8a4d2f2e59c3d7d5d16f78f
+10-range-endpoint	2	OK	1	True	True	131	cd9f4892a0ca294cad527152c354927b3a28ea42840a50b69cea1f2a9f5a73e3
+11-251-req-meta	2	OK	1	True	True	131	a6f92f776b473a103519aa99538a6286228b5b9cf49927d6775790f95157f114
+12-251-columns-swapped	2	OK	1	True	True	131	9659038a1a2ee2fb63fab787e47ab59158640a15070b1c957d6b17b3dfe20da2
+13-row-format-id-narrative	2	OK	1	False	False	130	b69b6825a5426062bfba0513f464383927da5d68364d65eb6417562eb635e01c
+14-duplicate-exact-row	0	OK	0	True	True	131	fbb059cc7990f0eef22fd160fcc7dae77a1fa0936670b0fbe917f726c359cd50
+15-duplicate-poison-first	0	OK	0	True	True	131	e351b367df8c1bca81f5ddf24d95f3a27203dc684eb355cbab849c0692d68fe3
+16-fullwidth-id-digits	2	OK	3	False	False	131	43972543a9f206c70a4cafa592c00e93894e8324dfa368c36be949ee8916a288
+17-frozen-sha-drift-outside	0	OK	0	True	True	131	d7d0d4415f9c622f5209982fd0ebf1f667f90cc124d41daff086483d3ad66b8e
+18-nonexistent-plan	0	OK	0	None	None	None	None
+

@@ -1,0 +1,16 @@
+=== timestamp ===
+2026-10-08T16:14:18,050630000+08:00
+=== source correct path ===
+-rwxr-xr-x@ 1 maccc  wheel  79 Oct  8 15:47 /tmp/wenqu-reaudit6-root-1791446155/system/daemons/auto-merge.sh
+6da37e2ae7a0aabd31bdbf7ab72641a2d973f2d8a0b2f7e17b6405a4d06a2dcd  /tmp/wenqu-reaudit6-root-1791446155/system/daemons/auto-merge.sh
+     1	printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1
+=== installed correct path ===
+ABSENT
+=== active processes precise ===
+69068 36178 /bin/bash -c set -o pipefail\012OUT=/private/tmp/codex-test/evidence/reaudit6-20261008-155511/root/13-auto-merge-correct-path.txt\012A=/tmp/wenqu-reaudit6-root-1791446155\012{\012 echo '=== timestamp ==='; date -Ins\012 echo '=== source correct path ==='; ls -l "$A/system/daemons/auto-merge.sh"; shasum -a 256 "$A/system/daemons/auto-merge.sh"; nl -ba "$A/system/daemons/auto-merge.sh"\012 echo '=== installed correct path ===';\012 if [ -e "$HOME/.wenqu/daemons/auto-merge.sh" ]; then ls -l "$HOME/.wenqu/daemons/auto-merge.sh"; shasum -a 256 "$HOME/.wenqu/daemons/auto-merge.sh"; nl -ba "$HOME/.wenqu/daemons/auto-merge.sh"; else echo ABSENT; fi\012 echo '=== active processes precise ===';\012 ps -axo pid,ppid,command | awk '$0 ~ /[a]uto-merge\.sh/ {print}'\012 echo '=== launchctl labels/commands precise ===';\012 launchctl print gui/$(id -u) 2>/dev/null | grep -i 'auto.merge\|auto-merge' || true\012 echo '=== user crontab precise ===';\012 crontab -l 2>/dev/null | grep -i 'auto.merge\|auto-merge' || true\012 echo '=== source stub execution ===';\012 bash "$A/system/daemons/auto-merge.sh" ignored; echo source_rc=$?\012 echo '=== installed stub execution ===';\012 if [ -e "$HOME/.wenqu/daemons/auto-merge.sh" ]; then bash "$HOME/.wenqu/daemons/auto-merge.sh" ignored; echo installed_rc=$?; fi\012} > "$OUT" 2>&1 || true\012cat "$OUT"
+=== launchctl labels/commands precise ===
+=== user crontab precise ===
+=== source stub execution ===
+auto-merge permanently disabled per P0 containment
+source_rc=1
+=== installed stub execution ===

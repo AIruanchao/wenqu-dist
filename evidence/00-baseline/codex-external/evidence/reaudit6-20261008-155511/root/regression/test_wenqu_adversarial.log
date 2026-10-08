@@ -1,0 +1,20 @@
+CAPTURED_AT=2026-10-08T15:56:03,336553000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_wenqu_adversarial.py 
+--- OUTPUT ---
+/private/tmp/wenqu-reaudit6-root-1791446155/system/tests/test_wenqu_adversarial.py:551: DeprecationWarning: FormatChecker.cls_checks is deprecated. Call FormatChecker.checks on a specific FormatChecker instance instead.
+  @FormatChecker.cls_checks("date-time")
+  ok  #1 伪签名+缺绑定 → envelope 封闭+HMAC 验签
+  ok  #2 跨类型 payload → 判别封闭+API 路由
+  ok  #3 前置自报字符串 → bool 客观化
+  ok  #4 绑定绕过 → watermark 强制 40-hex+policy/ruleset exact
+  ok  #5 risk 无 CAS → action 类授权同样 CAS
+  ok  #6 双轴洗白 → 非 COMPLETED 无完成态+P0/P1 机器拒绝
+  ok  #7 控制事件直写 → append 守卫+重放验封
+  ok  #8 第二正源 → APPROVAL_CONSUMED 事件为唯一正源
+  ok  #9 自产事件全过 run-event-v2（FormatChecker）
+  ok  #10 action saga（授权链/outbox/receipt 分级对账/重放）
+  ok  #11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门
+  ok  K：wenquctl CLI 端到端链
+
+P0-4 对抗回归: 12 PASS / 0 FAIL
+--- EXIT_CODE=0 ---

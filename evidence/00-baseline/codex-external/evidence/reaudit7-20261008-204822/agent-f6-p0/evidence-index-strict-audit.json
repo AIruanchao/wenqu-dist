@@ -1,0 +1,335 @@
+{
+  "index_path": "evidence/evidence-index.json",
+  "repo_head": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+  "repo_head_at_filing": {
+    "commit": "07a9494",
+    "commit_full": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
+    "subject": "Merge pull request #6 from AIruanchao/release/v3.7.1",
+    "ci_conclusion": "未查（F6 残余整改建档时未复核远端 CI；前值：f2b8fc3 run 37744948480 success）",
+    "note": "第六波残余整改（F6-EVID-001/COVERAGE-AUTH-001/OBS-001）建档刷新；前值 f2b8fc3（wave5 PR#4）"
+  },
+  "entries": 20,
+  "counts": {
+    "all_required_nonempty": 6,
+    "commit_exact_40hex": 13,
+    "commit_contains_40hex": 18,
+    "path_regular_file": 20,
+    "artifact_hash_bare_64hex": 11,
+    "artifact_hash_matches_file": 11,
+    "declared_three_way_contract": 7,
+    "strict_contract": 5
+  },
+  "rows": [
+    {
+      "entry_id": "EV-CI-001",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
+      "declared_three_way_contract": true,
+      "strict_contract": true
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
+      "declared_three_way_contract": true,
+      "strict_contract": true
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "099f78db913f872734899d5e840840f2221cdb5b9378467ce9ff1ae064c60d11",
+      "declared_three_way_contract": true,
+      "strict_contract": true
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "60dcc26d73828b5cda00493c850945445a0902352a1e81fe48ac4e9fb33ee08d",
+      "declared_three_way_contract": true,
+      "strict_contract": true
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "f119f47ca98eb86d05b7f511301b6f2fa5aa66b67f591d3c093c6a297e41549d",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "commit"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": false,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "269b834e20efea482503e2d7e0ab07d7c7ba2d651ecb287359243e8bc9f3c697",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "argv"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "run_id",
+        "argv",
+        "real_rc"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": false,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "fc882807d18c1b9ccb784fe1e417547fa494fbc13bbd28b57cc9d0004247f5da",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-CI-003",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "21238f672b944a8ff115776608eae151d23dfe3ab864e65a6b94bc946bd7dc1b",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-R3-001",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-R3-002",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "argv",
+        "real_rc"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+      "declared_three_way_contract": true,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-TRACE-002",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "637a48fc99c21a009db4b0e2c23fc34df19528157fc3628b987c14f9ce133d69",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-DEP-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": false,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-W5-001",
+      "all_required_nonempty": true,
+      "missing_or_empty": [],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "7752f6c5361ec785c03ea212f500ea1c96de0f43cbd9016e5de312cc4009523a",
+      "declared_three_way_contract": true,
+      "strict_contract": true
+    },
+    {
+      "entry_id": "EV-CI-004",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-REL-002",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "run_id"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": true,
+      "artifact_hash_matches_file": true,
+      "actual_sha256": "d9c83e11091968ce419790e0c17236464066c6f9f9360fc524f49a1ff7c75562",
+      "declared_three_way_contract": true,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-TRACE-003",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "fc882807d18c1b9ccb784fe1e417547fa494fbc13bbd28b57cc9d0004247f5da",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-R4-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "5d86b3f0b86d17635377eeaff2827ffb5fa63805935ccfb042a5e28fb814e8a3",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    },
+    {
+      "entry_id": "EV-W9W10-001",
+      "all_required_nonempty": false,
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_exact_40hex": true,
+      "commit_contains_40hex": true,
+      "path_regular_file": true,
+      "path_is_directory": false,
+      "artifact_hash_bare_64hex": false,
+      "artifact_hash_matches_file": false,
+      "actual_sha256": "5b168d1eb5b72250232d11fd4afc0b25a2cb760b712a2f12f8475cdc37e0ca1a",
+      "declared_three_way_contract": false,
+      "strict_contract": false
+    }
+  ]
+}

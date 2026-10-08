@@ -1,0 +1,111 @@
+=== reserve_action and validation source ===
+system/wenqu_core/approval_issue.py:79:    "HIGH_RISK_APPROVAL_TYPES",
+system/wenqu_core/approval_issue.py:98:HIGH_RISK_APPROVAL_TYPES = frozenset({
+system/wenqu_core/approval_issue.py:167:               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+system/wenqu_core/approval_issue.py:181:               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+system/wenqu_core/approval_issue.py:186:            "co_signed": co_signature is not None,
+system/wenqu_core/approval_issue.py:207:               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+system/wenqu_core/approval_issue.py:352:        # result = {"approval": <envelope>, "co_signature": {...}|None,
+system/wenqu_core/approval_issue.py:428:    def _check_two_person(self, approval_type: str, *,
+system/wenqu_core/approval_issue.py:429:                          confirm_two_persons: bool,
+system/wenqu_core/approval_issue.py:432:        high_risk = approval_type in HIGH_RISK_APPROVAL_TYPES
+system/wenqu_core/approval_issue.py:433:        given = (confirm_two_persons or second_key_id is not None
+system/wenqu_core/approval_issue.py:435:        if not high_risk and given:
+system/wenqu_core/approval_issue.py:438:                f"（高危={sorted(HIGH_RISK_APPROVAL_TYPES)}），"
+system/wenqu_core/approval_issue.py:440:        if high_risk and not confirm_two_persons:
+system/wenqu_core/approval_issue.py:444:        if high_risk:
+system/wenqu_core/approval_issue.py:474:              confirm_two_persons: bool = False,
+system/wenqu_core/approval_issue.py:527:        self._check_two_person(
+system/wenqu_core/approval_issue.py:528:            approval_type, confirm_two_persons=confirm_two_persons,
+system/wenqu_core/approval_issue.py:531:        if confirm_two_persons and approval_type in HIGH_RISK_APPROVAL_TYPES:
+system/wenqu_core/approval_issue.py:532:            assert second_key_id is not None  # _check_two_person 已保证
+system/wenqu_core/approval_issue.py:576:        co_signature: Optional[Dict[str, Any]] = None
+system/wenqu_core/approval_issue.py:579:            co_signature = {
+system/wenqu_core/approval_issue.py:586:                "co_signature": co_hex,
+system/wenqu_core/approval_issue.py:594:        if co_signature is not None and not verify_envelope(
+system/wenqu_core/approval_issue.py:595:                co_secret, envelope, co_signature["co_signature"]):
+system/wenqu_core/approval_issue.py:607:        delivery = used_source.submit(envelope, co_signature)
+system/wenqu_core/approval_issue.py:625:            "high_risk": approval_type in HIGH_RISK_APPROVAL_TYPES,
+system/wenqu_core/approval_issue.py:626:            "two_person": co_signature is not None,
+system/wenqu_core/approval_issue.py:629:            "co_signature": (co_signature or {}).get("co_signature"),
+system/wenqu_core/approval_issue.py:635:                "co_signature": co_signature,
+system/wenqu_core/wenqu_pipeline.py:56:      无条件比较；policy/ruleset/env/scope/task/stage 全部 exact 绑定）；
+system/wenqu_core/wenqu_pipeline.py:267:    PROD_WRITE = "prod-write"      # 生产写：exact-scope 授权 + 前置 Gate + 回滚级别
+system/wenqu_core/wenqu_pipeline.py:268:    DDL = "ddl"                    # DDL：exact DDL/环境授权 + 四重验证 + 回滚
+system/wenqu_core/wenqu_pipeline.py:269:    RELEASE = "release"            # 发布：exact release/SHA/env 授权 + Gate/manifest/回滚预案
+system/wenqu_core/wenqu_pipeline.py:293:        "description": "一次性 exact-scope 授权 + 对应前置 Gate + 回滚级别",
+system/wenqu_core/wenqu_pipeline.py:299:        "description": "一次性 exact DDL/环境授权 + fresh/legacy/minimal/回滚验证",
+system/wenqu_core/wenqu_pipeline.py:310:        "description": "一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案",
+system/wenqu_core/wenqu_pipeline.py:397:    "rollback": ("failed_deployment_id", "exact_previous_release_id",
+system/wenqu_core/wenqu_pipeline.py:533:    "action_target", "watermark", "outcome", "external_ref", "ts", "key_id",
+system/wenqu_core/wenqu_pipeline.py:725:    for key in ("action_type", "action_target", "external_ref"):
+system/wenqu_core/wenqu_pipeline.py:1164:        6. run 绑定（全 required，exact 比较——Codex 实锤 #1/#4）：
+system/wenqu_core/wenqu_pipeline.py:1393:    # 绑定/TTL/CAS/前置条件校验（对给定 run 快照）——全字段 exact 绑定
+system/wenqu_core/wenqu_pipeline.py:1643:        watermark/stage 全 exact）→ **expected_state_version CAS（同样强制）**
+system/wenqu_core/wenqu_pipeline.py:1717:            # stage exact 绑定：须锚定 run 当前活跃段（全 PASSED 时锚定末段）
+system/wenqu_core/wenqu_pipeline.py:2311:                "action_target": ev.get("action_target", ""),
+system/wenqu_core/wenqu_pipeline.py:2912:    def reserve_action(self, run_id: str, action_type: str, target: str,
+system/wenqu_core/wenqu_pipeline.py:2921:        全 exact）+ expected_state_version CAS + TTL + 一次性 nonce）。
+system/wenqu_core/wenqu_pipeline.py:2960:                action_target=target,
+system/wenqu_core/wenqu_pipeline.py:2966:                    "action_type": action_type, "action_target": target,
+system/wenqu_core/wenqu_pipeline.py:3028:        （run_id/action_id/action_type/action_target/watermark=commit_sha）。
+system/wenqu_core/wenqu_pipeline.py:3105:        if rc["action_target"] != action["action_target"]:
+system/wenqu_core/wenqu_pipeline.py:3107:                f"receipt.action_target 与预留动作目标不一致"
+system/wenqu_core/wenqu_pipeline.py:3108:                f"（{rc['action_target']!r} != {action['action_target']!r}）")
+=== keyring from_path ===
+22:- 每 key 元数据：status（active/rotated/revoked）+ rotated_at/rotated_to +
+78:# P0-2 残余：key 生命周期元数据（status/rotated_at/expiry）
+91:_SECRET_FILE_MODE = 0o600
+92:_KEYRING_DIR_MODE = 0o700
+169:    P0-2 残余扩展：可选 metadata（status/rotated_at/expiry）——
+195:    @staticmethod
+212:    @staticmethod
+218:        allowed = {"status", "created_at", "rotated_at", "rotated_to",
+226:            "status": meta.get("status", KEY_STATUS_ACTIVE)}
+227:        if normalized["status"] not in KEY_STATUSES:
+229:                f"key meta status for {key_id!r} must be one of "
+230:                f"{sorted(KEY_STATUSES)}, got {normalized['status']!r}")
+242:        if normalized["status"] == KEY_STATUS_ROTATED and \
+246:        if normalized["status"] == KEY_STATUS_REVOKED and \
+254:    def from_path(cls, path: str) -> "ApprovalKeyring":
+259:          （status/rotated_at/expiry），缺省全部 active；目录内
+310:        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+318:        """单 key 元数据副本（无元数据的 key 返回 {status: active}）。"""
+323:        return dict(self._meta.get(key_id, {"status": KEY_STATUS_ACTIVE}))
+332:    def _key_status(self, key_id: str) -> str:
+333:        return self._meta.get(key_id, {}).get("status", KEY_STATUS_ACTIVE)
+339:        if self._key_status(key_id) != KEY_STATUS_ACTIVE:
+359:        status = self._key_status(key_id)
+360:        if status == KEY_STATUS_REVOKED:
+365:        if status == KEY_STATUS_ROTATED:
+408:        if self._key_status(key_id) == KEY_STATUS_REVOKED:
+444:    os.chmod(path, _SECRET_FILE_MODE)  # 掩盖既有宽权限文件
+449:    os.makedirs(path, mode=_KEYRING_DIR_MODE, exist_ok=True)
+450:    os.chmod(path, _KEYRING_DIR_MODE)
+492:    os.chmod(event_log_path, _SECRET_FILE_MODE)
+=== legacy events migration ===
+2:"""旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器（Codex W5）。
+5:    旧版迁移器自建独立 ``events`` 表，与 ``store.EventStore`` 的
+6:    ``pipeline_events`` 哈希链表形成两表两正源。本轮起迁移器不再含
+7:    ``events`` 建表 DDL、绝不写入任何第二事件表：全部导入行经公共
+9:    ``pipeline_events`` 表——迁移产物与 EventStore.append 产物同表、
+12:旧 ``events`` 表（仅存在于历史库）冻结为只读兼容：
+14:    - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
+15:      ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
+61:    "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
+100:LEGACY_EVENTS_TABLE = "events"
+102:#: 旧表残留行收编进 pipeline_events 时的事件类型（同样非控制类型）
+119:#: 旧 ``events`` 表收编时必须存在的列（缺失即形状异常，fail-closed 拒收）
+173:    """旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器。
+177:        mig = LedgerMigrator(source_dir=".../ledgers", sqlite_path=".../events.db")
+183:    ``pipeline_events`` 哈希链表；迁移行与管线事件同表同链。
+284:        导入行经公共 ``EventStore.append`` 写入 ``pipeline_events``（单一
+307:        # 单一写入 API：EventStore 负责建表（pipeline_events）、BEGIN
+411:            "event_table": "pipeline_events",
+436:# 旧 events 表残留：一次性收编（P0-6 第六轮）
+438:def migrate_legacy_events(sqlite_path: str,
+440:    """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
+443:    - 只读旧表：本函数绝不 CREATE/INSERT/UPDATE/DELETE 旧 ``events`` 表
+446:      ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
+460:                    else sqlite_path + ".legacy-events-sidecar.jsonl")
+530:            "event_table": "pipeline_events",

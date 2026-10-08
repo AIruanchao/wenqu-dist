@@ -1026,7 +1026,10 @@ def test_SC_05_snapshot_signature_freshness_fail_closed():
     - 无信封裸 JSON（未签名源）→ BLOCKED。
     全部失败路径 coverage 记 0/0（未验签内容连 metadata 分母都不采信）、
     NOT_EVALUATED、原因入 note——fail-closed，绝不折算 PASS。
-    （『分页不全』子面沿用 ADV-02 的自报计数交叉核对机制=证据损坏 ERROR。）
+    R7 对抗腿（R7-SC-PAGINATION-008，分页门产品化）：合法签名+hash 但
+    pagination.complete=false / pages 覆盖不全（page<pages_total）→ 该源
+    ERROR（不再 PASS）；complete=true 单页不误伤；ADV-02 的自报计数交叉
+    核对机制保持（见 ADV-02 用例）。
     """
     key = "ac-snapshot-key"
     now = _utc_now()
@@ -1071,6 +1074,51 @@ def test_SC_05_snapshot_signature_freshness_fail_closed():
         assert rep.result["coverage"] == {"denominator": 0, "scanned": 0}, (
             name, rep.result["coverage"])
         assert marker in rep.note, (name, rep.note)
+
+    # ---- R7 对抗腿（R7-SC-PAGINATION-008）：分页门——合法签名/hash 但分页
+    # 不全的载荷必须该源 ERROR（第七轮实证原样反例：complete=false,
+    # pages_total=2 签名合法仍 COMPLETED/PASS 12/12）；覆盖不全（page<
+    # pages_total）与字段形态非法同拒；complete=true 单页不误伤。
+    def _env_with_pagination(pagination):
+        payload = json.loads(json.dumps(NPM_CLEAN))
+        payload["pagination"] = pagination
+        return build_snapshot_envelope(payload, key=key, captured_at=now)
+
+    paged_cases = (
+        ("complete-false",
+         {"page": 1, "pages_total": 2, "complete": False, "next_page": 2}),
+        ("pages-coverage-incomplete", {"page": 1, "pages_total": 3}),
+        ("pagination-malformed", "not-an-object"),
+    )
+    for name, pagination in paged_cases:
+        rep = _scan(_env_with_pagination(pagination))
+        validate_station_result(rep.result)
+        assert rep.result["execution_status"] == "ERROR", (name, rep.result)
+        assert rep.result["policy_verdict"] == "NOT_EVALUATED", (name, rep.result)
+        assert "pagination" in rep.note, (name, rep.note)  # 分页门点名（非其他解析错）
+        # 站2 聚合同步：supply ERROR → 整站不得 PASS（铁律 2 缩水守卫）
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _mk_st2_repo(tmp)
+            report = Station2Static(
+                _next_run_id("sc5p"), identity=ST2_IDENTITY, repo_dir=str(repo),
+                runner=_StubRunner([
+                    (lambda a: a[:2] == ["npm", "audit"],
+                     lambda a: (_ev(a, 0),
+                                _j(_env_with_pagination(pagination)), b"")),
+                ]),
+                scanners=("supply",),
+                supply_snapshot_verify_key=key,
+            ).scan()
+            agg = report["station_result"]
+            assert agg["execution_status"] == "BLOCKED", (name, agg)
+            assert agg["policy_verdict"] == "NOT_EVALUATED", (name, agg)
+            assert agg["coverage"]["scanned"] == 0 < agg["coverage"]["denominator"] == 1
+
+    # 对照：complete=true 且覆盖完整 → 不误伤（真源分页完整形态照常 PASS）
+    rep = _scan(_env_with_pagination({"page": 1, "pages_total": 1, "complete": True}))
+    validate_station_result(rep.result)
+    assert rep.result["policy_verdict"] == "PASS", rep.result
+    assert rep.result["coverage"] == {"denominator": 12, "scanned": 12}
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,72 @@
+UTC_START=2026-10-08T12:50:50Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-runtimehash.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+FROZEN=/private/tmp/reaudit7-d32c859-runtime/system/dashboard
+ACTIVE=$HOME/.wenqu/dashboard
+WORK=/Users/maccc/Documents/wenqu-dist/system/dashboard
+for f in server.py index.html app.js app.css; do
+ echo "===== $f ====="
+ for base in "$FROZEN" "$ACTIVE" "$WORK"; do
+   p="$base/$f"
+   if test -f "$p"; then stat -f 'PATH=%N SIZE=%z MODE=%Sp MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$p"; shasum -a 256 "$p"; else echo "MISSING=$p"; fi
+ done
+ cmp -s "$FROZEN/$f" "$ACTIVE/$f"; echo FROZEN_ACTIVE_CMP_RC=$?
+ cmp -s "$FROZEN/$f" "$WORK/$f"; echo FROZEN_WORK_CMP_RC=$?
+done
+echo VERSION_FILES
+for p in /private/tmp/reaudit7-d32c859-runtime/system/VERSION /Users/maccc/Documents/wenqu-dist/system/VERSION "$HOME/.wenqu/VERSION"; do if test -f "$p"; then printf '%s=' "$p"; cat "$p"; fi; done
+echo RUNTIME_METADATA
+find "$HOME/.wenqu" -maxdepth 3 -type f \( -iname '*version*' -o -iname '*sha*' -o -iname '*manifest*' \) -print | sort | while read f; do stat -f 'PATH=%N SIZE=%z MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; head -c 1000 "$f" 2>/dev/null; echo; done
+--- OUTPUT ---
+===== server.py =====
+PATH=/private/tmp/reaudit7-d32c859-runtime/system/dashboard/server.py SIZE=40554 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /private/tmp/reaudit7-d32c859-runtime/system/dashboard/server.py
+PATH=/Users/maccc/.wenqu/dashboard/server.py SIZE=40554 MODE=-rw-r--r-- MTIME=2026-10-07T21:33:10+0800
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/.wenqu/dashboard/server.py
+PATH=/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py SIZE=40554 MODE=-rw-r--r-- MTIME=2026-10-07T21:33:10+0800
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+FROZEN_ACTIVE_CMP_RC=0
+FROZEN_WORK_CMP_RC=0
+===== index.html =====
+PATH=/private/tmp/reaudit7-d32c859-runtime/system/dashboard/index.html SIZE=11922 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /private/tmp/reaudit7-d32c859-runtime/system/dashboard/index.html
+PATH=/Users/maccc/.wenqu/dashboard/index.html SIZE=11922 MODE=-rw-r--r-- MTIME=2026-10-07T21:27:59+0800
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /Users/maccc/.wenqu/dashboard/index.html
+PATH=/Users/maccc/Documents/wenqu-dist/system/dashboard/index.html SIZE=11922 MODE=-rw-r--r-- MTIME=2026-10-07T21:27:59+0800
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /Users/maccc/Documents/wenqu-dist/system/dashboard/index.html
+FROZEN_ACTIVE_CMP_RC=0
+FROZEN_WORK_CMP_RC=0
+===== app.js =====
+PATH=/private/tmp/reaudit7-d32c859-runtime/system/dashboard/app.js SIZE=36227 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /private/tmp/reaudit7-d32c859-runtime/system/dashboard/app.js
+PATH=/Users/maccc/.wenqu/dashboard/app.js SIZE=36227 MODE=-rw-r--r-- MTIME=2026-10-07T21:33:10+0800
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /Users/maccc/.wenqu/dashboard/app.js
+PATH=/Users/maccc/Documents/wenqu-dist/system/dashboard/app.js SIZE=36227 MODE=-rw-r--r-- MTIME=2026-10-07T21:33:10+0800
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /Users/maccc/Documents/wenqu-dist/system/dashboard/app.js
+FROZEN_ACTIVE_CMP_RC=0
+FROZEN_WORK_CMP_RC=0
+===== app.css =====
+PATH=/private/tmp/reaudit7-d32c859-runtime/system/dashboard/app.css SIZE=9721 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /private/tmp/reaudit7-d32c859-runtime/system/dashboard/app.css
+PATH=/Users/maccc/.wenqu/dashboard/app.css SIZE=9721 MODE=-rw-r--r-- MTIME=2026-10-07T21:28:40+0800
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /Users/maccc/.wenqu/dashboard/app.css
+PATH=/Users/maccc/Documents/wenqu-dist/system/dashboard/app.css SIZE=9721 MODE=-rw-r--r-- MTIME=2026-10-07T21:28:40+0800
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /Users/maccc/Documents/wenqu-dist/system/dashboard/app.css
+FROZEN_ACTIVE_CMP_RC=0
+FROZEN_WORK_CMP_RC=0
+VERSION_FILES
+/private/tmp/reaudit7-d32c859-runtime/system/VERSION=3.8.3
+/Users/maccc/Documents/wenqu-dist/system/VERSION=3.8.4
+/Users/maccc/.wenqu/VERSION=3.8.4
+RUNTIME_METADATA
+PATH=/Users/maccc/.wenqu/VERSION SIZE=6 MTIME=2026-10-08T18:55:03+0800
+3.8.4
+
+PATH=/Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log SIZE=0 MTIME=2026-10-08T14:51:08+0800
+
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:50:51Z

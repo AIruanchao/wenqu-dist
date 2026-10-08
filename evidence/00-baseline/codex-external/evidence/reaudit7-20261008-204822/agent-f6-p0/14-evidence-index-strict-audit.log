@@ -1,0 +1,22 @@
+TIMESTAMP_UTC: 2026-10-08T12:56:35Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/evidence_index_audit.py /tmp/wenqu-reaudit7-f6p0-22971 /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/evidence-index-strict-audit.json 
+OUTPUT_BEGIN
+{"all_required_nonempty": 6, "artifact_hash_bare_64hex": 11, "artifact_hash_matches_file": 11, "commit_contains_40hex": 18, "commit_exact_40hex": 13, "declared_three_way_contract": 7, "entries": 20, "path_regular_file": 20, "strict_contract": 5}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-TEST-003", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": false, "entry_id": "EV-ACCEPT-001", "missing_or_empty": ["commit"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": false, "entry_id": "EV-ACCEPT-002", "missing_or_empty": ["argv"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": false, "entry_id": "EV-REL-001", "missing_or_empty": ["run_id", "argv", "real_rc"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": false, "entry_id": "EV-TRACE-001", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-CI-003", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": false, "entry_id": "EV-R3-001", "missing_or_empty": [], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": true, "entry_id": "EV-R3-002", "missing_or_empty": ["argv", "real_rc"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": false, "entry_id": "EV-TRACE-002", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": false, "entry_id": "EV-DEP-001", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-CI-004", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": true, "artifact_hash_matches_file": true, "commit_exact_40hex": true, "entry_id": "EV-REL-002", "missing_or_empty": ["run_id"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-TRACE-003", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-R4-001", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+{"artifact_hash_bare_64hex": false, "artifact_hash_matches_file": false, "commit_exact_40hex": true, "entry_id": "EV-W9W10-001", "missing_or_empty": ["artifact_sha256"], "path_regular_file": true}
+OUTPUT_END
+EXIT_CODE: 1

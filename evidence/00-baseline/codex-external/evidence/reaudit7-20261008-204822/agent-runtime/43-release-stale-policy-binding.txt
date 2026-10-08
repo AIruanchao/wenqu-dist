@@ -1,0 +1,106 @@
+UTC_START=2026-10-08T12:57:56Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-release-stale.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+R=/private/tmp/reaudit7-release-d32c859
+ART=/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.tar.gz
+M=/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json
+echo '=== ancestry/identity ==='
+git -C "$R" merge-base --is-ancestor 1620c7c d32c859; echo "ancestor_rc=$?"
+git -C "$R" show -s --format='commit=%H%nparents=%P%nauthor_date=%aI%nsubject=%s' 1620c7c
+git -C "$R" show -s --format='commit=%H%nparents=%P%nauthor_date=%aI%nsubject=%s' d32c859
+python3 - "$M" <<'PY'
+import json,sys
+x=json.load(open(sys.argv[1]))
+print('manifest_source_commit',x['source_commit'])
+print('manifest_version',x['version'])
+print('manifest_built_at',x['built_at'])
+print('manifest_plan_sha',x['policy_hash']['plan_sha256'],'len',len(x['policy_hash']['plan_sha256']))
+PY
+echo '=== representative post-1620 capabilities: git object and tar membership ==='
+for f in \
+ system/wenqu_core/approval_issue.py \
+ system/wenqu_core/approval_keys.py \
+ system/wenqu_core/scheduler.py \
+ system/wenqu_core/drill_runner.py \
+ system/tests/test_w4_production.py \
+ system/tests/test_tla_spec.py \
+ specs/tla/wenqu_pipeline.tla \
+ tools/release_attest.py; do
+  echo "-- $f"
+  git -C "$R" cat-file -e "1620c7c:$f" 2>/dev/null; echo "in_source_1620_rc=$?"
+  git -C "$R" cat-file -e "d32c859:$f" 2>/dev/null; echo "in_d32_rc=$?"
+  tar -tzf "$ART" | grep -Fx "$f" >/dev/null; echo "in_release_tar_rc=$?"
+done
+echo '=== diff size 1620..d32 ==='
+git -C "$R" diff --shortstat 1620c7c d32c859
+git -C "$R" diff --name-status 1620c7c d32c859 | awk '{c[$1]++} END{for(k in c)print k,c[k]}' | sort
+echo '=== source version objects ==='
+for c in 1620c7c d32c859; do printf '%s system/VERSION=' "$c"; git -C "$R" show "$c:system/VERSION"; done
+echo '=== plan digest actual vs baked ==='
+ACT=$(shasum -a 256 /private/tmp/codex-test/方案.md|awk '{print $1}')
+BAKED=$(python3 -c 'import json;print(json.load(open("'$M'"))["policy_hash"]["plan_sha256"])')
+echo "actual=$ACT len=${#ACT}"
+echo "baked=$BAKED len=${#BAKED}"
+[[ "$ACT" = "$BAKED" ]]; echo "equal_rc=$?"
+echo '=== verifier policy-hash references ==='
+rg -n 'PLAN_SHA256|policy_hash|plan_sha256' /private/tmp/reaudit7-d32c859-runtime/tools/release_attest.py /private/tmp/reaudit7-d32c859-runtime/system/tests/test_release_attest.py
+--- OUTPUT ---
+=== ancestry/identity ===
+ancestor_rc=0
+commit=1620c7c030bd1ea5eb096e0509b7f864c4e90a6d
+parents=07a94945ba8defe65d3f9ce5a3b7118a38e40328
+author_date=2026-10-08T16:49:40+08:00
+subject=fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65
+commit=d32c859f9043798d9e8a4984e8f57aa64567e33c
+parents=c9de6a488a983e86380ca207463941a8490b08ce 1495913085eae13155f977fcebc8400b9789e04c
+author_date=2026-10-08T20:37:48+08:00
+subject=Merge pull request #9 from AIruanchao/wave6/p1f-gate
+manifest_source_commit 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d
+manifest_version 3.7.1
+manifest_built_at 2026-10-08T09:49:52Z
+manifest_plan_sha 96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306 len 61
+=== representative post-1620 capabilities: git object and tar membership ===
+-- system/wenqu_core/approval_issue.py
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+-- system/wenqu_core/approval_keys.py
+in_source_1620_rc=0
+in_d32_rc=0
+in_release_tar_rc=0
+-- system/wenqu_core/scheduler.py
+in_source_1620_rc=0
+in_d32_rc=0
+in_release_tar_rc=0
+-- system/wenqu_core/drill_runner.py
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+-- system/tests/test_w4_production.py
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+-- system/tests/test_tla_spec.py
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+-- specs/tla/wenqu_pipeline.tla
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+-- tools/release_attest.py
+in_source_1620_rc=128
+in_d32_rc=0
+in_release_tar_rc=1
+=== diff size 1620..d32 ===
+ 77 files changed, 59940 insertions(+), 1002 deletions(-)
+A 42
+M 35
+=== source version objects ===
+1620c7c system/VERSION=/private/tmp/reaudit7-release-stale.zsh:37: bad substitution
+--- END OUTPUT ---
+EXIT_CODE=1
+UTC_END=2026-10-08T12:57:56Z

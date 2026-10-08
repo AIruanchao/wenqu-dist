@@ -1,0 +1,187 @@
+UTC_START=2026-10-08T12:52:28Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=rg -n -C 12 "F6-EVID|EVID|证据索引|20/20|artifact_sha256|40 位|40位" /private/tmp/codex-test/验收报告-第六轮.md | head -500; echo ---REPORT_HASH---; shasum -a 256 /private/tmp/codex-test/验收报告-第六轮.md; echo ---PLAN_HASHES---; shasum -a 256 /private/tmp/codex-test/方案.md /private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/方案.md
+--- OUTPUT ---
+10-
+11----
+12-
+13-## 1. 最终判定
+14-
+15-# **BLOCKED — 52/100**
+16-
+17-| 完成层 | 判定 | 证据化结论 |
+18-|---|---|---|
+19-| 候选代码修复 | **部分通过** | Runner、action 授权“必须存在”与回执分级、安装体 CLI、原残缺 station 输入等修复确实生效；但授权 payload 未与实际 action target 精确绑定。12 项旧探针在 b259 冻结副本达到 12/12 PASS。 |
+20-| P0 契约与 Gate | **不通过** | Gate 的 required/scope/coverage 可自报并缩水；RFC3339 非法时间可上绿；正式 station schema 在 64 以上整数域仍可接受 `PASS 65/66`。 |
+21-| required CI | **不通过** | 12+66 两套已接入且 PR#4/#5 经现行保护门；但七个 99 条专属文件全删后 acceptance 与 trace `--check` 仍双绿。Ubuntu acceptance 还忽略了 `mktemp` 错误。 |
+22:| 证据/追踪 | **不通过** | 99/131 是词法命中，不是不可绕过语义 Gate；证据索引严格合格 0/20；20 条中只有 1 条为“路径所指文件与裸 64hex hash 精确相等”。 |
+23-| 受控部署/运行 | **不通过** | 验收期间共享源仓、远端 main 和 7789 被外部 writer 推进到 PR#6/`07a94945`；b259 的运行身份失效。现役仍为 legacy 单文件写版。 |
+24-| 发布后观察 | **不通过** | 观察文件存在，但首样本绑定 `b08fa7a` 且 dirty，shadow modular health=503、比较字段为 null；W9/W10 时钟未形成 b259 有效第 1 天证据。 |
+25-| production-ready | **禁止声明** | P0 十项只有 P0-1（限冻结候选）与 P0-8 完整通过；其余均 FAIL/PARTIAL。 |
+26-
+27-本轮相对第四轮的真实进步：Runner 重挂接后台收拢、action 审批存在性/回执分级、安装体 CLI、原 Schema 五类反例、残缺 station 拦截、12+66 required 接线，以及 99 条专属测试代码均有实跑正证。
+28-
+29-但验收新用例证明仍存在多个 P0 假绿通道，且审计期间目标身份漂移。因此 **52 分只是 b259 冻结快照的候选代码评分，不是当前 main、当前 7789、发布制品或生产闭环认证**。
+30-
+31----
+32-
+33-## 2. 身份、隔离与审计期间漂移
+34-
+--
+74-| exact action 绑定 | `... python3 auth_exact_target_bypass_probe.py` | rc=1（发现漏洞）；签名 payload 授权 rel-independent-6，但任意 `UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD` 仍可 RESERVED→COMMITTED；消费事件不保存 payload | **BLOCKED** |
+75-| Runner 重挂接后台 | `... python3 runner_reparent_probe.py` | rc=0；3/3 `timed_out=true`、worker 不存活、延迟 marker 不落盘 | PASS（Darwin） |
+76-| Gate/Schema 独立 56 断言 | `python3 independent_gate_schema_probe.py <b259副本>` | rc=1；48 PASS / 8 finding | BLOCKED |
+77-| 深层相对链接回滚 | `python3 independent_rollback_probe.py <b259副本>` | rc=0；bad-v2 失败后 current 精确回 v1 并重验 | PASS |
+78-| 安装体 CLI | `install.sh --prefix <tmp>` 后 `<prefix>/bin/wenquctl gate ...` | rc=0；删 `cli.py` 后安装 rc=1 | PASS |
+79-| 本地 acceptance | 隔离 HOME 下 `bash tests/acceptance.sh` | `PASS=64 FAIL=0`，rc=0 | 基线 PASS |
+80-| 两关键测试移除 | 分别删 adversarial / infra 后 acceptance | 各 `PASS=63 FAIL=1`，rc=1 | F4-CI 原缺口关闭 |
+81-| 七专属文件全删 | 删七个 `test_ac_*` 后 trace + acceptance | trace rc=0；acceptance `64/64` rc=0 | **假绿** |
+82-| 空断言 | DOC-03 测试体改为 `assert True` | 专属 14/14 rc=0；trace 仍 99、rc=0 | **假绿** |
+83-| §20 语义变异 | 改 ID/注入/期望/Unicode/列序 | 应红项均 rc=2 | 直接修复有效 |
+84-| trace parser 反例 | 重复 poison-first 行、缺失 `--plan` | 均 rc=0 | **假绿** |
+85-| CI 真实性 | `gh run view 37745638008 ...` | rc=0；b259、push/main、双平台 success | 真实性通过，覆盖不充分 |
+86:| 证据索引 | 独立逐路径/逐 hash 严格审计 | rc=1；严格 0/20 | FAIL |
+87-
+88-主审新探针：`root/11-independent-probes/`；Gate/Schema：`agents/gate-schema-cli/`；追踪/CI/运行时：`agents/trace-ci-runtime/`。
+89-
+90----
+91-
+92-## 4. 第四轮 12 项旧探针终态
+93-
+94-| # | 旧问题 | 第六轮异源结果 | 终态 | 证据 |
+95-|---:|---|---|---|---|
+96-| 01 | 伪签名/缺 exact binding | 跨信封、缺绑定均拒；正控通过 | PASS | `agents/runner-auth/logs/probe-01.log` |
+97-| 02 | risk 冒充 resume | 路由/判别拒绝且不消费 | PASS | `probe-02.log` |
+98-| 03 | 字符串假布尔 | 假布尔拒绝，真 bool 正控通过 | PASS | `probe-03.log` |
+--
+124-六项中完整关闭 1 项（CLI）；3 项关闭原始反例但总体仍 partial（AUTH、CI、TRC）；2 项仍有同层 P0 绕过（GATE、SCHEMA）。
+125-
+126----
+127-
+128-## 6. 第六轮新增实证发现
+129-
+130-### F6-AUTH-EXACT-001（P0）— 签名 action payload 未绑定实际 target
+131-
+132-独立探针签发 release 审批，payload 精确写入：
+133-
+134-```text
+135-release_id=rel-independent-6
+136:artifact_sha256=aaaa...
+137-manifest_sha256=bbbb...
+138-previous_release_id=rel-independent-5
+139-```
+140-
+141-随后调用 `reserve_action(..., target="prod://release/UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD")`，系统仍成功 RESERVED→STARTED→COMMITTED，receipt 只与这个事后自选 target 对账。`APPROVAL_CONSUMED` 事件不保留签名 payload，`ACTION_AUTH_RESERVED` 只保存任意 target，重放也无法恢复两者等值关系。
+142-
+143-这证明当前只是“存在同类型审批”，不是冻结方案要求的 `valid_exact_action_authorization`。证据：`root/11-independent-probes/auth_exact_target_bypass_probe.{py,log}`。
+144-
+145-### F6-BASELINE-DRIFT-001（P0）— 审计目标与运行体在验收中漂移
+146-
+147-b259 clean 起点被外部 writer 推进到 07a949，7789 同步变为新 SHA。b259 的 current-runtime 认证不可成立。见第 2.2 节。
+148-
+--
+170-- DOC-03 测试体置为恒真：专属套件与 trace 均 rc=0，仍计 99；
+171-- acceptance/workflow 根本未运行七文件。
+172-
+173-这直接证伪“文件/名字存在即语义实现”和“99 条已形成不可绕过门”。
+174-
+175-### F6-TRC-PARSER-002（P1）— trace parser/冻结 SHA fail-open
+176-
+177-- 重复相同行、先 poisoned 后正确的重复 ID 行：rc=0；
+178-- `--plan` 指向不存在文件：rc=0/跳过；
+179-- `PLAN_SHA256` 常量没有对方案全文件实算；§20/§25 外修改仍 rc=0；
+180-- 应红输出中 `meta.catalog_integrity` 仍可显示 `OK`。
+181-
+182:### F6-EVID-001（P0）— 20 条证据索引未达到严格合同
+183-
+184-- 严格合格：0/20；
+185-- 必填值全非空：4/20；
+186-- artifact hash 是裸 64hex：4/20；
+187-- 裸 hash 与 `evidence_path` 所指具体文件实算一致：1/20；
+188-- 4 条路径只指目录；完整 40hex commit 仅 3/20；
+189-- `repo_head_at_filing=f2b8fc3`，未绑定 b259/CI 37745638008；
+190-- `EV-W5-001` hash 错，`EV-REL-002` 路径指 checksum 文件却填 tar hash。
+191-
+192-因此“20 条全量 SHA 达标整改”被实物证伪。
+193-
+194-### F6-CI-PORT-001（P1）— Ubuntu required acceptance 忽略 `mktemp` 错误
+--
+323-证据：`root/regression/`。
+324-
+325-### 10.5 CI 37745638008 与分支保护
+326-
+327-- run：push/main、head=b259、completed/success；macOS/Ubuntu 两 job success；
+328-- PR#4、PR#5 均在双 required check success 后合入；
+329-- protection：`strict=true`、`enforce_admins=true`、required 为双 matrix、force push/delete 禁止；
+330-- 无 required review、CODEOWNERS/conversation resolution、ruleset、merge_group；Actions 使用浮动 `@v4/@v5`；
+331-- acceptance 日志两端为 63，不是声明的 64；Ubuntu 有被忽略的 `mktemp` 错误；随后 pytest step 20 passed。
+332-
+333-判定：CI/SHA/正门真实性 **PASS**；覆盖与 fail-closed 充分性 **FAIL/PARTIAL**。
+334-
+335:### 10.6 证据索引 20 条
+336-
+337:数量和路径存在性为 20/20；严格合同为 0/20。详见 F6-EVID-001。候选 tar 实算 SHA256：
+338-
+339-```text
+340-0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00
+341-```
+342-
+343-与同目录清单一致，451 项可列；但无签名/SBOM，索引路径/hash 错绑。
+344-
+345-### 10.7 7789 身份
+346-
+347-- launchd running，PID 42242，`127.0.0.1:7789`；
+348-- `/api/health` HTTP 200 但正文 score=40、Gate=failure；
+349-- active hash=`675603caca01317029f5cd208c2ebfc62f3c8272caa74491db05426d56dc1b2a`；
+--
+377-1. **冻结唯一 writer epoch**：停止验收期间改源/改运行体；以新 SHA 重新生成 clean archive、CI、制品、运行身份与观察窗，不复用本轮 b259 运行证据。
+378-2. **补 exact action binding**：对每类判别 payload 建立到实际 action descriptor 的规范化等值规则；消费事件持久化 payload digest/授权对象；receipt 必须同时绑定 signed payload 与实际 target。
+379-3. **Gate 必须吃权威 run manifest**：required stations、scope hash、coverage universe、attempt 与 artifact digest 均由冻结 manifest 绑定；省略 manifest/required 一律 ERROR/BLOCKED。
+380-4. **统一 Schema 与生产校验器**：严格 RFC3339；消除 64 上限枚举漏洞；重复站以完整语义/证据身份判等；用差分测试证明与正式 schema 等价。
+381-5. **把 99 专属测试接入 required**：建立 coverage floor/棘轮，删文件、删函数、恒真断言、missing plan、重复 ID 都必须红；不允许方案快照本身充当执行证据。
+382-6. **修 evidence index**：每条绑定 run_id、40hex SHA、environment、scope、ruleset、时间、argv、real_rc、具体文件路径、文件实算 SHA256、fresh_until；禁止目录路径和说明文字 hash。
+383-7. **CI fail-closed**：修 GNU/BSD `mktemp`，启用 `set -euo pipefail`/显式 rc，固定 acceptance 计数口径；加 CODEOWNERS/review、merge_group 与 action commit pin。
+384-8. **完成现役迁移**：以不可变 release/manifest 部署模块化只读 7789；再做真实浏览器、授权写面、回滚和 runtime hash 验收。
+385-9. **从有效样本重启 W9/W10**：样本必须 clean、绑定同一 SHA/CI/制品；shadow 任一端非 200/不可比时采样器必须非零并 `ok=false`；两端可比后才能计第 1 天。
+386-
+387----
+388-
+389:## 13. 第六轮证据索引
+390-
+391-| 路径 | 内容 |
+392-|---|---|
+393-| `root/00-baseline.txt` | b259 clean 起点、方案 hash |
+394-| `root/05-source-drift.txt`、`12-final-source-state.txt` | 验收中漂移与最终 main 身份 |
+395-| `root/11-independent-probes/` | F4-AUTH 基础链、exact-target 绕过与 Runner 重挂接独立探针、命令、输出、rc |
+396-| `agents/runner-auth/` | 旧探针 01–07、09–10 独立日志 |
+397-| `agents/gate-schema-cli/` | Gate/Schema 56 断言、CLI、回滚、三锚点、acceptance |
+398-| `agents/trace-ci-runtime/16-*`、`mutations/` | §20/§25.1 语义与 parser 变异 |
+399-| `agents/trace-ci-runtime/18-*`、`25-id-sample-audit.md` | 99 实跑与 21 条逐 ID 抽查 |
+400-| `agents/trace-ci-runtime/19-*`、`20-*` | 恒真测试与删除七文件双假绿 |
+401-| `agents/trace-ci-runtime/evidence-index/strict-audit.json` | 20 条索引逐字段/路径/hash 对账 |
+402-| `root/06-ci-branch/`、`agents/trace-ci-runtime/github/` | run 37745638008、jobs/logs、保护门、PR#4/#5 |
+403-| `root/08-runtime/`、`agents/trace-ci-runtime/runtime/` | 7789 PID/listener/hash/API、观察样本与 shadow |
+404-| `root/regression/` | 14 套回归、五模块自测、acceptance、station4 重复 |
+405-| `agents/*/MANIFEST.sha256` | 三个子审清单，均已复算 |
+406:| `EVIDENCE-INDEX.md` | 本轮总入口与关键判定 |
+407-| `MANIFEST.sha256` | 证据根总清单（排除自身） |
+408-
+409----
+410-
+411-## 14. 最终结论
+412-
+413-第五波修复不是“没有生效”：第四轮 12 项旧探针现已在 b259 候选面全部关闭，action 审批存在性/回执分级、Runner、安装体、原 Schema/Gate 反例与 12+66 CI 接线均有独立实证。
+414-
+415:但第五波也没有达到生产级闭环：action 审批 payload 可被用于任意实际 target；Gate 仍可自举分母并接受 schema-invalid 时间；formal schema 仍有 65/66 漏洞；99 专属覆盖可被整体删除或空断言绕过；证据索引 0/20；现役 b259 身份在验收中漂移；首日观察失败仍被采样器报 ok。
+416-
+417-# **最终固定判定：52/100 — BLOCKED**
+418-
+419-禁止将本报告解释为当前 main 通过、b259 已部署、required CI 覆盖完整、release 可发布或 W9/W10 已开始有效计时。
+---REPORT_HASH---
+1fa4a7f0ef3bb3af51c9276a9f1d9b3a31c43764caacbf0caf8d55854ed7330a  /private/tmp/codex-test/验收报告-第六轮.md
+---PLAN_HASHES---
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/方案.md
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:52:28Z

@@ -1,0 +1,319 @@
+UTC_START=2026-10-08T12:51:05Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-scheduler1.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+UIDN=$(id -u)
+echo "=== launchctl user domain ==="
+launchctl print "gui/$UIDN/com.wenqu.scheduler" 2>&1; rc=$?; echo USER_PRINT_RC=$rc
+echo "=== launchctl system domain ==="
+launchctl print "system/com.wenqu.scheduler" 2>&1; rc=$?; echo SYSTEM_PRINT_RC=$rc
+echo "=== now ==="; date '+LOCAL=%Y-%m-%dT%H:%M:%S%z EPOCH=%s'
+echo "=== candidate scheduler references ==="
+rg -n 'heartbeat|gate-aggregate|WENQU_|state/|scheduler' /private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/scheduler.py | head -200
+echo "=== state files candidate ==="
+for f in "$HOME/.wenqu/state/gate-aggregate.json" "$HOME/.wenqu/state/scheduler-heartbeat.json" "$HOME/.wenqu/state/scheduler-state.json" "$HOME/.wenqu/observation/logs/scheduler-launchd-out.log" "$HOME/.wenqu/observation/logs/scheduler-launchd-err.log"; do
+ echo "===== $f ====="
+ if test -e "$f"; then stat -f 'SIZE=%z MODE=%Sp UID=%u GID=%g MTIME=%Sm MTIME_EPOCH=%m' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; if [[ $f == *.json ]]; then python3 -m json.tool "$f" 2>&1 | head -300; else tail -120 "$f"; fi; else echo MISSING; fi
+done
+echo "=== nearby state/observation files ==="
+find "$HOME/.wenqu/state" "$HOME/.wenqu/observation" -maxdepth 3 -type f -print 2>/dev/null | sort | while read f; do stat -f '%m %Sm %z %N' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; done | sort -nr | head -120
+--- OUTPUT ---
+=== launchctl user domain ===
+gui/502/com.wenqu.scheduler = {
+	active count = 0
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		-m
+		wenqu_core.scheduler
+		tick
+	}
+
+	working directory = /Users/maccc/Documents/wenqu-dist
+
+	stdout path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+	stderr path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_PYTHON => /opt/homebrew/bin/python3
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		PYTHONPATH => /Users/maccc/Documents/wenqu-dist/system
+		HOME => /Users/maccc
+		XPC_SERVICE_NAME => com.wenqu.scheduler
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 38
+	last exit code = 0
+
+	resource coalition = {
+		ID = 534409
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	jetsam coalition = {
+		ID = 534410
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 300 seconds
+
+	properties = runatload | inferred program
+}
+USER_PRINT_RC=0
+=== launchctl system domain ===
+Bad request.
+Could not find service "com.wenqu.scheduler" in domain for system
+SYSTEM_PRINT_RC=113
+=== now ===
+LOCAL=2026-10-08T20:51:05+0800 EPOCH=1791463865
+=== candidate scheduler references ===
+1:"""scheduler.py——Codex 方案 W4（§13）：统一调度 / Watchdog / Outbox。
+10:                       actual_exit_code + commit_sha；run+heartbeat+outbox
+73:log = logging.getLogger("wenqu.scheduler")
+378:    refreshed_heartbeat: bool
+413:CREATE TABLE IF NOT EXISTS scheduler_jobs (
+444:CREATE TABLE IF NOT EXISTS scheduler_runs (
+461:    refreshed_heartbeat INTEGER NOT NULL DEFAULT 0,
+466:CREATE INDEX IF NOT EXISTS idx_scheduler_runs_job
+467:    ON scheduler_runs (job_id, started_at);
+469:CREATE TABLE IF NOT EXISTS scheduler_heartbeats (
+483:CREATE TABLE IF NOT EXISTS scheduler_outbox (
+501:    ON scheduler_outbox (status, next_attempt_at);
+503:CREATE TABLE IF NOT EXISTS scheduler_skips (
+595:                "INSERT OR REPLACE INTO scheduler_jobs ("
+622:                "DELETE FROM scheduler_jobs WHERE job_id = ?", (job_id,)
+629:                "UPDATE scheduler_jobs SET enabled = ? WHERE job_id = ?",
+637:            "SELECT * FROM scheduler_jobs WHERE job_id = ?", (job_id,)
+643:            rows = self._store.query("SELECT * FROM scheduler_jobs ORDER BY job_id")
+646:                "SELECT * FROM scheduler_jobs WHERE enabled = ? ORDER BY job_id",
+654:            "FROM scheduler_jobs WHERE job_id = ?",
+674:            " FROM scheduler_jobs WHERE enabled = 1 ORDER BY job_id"
+778:            "SELECT next_due_at FROM scheduler_jobs WHERE job_id = ?",
+786:            "UPDATE scheduler_jobs SET next_due_at = ?, last_consumed_at = ? "
+800:                "INSERT OR IGNORE INTO scheduler_skips"
+904:            "INSERT OR IGNORE INTO scheduler_outbox ("
+922:            " attempts, max_attempts FROM scheduler_outbox"
+950:                        "UPDATE scheduler_outbox SET status='SENT', sent_at=?,"
+960:                            "UPDATE scheduler_outbox SET status='DEAD_LETTER',"
+973:                            "UPDATE scheduler_outbox SET attempts=?,"
+1023:            "SELECT status, COUNT(*) FROM scheduler_outbox GROUP BY status"
+1031:            " FROM scheduler_outbox WHERE status='DEAD_LETTER'"
+1063:        " FROM scheduler_heartbeats"
+1106:                "INSERT INTO scheduler_heartbeats ("
+1132:            "UPDATE scheduler_heartbeats SET input_fingerprint=?,"
+1170:            " FROM scheduler_jobs j LEFT JOIN scheduler_heartbeats h"
+1248:                        f"heartbeat:{job_id}:{probe_id}:{station_id}:"
+1251:                    meta={"kind": "heartbeat", "state": state,
+1286:        heartbeat: Optional[HeartbeatMonitor] = None,
+1296:        self._heartbeat = heartbeat or HeartbeatMonitor(self._store, self._outbox)
+1395:        # ---- 事务：run + heartbeat + outbox 原子落库（事务性 outbox） ----
+1400:                "INSERT OR IGNORE INTO scheduler_runs ("
+1405:                " refreshed_heartbeat, notifications_enqueued, warnings_json"
+1415:            refreshed = self._heartbeat._upsert_tx(
+1428:                "UPDATE scheduler_runs SET refreshed_heartbeat=?,"
+1443:            timed_out=timed_out, refreshed_heartbeat=refreshed,
+1464:            "SELECT * FROM scheduler_runs WHERE job_id=? AND scheduled_at=?",
+1479:            "refreshed_heartbeat": bool(row[16]),
+1535:            "actor": "wenqu-scheduler",
+1559:# W4 生产接线（launchd com.wenqu.scheduler）——纯追加节，不改动上方任何
+1564:#      （复用其全部探针语义，非复刻）；run+heartbeat+outbox 同一事务。
+1566:#      ~/.wenqu/state/station-results/<station>.json（同站覆盖=只取最新），
+1567:#      调真 wenquctl gate 聚合，原子写 ~/.wenqu/state/gate-aggregate.json
+1573:#   4. 心跳与日志：~/.wenqu/observation/heartbeat.json（tick 级心跳）+
+1574:#      ~/.wenqu/observation/logs/scheduler-YYYY-MM-DD.jsonl（每 tick 一行）。
+1576:# 可测性：ProductionPaths 可整体注入（测试用临时 WENQU_HOME，绝不写真实
+1589:PROD_LABEL = "com.wenqu.scheduler"
+1599:        "repo_root", "wenqu_home", "state_dir", "scheduler_db",
+1602:        "heartbeat", "observation_daily", "cli_py",
+1609:        self.scheduler_db = _os.path.join(self.state_dir, "scheduler.db")
+1611:                                            "gate-aggregate.json")
+1620:        self.heartbeat = _os.path.join(self.observation_root, "heartbeat.json")
+1630:        wenqu_home = _os.environ.get("WENQU_HOME") or _os.path.expanduser(
+1875:        "source": "w4-scheduler",
+1883:    """真跑 wenquctl gate 聚合并原子落 gate-aggregate.json。
+1909:        argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+1958:            _os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+1984:    返回 tick 摘要（同时写 heartbeat.json + 当日 tick 日志一行）。
+1996:    store = SchedulerStore(paths.scheduler_db)
+2007:        heartbeat_mon = HeartbeatMonitor(store, outbox)
+2011:            heartbeat=heartbeat_mon,
+2031:                    "UPDATE scheduler_jobs SET next_due_at=?,"
+2042:            "SELECT COUNT(*) FROM scheduler_runs WHERE job_id=?",
+2061:            "SELECT * FROM scheduler_runs WHERE job_id=? "
+2073:        health = heartbeat_mon.check_health(now=now, notify=True)
+2089:                      "refreshed_heartbeat": r["refreshed_heartbeat"],
+2104:            "paths": {"scheduler_db": paths.scheduler_db,
+2106:                      "heartbeat": paths.heartbeat,
+2110:        _atomic_write_json(paths.heartbeat, payload)
+2113:            "scheduler-" + datetime.fromtimestamp(now).strftime(
+2125:        prog="wenqu-scheduler",
+2126:        description="W4 生产调度 tick（launchd com.wenqu.scheduler 入口）")
+2138:            _atomic_write_json(paths.heartbeat, {
+2145:            log.exception("failed to write crash heartbeat")
+2157:if __name__ == "__main__":  # python3 -m wenqu_core.scheduler tick
+=== state files candidate ===
+===== /Users/maccc/.wenqu/state/gate-aggregate.json =====
+SIZE=911 MODE=-rw-r--r-- UID=502 GID=20 MTIME=2026-10-08T20:46:15+0800 MTIME_EPOCH=1791463575
+d71854cc635894418ecfd48deb0ee5b93325b82f07c280b9fe9dbedc3ab65c6b  /Users/maccc/.wenqu/state/gate-aggregate.json
+{
+    "generated_at": "2026-10-08T12:46:15Z",
+    "policy_verdict": "PASS",
+    "aggregate_outcome": "PASS",
+    "technical_eligible": true,
+    "reason": "all 1 required stations PASS",
+    "reasons": [],
+    "counts": {
+        "required_total": 1,
+        "required_reported": 1,
+        "required_missing": 0,
+        "bypass_stations": 0,
+        "duplicates_ignored": 0,
+        "conflicts": 0,
+        "malformed": 0
+    },
+    "stations": {
+        "0": {
+            "outcome": "PASS",
+            "required": true,
+            "sha_bound": true,
+            "environment_ok": true,
+            "input_version": "v2",
+            "schema_valid": true
+        }
+    },
+    "target_sha": "1495913085eae13155f977fcebc8400b9789e04c",
+    "environment": "production",
+    "scope_binding": {
+        "mode": "self_declared"
+    },
+    "inputs": {
+        "paths": 1,
+        "docs": 1,
+        "load_errors": 0,
+        "schema_invalid": 0
+    },
+    "mode": "self_declared_diagnostic",
+    "source": "wenquctl-gate",
+    "cli_exit": 0
+}
+===== /Users/maccc/.wenqu/state/scheduler-heartbeat.json =====
+MISSING
+===== /Users/maccc/.wenqu/state/scheduler-state.json =====
+MISSING
+===== /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log =====
+SIZE=10536 MODE=-rw-r--r-- UID=502 GID=20 MTIME=2026-10-08T20:46:15+0800 MTIME_EPOCH=1791463575
+ec4fa16ac1fe39167e93a644f3b8f8bdc754d79ce0a4e7bfe7581cd3ad1aeeb7  /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+{"tick_rc": 0, "tick_at": "2026-10-08T09:16:49Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:22:11Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:27:15Z", "gate": "ERROR", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:29:29Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:34:33Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:35:32Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:40:35Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:45:47Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:50:52Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T09:56:00Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:01:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:06:29Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:11:37Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:16:45Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:21:49Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:26:56Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:32:04Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:37:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:42:22Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:47:26Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:52:31Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T10:57:36Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:02:45Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:08:03Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:13:21Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:18:25Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:23:31Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:28:35Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:33:40Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:38:45Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:43:51Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:48:55Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:54:00Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T11:59:05Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:04:10Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:09:17Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:14:24Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:19:29Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:24:34Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:29:38Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:34:50Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:40:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-08T12:45:50Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+===== /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log =====
+SIZE=0 MODE=-rw-r--r-- UID=502 GID=20 MTIME=2026-10-08T17:16:48+0800 MTIME_EPOCH=1791451008
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+=== nearby state/observation files ===
+1791463575 2026-10-08T20:46:15+0800 911 /Users/maccc/.wenqu/state/gate-aggregate.json
+1791463575 2026-10-08T20:46:15+0800 86016 /Users/maccc/.wenqu/state/scheduler.db
+1791463575 2026-10-08T20:46:15+0800 51159 /Users/maccc/.wenqu/observation/logs/scheduler-2026-10-08.jsonl
+1791463575 2026-10-08T20:46:15+0800 1483 /Users/maccc/.wenqu/observation/heartbeat.json
+1791463575 2026-10-08T20:46:15+0800 10536 /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+1791463570 2026-10-08T20:46:10+0800 1026 /Users/maccc/.wenqu/state/station-results/0.json
+1791463568 2026-10-08T20:46:08+0800 2299 /Users/maccc/.wenqu/observation/shadow/2026-10-08.json
+1791463568 2026-10-08T20:46:08+0800 1414 /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+1791453482 2026-10-08T17:58:02+0800 4764 /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl
+1791453482 2026-10-08T17:58:02+0800 2707 /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json
+1791451123 2026-10-08T17:18:43+0800 2208 /Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json
+1791451089 2026-10-08T17:18:09+0800 390 /Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt
+1791451089 2026-10-08T17:18:09+0800 239 /Users/maccc/.wenqu/observation/alerts/receipts.jsonl
+1791451008 2026-10-08T17:16:48+0800 0 /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+1791442574 2026-10-08T14:56:14+0800 1226 /Users/maccc/.wenqu/observation/logs/out.log
+1791442487 2026-10-08T14:54:47+0800 72 /Users/maccc/.wenqu/observation/logs/ttest2-result.json
+1791442487 2026-10-08T14:54:47+0800 0 /Users/maccc/.wenqu/observation/logs/ttest2-out.log
+1791442487 2026-10-08T14:54:47+0800 0 /Users/maccc/.wenqu/observation/logs/ttest2-err.log
+1791442425 2026-10-08T14:53:45+0800 6 /Users/maccc/.wenqu/observation/logs/ttest.marker
+1791442425 2026-10-08T14:53:45+0800 240 /Users/maccc/.wenqu/observation/logs/ttest-result.json
+1791442425 2026-10-08T14:53:45+0800 0 /Users/maccc/.wenqu/observation/logs/ttest-out.log
+1791442425 2026-10-08T14:53:45+0800 0 /Users/maccc/.wenqu/observation/logs/ttest-err.log
+1791442306 2026-10-08T14:51:46+0800 167 /Users/maccc/.wenqu/observation/logs/err.log
+1791442268 2026-10-08T14:51:08+0800 0 /Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:51:05Z

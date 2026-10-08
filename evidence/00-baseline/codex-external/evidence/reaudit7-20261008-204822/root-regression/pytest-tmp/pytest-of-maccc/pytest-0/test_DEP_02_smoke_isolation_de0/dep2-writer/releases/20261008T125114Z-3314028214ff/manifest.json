@@ -1,0 +1,27 @@
+{
+  "content_digest": "3314028214ff9fc5b906758a4a5903ac64c36ffd2d82c3296cca5ac795c2d66d",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "6d9eebede7f33e5a0f7320a46adebb2d2dd47b621ff907b61a6acb9bf4ffcfaf",
+      "size": 25
+    },
+    {
+      "mode": "0444",
+      "path": "flag-w.txt",
+      "sha256": "cf945b5236e101dbe0471d5200f28b1ae64f21c1f35bf55fcf40cd0fe42cd8e7",
+      "size": 2
+    }
+  ],
+  "release_id": "20261008T125114Z-3314028214ff",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_02_smoke_isolation_de0/dep2-w"
+}

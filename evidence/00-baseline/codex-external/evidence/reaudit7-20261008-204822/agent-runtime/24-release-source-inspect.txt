@@ -1,0 +1,824 @@
+UTC_START=2026-10-08T12:52:44Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /private/tmp/reaudit7-d32c859-runtime && sed -n "1,280p" tools/release_attest.py && echo ---TESTS--- && sed -n "1,320p" system/tests/test_release_attest.py && echo ---EVIDENCE--- && find evidence/09-release-manifest-attestation -maxdepth 2 -type f -print -exec shasum -a 256 {} \; -exec sed -n "1,240p" {} \;
+--- OUTPUT ---
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""release_attest.py —— release 制品 manifest / 签名 / SBOM / 验证独立打包工具。
+
+背景（Codex 多轮缺口）：本仓有哈希清单链（仓根 SHA256-v*.txt、dist/ 候选包），
+但制品**无签名、无 SBOM、无 build identity 绑定**（evidence/09 README 建档时
+DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货即对账」三件套，
+与 system/wenqu_core/deploy_framework.py 的部署侧 manifest 校验相互独立——
+本工具只管「制品从哪个 commit 来、里面每个文件是什么」，不碰部署状态机
+（DEP-04 签名字段由并行工作流在部署侧接线，两轨契约见 evidence/09 README）。
+
+设计决策（冻结）：
+- 制品正源 = ``git archive <commit>``：从 commit 对象导出干净树，**与工作树
+  无关**（并行 agent 改工作树不影响制品内容）；tar 经 Python gzip 二次封装
+  （mtime=0、压缩级 9）→ 同 commit 重建字节一致（确定性构建，可复验）。
+- 签名 = wenqu_core.approval_keys 的 HMAC-SHA256（**只读 import**，复用
+  sign_envelope/ApprovalKeyring 的 canonical JSON 与常量时间比对、
+  revoked fail-closed 语义）；detached 签名文件含 key_id。
+  诚实边界（§21.4）：对称 shared-secret 模型只提供 tamper-evident /
+  防伪造，**不提供非否认（non-repudiation）**——与审批体系同一信任根，
+  未建立独立 release signer 前不得声称「签名证明来源」。
+- SBOM = SPDX 2.3 JSON（最简合法文档）：根包=发行版（versionInfo 取自
+  归档内 system/VERSION），逐文件 SHA256 + packageVerificationCode；
+  依赖信息从**归档内自述文件**提取（requirements*.txt/package.json/
+  pyproject.toml/setup.py 等），无外部网络、无猜测。
+- verify = tar 重算逐文件 hash 对 manifest + 验签 + SBOM 三方对账，
+  任一不符 exit 非零（fail-closed：缺件/多件/错 hash/错权限/坏路径全拒）。
+
+用法（纯标准库；仓根执行）：
+  python3 tools/release_attest.py build  [--commit HEAD] [--dist-dir dist]
+                                        [--prefix wenqu-dist] [--repo .]
+  python3 tools/release_attest.py sign  --manifest PATH --keyring PATH
+                                        [--key-id ID] [--out PATH]
+  python3 tools/release_attest.py sbom  --manifest PATH [--out PATH]
+  python3 tools/release_attest.py verify --manifest PATH --keyring PATH
+                                        [--tar PATH] [--sig PATH] [--sbom PATH]
+                                        [--report PATH]
+
+产物命名（dist/ 下四件套，<name> = <prefix>-<shortsha>）：
+  <name>.tar.gz           制品（git archive 干净树）
+  <name>.manifest.json    逐文件清单（路径/类型/权限/大小/sha256 + build identity）
+  <name>.release.sig      detached HMAC-SHA256 签名（含 key_id）
+  <name>.sbom.spdx.json   SPDX 2.3 SBOM
+
+exit 约定：0=通过；1=verify 判 FAIL（制品/签名/SBOM 任一不符）；2=用法/环境错。
+"""
+from __future__ import annotations
+
+import argparse
+import gzip
+import hashlib
+import getpass
+import io
+import json
+import os
+import platform
+import re
+import subprocess
+import sys
+import tarfile
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SYSTEM_DIR = os.path.join(REPO_ROOT, "system")
+if SYSTEM_DIR not in sys.path:
+    sys.path.insert(0, SYSTEM_DIR)
+
+# 只读 import：仅使用签发/验签函数与 keyring 读取，绝不写 keyring。
+from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
+
+TOOL_NAME = "release_attest.py"
+TOOL_VERSION = "1.0.0"
+MANIFEST_SCHEMA = "wenqu-release-manifest/1"
+SIG_SCHEMA = "wenqu-release-sig/1"
+SBOM_SPDX_VERSION = "SPDX-2.3"
+
+#: 方案正源哈希（tools/ac_traceability.py 冻结值同源）——manifest 落
+#: policy_hash，把「验收目录来自哪份方案」钉进 build identity。
+PLAN_SHA256 = "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306"
+
+#: SBOM 依赖提取的自述文件清单（归档内按 basename 精确匹配；无网络）。
+DEP_MANIFEST_BASENAMES = (
+    "requirements.txt", "requirements-dev.txt", "requirements_test.txt",
+    "package.json", "pyproject.toml", "setup.py", "Pipfile",
+    "go.mod", "Cargo.toml", "Gemfile",
+)
+
+_SIG_HONESTY_NOTE = (
+    "HMAC-SHA256 symmetric key (same trust root as approval keyring): "
+    "tamper-evident / anti-forgery only, NOT non-repudiation (plan §21.4)"
+)
+
+
+# ---------------------------------------------------------------------- #
+# 基础工具
+# ---------------------------------------------------------------------- #
+def _utc_now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _build_id(short: str) -> str:
+    return f"rel-{short}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _die(msg: str, code: int = 2) -> "None":
+    print(f"[release_attest] ERROR: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def _git(repo: str, *args: str) -> str:
+    try:
+        proc = subprocess.run(["git", "-C", repo, *args],
+                              capture_output=True, text=True, check=True)
+    except FileNotFoundError:
+        _die("git 不可用（PATH 缺失）")
+    except subprocess.CalledProcessError as exc:
+        _die(f"git {' '.join(args)} 失败: "
+             f"{(exc.stderr or exc.stdout).strip()[:200]}")
+    return proc.stdout.strip()
+
+
+def _safe_member_path(name: str) -> bool:
+    """tar 成员路径防御：拒绝绝对路径 / .. 逃逸 / 反斜杠混淆（fail-closed）。"""
+    if not name or name.startswith("/") or "\\" in name:
+        return False
+    parts = name.split("/")
+    return all(p not in ("", "..", ".") for p in parts) and name != "./"
+
+
+# ---------------------------------------------------------------------- #
+# tar 枚举（build 与 verify 共用同一正源函数）
+# ---------------------------------------------------------------------- #
+def _iter_tar_records(tar_path: str
+                      ) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """枚举 tar 内全部实体成员 → manifest 记录（含目录标记），返回 (记录, 意外成员)。"""
+    records: List[Dict[str, Any]] = []
+    unexpected: List[str] = []
+    with tarfile.open(tar_path, "r:gz") as tf:
+        for ti in tf:  # type: tarfile.TarInfo
+            if not _safe_member_path(ti.name):
+                unexpected.append(f"unsafe-path:{ti.name}")
+                continue
+            if ti.isdir():
+                continue  # 目录由文件路径蕴含，不入清单
+            if ti.isfile():
+                fh = tf.extractfile(ti)
+                if fh is None:
+                    unexpected.append(f"unreadable:{ti.name}")
+                    continue
+                h = hashlib.sha256()
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+                records.append({
+                    "path": ti.name,
+                    "type": "file",
+                    "mode": int(ti.mode & 0o7777),
+                    "size": int(ti.size),
+                    "sha256": h.hexdigest(),
+                })
+            elif ti.issym():
+                target = ti.linkname or ""
+                records.append({
+                    "path": ti.name,
+                    "type": "symlink",
+                    "mode": int(ti.mode & 0o7777),
+                    "size": len(target.encode("utf-8")),
+                    "sha256": hashlib.sha256(target.encode("utf-8")).hexdigest(),
+                    "symlink_target": target,
+                })
+            else:
+                unexpected.append(f"member-type:{ti.name}:{_member_kind(ti)}")
+    records.sort(key=lambda r: r["path"])
+    return records, unexpected
+
+
+def _member_kind(ti: tarfile.TarInfo) -> str:
+    for attr in ("islnk", "ischr", "isblk", "isfifo", "isdev"):
+        if getattr(ti, attr)():
+            return attr[2:]
+    return f"type-{ti.type!r}"
+
+
+def _read_member_bytes(tar_path: str, member: str,
+                       limit: int = 1 << 20) -> Optional[bytes]:
+    with tarfile.open(tar_path, "r:gz") as tf:
+        ti = tf.getmember(member)
+        fh = tf.extractfile(ti)
+        if fh is None:
+            return None
+        return fh.read(limit)
+
+
+# ---------------------------------------------------------------------- #
+# build
+# ---------------------------------------------------------------------- #
+def cmd_build(args: argparse.Namespace) -> int:
+    repo = os.path.abspath(args.repo)
+    if not os.path.isdir(os.path.join(repo, ".git")):
+        _die(f"不是 git 仓库: {repo!r}")
+
+    full = _git(repo, "rev-parse", "--verify", f"{args.commit}^{{commit}}")
+    if not re.fullmatch(r"[0-9a-f]{40}", full):
+        _die(f"rev-parse 未返回完整 commit sha: {full!r}")
+    short = _git(repo, "rev-parse", "--short=7", full)
+    subject = _git(repo, "log", "-1", "--format=%s", full)
+
+    dist_dir = os.path.abspath(
+        args.dist_dir if os.path.isabs(args.dist_dir)
+        else os.path.join(repo, args.dist_dir))
+    os.makedirs(dist_dir, exist_ok=True)
+    name = f"{args.prefix}-{short}"
+    tar_path = os.path.join(dist_dir, f"{name}.tar.gz")
+
+    # git archive 导出干净树（读 commit 对象，与工作树无关）→ 确定性 gzip。
+    arch = subprocess.run(
+        ["git", "-C", repo, "archive", "--format=tar", full],
+        capture_output=True, check=False)
+    if arch.returncode != 0:
+        _die(f"git archive {short} 失败: {arch.stderr.decode('utf-8', 'replace')[:200]}")
+    with open(tar_path, "wb") as out:
+        with gzip.GzipFile(fileobj=out, mode="wb", compresslevel=9,
+                           mtime=0, filename="") as gz:
+            gz.write(arch.stdout)
+
+    records, unexpected = _iter_tar_records(tar_path)
+    if unexpected:
+        os.unlink(tar_path)
+        _die(f"归档含意外成员（fail-closed 不出包）: {unexpected[:5]}")
+
+    # version 从归档内 system/VERSION 读（制品自述，不用工作树值）。
+    version = "UNKNOWN"
+    vbytes = _read_member_bytes(tar_path, "system/VERSION", limit=4096)
+    if vbytes is not None:
+        version = vbytes.decode("utf-8", "replace").strip() or "UNKNOWN"
+
+    manifest = {
+        "schema": MANIFEST_SCHEMA,
+        "tool": TOOL_NAME,
+        "tool_version": TOOL_VERSION,
+        "build_id": _build_id(short),
+        "built_at": _utc_now_iso(),
+        "source_commit": full,
+        "source_commit_short": short,
+        "source_commit_subject": subject,
+        "version": version,
+        "policy_hash": {"plan_sha256": PLAN_SHA256},
+        "builder": {
+            "user": getpass.getuser(),
+            "host": platform.node(),
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+        },
+        "argv": [TOOL_NAME, "build", "--commit", args.commit,
+                 "--prefix", args.prefix],
+        "artifact": {
+            "path": f"{name}.tar.gz",
+            "size": os.path.getsize(tar_path),
+            "sha256": _sha256_file(tar_path),
+            "source": f"git archive {full} (clean tree from commit object)",
+            "deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致",
+        },
+        "n_files": len(records),
+        "files": records,
+    }
+    manifest_path = os.path.join(dist_dir, f"{name}.manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, ensure_ascii=False, indent=1, sort_keys=True)
+        fh.write("\n")
+
+    print(f"BUILD OK  {name}")
+    print(f"  commit   : {full} ({subject[:60]})")
+---TESTS---
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""test_release_attest.py——tools/release_attest.py（release manifest/签名/SBOM/
+verify 四件套）全链自测。
+
+锚点：删除 tools/release_attest.py 后此测试必红（文件级依赖 + 行为断言）。
+任务冻结验收链（Codex 多轮缺口：制品无签名/SBOM）：
+
+  build → sign → sbom → verify 全绿
+  篡改 tar 一字节           → verify 必拒（exit 1）
+  换 key 验签                → verify 必拒
+  SBOM 字段完整性            → SPDX 2.3 必填字段/根包/逐文件 hash/验证码全断言
+
+对抗加固（本仓红探针风格，fail-closed 全闭）：
+  重打包攻击（改文件内容+自洽改 manifest 的 artifact/file hash）→ 签名拦截；
+  篡改 manifest / sig / sbom 任一 → verify 必拒；
+  未知 key_id / rotated key 签发 → sign 拒；revoked key 验签即拒；
+  确定性构建：同 commit 两次 build → tar sha256 字节一致。
+
+密钥纪律：测试只用 system/tests/fixtures/approval-keys.json（测试专用 HMAC
+密钥，仓内公开）与运行时临时目录生成的临时 keyring；生产签发密钥绝不入档、
+绝不回显。HMAC 为对称签名（tamper-evident，非非否认）——诚实边界见工具头注。
+
+独立运行：python3 system/tests/test_release_attest.py
+exit 0 = 全部用例绿。
+"""
+from __future__ import annotations
+
+import gzip
+import hashlib
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+from typing import Any, Dict, List, Tuple
+
+TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_DIR))
+TOOL = os.path.join(REPO_ROOT, "tools", "release_attest.py")
+FIXTURE_KEYRING = os.path.join(TESTS_DIR, "fixtures", "approval-keys.json")
+
+PASS_N = FAIL_N = 0
+
+
+def check(name: str, fn) -> None:
+    global PASS_N, FAIL_N
+    print(f"  ---- {name}")
+    try:
+        fn()
+    except AssertionError as exc:
+        FAIL_N += 1
+        print(f"    ❌ {exc}")
+    except Exception as exc:  # noqa: BLE001 —— 环境错也按红处理
+        FAIL_N += 1
+        print(f"    ❌ [异常] {type(exc).__name__}: {exc}")
+    else:
+        PASS_N += 1
+        print("    ✅")
+
+
+def run_tool(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run([sys.executable, TOOL, *args],
+                          capture_output=True, text=True)
+
+
+def sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+               key_id: str = "key_test_1"
+               ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+    """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。"""
+    r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+    assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+    dist = os.path.join(workdir, "dist")
+    tars = [f for f in os.listdir(dist) if f.endswith(".tar.gz")]
+    assert len(tars) == 1, f"应恰有 1 个制品: {tars}"
+    stem = os.path.join(dist, tars[0][: -len(".tar.gz")])
+    manifest, sig, sbom = (f"{stem}.manifest.json", f"{stem}.release.sig",
+                           f"{stem}.sbom.spdx.json")
+    r = run_tool("sign", "--manifest", manifest, "--keyring", keyring,
+                 "--key-id", key_id)
+    assert r.returncode == 0, f"sign 失败: {r.stderr}"
+    r = run_tool("sbom", "--manifest", manifest)
+    assert r.returncode == 0, f"sbom 失败: {r.stderr}"
+    v = run_tool("verify", "--manifest", manifest, "--keyring", keyring)
+    return f"{stem}.tar.gz", manifest, sig, sbom, v
+
+
+def write_keyring(path: str, keys: Dict[str, str],
+                   meta: Dict[str, Dict[str, Any]]) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"keys": keys, "meta": meta}, fh)
+
+
+# ====================================================================== #
+# 1. 全链绿 + 确定性构建
+# ====================================================================== #
+def test_full_chain_green_and_deterministic():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, f"全链 verify 应绿:\n{v.stdout}\n{v.stderr}"
+        for line in ("manifest-schema", "artifact-hash", "files-reconcile",
+                     "signature", "sbom-reconcile", "build-identity"):
+            assert f"PASS  {line}" in v.stdout, f"缺 PASS {line}:\n{v.stdout}"
+        # 四件套齐 + manifest 基本身份字段
+        for p in (tar, manifest, sig, sbom):
+            assert os.path.isfile(p), f"产物缺失: {p}"
+        m = json.load(open(manifest, encoding="utf-8"))
+        assert re.fullmatch(r"[0-9a-f]{40}", m["source_commit"]), \
+            f"source_commit 应为完整 sha: {m['source_commit']}"
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
+                            m["built_at"]), f"built_at 非 ISO8601Z: {m['built_at']}"
+        assert m["tool_version"] and m["argv"] and m["builder"]["user"], \
+            "工具版本/argv/builder 缺失（evidence/09 填写规则：含 argv/commit/环境）"
+        assert m["artifact"]["sha256"] == sha256_file(tar), "制品 hash 与实算不符"
+        assert m["artifact"]["size"] == os.path.getsize(tar)
+        assert len(m["files"]) == m["n_files"] >= 600, \
+            f"发行树文件数异常: {m['n_files']}"
+
+        # 确定性：同 commit 二次 build → tar 字节一致
+        r2 = run_tool("build", "--dist-dir", os.path.join(tmp, "dist2"))
+        assert r2.returncode == 0, r2.stderr
+        tar2 = [os.path.join(tmp, "dist2", f) for f in
+                os.listdir(os.path.join(tmp, "dist2"))
+                if f.endswith(".tar.gz")][0]
+        assert sha256_file(tar2) == m["artifact"]["sha256"], (
+            "同 commit 重建 tar sha256 漂移——确定性构建破坏（gzip mtime 未钉死?）")
+
+
+# ====================================================================== #
+# 2. 篡改 tar 一字节 → verify 必拒
+# ====================================================================== #
+def test_tamper_tar_one_byte_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, "前置全链应绿"
+        data = bytearray(open(tar, "rb").read())
+        mid = len(data) // 2
+        data[mid] ^= 0xFF  # 翻转一字节（保证值变）
+        with open(tar, "wb") as fh:
+            fh.write(bytes(data))
+        v2 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v2.returncode != 0, f"篡改 tar 一字节后 verify 仍绿:\n{v2.stdout}"
+        assert "FAIL" in v2.stdout, "应有 FAIL 行"
+        assert "制品 hash/size 不符" in v2.stdout, \
+            f"失败原因应指向制品 hash: {v2.stdout}"
+
+
+# ====================================================================== #
+# 3. 重打包攻击：改内容+自洽改 manifest → 签名拦截
+# ====================================================================== #
+def _repack_with_changed_file(tar_path: str, victim_suffix: str
+                              ) -> Tuple[str, str]:
+    """重建 tar（替换一个文件内容），返回 (新 tar 路径, 被改的成员名)。"""
+    with tarfile.open(tar_path, "r:gz") as tf:
+        members = tf.getmembers()
+        victim = next(m for m in members
+                      if m.isfile() and m.name.endswith(victim_suffix)
+                      and "/evidence/" not in f"/{m.name}")
+        payloads: Dict[str, bytes] = {}
+        for m in members:
+            if m.isfile():
+                fh = tf.extractfile(m)
+                payloads[m.name] = b"" if fh is None else fh.read()
+    original = payloads[victim.name]
+    payloads[victim.name] = original + b"\n# tampered by test\n"
+    out = tar_path  # 原地重写
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as wtf:
+        for m in members:
+            if m.isfile():
+                data = payloads[m.name]
+                m.size = len(data)
+                wtf.addfile(m, io.BytesIO(data))
+            else:
+                wtf.addfile(m)
+    with open(out, "wb") as fh:
+        with gzip.GzipFile(fileobj=fh, mode="wb", compresslevel=9,
+                           mtime=0, filename="") as gz:
+            gz.write(buf.getvalue())
+    return out, victim.name
+
+
+def test_repack_attack_selfconsistent_manifest_caught_by_signature():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, "前置全链应绿"
+        m = json.load(open(manifest, encoding="utf-8"))
+
+        _repacked, victim = _repack_with_changed_file(tar, "CHANGELOG.md")
+        new_sha = sha256_file(tar)
+        new_size = os.path.getsize(tar)
+        # 攻击者自洽更新 manifest：artifact hash/size + 被改文件的逐文件 hash/size
+        with tarfile.open(tar, "r:gz") as tf:
+            ti = tf.getmember(victim)
+            fh = tf.extractfile(victim)
+            victim_sha = hashlib.sha256(fh.read()).hexdigest()
+            victim_size = ti.size
+        m["artifact"]["sha256"] = new_sha
+        m["artifact"]["size"] = new_size
+        for f in m["files"]:
+            if f["path"] == victim:
+                f["sha256"] = victim_sha
+                f["size"] = victim_size
+        with open(manifest, "w", encoding="utf-8") as fh:
+            json.dump(m, fh, ensure_ascii=False, indent=1, sort_keys=True)
+        v2 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v2.returncode != 0, (
+            "重打包+自洽改 manifest 后 verify 仍绿——detached 签名未覆盖 manifest!")
+        assert "验签失败" in v2.stdout, \
+            f"应被签名拦截（而非其他环节）:\n{v2.stdout}"
+        # 逐文件对账本身应已自洽通过（证明拦截确实来自签名而非清单错配）
+        assert "PASS  files-reconcile" in v2.stdout, v2.stdout
+
+
+# ====================================================================== #
+# 4. 换 key 验签必拒（未知 key_id / 同 id 不同 secret）
+# ====================================================================== #
+def test_wrong_key_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, "前置全链应绿"
+
+        # 4a. 验签侧 keyring 完全不含 key_test_1（fixtures meta 里是别的 key）
+        v2 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", os.path.join(
+                          TESTS_DIR, "fixtures", "approval-keys-meta.json"))
+        assert v2.returncode != 0, "未知 key_id（换 keyring）验签仍绿"
+        assert "验签失败" in v2.stdout
+
+        # 4b. 同 key_id、不同 secret（secret 泄露/替换场景）
+        forged = os.path.join(tmp, "forged.json")
+        write_keyring(forged, {"key_test_1": "f" * 64},
+                      {"key_test_1": {"status": "active"}})
+        v3 = run_tool("verify", "--manifest", manifest, "--keyring", forged)
+        assert v3.returncode != 0, "同 key_id 不同 secret 验签仍绿"
+        assert "验签失败" in v3.stdout
+
+        # 4c. sig 自称别的 key_id → 验签必拒
+        s = json.load(open(sig, encoding="utf-8"))
+        s["key_id"] = "key_test_2"  # fixture 里存在但未签发过本 manifest
+        with open(sig, "w", encoding="utf-8") as fh:
+            json.dump(s, fh)
+        v4 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v4.returncode != 0, "sig 换 key_id 后验签仍绿"
+
+
+# ====================================================================== #
+# 5. SBOM 字段完整性（SPDX 2.3 必填面 + 对账）
+# ====================================================================== #
+def test_sbom_field_integrity():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, "前置全链应绿"
+        m = json.load(open(manifest, encoding="utf-8"))
+        b = json.load(open(sbom, encoding="utf-8"))
+
+        assert b["spdxVersion"] == "SPDX-2.3", b["spdxVersion"]
+        assert b["dataLicense"] == "CC0-1.0"
+        assert b["SPDXID"] == "SPDXRef-DOCUMENT"
+        assert isinstance(b["name"], str) and b["name"]
+        assert re.match(r"^https://", b["documentNamespace"]), \
+            b["documentNamespace"]
+        ci = b["creationInfo"]
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
+                            ci["created"]), ci["created"]
+        assert any(c.startswith("Tool: release_attest-")
+                   for c in ci["creators"]), ci["creators"]
+
+        roots = [p for p in b["packages"] if p["SPDXID"] == "SPDXRef-Package-Root"]
+        assert len(roots) == 1
+        root = roots[0]
+        assert root["name"] == "wenqu-dist"
+        assert root["versionInfo"] == m["version"], \
+            "根包 versionInfo 必须等于 manifest.version（system/VERSION 自述）"
+        assert root["filesAnalyzed"] is True
+        assert any(c["algorithm"] == "SHA256"
+                   and c["checksumValue"] == m["artifact"]["sha256"]
+                   for c in root["checksums"]), "根包 checksum 未钉制品 sha256"
+
+        # 逐文件：SPDX files ↔ manifest.files 一一对应（路径+hash）
+        m_files = {f["path"]: f["sha256"] for f in m["files"]}
+        b_files = {}
+        for f in b["files"]:
+            shas = [c["checksumValue"] for c in f["checksums"]
+                    if c["algorithm"] == "SHA256"]
+            assert len(shas) == 1, f"文件条目应恰 1 个 SHA256: {f['fileName']}"
+            name = f["fileName"]
+            name = name[2:] if name.startswith("./") else name
+            b_files[name] = shas[0]
+        assert len(b_files) == len(m_files) == m["n_files"], \
+            f"SBOM/manifest 文件数不符: {len(b_files)} vs {len(m_files)}"
+        assert b_files == m_files, "SBOM 逐文件 sha256 与 manifest 不符"
+
+        # packageVerificationCode 自洽（SPDX：文件名排序拼 SHA256 再 SHA1）
+        ordered = sorted(b["files"], key=lambda f: f["fileName"])
+        joined = "".join(next(c["checksumValue"] for c in f["checksums"]
+                              if c["algorithm"] == "SHA256") for f in ordered)
+        expect_code = hashlib.sha1(joined.encode()).hexdigest()
+        assert root["packageVerificationCode"][
+            "packageVerificationCodeValue"] == expect_code, "验证码不自洽"
+
+        # 关系：DESCRIBES 根包 + 根包 CONTAINS 全部文件
+        rels = b["relationships"]
+        assert any(r["relationshipType"] == "DESCRIBES"
+                   and r["spdxElementId"] == "SPDXRef-DOCUMENT"
+---EVIDENCE---
+evidence/09-release-manifest-attestation/README.md
+064168fef1638bb5ee598b231e5a7f4f9caba47c814edf1895cf1659c83ca5c6  evidence/09-release-manifest-attestation/README.md
+# 09-release-manifest-attestation — 发布清单与签名证据
+
+## 证据类型
+
+- Release manifest（§16.2）：制品清单、逐项 SHA256、build identity（在哪个 commit/环境构建）；
+- 签名/attestation（§21.4）：签名公钥指纹、验签记录、key 轮换台账；
+- runtime/source 身份对账：部署后运行体 hash 与 manifest 逐项一致（消灭 FND-008 热补漂移）；
+- 安装器行为证据：不再原地覆盖、doctor 失败即失败（FND-009）。
+
+对应 §16（W7A/W7B 制品与原子部署）。
+
+## 关联测试 ID
+
+REL-01～03、DEP-03～05、RB-01（兼容性证据侧）、CAP-01。
+
+## 当前状态（2026-10-08 签名/SBOM 能力落档）
+
+**PARTIAL→进行中——哈希清单链（v1.0.6 → v3.6.3 共 25 份 SHA256 文件）之上，
+本日新增独立打包工具四件套（manifest+签名+SBOM+verify）；部署侧接线（DEP-04
+运行时验签）由并行工作流在 `system/wenqu_core/deploy_framework.py` 推进，两轨独立。**
+
+| 工件 | 状态 |
+|---|---|
+| `SHA256-v*.txt`（v1.0.6～v3.6.3，25 份） | 存在于仓根；v3.6.3 清单自身 SHA256 2e7a2b35…（2026-10-08 计算） |
+| `system/wenqu_core/deploy_framework.py`（原子部署骨架） | 存在；P0-6+7 修复 exec bit/首败 current link（be50cb8） |
+| `system/install.sh` 安装行为证据 | acceptance.sh P0 节覆盖「升级覆盖旧 writer 为安全 stub」（绿），但 doctor 吞错修复的完整正反例未落档 |
+| 签名/attestation（**2026-10-08 新增，工具侧**） | `tools/release_attest.py` v1.0.0（纯标准库）：build/sign/sbom/verify 四命令；detached HMAC-SHA256（wenqu_core.approval_keys keyring 只读复用，含 key_id、revoked fail-closed）；SPDX 2.3 SBOM；verify 对 tar+manifest+sig+sbom 四件套对账，任一不符 exit 1 |
+| DEP-04（部署侧运行时验签） | **并行工作流进行中**（deploy_framework.py 签名字段）——工具侧契约已冻结可对接：manifest schema `wenqu-release-manifest/1`、sig schema `wenqu-release-sig/1` |
+| build identity / runtime 对账 | 工具侧已含（manifest 带 commit/argv/builder/时间戳）；外部 reaudit 的 runtime-source-hashes/diff 未固化 |
+
+### 本目录运行记录
+
+- `release-attest-run-1620c7c.json` —— HEAD 1620c7c 全链实跑登记（build+sign+sbom+verify 全绿，含四件套 sha256）；
+- `release-attest-run-1620c7c.log` —— 全链控制台日志（keyring 路径与 key_id 可见，**无 secret**）；
+- `verify-report-1620c7c.json` —— verify 机器可读报告（六检查项全 PASS）。
+
+### 四件套产物（dist/，2026-10-08）
+
+| 文件 | sha256 |
+|---|---|
+| `dist/wenqu-dist-1620c7c.tar.gz`（642 文件，7,095,163 B） | `e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607` |
+| `dist/wenqu-dist-1620c7c.manifest.json` | `6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560` |
+| `dist/wenqu-dist-1620c7c.release.sig`（key_release_w6p1f） | `8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3` |
+| `dist/wenqu-dist-1620c7c.sbom.spdx.json`（SPDX 2.3，642 files，deps=0） | `76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e` |
+
+复验：`python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring ~/.wenqu-dist-release/release-keyring.json`
+测试：`python3 system/tests/test_release_attest.py`（8 PASS：篡改 tar 一字节必拒／重打包+自洽改 manifest 被签名拦截／换 key 必拒／SBOM 字段完整性+篡改必拒／manifest+sig 篡改必拒／rotated 不得签发+revoked 验签即拒／确定性构建／verify 报告工件）。
+
+### 诚实边界（§21.4）
+
+- **HMAC 对称签名非非否认**：与审批体系同一信任根（wenqu_core.approval_keys），
+  提供 tamper-evident／防伪造；持有 secret 者可重签——未建立独立 release signer
+  （CI/独立 broker 持钥、被测运行体不可及）前，只可宣称 hash drift detection /
+  tamper-evident，不得声称「签名证明来源」。
+- 签发 key `key_release_w6p1f` 为本机 dev 根（`~/.wenqu-dist-release/`，0600，
+  仓外物理隔离）；生产发布必须轮换为隔离环境持有的 key。
+- SBOM 依赖信息只从归档内自述文件提取（无网络、无猜测）：本仓归档内无
+  requirements/package.json 等清单，按 README 自述（stdlib-only）记零第三方依赖。
+- `dist/` 四件套中的 tar 含 HEAD 树内既有的 f2b8fc3 候选包（commit 树自带）。
+
+## 填写规则
+
+1. manifest 必须机器生成，含生成 argv、commit、环境；人工编辑即作废。
+2. 每次发布后追加 runtime 对账记录（部署体 hash vs manifest），任何漂移即事件。
+3. 密钥类证据只存公钥指纹与验签输出，严禁入档私钥。（HMAC 为对称密钥：
+   证据只登记 key_id、keyring 路径与验签结果，secret 绝不落档。）
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+828f0b467c0b3154c648f5d88da32309cccb330078cf8e59ed40cac2be3f1abd  evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-1620c7c-20261008T094952Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=e2243329c33eb003… size=7095163",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "642/642 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "signature",
+   "detail": "key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）",
+   "ok": true
+  },
+  {
+   "check": "sbom-reconcile",
+   "detail": "spdxVersion=SPDX-2.3 files=642 root=3.7.1",
+   "ok": true
+  },
+  {
+   "check": "build-identity",
+   "detail": "commit=1620c7c030bd… built_at=2026-10-08T09:49:52Z tool=release_attest.py@1.0.0",
+   "ok": true
+  }
+ ],
+ "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+ "manifest": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json",
+ "result": "PASS",
+ "sbom": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig",
+ "tar": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.0.0",
+ "verified_at": "2026-10-08T09:49:52Z"
+}
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+735bf32f48cc2b26c38a9ed8d653a3ed400e5d0dc3aaf899b7595dee72e0a75f  evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+# release_attest 全链实跑（HEAD=1620c7c，2026-10-08T09:49:51Z）
+# keyring: /Users/maccc/.wenqu-dist-release/release-keyring.json (key_release_w6p1f, 0600, 仓外物理隔离——本日志不含 secret)
+
+$ python3 tools/release_attest.py build
+BUILD OK  wenqu-dist-1620c7c
+  commit   : 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数)
+  version  : 3.7.1  files: 642
+  tar.gz   : /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.tar.gz
+             sha256=e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607 size=7095163
+  manifest : /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json
+
+$ python3 tools/release_attest.py sign --key-id key_release_w6p1f
+SIGN OK  key_id=key_release_w6p1f  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig
+  signature=fce12a380590600390b73cedb31a9bac780163ee4762743fbcd98285c158a304
+
+$ python3 tools/release_attest.py sbom
+SBOM OK  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.sbom.spdx.json
+  spdxVersion=SPDX-2.3  root=wenqu-dist@3.7.1  files=642  deps=0
+  verificationCode=a8883def016cf95bef5628a04efc80b0d0443a6d
+
+$ python3 tools/release_attest.py verify --report evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+  PASS  manifest-schema  build_id=rel-1620c7c-20261008T094952Z
+  PASS  artifact-hash  sha256=e2243329c33eb003… size=7095163
+  PASS  files-reconcile  642/642 path+type+mode+size+sha256 全符
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=642 root=3.7.1
+  PASS  build-identity  commit=1620c7c030bd… built_at=2026-10-08T09:49:52Z tool=release_attest.py@1.0.0
+  report → evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+VERIFY OK
+VERIFY_RC=0
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+67b1db360eef1c7db0d750e85ad3467a9614181ab5fee37b61a028601bf686f2  evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+{
+  "schema": "wenqu-release-evidence-run/1",
+  "recorded_at": "2026-10-08T09:50:30Z",
+  "title": "tools/release_attest.py 全链实跑（build+sign+sbom+verify）——HEAD 1620c7c",
+  "task_context": "Codex 多轮缺口：制品无签名/SBOM。本记录为独立打包工具（tools/release_attest.py v1.0.0）首次全链落档；部署侧 DEP-04 签名字段由并行工作流在 system/wenqu_core/deploy_framework.py 接线，两轨独立。",
+  "commit": {
+    "full": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+    "short": "1620c7c",
+    "subject": "fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65"
+  },
+  "keyring": {
+    "path": "~/.wenqu-dist-release/release-keyring.json（仓外，0600，本机 dev 根）",
+    "key_id": "key_release_w6p1f",
+    "algorithm": "HMAC-SHA256",
+    "secret_in_evidence": false,
+    "note": "对称签名：tamper-evident/防伪造，非非否认（方案 §21.4 边界）"
+  },
+  "artifacts": [
+    {"path": "dist/wenqu-dist-1620c7c.tar.gz", "size": 7095163, "sha256": "e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607"},
+    {"path": "dist/wenqu-dist-1620c7c.manifest.json", "size": 155696, "sha256": "6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560"},
+    {"path": "dist/wenqu-dist-1620c7c.release.sig", "size": 620, "sha256": "8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3"},
+    {"path": "dist/wenqu-dist-1620c7c.sbom.spdx.json", "size": 360080, "sha256": "76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e"}
+  ],
+  "manifest_facts": {
+    "schema": "wenqu-release-manifest/1",
+    "build_id": "rel-1620c7c-20261008T094952Z",
+    "built_at": "2026-10-08T09:49:52Z",
+    "version": "3.7.1（归档内 system/VERSION 自述）",
+    "n_files": 642,
+    "deterministic": "同 commit 两次 build tar sha256 一致（git archive + gzip mtime=0/level=9）"
+  },
+  "sbom_facts": {
+    "spdxVersion": "SPDX-2.3",
+    "root": "wenqu-dist@3.7.1",
+    "files": 642,
+    "packageVerificationCode": "a8883def016cf95bef5628a04efc80b0d0443a6d",
+    "deps": 0,
+    "dep_source": "归档内自述文件扫描（requirements*/package.json/pyproject/setup.py 等 basename 精确匹配）——本仓归档内无依赖清单，按 README 自述 stdlib-only 记零第三方依赖；无外部网络"
+  },
+  "verify": {
+    "rc": 0,
+    "result": "PASS",
+    "checks": ["manifest-schema", "artifact-hash", "files-reconcile(642/642)", "signature(key_release_w6p1f)", "sbom-reconcile", "build-identity"],
+    "report": "evidence/09-release-manifest-attestation/verify-report-1620c7c.json",
+    "console_log": "evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log"
+  },
+  "tool_hashes": {
+    "tools/release_attest.py": "53070504084a18cf45832529d6b4f33e2d04755f48e17860d03c3a9e6bdacd18",
+    "system/tests/test_release_attest.py": "89fd5a0c502313731e295659f627f609b186ecac74ebb1a79f7cb7ee3f389ab5"
+  },
+  "tests": {
+    "command": "python3 system/tests/test_release_attest.py",
+    "result": "8 PASS / 0 FAIL（含：篡改 tar 一字节必拒/重打包+自洽改 manifest 被签名拦截/换 key 必拒/SBOM 字段完整性+篡改必拒/manifest+sig 篡改必拒/rotated 不得签发+revoked 验签即拒/确定性构建）"
+  },
+  "honest_boundaries": [
+    "HMAC 对称签名与审批体系同根：防篡改/防伪造，不提供非否认（non-repudiation）；未建独立 release signer 前按方案 §21.4 只可宣称 tamper-evident",
+    "key_release_w6p1f 为本机 dev 签发根（0600 仓外存放）；生产发布应轮换为 CI/独立 broker 持有的 key（§21.4：被测运行体不可及）",
+    "本记录 tar 含 HEAD 树内既有 dist/wenqu-vNext-candidate-f2b8fc3.tar.gz（commit 树自带，非本次打包注入）",
+    "evidence/evidence-index.json 未登记本条（任务范围限定仅改 evidence/09-*；全局索引登记留给收口批）"
+  ],
+  "reproduce": [
+    "python3 tools/release_attest.py build",
+    "python3 tools/release_attest.py sign --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring> --key-id key_release_w6p1f",
+    "python3 tools/release_attest.py sbom --manifest dist/wenqu-dist-1620c7c.manifest.json",
+    "python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring>"
+  ]
+}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:52:45Z

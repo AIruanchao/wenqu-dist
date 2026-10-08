@@ -1,0 +1,44 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 09
+START=2026-10-08T16:01:20+0800
+{
+  "chain": {
+    "head": "674bc96526e949a0151a7355b200faa3a2bd5040ba3d8d936ae4fe500defe9d4",
+    "length": 2,
+    "ok": true
+  },
+  "head": "674bc96526e949a0151a7355b200faa3a2bd5040ba3d8d936ae4fe500defe9d4",
+  "inserted_count": 1,
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-09-_6xacyyl",
+  "probe": "09",
+  "retry_after_interference": {
+    "hash": "c12d9dce561d72b81e006d51bfb600eda1a08061da10e75aaebf6c8a9cf55e84",
+    "inserted": false
+  },
+  "rows": 2,
+  "unique_hashes": 1,
+  "verdict": "PASS",
+  "workers": [
+    {
+      "hash": "c12d9dce561d72b81e006d51bfb600eda1a08061da10e75aaebf6c8a9cf55e84",
+      "inserted": false,
+      "worker": "0"
+    },
+    {
+      "hash": "c12d9dce561d72b81e006d51bfb600eda1a08061da10e75aaebf6c8a9cf55e84",
+      "inserted": true,
+      "worker": "1"
+    },
+    {
+      "hash": "c12d9dce561d72b81e006d51bfb600eda1a08061da10e75aaebf6c8a9cf55e84",
+      "inserted": false,
+      "worker": "2"
+    },
+    {
+      "hash": "c12d9dce561d72b81e006d51bfb600eda1a08061da10e75aaebf6c8a9cf55e84",
+      "inserted": false,
+      "worker": "3"
+    }
+  ]
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:20+0800

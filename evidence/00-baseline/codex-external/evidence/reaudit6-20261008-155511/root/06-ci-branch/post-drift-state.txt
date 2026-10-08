@@ -1,0 +1,22 @@
+2026-10-08T16:01:19,358350000+08:00
+## main...origin/main
+07a94945ba8defe65d3f9ce5a3b7118a38e40328
+commit 07a94945ba8defe65d3f9ce5a3b7118a38e40328
+Merge: b259dac 419e778
+Author:     AIruanchao <8286900@qq.com>
+AuthorDate: Thu Oct 8 15:59:31 2026 +0800
+Commit:     GitHub <noreply@github.com>
+CommitDate: Thu Oct 8 15:59:31 2026 +0800
+
+    Merge pull request #6 from AIruanchao/release/v3.7.1
+    
+    release(system): v3.7.1——Codex 四审关键修复
+07a9494 HEAD@{2026-10-08 15:59:42 +0800}: checkout: moving from main to main
+07a9494 HEAD@{2026-10-08 15:59:40 +0800}: pull --ff-only origin main: Fast-forward
+b259dac HEAD@{2026-10-08 15:59:33 +0800}: checkout: moving from release/v3.7.1 to main
+419e778 HEAD@{2026-10-08 15:58:37 +0800}: commit: release(system): v3.7.1——Codex 四审关键修复：escD 作用域提升（修复刷新中断）+第七卡 XSS textContent+orchestrator API singleflight
+b259dac HEAD@{2026-10-08 15:58:37 +0800}: checkout: moving from main to release/v3.7.1
+--- PR6 ---
+{"baseRefOid":"b259dac4248b14af6ec05e1b3fc7f61401aba6b6","headRefOid":"419e778ced0894f846409c8be717a46560f898d3","mergeCommit":{"oid":"07a94945ba8defe65d3f9ce5a3b7118a38e40328"},"mergedAt":"2026-10-08T07:59:32Z","number":6,"state":"MERGED","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-10-08T07:59:20Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37746810438/job/113210127957","name":"matrix (macos-latest)","startedAt":"2026-10-08T07:58:53Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-08T07:59:18Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37746803859/job/113210104770","name":"matrix (macos-latest)","startedAt":"2026-10-08T07:58:50Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-08T07:59:17Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37746810438/job/113210127724","name":"matrix (ubuntu-latest)","startedAt":"2026-10-08T07:58:50Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-08T07:59:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/37746803859/job/113210104537","name":"matrix (ubuntu-latest)","startedAt":"2026-10-08T07:58:46Z","status":"COMPLETED","workflowName":"acceptance"}],"url":"https://github.com/AIruanchao/wenqu-dist/pull/6"}
+--- latest runs ---
+[{"conclusion":"success","createdAt":"2026-10-08T07:47:36Z","databaseId":37745638008,"displayTitle":"Merge pull request #5 from AIruanchao/wave5/evidence-final","event":"push","headSha":"b259dac4248b14af6ec05e1b3fc7f61401aba6b6","status":"completed"},{"conclusion":"success","createdAt":"2026-10-08T07:41:02Z","databaseId":37744948480,"displayTitle":"Merge pull request #4 from AIruanchao/wave5/one-shot","event":"push","headSha":"f2b8fc3062c6418118f1cb950cc2f5cdefc079fd","status":"completed"},{"conclusion":"success","createdAt":"2026-10-08T06:38:25Z","databaseId":37738717793,"displayTitle":"Merge pull request #3 from AIruanchao/release/v3.7.0","event":"push","headSha":"b08fa7afd492ceb413419518b066bb456ad5f70c","status":"completed"},{"conclusion":"success","createdAt":"2026-10-08T05:35:40Z","databaseId":37733159993,"displayTitle":"Merge pull request #2 from AIruanchao/wave4/evidence-deploy","event":"push","headSha":"e4aba84c1dabe1342ea234321eea3d300bea24a5","status":"completed"},{"conclusion":"success","createdAt":"2026-10-08T05:30:23Z","databaseId":37732710547,"displayTitle":"Merge pull request #1 from AIruanchao/wave4/p0-full-hardening","event":"push","headSha":"54032208b5486d4cbfa4e6bb480714b456588620","status":"completed"}]

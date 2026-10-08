@@ -1,0 +1,27 @@
+{
+  "content_digest": "5b1bee2931e7f698d444701e782a98324fe0723e92baf272b2488b10201a1dfd",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "7a28a1cda6c67af9a236365d883be4729568b526ab277939ea17dc3f8d7f69f9",
+      "size": 46
+    },
+    {
+      "mode": "0444",
+      "path": "flag-stale-release-binding1.txt",
+      "sha256": "7a8c36142930f3ebe9562bf082509765c9d53606cc064ff3fb6ac29984b4edd0",
+      "size": 23
+    }
+  ],
+  "release_id": "20261008T125114Z-5b1bee2931e7",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_07_activating_failure0/dep7-stale-release-binding-v1"
+}

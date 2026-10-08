@@ -1,0 +1,7 @@
+{
+  "detail": "fenced activation failed: SelfCheckError('install self-check returned falsy: False')",
+  "last_activated_at": 1791463874.492546,
+  "release_id": "20261008T125114Z-8d1dd144308c",
+  "status": "ACTIVE",
+  "updated_at": "2026-10-08T12:51:14Z"
+}

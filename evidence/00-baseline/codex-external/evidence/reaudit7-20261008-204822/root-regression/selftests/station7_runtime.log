@@ -1,0 +1,12 @@
+[1a] sentinel PASS OK: 2/2 业务心跳新鲜（非 PID/mtime 判活）
+[1b] sentinel dead/unavailable OK: stale→FAIL 记录 + probe 缺失→缩水 BLOCKED
+[1c] sentinel FAIL OK: 哨兵死 → ['fnd_sentinel_102f492524ce']
+[2a] slo PASS OK: 3/3 指标达标
+[2b] slo FAIL OK: 破线 → ['fnd_slo_f95dac581e9b']
+[2c] slo missing-metric OK: 采集缺口 1/2 → 缩水 BLOCKED
+[3a] alert PASS OK: 金丝雀令牌往返验证（真的会叫）
+[3b] alert FAIL OK: 伪回执/发送失败/无回执 → ['receipt_missing', 'send_exit_2', 'token_mismatch']
+[3c] alert probe-unavailable OK: 可执行缺失 → -1 哨兵 + 缩水 BLOCKED
+[4] combine OK: station-7 single result 3/3 → PASS（不计收敛轮/可阻断发布）
+[5] placeholders OK: 站5/站6 占位 → BLOCKED/NOT_APPLICABLE（含授权参数亦然）
+SELF-TEST PASS

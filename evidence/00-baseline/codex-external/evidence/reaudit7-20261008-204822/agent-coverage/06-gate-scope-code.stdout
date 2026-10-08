@@ -1,0 +1,1200 @@
+system/tests/test_gate_schema_hardening.py:3:"""F4 三洞加固回归——Codex 第四轮实锤假绿的根修复验（gate/schema/traceability）。
+system/tests/test_gate_schema_hardening.py:13:  F4-TRC-001  §20 语义篡改假绿（ac_traceability 只比 ID 集合）
+system/tests/test_gate_schema_hardening.py:53:    """合法 station-result-v2（coverage 等比分母+非空工件+rc0+assertion PASS）。"""
+system/tests/test_gate_schema_hardening.py:59:                     "environment": "staging", "scope_hash": "0" * 64,
+system/tests/test_gate_schema_hardening.py:67:        "coverage": {"denominator": 3, "scanned": 3},
+system/tests/test_gate_schema_hardening.py:75:    """Draft7Validator + FormatChecker（注册严格 date-time——仓内既有惯例：
+system/tests/test_gate_schema_hardening.py:76:    rfc3339-validator 缺席时 jsonschema 的 date-time 检查空转）。"""
+system/tests/test_gate_schema_hardening.py:82:    @fc.checks("date-time")
+system/tests/test_gate_schema_hardening.py:112:    """Codex 探针复刻：缺 tool/execution/coverage/artifacts 的残缺 v2
+system/tests/test_gate_schema_hardening.py:118:                     "scope_hash": "0" * 64},
+system/tests/test_gate_schema_hardening.py:146:    """合法 v2（coverage 分母≥1 且等比 + 非空 artifacts + exit0 + assertion PASS）
+system/tests/test_gate_schema_hardening.py:172:        agg2.add({**_v2(), "coverage": {"denominator": 3, "scanned": 2}})
+system/tests/test_gate_schema_hardening.py:186:    jsonschema+FormatChecker（严格 date-time）的合法/非法结论必须一致。
+system/tests/test_gate_schema_hardening.py:187:    已声明的唯一边界：PASS 的 scanned==denominator 在 schema 侧以 const 级联
+system/tests/test_gate_schema_hardening.py:196:          if k not in ("coverage", "artifacts", "finding_ids")}
+system/tests/test_gate_schema_hardening.py:199:        ("legal-coverage-exclusions",
+system/tests/test_gate_schema_hardening.py:200:         legal | {"coverage": {"denominator": 4, "scanned": 4,
+system/tests/test_gate_schema_hardening.py:220:        ("bad-identity-missing-scope",
+system/tests/test_gate_schema_hardening.py:236:        ("bad-date-time", legal | {"execution": dict(
+system/tests/test_gate_schema_hardening.py:240:        ("bad-coverage-negative",
+system/tests/test_gate_schema_hardening.py:241:         legal | {"coverage": {"denominator": -1, "scanned": 0}}, False),
+system/tests/test_gate_schema_hardening.py:242:        ("bad-coverage-missing-scanned",
+system/tests/test_gate_schema_hardening.py:243:         legal | {"coverage": {"denominator": 3}}, False),
+system/tests/test_gate_schema_hardening.py:244:        ("bad-coverage-explicit-null", legal | {"coverage": None}, False),
+system/tests/test_gate_schema_hardening.py:254:        ("bad-pass-no-coverage", {k: v for k, v in legal.items()
+system/tests/test_gate_schema_hardening.py:255:                                  if k != "coverage"}, False),
+system/tests/test_gate_schema_hardening.py:266:         legal | {"coverage": {"denominator": 3, "scanned": 2}}, False),
+system/tests/test_gate_schema_hardening.py:267:        ("bad-pass-scanned-over-denominator",
+system/tests/test_gate_schema_hardening.py:268:         legal | {"coverage": {"denominator": 2, "scanned": 3}}, False),
+system/tests/test_gate_schema_hardening.py:304:    big_shrink = legal | {"coverage": {"denominator": 100, "scanned": 65}}
+system/tests/test_gate_schema_hardening.py:319:    #2 station-result-v2：PASS 但 scanned < denominator（分母缩水）→ 拒
+system/tests/test_gate_schema_hardening.py:339:                         "scope_hash": "0" * 64},
+system/tests/test_gate_schema_hardening.py:368:                         "scope_hash": "0" * 64},
+system/tests/test_gate_schema_hardening.py:410:         _v2(coverage={"denominator": 3, "scanned": 2}), False,
+system/tests/test_gate_schema_hardening.py:412:         or d.get("coverage", {}).get("scanned", -1)
+system/tests/test_gate_schema_hardening.py:413:         == d.get("coverage", {}).get("denominator", -2)),
+system/tests/test_gate_schema_hardening.py:416:         or d.get("coverage", {}).get("scanned", -1)
+system/tests/test_gate_schema_hardening.py:417:         == d.get("coverage", {}).get("denominator", -2)),
+system/tests/test_gate_schema_hardening.py:462:    agg.add(_v2(coverage={"denominator": 3, "scanned": 2}))   # 分母缩水
+system/tests/test_gate_schema_hardening.py:476:# F4-TRC-001：§20 语义篡改假绿（ac_traceability 逐 ID 语义比对）
+system/tests/test_gate_schema_hardening.py:480:        [sys.executable, os.path.join(ROOT, "tools", "ac_traceability.py"),
+system/tests/test_gate_schema_hardening.py:533:    print(f"== F4 三洞加固回归（gate/schema/traceability，{len(tests)} 组）==")
+system/tests/test_wenqu_adversarial.py:76:    "scope_hash": "scope-hash-001",
+system/tests/test_wenqu_adversarial.py:103:        "authorized_scope": IDENT["scope_hash"],
+system/tests/test_wenqu_adversarial.py:127:        "stop_event_id": "n/a-soft-terminal", "stop_type": "scope",
+system/tests/test_wenqu_adversarial.py:129:        "authorized_scope": IDENT["scope_hash"],
+system/tests/test_wenqu_adversarial.py:162:                "manifest_sha256": "e" * 64,
+system/tests/test_wenqu_adversarial.py:169:    "prod_write": {"operation_digest": "4" * 64, "data_scope_digest": "5" * 64,
+system/tests/test_wenqu_adversarial.py:171:    "fund_auth": {"subject_role": "ops", "amount_scope_digest": "9" * 64,
+system/tests/test_wenqu_adversarial.py:191:        "authorized_scope": IDENT["scope_hash"],
+system/tests/test_wenqu_adversarial.py:252:    for field in ("task_id", "stage", "environment", "authorized_scope",
+system/tests/test_wenqu_adversarial.py:547:    # jsonschema 的 date-time 检查依赖 rfc3339-validator（未装则空转）——
+system/tests/test_wenqu_adversarial.py:551:    @FormatChecker.cls_checks("date-time")
+system/tests/test_wenqu_adversarial.py:845:              "--scope-hash", IDENT["scope_hash"],
+system/tests/test_gate_scope_binding.py:6:  F6-GATE-SCOPE-001（P0）  wenquctl gate 的 required 站集合/coverage 分母由结果自报
+system/tests/test_gate_scope_binding.py:7:    -> test_f6_scope001_manifest_front_door_full_pass          （正门对照：全对账 PASS）
+system/tests/test_gate_scope_binding.py:8:    -> test_f6_scope001_missing_station_blocked                （缺站=分母缩水 BLOCKED）
+system/tests/test_gate_scope_binding.py:9:    -> test_f6_scope001_self_declared_denominator_blocked      （自报分母 BLOCKED）
+system/tests/test_gate_scope_binding.py:10:    -> test_f6_scope001_scope_hash_mismatch_blocked            （scope_hash 不符 BLOCKED）
+system/tests/test_gate_scope_binding.py:11:    -> test_f6_scope001_bare_invocation_refused_and_diagnostic （裸调用默认拒绝/显式诊断）
+system/tests/test_gate_scope_binding.py:12:    -> test_f6_scope001_tampered_manifest_and_flag_conflicts   （篡改 manifest/旗标互斥）
+system/tests/test_gate_scope_binding.py:13:    -> test_f6_scope001_legacy_result_not_manifest_bound       （legacy 结果无法对账 BLOCKED）
+system/tests/test_gate_scope_binding.py:16:    -> test_f6_format002_duplicate_equivalence_key             （attempt/scope/coverage/artifact 全等才算幂等）
+system/tests/test_gate_scope_binding.py:21:  F6-TRC-PARSER-002         ac_traceability parser fail-open
+system/tests/test_gate_scope_binding.py:23:    -> test_f6_trc002_duplicate_and_poison_rows_detected       （重复相同行/先毒后正必红）
+system/tests/test_gate_scope_binding.py:26:纯标准库；`python3 system/tests/test_gate_scope_binding.py`（exit 0=全绿），兼容 pytest。
+system/tests/test_gate_scope_binding.py:47:TRACE = os.path.join(ROOT, "tools", "ac_traceability.py")
+system/tests/test_gate_scope_binding.py:69:# ───────────────────────── fixture：冻结 manifest + 绑定结果 ─────────────────────────
+system/tests/test_gate_scope_binding.py:71:    """冻结一个 FAST run（required={0,1}，scope 3 路径 → denominator=3）。"""
+system/tests/test_gate_scope_binding.py:74:    manifest = planner.freeze_run_manifest(
+system/tests/test_gate_scope_binding.py:75:        plan, run_id="run-f6-scope", project_id="f6/erp",
+system/tests/test_gate_scope_binding.py:77:        scope=["src/**", "tests/**", "tools/**"],
+system/tests/test_gate_scope_binding.py:79:    path = os.path.join(tmp, "run-manifest.json")
+system/tests/test_gate_scope_binding.py:80:    manifest.save(path)
+system/tests/test_gate_scope_binding.py:81:    return manifest, path
+system/tests/test_gate_scope_binding.py:84:def _bound(manifest, station, **over):
+system/tests/test_gate_scope_binding.py:85:    """与 manifest 完全对账的合法 station-result-v2（coverage 分母=冻结分母）。"""
+system/tests/test_gate_scope_binding.py:87:        "schema_version": "2.0", "run_id": manifest.run_id,
+system/tests/test_gate_scope_binding.py:90:        "identity": {"project_id": "f6/erp", "commit_sha": manifest.commit_sha,
+system/tests/test_gate_scope_binding.py:91:                     "environment": manifest.environment,
+system/tests/test_gate_scope_binding.py:92:                     "scope_hash": manifest.scope_hash},
+system/tests/test_gate_scope_binding.py:99:        "coverage": {"denominator": manifest.denominator,
+system/tests/test_gate_scope_binding.py:100:                     "scanned": manifest.denominator},
+system/tests/test_gate_scope_binding.py:139:# F6-GATE-SCOPE-001：required/scope/coverage 自报（P0）
+system/tests/test_gate_scope_binding.py:141:def test_f6_scope001_manifest_front_door_full_pass():
+system/tests/test_gate_scope_binding.py:142:    """正门对照：required/分母/身份全部对账冻结 manifest → PASS rc=0。"""
+system/tests/test_gate_scope_binding.py:144:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:145:        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
+system/tests/test_gate_scope_binding.py:146:        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+system/tests/test_gate_scope_binding.py:147:        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:150:        _ck("F6-SCOPE-001 mode=manifest + scope_binding 就位",
+system/tests/test_gate_scope_binding.py:151:            out.get("mode") == "manifest"
+system/tests/test_gate_scope_binding.py:152:            and out.get("scope_binding", {}).get("mode") == "manifest"
+system/tests/test_gate_scope_binding.py:153:            and out.get("scope_binding", {}).get("expected_denominator") == manifest.denominator,
+system/tests/test_gate_scope_binding.py:154:            _tail(json.dumps(out.get("scope_binding"))))
+system/tests/test_gate_scope_binding.py:155:        _ck("F6-SCOPE-001 manifest 证据落输出（hash/run_id/required）",
+system/tests/test_gate_scope_binding.py:156:            out.get("manifest", {}).get("manifest_hash") == manifest.manifest_hash
+system/tests/test_gate_scope_binding.py:157:            and out.get("manifest", {}).get("required_stations") == [0, 1]
+system/tests/test_gate_scope_binding.py:158:            and out.get("manifest", {}).get("denominator") == 3,
+system/tests/test_gate_scope_binding.py:159:            _tail(json.dumps(out.get("manifest"))))
+system/tests/test_gate_scope_binding.py:162:def test_f6_scope001_missing_station_blocked():
+system/tests/test_gate_scope_binding.py:163:    """反例：manifest required={0,1} 但站 1 缺报 → BLOCKED rc=2。"""
+system/tests/test_gate_scope_binding.py:165:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:166:        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
+system/tests/test_gate_scope_binding.py:167:        rc, out = _gate(["--results", s0, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:169:        _ck("F6-SCOPE-001 缺站 rc=2 BLOCKED + denominator_shrinkage",
+system/tests/test_gate_scope_binding.py:171:            and "denominator_shrinkage" in reasons,
+system/tests/test_gate_scope_binding.py:175:def test_f6_scope001_self_declared_denominator_blocked():
+system/tests/test_gate_scope_binding.py:176:    """反例：站结果自报 coverage 分母（≠manifest 冻结分母）→ BLOCKED rc=2。"""
+system/tests/test_gate_scope_binding.py:178:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:179:        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
+system/tests/test_gate_scope_binding.py:180:        shrunk = _bound(manifest, 1)
+system/tests/test_gate_scope_binding.py:181:        shrunk["coverage"] = {"denominator": 2, "scanned": 2}  # 自报缩水分母
+system/tests/test_gate_scope_binding.py:183:        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:185:        _ck("F6-SCOPE-001 自报分母 rc=2 BLOCKED + self_declared_denominator",
+system/tests/test_gate_scope_binding.py:187:            and "self_declared_denominator" in reasons,
+system/tests/test_gate_scope_binding.py:189:        # 腿二：FAIL 结果不带 coverage（schema 合法）——正门下同样记
+system/tests/test_gate_scope_binding.py:190:        # missing_coverage_denominator（无法对账冻结分母即违规）
+system/tests/test_gate_scope_binding.py:191:        no_cov = _bound(manifest, 0)
+system/tests/test_gate_scope_binding.py:194:        no_cov.pop("coverage")
+system/tests/test_gate_scope_binding.py:197:            {"0"}, manifest.commit_sha, manifest.environment,
+system/tests/test_gate_scope_binding.py:198:            expected_scope_hash=manifest.scope_hash,
+system/tests/test_gate_scope_binding.py:199:            expected_denominator=manifest.denominator)
+system/tests/test_gate_scope_binding.py:202:        _ck("F6-SCOPE-001 缺 coverage（合法 FAIL 形态）→ missing_coverage_denominator",
+system/tests/test_gate_scope_binding.py:204:            and "missing_coverage_denominator" in "".join(out2["reasons"]),
+system/tests/test_gate_scope_binding.py:208:def test_f6_scope001_scope_hash_mismatch_blocked():
+system/tests/test_gate_scope_binding.py:209:    """反例：站结果 identity.scope_hash 与冻结 manifest 不符 → BLOCKED rc=2。"""
+system/tests/test_gate_scope_binding.py:211:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:212:        rogue = _bound(manifest, 0)
+system/tests/test_gate_scope_binding.py:213:        rogue["identity"] = dict(rogue["identity"], scope_hash="9" * 64)
+system/tests/test_gate_scope_binding.py:215:        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+system/tests/test_gate_scope_binding.py:216:        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:218:        _ck("F6-SCOPE-001 scope_hash 不符 rc=2 BLOCKED + scope_hash_mismatch",
+system/tests/test_gate_scope_binding.py:220:            and "scope_hash_mismatch" in reasons,
+system/tests/test_gate_scope_binding.py:222:        # 腿二：commit_sha 与 manifest 不符（C2 既有面在正门下保持）
+system/tests/test_gate_scope_binding.py:223:        rogue2 = _bound(manifest, 0)
+system/tests/test_gate_scope_binding.py:226:        rc2, out2 = _gate(["--results", s0b, s1, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:233:def test_f6_scope001_bare_invocation_refused_and_diagnostic():
+system/tests/test_gate_scope_binding.py:234:    """反例复刻（P0 本体）：无 manifest 裸调用默认拒绝（rc=3）；
+system/tests/test_gate_scope_binding.py:237:        manifest, _mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:238:        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
+system/tests/test_gate_scope_binding.py:239:        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+system/tests/test_gate_scope_binding.py:244:        _ck("F6-SCOPE-001 拒绝理由指向 --manifest/--allow-self-declared",
+system/tests/test_gate_scope_binding.py:246:            and "--manifest" in (out.get("reason") or ""),
+system/tests/test_gate_scope_binding.py:256:        _ck("F6-SCOPE-001 诊断模式 scope_binding 如实标注 self_declared",
+system/tests/test_gate_scope_binding.py:257:            out2.get("scope_binding", {}).get("mode") == "self_declared")
+system/tests/test_gate_scope_binding.py:260:def test_f6_scope001_tampered_manifest_and_flag_conflicts():
+system/tests/test_gate_scope_binding.py:261:    """反例：篡改 manifest（manifest_hash 防篡改复核拒）/旗标互斥全 ERROR(3)。"""
+system/tests/test_gate_scope_binding.py:263:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:264:        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
+system/tests/test_gate_scope_binding.py:265:        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+system/tests/test_gate_scope_binding.py:267:        tampered["scope"]["paths"].append("rogue/**")  # 缩水攻击：悄悄扩/改范围
+system/tests/test_gate_scope_binding.py:269:        rc, out = _gate(["--results", s0, s1, "--manifest", tpath])
+system/tests/test_gate_scope_binding.py:270:        _ck("F6-SCOPE-001 篡改 manifest rc=3（hash 复核拒绝）",
+system/tests/test_gate_scope_binding.py:271:            rc == 3 and "manifest" in (out.get("reason") or "").lower(),
+system/tests/test_gate_scope_binding.py:273:        rc2, out2 = _gate(["--results", s0, "--manifest", mpath,
+system/tests/test_gate_scope_binding.py:275:        _ck("F6-SCOPE-001 --manifest 与 --allow-self-declared 互斥 rc=3",
+system/tests/test_gate_scope_binding.py:277:        rc3, out3 = _gate(["--results", s0, "--manifest", mpath,
+system/tests/test_gate_scope_binding.py:279:        _ck("F6-SCOPE-001 --manifest 与自报 --required 互斥 rc=3",
+system/tests/test_gate_scope_binding.py:281:        rc4, out4 = _gate(["--results", s0, s1, "--manifest", mpath,
+system/tests/test_gate_scope_binding.py:283:        _ck("F6-SCOPE-001 --sha 与冻结 SHA 冲突 rc=3（身份以 manifest 为正源）",
+system/tests/test_gate_scope_binding.py:284:            rc4 == 3 and out4.get("mode") == "manifest_identity_conflict",
+system/tests/test_gate_scope_binding.py:288:def test_f6_scope001_legacy_result_not_manifest_bound():
+system/tests/test_gate_scope_binding.py:289:    """反例：正门下混入 legacy 结果（无法证明 scope 绑定）→ BLOCKED。"""
+system/tests/test_gate_scope_binding.py:291:        manifest, mpath = _freeze(td)
+system/tests/test_gate_scope_binding.py:295:        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+system/tests/test_gate_scope_binding.py:296:        rc, out = _gate(["--results", legacy, s1, "--manifest", mpath])
+system/tests/test_gate_scope_binding.py:299:            rc == 2 and "legacy_result_not_manifest_bound" in reasons,
+system/tests/test_gate_scope_binding.py:304:# F6-GATE-FORMAT-DUP-002：镜像 RFC3339 + 重复站等价键 + CLI 误拒
+system/tests/test_gate_scope_binding.py:307:    """镜像 RFC3339 严格 date-time：纯日期/无时区拒；偏移/毫秒形式收。"""
+system/tests/test_gate_scope_binding.py:314:                         "scope_hash": "0" * 64},
+system/tests/test_gate_scope_binding.py:320:            "coverage": {"denominator": 3, "scanned": 3},
+system/tests/test_gate_scope_binding.py:325:                "2026-10-08 00:00:00Z",             # 空格分隔（非 RFC3339 T 分隔）
+system/tests/test_gate_scope_binding.py:328:        _ck(f"F6-FORMAT-002 镜像拒非 RFC3339 date-time {bad!r}",
+system/tests/test_gate_scope_binding.py:329:            bool(errs) and any("date-time" in e for e in errs), str(errs[:2]))
+system/tests/test_gate_scope_binding.py:332:        _ck(f"F6-FORMAT-002 镜像收合法 RFC3339 {good!r}",
+system/tests/test_gate_scope_binding.py:342:def test_f6_format002_duplicate_equivalence_key():
+system/tests/test_gate_scope_binding.py:343:    """重复站等价键：attempt_id+scope_hash+coverage+artifact 摘要全等才算幂等重发。"""
+system/tests/test_gate_scope_binding.py:349:                     "scope_hash": "0" * 64},
+system/tests/test_gate_scope_binding.py:354:        "coverage": {"denominator": 3, "scanned": 3},
+system/tests/test_gate_scope_binding.py:358:    # 幂等重发：逐字节同内容 → 只记 duplicate，仍 PASS
+system/tests/test_gate_scope_binding.py:362:    _ck("F6-FORMAT-002 同内容重发幂等（duplicate 不双绿不冲突）",
+system/tests/test_gate_scope_binding.py:363:        out["counts"]["duplicates_ignored"] == 1
+system/tests/test_gate_scope_binding.py:371:    _ck("F6-FORMAT-002 换 attempt_id 重发 → duplicate_conflict BLOCKED",
+system/tests/test_gate_scope_binding.py:373:        and "duplicate_conflict" in "".join(out["reasons"]), out["reason"])
+system/tests/test_gate_scope_binding.py:375:    # 等价键不等 2：coverage 自报不同分母（3/3 vs 4/4，均 schema 合法 PASS）
+system/tests/test_gate_scope_binding.py:377:    agg.add(base).add({**base, "coverage": {"denominator": 4, "scanned": 4}})
+system/tests/test_gate_scope_binding.py:379:    _ck("F6-FORMAT-002 coverage 异分母重发 → duplicate_conflict BLOCKED",
+system/tests/test_gate_scope_binding.py:387:    _ck("F6-FORMAT-002 换 artifact 摘要重发 → duplicate_conflict BLOCKED",
+system/tests/test_gate_scope_binding.py:394:    _ck("F6-FORMAT-002 同 attempt 翻转裁决 → duplicate_conflict BLOCKED",
+system/tests/test_gate_scope_binding.py:406:                     "scope_hash": "0" * 64},
+system/tests/test_gate_scope_binding.py:412:        "coverage": {"denominator": 3, "scanned": 3,
+system/tests/test_gate_scope_binding.py:445:    cascade = schema["allOf"][1]["then"]["properties"]["coverage"]["allOf"]
+system/tests/test_gate_scope_binding.py:452:        and "test_gate_scope_binding" in schema["$comment"])
+system/tests/test_gate_scope_binding.py:454:    def _pass_doc(scanned, denominator):
+system/tests/test_gate_scope_binding.py:460:                         "scope_hash": "0" * 64},
+system/tests/test_gate_scope_binding.py:467:            "coverage": {"denominator": denominator, "scanned": scanned},
+system/tests/test_gate_scope_binding.py:492:                    f"{shrink_doc['coverage']}: shrink not both-rejected")
+system/tests/test_gate_scope_binding.py:517:# F6-TRC-PARSER-002：ac_traceability parser fail-open
+system/tests/test_gate_scope_binding.py:546:def test_f6_trc002_duplicate_and_poison_rows_detected():
+system/tests/test_gate_scope_binding.py:615:    print(f"== F6 四洞加固回归（gate-scope/format-dup/schema-bound/trc-parser，{len(tests)} 组）==")
+tests/acceptance.sh:363:echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+tests/acceptance.sh:364:if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+tests/acceptance.sh:371:    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+tests/acceptance.sh:381:  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+system/wenqu_core/store.py:123:        P0-6 二次修（duplicate 分支）：命中幂等键时返回 DB 中已存行的真实
+system/wenqu_core/store.py:154:                # duplicate：返回 DB 中已存行的真实 event_hash（事务内读出）
+system/wenqu_core/store.py:161:                        f"duplicate event_id {event_id} not found in store "
+system/wenqu_core/ledger_migrator.py:15:      ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
+system/wenqu_core/ledger_migrator.py:40:重复；跨文件出现的同内容行同样计为 duplicate（与旧版「按行内容 SHA256
+system/wenqu_core/ledger_migrator.py:45:（已入链行计 duplicate），不会双记账。
+system/wenqu_core/ledger_migrator.py:113:    duplicates    INTEGER NOT NULL,
+system/wenqu_core/ledger_migrator.py:283:        每行去向恰为三者之一：imported / duplicate / quarantined；
+system/wenqu_core/ledger_migrator.py:285:        事件表+单一写入 API）；``inserted=False`` 即内容寻址 duplicate
+system/wenqu_core/ledger_migrator.py:296:            "duplicates": 0,
+system/wenqu_core/ledger_migrator.py:328:                        "lines": 0, "imported": 0, "duplicates": 0, "quarantined": 0})
+system/wenqu_core/ledger_migrator.py:340:                    # inserted=False = 内容寻址 duplicate（本次或既往已入账）；
+system/wenqu_core/ledger_migrator.py:347:                        tally["duplicates"] += 1
+system/wenqu_core/ledger_migrator.py:348:                        stats["duplicates"] += 1
+system/wenqu_core/ledger_migrator.py:349:                        audit(entry, "duplicate")
+system/wenqu_core/ledger_migrator.py:364:                == tally["imported"] + tally["duplicates"] + tally["quarantined"]
+system/wenqu_core/ledger_migrator.py:372:                    "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
+system/wenqu_core/ledger_migrator.py:375:                     tally["duplicates"], tally["quarantined"], int(conserved)),
+system/wenqu_core/ledger_migrator.py:386:                f"imported({tally['imported']}) + duplicates({tally['duplicates']}) + "
+system/wenqu_core/ledger_migrator.py:415:                "equation": "lines_total == imported + duplicates + quarantined",
+system/wenqu_core/ledger_migrator.py:418:                "duplicates": tally["duplicates"],
+system/wenqu_core/ledger_migrator.py:448:      全部计 duplicate，零重复入账（一次性、幂等）；
+system/wenqu_core/ledger_migrator.py:452:    - 守恒：rows_seen == imported + duplicates，否则 ConservationError；
+system/wenqu_core/ledger_migrator.py:492:        imported = duplicates = 0
+system/wenqu_core/ledger_migrator.py:506:                    duplicates += 1
+system/wenqu_core/ledger_migrator.py:507:                    decision = "duplicate"
+system/wenqu_core/ledger_migrator.py:518:        if len(legacy_rows) != imported + duplicates:
+system/wenqu_core/ledger_migrator.py:521:                f"imported({imported}) + duplicates({duplicates})")
+system/wenqu_core/ledger_migrator.py:529:            "duplicates": duplicates,
+system/wenqu_core/station4_behavior.py:40:- 分母缩水守卫交由 build_station_result 强制：scanned<denominator →
+system/wenqu_core/station4_behavior.py:168:def _require_manifest(manifest: RunManifest) -> RunManifest:
+system/wenqu_core/station4_behavior.py:169:    if not isinstance(manifest, RunManifest):
+system/wenqu_core/station4_behavior.py:171:            f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station4_behavior.py:173:    return manifest
+system/wenqu_core/station4_behavior.py:176:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+system/wenqu_core/station4_behavior.py:177:    """身份三源一律取冻结 manifest 正源，绝不采信工具自报身份。"""
+system/wenqu_core/station4_behavior.py:179:        "project_id": manifest.project_id,
+system/wenqu_core/station4_behavior.py:180:        "commit_sha": manifest.commit_sha,
+system/wenqu_core/station4_behavior.py:181:        "environment": manifest.environment,
+system/wenqu_core/station4_behavior.py:182:        "scope_hash": manifest.scope_hash,
+system/wenqu_core/station4_behavior.py:183:        "ruleset_hash": manifest.ruleset_hash,
+system/wenqu_core/station4_behavior.py:184:        "data_config_hash": manifest.data_config_hash,
+system/wenqu_core/station4_behavior.py:186:    if manifest.lockfile_hash:
+system/wenqu_core/station4_behavior.py:187:        identity["lockfile_hash"] = manifest.lockfile_hash
+system/wenqu_core/station4_behavior.py:248:    - denominator：``repo_root/tests_dir`` 下按 ``test_patterns`` 动态发现的
+system/wenqu_core/station4_behavior.py:249:      测试文件总数（排除 ``exclusions`` 模式，排除项落 coverage.exclusions）；
+system/wenqu_core/station4_behavior.py:271:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:283:        _require_manifest(manifest)
+system/wenqu_core/station4_behavior.py:288:        self._manifest = manifest
+system/wenqu_core/station4_behavior.py:366:        denominator = len(files)
+system/wenqu_core/station4_behavior.py:460:            "files_total": denominator,
+system/wenqu_core/station4_behavior.py:474:            run_id=self._manifest.run_id,
+system/wenqu_core/station4_behavior.py:476:            attempt_id=_attempt_id(self._manifest.run_id, "st4-e2e"),
+system/wenqu_core/station4_behavior.py:479:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station4_behavior.py:490:            coverage={
+system/wenqu_core/station4_behavior.py:491:                "denominator": denominator,
+system/wenqu_core/station4_behavior.py:523:    覆盖口径：denominator=清单路由数；scanned=拿到传输层响应（含 4xx/5xx，
+system/wenqu_core/station4_behavior.py:536:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:543:        _require_manifest(manifest)
+system/wenqu_core/station4_behavior.py:550:        self._manifest = manifest
+system/wenqu_core/station4_behavior.py:628:        denominator = len(self._routes)
+system/wenqu_core/station4_behavior.py:657:            "routes_total": denominator,
+system/wenqu_core/station4_behavior.py:673:            run_id=self._manifest.run_id,
+system/wenqu_core/station4_behavior.py:675:            attempt_id=_attempt_id(self._manifest.run_id, "st4-route"),
+system/wenqu_core/station4_behavior.py:678:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station4_behavior.py:689:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station4_behavior.py:734:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:743:        _require_manifest(manifest)
+system/wenqu_core/station4_behavior.py:755:        self._manifest = manifest
+system/wenqu_core/station4_behavior.py:808:                "no denominator source: required_scenarios not given and report "
+system/wenqu_core/station4_behavior.py:814:        denominator = len(required)
+system/wenqu_core/station4_behavior.py:815:        if denominator == 0 and report is not None and not timed_out and evidence is not None:
+system/wenqu_core/station4_behavior.py:817:                "denominator resolved to zero（空分母禁止 vacuous pass）"
+system/wenqu_core/station4_behavior.py:882:            "scenarios_total": denominator,
+system/wenqu_core/station4_behavior.py:897:            run_id=self._manifest.run_id,
+system/wenqu_core/station4_behavior.py:899:            attempt_id=_attempt_id(self._manifest.run_id, "st4-gui"),
+system/wenqu_core/station4_behavior.py:902:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station4_behavior.py:916:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station4_behavior.py:965:      （PERF-02 同型语义）→ scanned<denominator → 缩水守卫 BLOCKED，
+system/wenqu_core/station4_behavior.py:981:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:988:        _require_manifest(manifest)
+system/wenqu_core/station4_behavior.py:1013:        self._manifest = manifest
+system/wenqu_core/station4_behavior.py:1022:        denominator = len(self._samples)
+system/wenqu_core/station4_behavior.py:1034:        invalid_count = denominator - scanned
+system/wenqu_core/station4_behavior.py:1058:            "sample_count": denominator,
+system/wenqu_core/station4_behavior.py:1072:            run_id=self._manifest.run_id,
+system/wenqu_core/station4_behavior.py:1074:            attempt_id=_attempt_id(self._manifest.run_id, "st4-quantile"),
+system/wenqu_core/station4_behavior.py:1077:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station4_behavior.py:1088:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station4_behavior.py:1109:      scanned<denominator → 缩水守卫 BLOCKED（fail-closed）。
+system/wenqu_core/station4_behavior.py:1117:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:1125:        _require_manifest(manifest)
+system/wenqu_core/station4_behavior.py:1150:        self._manifest = manifest
+system/wenqu_core/station4_behavior.py:1195:        denominator = len(self._profiles)
+system/wenqu_core/station4_behavior.py:1243:            "profiles_total": denominator,
+system/wenqu_core/station4_behavior.py:1268:            run_id=self._manifest.run_id,
+system/wenqu_core/station4_behavior.py:1270:            attempt_id=_attempt_id(self._manifest.run_id, "st4-querycount"),
+system/wenqu_core/station4_behavior.py:1273:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station4_behavior.py:1284:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station4_behavior.py:1299:    - coverage：denominator/scanned 逐腿求和；exclusions 顺序去重拼接；
+system/wenqu_core/station4_behavior.py:1310:    environment, scope_hash) 必须一致，不一致抛 BehaviorStationError
+system/wenqu_core/station4_behavior.py:1331:    anchor_keys = ("commit_sha", "environment", "scope_hash")
+system/wenqu_core/station4_behavior.py:1346:    denominator = sum(int(r["coverage"].get("denominator", 0)) for r in results)
+system/wenqu_core/station4_behavior.py:1347:    scanned = sum(int(r["coverage"].get("scanned", 0)) for r in results)
+system/wenqu_core/station4_behavior.py:1350:        for item in result["coverage"].get("exclusions", ()) or ():
+system/wenqu_core/station4_behavior.py:1404:        coverage={
+system/wenqu_core/station4_behavior.py:1405:            "denominator": denominator,
+system/wenqu_core/station4_behavior.py:1453:    assert plan.required_stations == (0, 1, 2, 3, 4), plan.required_stations
+system/wenqu_core/station4_behavior.py:1456:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station4_behavior.py:1462:        scope=["src/**", "tests/**"],
+system/wenqu_core/station4_behavior.py:1507:            manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1514:        assert st["coverage"] == {"denominator": 3, "scanned": 3}
+system/wenqu_core/station4_behavior.py:1516:        print(f"[1] e2e PASS OK: coverage {st['coverage']['scanned']}/"
+system/wenqu_core/station4_behavior.py:1517:              f"{st['coverage']['denominator']}, exit={st['execution']['actual_exit_code']}")
+system/wenqu_core/station4_behavior.py:1521:            manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1527:        assert st["coverage"]["scanned"] == 3 and len(st["finding_ids"]) == 1
+system/wenqu_core/station4_behavior.py:1533:            manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1539:        assert st["coverage"]["scanned"] == 2 < st["coverage"]["denominator"]
+system/wenqu_core/station4_behavior.py:1540:        print(f"[3] e2e shrink OK: {st['coverage']['scanned']}/"
+system/wenqu_core/station4_behavior.py:1541:              f"{st['coverage']['denominator']} → BLOCKED (铁律2)")
+system/wenqu_core/station4_behavior.py:1547:            manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1553:        assert st["coverage"]["scanned"] == 0 and st["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:1576:                manifest,
+system/wenqu_core/station4_behavior.py:1586:            assert st["policy_verdict"] == "PASS" and st["coverage"]["scanned"] == 2
+system/wenqu_core/station4_behavior.py:1590:                manifest,
+system/wenqu_core/station4_behavior.py:1600:                manifest,
+system/wenqu_core/station4_behavior.py:1612:                    manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1617:                    manifest,
+system/wenqu_core/station4_behavior.py:1624:            assert combined["coverage"]["denominator"] == 4  # 3 e2e + 1 route
+system/wenqu_core/station4_behavior.py:1626:                  f"{combined['coverage']['scanned']}/{combined['coverage']['denominator']} → "
+system/wenqu_core/station4_behavior.py:1630:            other_manifest = planner.freeze_run_manifest(
+system/wenqu_core/station4_behavior.py:1633:                scope=["src/**"], ruleset={"version": "w6d"}, data_config={"p": 1},
+system/wenqu_core/station4_behavior.py:1636:                other_manifest, repo_root=str(repo),
+system/wenqu_core/station4_behavior.py:1677:                manifest,
+system/wenqu_core/station4_behavior.py:1686:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 2, "scanned": 2}
+system/wenqu_core/station4_behavior.py:1687:        print(f"[8a] web-gui PASS OK: {st['coverage']['scanned']}/"
+system/wenqu_core/station4_behavior.py:1688:              f"{st['coverage']['denominator']} scenarios on chromium-selftest")
+system/wenqu_core/station4_behavior.py:1695:        assert st["execution_status"] == "BLOCKED" and st["coverage"]["scanned"] == 1
+system/wenqu_core/wenqu_pipeline.py:29:     stop_type / stage / environment / authorized_scope（=scope_hash，
+system/wenqu_core/wenqu_pipeline.py:56:      无条件比较；policy/ruleset/env/scope/task/stage 全部 exact 绑定）；
+system/wenqu_core/wenqu_pipeline.py:114:    scope_hash/policy_hash/ruleset_hash/environment 等任一变化）或缺
+system/wenqu_core/wenqu_pipeline.py:115:    identity 的 run 事件，重放即 ``PipelineCorruptionError``。SHA/scope/
+system/wenqu_core/wenqu_pipeline.py:266:    AMBIGUITY = "ambiguity"        # 需求歧义：授权 + 新需求四要素与 scope hash 冻结
+system/wenqu_core/wenqu_pipeline.py:267:    PROD_WRITE = "prod-write"      # 生产写：exact-scope 授权 + 前置 Gate + 回滚级别
+system/wenqu_core/wenqu_pipeline.py:269:    RELEASE = "release"            # 发布：exact release/SHA/env 授权 + Gate/manifest/回滚预案
+system/wenqu_core/wenqu_pipeline.py:270:    SCOPE = "scope"                # 范围变更：新 scope 授权 + 风险/required 集/证据重冻结
+system/wenqu_core/wenqu_pipeline.py:287:        "description": "一次性授权 + 新需求四要素与 scope hash 冻结",
+system/wenqu_core/wenqu_pipeline.py:288:        "required": (("requirement_four_elements",), ("scope_hash",)),
+system/wenqu_core/wenqu_pipeline.py:293:        "description": "一次性 exact-scope 授权 + 对应前置 Gate + 回滚级别",
+system/wenqu_core/wenqu_pipeline.py:310:        "description": "一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案",
+system/wenqu_core/wenqu_pipeline.py:313:            ("gate_reference", "manifest_sha256", "rollback_plan"),
+system/wenqu_core/wenqu_pipeline.py:318:    "scope": {
+system/wenqu_core/wenqu_pipeline.py:319:        "description": "一次性新 scope 授权 + 风险，required 集和证据重新冻结",
+system/wenqu_core/wenqu_pipeline.py:321:            ("new_scope_hash",),
+system/wenqu_core/wenqu_pipeline.py:371:    "authorized_scope", "policy_hash", "ruleset_hash", "input_watermark",
+system/wenqu_core/wenqu_pipeline.py:389:    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+system/wenqu_core/wenqu_pipeline.py:393:    "prod_write": ("operation_digest", "data_scope_digest",
+system/wenqu_core/wenqu_pipeline.py:395:    "fund_auth": ("subject_role", "amount_scope_digest",
+system/wenqu_core/wenqu_pipeline.py:590:    """run 身份（commit_sha/environment/scope_hash）不满足 run-event-v2 契约。"""
+system/wenqu_core/wenqu_pipeline.py:655:    """解析 ISO8601；容忍 Z 后缀；naive 视为 UTC（schema format: date-time）。"""
+system/wenqu_core/wenqu_pipeline.py:657:        raise ValueError(f"invalid date-time: {value!r}")
+system/wenqu_core/wenqu_pipeline.py:1166:           environment / authorized_scope(=scope_hash) / policy_hash /
+system/wenqu_core/wenqu_pipeline.py:1264:        if not (isinstance(ap["authorized_scope"], str)
+system/wenqu_core/wenqu_pipeline.py:1265:                and ap["authorized_scope"].strip()):
+system/wenqu_core/wenqu_pipeline.py:1267:                "authorized_scope must be a non-empty string")
+system/wenqu_core/wenqu_pipeline.py:1308:                    f"invalid date-time in {ts_field}: {exc}") from None
+system/wenqu_core/wenqu_pipeline.py:1371:                    f"invalid date-time in payload.expiry: {exc}") from None
+system/wenqu_core/wenqu_pipeline.py:1447:        if ap["authorized_scope"] != identity["scope_hash"]:
+system/wenqu_core/wenqu_pipeline.py:1449:                "authorized_scope != run scope_hash（审批不得扩范围）",
+system/wenqu_core/wenqu_pipeline.py:1450:                {"authorized_scope": ap["authorized_scope"],
+system/wenqu_core/wenqu_pipeline.py:1451:                 "run_scope_hash": identity["scope_hash"]})
+system/wenqu_core/wenqu_pipeline.py:1642:        TTL → run 绑定（run_id/task_id/environment/scope/policy/ruleset/
+system/wenqu_core/wenqu_pipeline.py:1704:            if ap["authorized_scope"] != ident["scope_hash"]:
+system/wenqu_core/wenqu_pipeline.py:1706:                    "authorized_scope != run scope_hash（审批不得扩范围）")
+system/wenqu_core/wenqu_pipeline.py:1948:        for key in ("commit_sha", "environment", "scope_hash",
+system/wenqu_core/wenqu_pipeline.py:2030:        # SHA/scope/policy（及环境/规则集等）任一漂移或缺 identity 的 run 事件
+system/wenqu_core/wenqu_pipeline.py:2037:                f"（流内身份必须全程一致；SHA/scope/policy 变化强制新 run"
+system/wenqu_core/wenqu_pipeline.py:2622:          + 哈希绑定 + TTL + scope/SHA/env/state_version CAS——缺一即拒；
+system/wenqu_core/wenqu_pipeline.py:2920:        （run_id/task_id/environment/scope/policy/ruleset/watermark/stage
+system/wenqu_core/cli.py:7:  create         创建七段 run（身份五要素必填：commit/environment/scope/policy/ruleset）
+system/wenqu_core/cli.py:17:                 须 --manifest <run-manifest.json>（required/分母取冻结值逐站
+system/wenqu_core/cli.py:18:                 对账），无 manifest 裸调用默认拒绝、仅诊断可显式
+system/wenqu_core/cli.py:100:                "scope_hash": args.scope_hash,
+system/wenqu_core/cli.py:295:        ("environment", "--environment"), ("scope", "--scope"),
+system/wenqu_core/cli.py:346:            authorized_scope=args.scope,
+system/wenqu_core/cli.py:580:    正门路径（F6-GATE-SCOPE-001，P0 根修）：--manifest <run-manifest.json>
+system/wenqu_core/cli.py:581:    （bugscan_orchestrator.freeze_run_manifest 冻结产物，manifest_hash 防篡改
+system/wenqu_core/cli.py:582:    复核）。required 站集合与 coverage 分母一律取 manifest 冻结值，逐站对账
+system/wenqu_core/cli.py:583:    station result 的 identity.scope_hash/commit_sha 与 coverage.denominator
+system/wenqu_core/cli.py:586:    无 manifest 裸调用默认拒绝（exit 3）：required/coverage 自报不具上绿
+system/wenqu_core/cli.py:592:    合法嵌套——execution/coverage/artifacts 附加键、非 fnd_ 前缀 finding_ids
+system/wenqu_core/cli.py:597:    # 0. 模式裁定：--manifest 正门 / --allow-self-declared 诊断豁免 / 默认拒绝。
+system/wenqu_core/cli.py:598:    manifest: Optional[RunManifest] = None
+system/wenqu_core/cli.py:599:    if args.manifest:
+system/wenqu_core/cli.py:602:                "--manifest 与 --allow-self-declared 互斥：正门路径下 required/"
+system/wenqu_core/cli.py:603:                "coverage 必须对账冻结 manifest，不存在自报豁免",
+system/wenqu_core/cli.py:609:                "--required 与 --manifest 互斥：required 站集合必须来自冻结 "
+system/wenqu_core/cli.py:610:                "manifest（F6-GATE-SCOPE-001：不接受自报 required 集）",
+system/wenqu_core/cli.py:615:            manifest = RunManifest.load(args.manifest)
+system/wenqu_core/cli.py:619:                f"run-manifest 不可用/验签失败 ({args.manifest}): "
+system/wenqu_core/cli.py:620:                f"{str(exc)[:200]}（manifest_hash 复核拒绝=冻结件被篡改或损坏）",
+system/wenqu_core/cli.py:621:                mode="manifest_invalid",
+system/wenqu_core/cli.py:626:            "gate 拒绝自报模式：无 --manifest 的裸调用默认拒绝"
+system/wenqu_core/cli.py:627:            "（F6-GATE-SCOPE-001：required 站集合与 coverage 分母不得由结果自报）。"
+system/wenqu_core/cli.py:628:            "正门路径：--manifest <run-manifest.json>（freeze_run_manifest 冻结"
+system/wenqu_core/cli.py:676:    # 3. 身份绑定：manifest 正源优先；诊断模式显式旗标优先、其次首个可绑定结果。
+system/wenqu_core/cli.py:677:    if manifest is not None:
+system/wenqu_core/cli.py:678:        sha = manifest.commit_sha
+system/wenqu_core/cli.py:679:        env = manifest.environment
+system/wenqu_core/cli.py:684:                f"--sha {explicit_sha} 与冻结 manifest.commit_sha {sha} 不一致"
+system/wenqu_core/cli.py:685:                "（正门路径身份以 manifest 为正源）",
+system/wenqu_core/cli.py:686:                mode="manifest_identity_conflict",
+system/wenqu_core/cli.py:691:                f"--env {explicit_env!r} 与冻结 manifest.environment {env!r} 不一致"
+system/wenqu_core/cli.py:692:                "（正门路径身份以 manifest 为正源）",
+system/wenqu_core/cli.py:693:                mode="manifest_identity_conflict",
+system/wenqu_core/cli.py:724:    # 4. required 集：manifest 冻结值（正门）或显式 --required / 自报默认（诊断）。
+system/wenqu_core/cli.py:725:    if manifest is not None:
+system/wenqu_core/cli.py:726:        required: Set[str] = {str(i) for i in manifest.required_stations}
+system/wenqu_core/cli.py:729:                "冻结 manifest 的 required_stations 为空——非法冻结件（空 required"
+system/wenqu_core/cli.py:731:                mode="manifest_invalid",
+system/wenqu_core/cli.py:775:    if manifest is not None:
+system/wenqu_core/cli.py:776:        agg_kwargs["expected_scope_hash"] = manifest.scope_hash
+system/wenqu_core/cli.py:777:        agg_kwargs["expected_denominator"] = manifest.denominator
+system/wenqu_core/cli.py:778:    agg = GateAggregator(required_stations=required, target_sha=sha,
+system/wenqu_core/cli.py:804:    if manifest is not None:
+system/wenqu_core/cli.py:805:        result["mode"] = "manifest"
+system/wenqu_core/cli.py:806:        result["manifest"] = {
+system/wenqu_core/cli.py:807:            "path": args.manifest,
+system/wenqu_core/cli.py:808:            "run_id": manifest.run_id,
+system/wenqu_core/cli.py:809:            "manifest_hash": manifest.manifest_hash,
+system/wenqu_core/cli.py:810:            "scope_hash": manifest.scope_hash,
+system/wenqu_core/cli.py:811:            "denominator": manifest.denominator,
+system/wenqu_core/cli.py:812:            "required_stations": sorted(manifest.required_stations),
+system/wenqu_core/cli.py:813:            "commit_sha": manifest.commit_sha,
+system/wenqu_core/cli.py:814:            "environment": manifest.environment,
+system/wenqu_core/cli.py:844:    p.add_argument("--scope-hash", required=True)
+system/wenqu_core/cli.py:871:                            "scope", "fund-auth", "exm-fuse", "resource",
+system/wenqu_core/cli.py:909:             "--manifest，裸调用默认拒绝）")
+system/wenqu_core/cli.py:913:    p.add_argument("--manifest", default=None, metavar="PATH",
+system/wenqu_core/cli.py:914:                   help="冻结 run-manifest.json（freeze_run_manifest 产物）——"
+system/wenqu_core/cli.py:915:                        "正门路径：required 站集合/coverage 分母/身份一律取 "
+system/wenqu_core/cli.py:916:                        "manifest 冻结值（manifest_hash 防篡改复核），逐站对账 "
+system/wenqu_core/cli.py:917:                        "identity.scope_hash+commit_sha 与 coverage.denominator，"
+system/wenqu_core/cli.py:921:                   help="仅诊断用途：显式承认无 manifest 的自报模式（required "
+system/wenqu_core/cli.py:922:                        "站集合与 coverage 分母由结果自报，判定不具上绿效力"
+system/wenqu_core/cli.py:923:                        "背书）；生产判定必须走 --manifest")
+system/wenqu_core/cli.py:926:                        "（任何站缺报/硬失败都不得 PASS）；与 --manifest 互斥"
+system/wenqu_core/cli.py:927:                        "——正门 required 集来自冻结 manifest")
+system/wenqu_core/cli.py:931:                        "--manifest 模式下须与冻结值一致）")
+system/wenqu_core/cli.py:935:                        "--manifest 模式下须与冻结值一致）")
+system/wenqu_core/cli.py:960:    p.add_argument("--scope", default=None, dest="scope",
+system/wenqu_core/cli.py:961:                   help="authorized_scope（=run scope_hash，不得扩范围；"
+system/wenqu_core/bugscan_orchestrator.py:18:- freeze_run_manifest()：站0 冻结 run-manifest.json——项目身份/commit SHA/
+system/wenqu_core/bugscan_orchestrator.py:19:  scope/ruleset/data config/required 站集合全部哈希绑定；冻结后不可变
+system/wenqu_core/bugscan_orchestrator.py:34:- 分母缩水守卫：coverage.scanned < denominator 时该站不得记 PASS，
+system/wenqu_core/bugscan_orchestrator.py:69:    "freeze_run_manifest",
+system/wenqu_core/bugscan_orchestrator.py:110:#: 站5（实弹面）不在任何自动档——生产写须所有者明确口令（一次性 exact-scope 授权）。
+system/wenqu_core/bugscan_orchestrator.py:164:#: run-event-v2 identity.environment 枚举（manifest 采用其严格子集）。
+system/wenqu_core/bugscan_orchestrator.py:176:    "execution", "coverage", "finding_ids", "artifacts",
+system/wenqu_core/bugscan_orchestrator.py:179:    "project_id", "commit_sha", "environment", "scope_hash",
+system/wenqu_core/bugscan_orchestrator.py:186:_COVERAGE_KEYS = frozenset({"denominator", "scanned", "exclusions"})
+system/wenqu_core/bugscan_orchestrator.py:226:    """源闸结果不属于冻结 manifest 的 exact-SHA（证据不得跨 SHA 复用）。"""
+system/wenqu_core/bugscan_orchestrator.py:327:    coverage_denominator: str # 覆盖分母语义（分母缩水守卫的计量对象）
+system/wenqu_core/bugscan_orchestrator.py:341:            "coverage_denominator": self.coverage_denominator,
+system/wenqu_core/bugscan_orchestrator.py:356:        slug="scope_freeze",
+system/wenqu_core/bugscan_orchestrator.py:357:        entry="freeze_run_manifest()（对齐 `wenqu init` 的 sha256 范围哈希语义；"
+system/wenqu_core/bugscan_orchestrator.py:358:              "commit SHA/环境/定级理由由 manifest 落账）",
+system/wenqu_core/bugscan_orchestrator.py:359:        coverage_denominator="scope 冻结清单内路径数（denominator=len(paths)）",
+system/wenqu_core/bugscan_orchestrator.py:360:        tools=("wenqu_core.bugscan_orchestrator.freeze_run_manifest",),
+system/wenqu_core/bugscan_orchestrator.py:375:        coverage_denominator="CI 快速门组件数（lint/typecheck/unit/守卫棘轮等）",
+system/wenqu_core/bugscan_orchestrator.py:391:        coverage_denominator="scope 内可扫文件数（按语言分母）",
+system/wenqu_core/bugscan_orchestrator.py:408:        coverage_denominator="对外端点×用例矩阵（正例+负例）数",
+system/wenqu_core/bugscan_orchestrator.py:424:        coverage_denominator="e2e 测试点数",
+system/wenqu_core/bugscan_orchestrator.py:439:        entry="真实业务流全链操作（生产写须所有者明确口令——一次性 exact-scope 授权）",
+system/wenqu_core/bugscan_orchestrator.py:440:        coverage_denominator="业务流断言点数",
+system/wenqu_core/bugscan_orchestrator.py:457:        coverage_denominator="对抗轴问题数（每轴必问）",
+system/wenqu_core/bugscan_orchestrator.py:474:        coverage_denominator="哨兵×探针检查项数",
+system/wenqu_core/bugscan_orchestrator.py:494:    已在跑的 run manifest（指纹变化即失效重跑——铁律 4）。
+system/wenqu_core/bugscan_orchestrator.py:504:                raise ValueError(f"duplicate station_id: {spec.station_id}")
+system/wenqu_core/bugscan_orchestrator.py:532:        """注册表快照（嵌入 manifest 存档，保证判定可复现）。"""
+system/wenqu_core/bugscan_orchestrator.py:589:    approver（风险负责人）/ reason（理由，≥10 字）/ scope（影响范围）/
+system/wenqu_core/bugscan_orchestrator.py:595:    scope: str
+system/wenqu_core/bugscan_orchestrator.py:596:    expiry: str  # ISO-8601 date-time
+system/wenqu_core/bugscan_orchestrator.py:605:        missing = [k for k in ("approver", "reason", "scope", "expiry") if not data.get(k)]
+system/wenqu_core/bugscan_orchestrator.py:614:            scope=str(data["scope"]),
+system/wenqu_core/bugscan_orchestrator.py:629:        if not self.scope.strip():
+system/wenqu_core/bugscan_orchestrator.py:630:            raise RiskDowngradeError("risk acceptance scope (影响范围) is empty")
+system/wenqu_core/bugscan_orchestrator.py:647:            "scope": self.scope,
+system/wenqu_core/bugscan_orchestrator.py:661:    """一次 bugscan 的冻结计划（manifest 的 planning 段正源）。"""
+system/wenqu_core/bugscan_orchestrator.py:665:    required_stations: Tuple[int, ...]
+system/wenqu_core/bugscan_orchestrator.py:677:            "required_stations": list(self.required_stations),
+system/wenqu_core/bugscan_orchestrator.py:708:        scope_flags: Iterable[str] = (),
+system/wenqu_core/bugscan_orchestrator.py:713:        flags = tuple(scope_flags or ())
+system/wenqu_core/bugscan_orchestrator.py:718:                f"unknown scope flags {unknown}; known: {sorted(SCOPE_FLAG_ESCALATION)}"
+system/wenqu_core/bugscan_orchestrator.py:733:        scope_flags: Iterable[str] = (),
+system/wenqu_core/bugscan_orchestrator.py:741:        - scope_flags 命中 → 自动升档（只增不减）。
+system/wenqu_core/bugscan_orchestrator.py:750:        effective, escalated, reasons = self.resolve_lane(lane, scope_flags)
+system/wenqu_core/bugscan_orchestrator.py:794:            required_stations=required,
+system/wenqu_core/bugscan_orchestrator.py:804:    def freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:812:        scope: Iterable[str] | Mapping[str, Any],
+system/wenqu_core/bugscan_orchestrator.py:819:        return freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:825:            scope=scope,
+system/wenqu_core/bugscan_orchestrator.py:841:    """冻结后的 run manifest（不可变值对象）。
+system/wenqu_core/bugscan_orchestrator.py:843:    - manifest_hash = sha256(canonical(内容 sans manifest_hash))。
+system/wenqu_core/bugscan_orchestrator.py:859:    scope_hash: str
+system/wenqu_core/bugscan_orchestrator.py:863:    scope_paths: Tuple[str, ...]
+system/wenqu_core/bugscan_orchestrator.py:864:    scope_exclusions: Tuple[str, ...]
+system/wenqu_core/bugscan_orchestrator.py:865:    required_stations: Tuple[int, ...]
+system/wenqu_core/bugscan_orchestrator.py:867:    manifest_hash: str
+system/wenqu_core/bugscan_orchestrator.py:873:            "manifest_kind": "bugscan/run-manifest",
+system/wenqu_core/bugscan_orchestrator.py:884:                "scope_hash": self.scope_hash,
+system/wenqu_core/bugscan_orchestrator.py:888:            "scope": {
+system/wenqu_core/bugscan_orchestrator.py:889:                "paths": list(self.scope_paths),
+system/wenqu_core/bugscan_orchestrator.py:890:                "exclusions": list(self.scope_exclusions),
+system/wenqu_core/bugscan_orchestrator.py:891:                "denominator": len(self.scope_paths),
+system/wenqu_core/bugscan_orchestrator.py:893:            "required_stations": list(self.required_stations),
+system/wenqu_core/bugscan_orchestrator.py:895:            "manifest_hash": self.manifest_hash,
+system/wenqu_core/bugscan_orchestrator.py:907:    def denominator(self) -> int:
+system/wenqu_core/bugscan_orchestrator.py:908:        return len(self.scope_paths)
+system/wenqu_core/bugscan_orchestrator.py:911:        """manifest 自身作为站0 工件：CAS digest + 字节数。"""
+system/wenqu_core/bugscan_orchestrator.py:917:        """原子写 run-manifest.json；冻结语义=同内容幂等、异内容拒绝。"""
+system/wenqu_core/bugscan_orchestrator.py:925:                f"{target} already holds a DIFFERENT frozen manifest "
+system/wenqu_core/bugscan_orchestrator.py:931:            dir=str(target.parent), prefix=".run-manifest-", suffix=".tmp"
+system/wenqu_core/bugscan_orchestrator.py:949:        """读回并校验 manifest_hash（防篡改）。"""
+system/wenqu_core/bugscan_orchestrator.py:953:            raise ManifestFreezeError(f"{path}: manifest must be a JSON object")
+system/wenqu_core/bugscan_orchestrator.py:954:        stored_hash = data.get("manifest_hash")
+system/wenqu_core/bugscan_orchestrator.py:955:        body = {k: v for k, v in data.items() if k != "manifest_hash"}
+system/wenqu_core/bugscan_orchestrator.py:959:                f"{path}: manifest_hash mismatch (stored {stored_hash!r} != "
+system/wenqu_core/bugscan_orchestrator.py:975:            required_stations=tuple(plan_data["required_stations"]),
+system/wenqu_core/bugscan_orchestrator.py:994:            scope_hash=identity["scope_hash"],
+system/wenqu_core/bugscan_orchestrator.py:998:            scope_paths=tuple(data["scope"]["paths"]),
+system/wenqu_core/bugscan_orchestrator.py:999:            scope_exclusions=tuple(data["scope"].get("exclusions", ())),
+system/wenqu_core/bugscan_orchestrator.py:1000:            required_stations=tuple(data["required_stations"]),
+system/wenqu_core/bugscan_orchestrator.py:1002:            manifest_hash=data["manifest_hash"],
+system/wenqu_core/bugscan_orchestrator.py:1014:        执行语义：freeze_run_manifest 在本进程内完成；任何冻结失败都以
+system/wenqu_core/bugscan_orchestrator.py:1020:        argv = ["wenqu_core.bugscan_orchestrator", "freeze_run_manifest", self.run_id]
+system/wenqu_core/bugscan_orchestrator.py:1031:                "scope_hash": self.scope_hash,
+system/wenqu_core/bugscan_orchestrator.py:1039:                "digest": self.manifest_hash,
+system/wenqu_core/bugscan_orchestrator.py:1050:            coverage={
+system/wenqu_core/bugscan_orchestrator.py:1051:                "denominator": self.denominator,
+system/wenqu_core/bugscan_orchestrator.py:1052:                "scanned": self.denominator,
+system/wenqu_core/bugscan_orchestrator.py:1053:                "exclusions": list(self.scope_exclusions),
+system/wenqu_core/bugscan_orchestrator.py:1073:# freeze_run_manifest——模块级入口（Codex W6A §15.2 站0）
+system/wenqu_core/bugscan_orchestrator.py:1076:def freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:1083:    scope: Iterable[str] | Mapping[str, Any],
+system/wenqu_core/bugscan_orchestrator.py:1091:    """冻结 run-manifest.json 的内容（返回 RunManifest，由调用方 .save() 落盘）。
+system/wenqu_core/bugscan_orchestrator.py:1093:    绑定（不变量 #2/#3）：run_id + commit_sha + environment + scope_hash +
+system/wenqu_core/bugscan_orchestrator.py:1119:    # scope：list → paths（无排除）；mapping → {"paths":…, "exclusions":…}
+system/wenqu_core/bugscan_orchestrator.py:1120:    if isinstance(scope, Mapping):
+system/wenqu_core/bugscan_orchestrator.py:1121:        paths_raw = scope.get("paths", ())
+system/wenqu_core/bugscan_orchestrator.py:1122:        exclusions_raw = scope.get("exclusions", ())
+system/wenqu_core/bugscan_orchestrator.py:1124:        paths_raw, exclusions_raw = scope, ()
+system/wenqu_core/bugscan_orchestrator.py:1126:        raise ManifestFreezeError("scope.paths must be a list/tuple of strings")
+system/wenqu_core/bugscan_orchestrator.py:1128:        raise ManifestFreezeError("scope.exclusions must be a list/tuple of strings")
+system/wenqu_core/bugscan_orchestrator.py:1133:            "scope must contain at least one path (范围分母齐全——空 scope 冻结非法)"
+system/wenqu_core/bugscan_orchestrator.py:1135:    scope_hash = _hash_obj({"paths": list(paths), "exclusions": list(exclusions)})
+system/wenqu_core/bugscan_orchestrator.py:1145:    required = tuple(sorted(set(plan.required_stations)))
+system/wenqu_core/bugscan_orchestrator.py:1158:        "manifest_kind": "bugscan/run-manifest",
+system/wenqu_core/bugscan_orchestrator.py:1169:            "scope_hash": scope_hash,
+system/wenqu_core/bugscan_orchestrator.py:1173:        "scope": {
+system/wenqu_core/bugscan_orchestrator.py:1176:            "denominator": len(paths),
+system/wenqu_core/bugscan_orchestrator.py:1178:        "required_stations": list(required),
+system/wenqu_core/bugscan_orchestrator.py:1185:    manifest_hash = _hash_obj(body)
+system/wenqu_core/bugscan_orchestrator.py:1197:        scope_hash=scope_hash,
+system/wenqu_core/bugscan_orchestrator.py:1201:        scope_paths=paths,
+system/wenqu_core/bugscan_orchestrator.py:1202:        scope_exclusions=exclusions,
+system/wenqu_core/bugscan_orchestrator.py:1203:        required_stations=required,
+system/wenqu_core/bugscan_orchestrator.py:1205:        manifest_hash=manifest_hash,
+system/wenqu_core/bugscan_orchestrator.py:1223:    coverage: Mapping[str, Any],
+system/wenqu_core/bugscan_orchestrator.py:1229:    1. 分母缩水守卫：scanned < denominator → 强制 BLOCKED/NOT_EVALUATED
+system/wenqu_core/bugscan_orchestrator.py:1234:    if coverage.get("scanned", 0) < coverage.get("denominator", 0):
+system/wenqu_core/bugscan_orchestrator.py:1259:        "coverage": {
+system/wenqu_core/bugscan_orchestrator.py:1260:            "denominator": coverage.get("denominator", 0),
+system/wenqu_core/bugscan_orchestrator.py:1261:            "scanned": coverage.get("scanned", 0),
+system/wenqu_core/bugscan_orchestrator.py:1262:            **({"exclusions": list(coverage["exclusions"])}
+system/wenqu_core/bugscan_orchestrator.py:1263:               if coverage.get("exclusions") else {}),
+system/wenqu_core/bugscan_orchestrator.py:1323:        _check(isinstance(identity.get("scope_hash"), str)
+system/wenqu_core/bugscan_orchestrator.py:1324:               and identity.get("scope_hash") != "",
+system/wenqu_core/bugscan_orchestrator.py:1325:               "identity.scope_hash must be a non-empty string")
+system/wenqu_core/bugscan_orchestrator.py:1361:            _check(ok, f"execution.{ts_key} must be an ISO-8601 date-time")
+system/wenqu_core/bugscan_orchestrator.py:1382:    coverage = result.get("coverage")
+system/wenqu_core/bugscan_orchestrator.py:1383:    if coverage is not None:
+system/wenqu_core/bugscan_orchestrator.py:1384:        if isinstance(coverage, Mapping):
+system/wenqu_core/bugscan_orchestrator.py:1385:            extra_c = set(coverage) - set(_COVERAGE_KEYS)
+system/wenqu_core/bugscan_orchestrator.py:1386:            _check(not extra_c, f"coverage additional properties: {sorted(extra_c)}")
+system/wenqu_core/bugscan_orchestrator.py:1387:            for key in ("denominator", "scanned"):
+system/wenqu_core/bugscan_orchestrator.py:1388:                if key in coverage:
+system/wenqu_core/bugscan_orchestrator.py:1389:                    value = coverage[key]
+system/wenqu_core/bugscan_orchestrator.py:1392:                           f"coverage.{key} must be an int >= 0")
+system/wenqu_core/bugscan_orchestrator.py:1393:            if "exclusions" in coverage:
+system/wenqu_core/bugscan_orchestrator.py:1394:                _check(isinstance(coverage["exclusions"], list)
+system/wenqu_core/bugscan_orchestrator.py:1395:                       and all(isinstance(x, str) for x in coverage["exclusions"]),
+system/wenqu_core/bugscan_orchestrator.py:1396:                       "coverage.exclusions must be a list of strings")
+system/wenqu_core/bugscan_orchestrator.py:1398:            issues.append("coverage must be an object")
+system/wenqu_core/bugscan_orchestrator.py:1424:    if isinstance(coverage, Mapping) and isinstance(execution, Mapping):
+system/wenqu_core/bugscan_orchestrator.py:1425:        denom = coverage.get("denominator", 0)
+system/wenqu_core/bugscan_orchestrator.py:1426:        scanned = coverage.get("scanned", 0)
+system/wenqu_core/bugscan_orchestrator.py:1429:                   "coverage shrink (scanned<denominator) requires execution_status=BLOCKED")
+system/wenqu_core/bugscan_orchestrator.py:1431:                   "coverage shrink (scanned<denominator) forbids policy_verdict=PASS")
+system/wenqu_core/bugscan_orchestrator.py:1472:    1. 绑定校验：gate_result.commit_sha 必须等于冻结 manifest 的 commit_sha
+system/wenqu_core/bugscan_orchestrator.py:1481:    身份三源（commit_sha/environment/scope_hash 等）一律取自冻结 manifest
+system/wenqu_core/bugscan_orchestrator.py:1489:        manifest: RunManifest,
+system/wenqu_core/bugscan_orchestrator.py:1494:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/bugscan_orchestrator.py:1496:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/bugscan_orchestrator.py:1498:        self._manifest = manifest
+system/wenqu_core/bugscan_orchestrator.py:1561:        if parsed["commit_sha"] != self._manifest.commit_sha:
+system/wenqu_core/bugscan_orchestrator.py:1563:                f"gate ran at {parsed['commit_sha']} but manifest froze "
+system/wenqu_core/bugscan_orchestrator.py:1564:                f"{self._manifest.commit_sha}——证据不得跨 SHA 复用，请在冻结 SHA 重跑源闸"
+system/wenqu_core/bugscan_orchestrator.py:1581:        # 覆盖：组件级分母（未给组件时以门整体为单件——denominator 不缩水）
+system/wenqu_core/bugscan_orchestrator.py:1584:            denominator = len(components)
+system/wenqu_core/bugscan_orchestrator.py:1590:            denominator = scanned = 1
+system/wenqu_core/bugscan_orchestrator.py:1591:        shrink = scanned < denominator
+system/wenqu_core/bugscan_orchestrator.py:1600:        manifest_identity: Dict[str, Any] = {
+system/wenqu_core/bugscan_orchestrator.py:1601:            "project_id": self._manifest.project_id,
+system/wenqu_core/bugscan_orchestrator.py:1602:            "commit_sha": self._manifest.commit_sha,
+system/wenqu_core/bugscan_orchestrator.py:1603:            "environment": self._manifest.environment,
+system/wenqu_core/bugscan_orchestrator.py:1604:            "scope_hash": self._manifest.scope_hash,
+system/wenqu_core/bugscan_orchestrator.py:1605:            "ruleset_hash": self._manifest.ruleset_hash,
+system/wenqu_core/bugscan_orchestrator.py:1606:            "data_config_hash": self._manifest.data_config_hash,
+system/wenqu_core/bugscan_orchestrator.py:1608:        if self._manifest.lockfile_hash:
+system/wenqu_core/bugscan_orchestrator.py:1609:            manifest_identity["lockfile_hash"] = self._manifest.lockfile_hash
+system/wenqu_core/bugscan_orchestrator.py:1620:            else _argv_digest([tool["name"], self._manifest.run_id]),
+system/wenqu_core/bugscan_orchestrator.py:1639:            run_id=self._manifest.run_id,
+system/wenqu_core/bugscan_orchestrator.py:1641:            attempt_id=_make_attempt_id(self._manifest.run_id, "st1"),
+system/wenqu_core/bugscan_orchestrator.py:1644:            identity=manifest_identity,
+system/wenqu_core/bugscan_orchestrator.py:1647:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/bugscan_orchestrator.py:1764:      （normalized_argv_digest）。同命令重跑/换 S 标签 → duplicate，不推进
+system/wenqu_core/bugscan_orchestrator.py:1790:        self._duplicates = 0
+system/wenqu_core/bugscan_orchestrator.py:1866:            self._duplicates += 1
+system/wenqu_core/bugscan_orchestrator.py:1876:            "relabel_only_duplicate": relabel_only,
+system/wenqu_core/bugscan_orchestrator.py:1962:            "duplicate_rounds_ignored": self._duplicates,
+system/wenqu_core/bugscan_orchestrator.py:1963:            "relabel_only_duplicates": self._relabels,
+system/wenqu_core/bugscan_orchestrator.py:1985:    plan = planner.plan("FAST", scope_flags=("touches_migration",))
+system/wenqu_core/bugscan_orchestrator.py:1987:    assert plan.required_stations == (0, 1, 2, 3, 4)
+system/wenqu_core/bugscan_orchestrator.py:1990:          f"STANDARD, required={plan.required_stations}, rounds={plan.convergence_rounds}")
+system/wenqu_core/bugscan_orchestrator.py:1993:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:1999:        scope=["src/**", "tests/**"],
+system/wenqu_core/bugscan_orchestrator.py:2003:    st0 = manifest.to_station_result()
+system/wenqu_core/bugscan_orchestrator.py:2005:    print(f"[3] freeze OK: run={manifest.run_id} scope_hash={manifest.scope_hash[:12]}… "
+system/wenqu_core/bugscan_orchestrator.py:2006:          f"manifest_hash={manifest.manifest_hash[:12]}… ; station-0 result PASS "
+system/wenqu_core/bugscan_orchestrator.py:2007:          f"(coverage {st0['coverage']['scanned']}/{st0['coverage']['denominator']})")
+system/wenqu_core/bugscan_orchestrator.py:2013:        "started_at": manifest.frozen_at,
+system/wenqu_core/bugscan_orchestrator.py:2014:        "ended_at": manifest.frozen_at,
+system/wenqu_core/bugscan_orchestrator.py:2021:    adapter = SourceGateAdapter(manifest, registry=registry)
+system/wenqu_core/bugscan_orchestrator.py:2025:          f"(coverage {st1['coverage']['scanned']}/{st1['coverage']['denominator']})")
+system/wenqu_core/bugscan_orchestrator.py:2051:                       "scope": "station 4 only", "expiry": "2099-01-01T00:00:00Z"},
+system/wenqu_core/bugscan_orchestrator.py:2061:                       "scope": "station 0", "expiry": _iso_z(_utc_now() + timedelta(days=7))},
+system/wenqu_core/bugscan_orchestrator.py:2070:                   "scope": "station 4 only", "expiry": _iso_z(_utc_now() + timedelta(days=7))},
+system/wenqu_core/bugscan_orchestrator.py:2073:    assert good.required_stations == (0, 1, 2, 3)
+system/wenqu_core/bugscan_orchestrator.py:2080:        path = Path(tmp) / "run-manifest.json"
+system/wenqu_core/bugscan_orchestrator.py:2081:        manifest.save(path)
+system/wenqu_core/bugscan_orchestrator.py:2082:        manifest.save(path)  # 幂等
+system/wenqu_core/bugscan_orchestrator.py:2084:        assert loaded.manifest_hash == manifest.manifest_hash
+system/wenqu_core/bugscan_orchestrator.py:2085:        print(f"[6] manifest save/load OK: {path.name} idempotent + hash verified")
+system/wenqu_core/approval_issue.py:104:    "risk": "scope",
+system/wenqu_core/approval_issue.py:105:    "merge": "scope",
+system/wenqu_core/approval_issue.py:146:        raise ValueError(f"invalid date-time: {value!r}")
+system/wenqu_core/approval_issue.py:461:              authorized_scope: str,
+system/wenqu_core/approval_issue.py:560:            "authorized_scope": authorized_scope,
+system/wenqu_core/approval_issue.py:688:    - ``duplicate_approval_ids``      同一 approval_id 签发多次（签发端异常）；
+system/wenqu_core/approval_issue.py:692:    digest_mismatch、无 duplicate_approval_ids）——未用过期是业务状态，
+system/wenqu_core/approval_issue.py:700:    duplicates: List[str] = []
+system/wenqu_core/approval_issue.py:706:            duplicates.append(approval_id)
+system/wenqu_core/approval_issue.py:750:          and not digest_mismatch and not duplicates and not bad_expiry)
+system/wenqu_core/approval_issue.py:766:        "duplicate_approval_ids": sorted(set(duplicates)),
+system/wenqu_core/source_gate.py:6:3. affected_scope()     由变更文件计算受影响测试范围（affected vs full）；
+system/wenqu_core/source_gate.py:21:- affected 与 full 是两道不同的门：结果 gate_scope 字段区分两者；
+system/wenqu_core/source_gate.py:117:    """affected_scope() 的判定结果。
+system/wenqu_core/source_gate.py:507:    # 公开能力 3：affected_scope
+system/wenqu_core/source_gate.py:509:    def affected_scope(self, changed_files: Sequence[str]) -> ScopeDecision:
+system/wenqu_core/source_gate.py:646:        流程：fresh_fetch → 解析 head → merge-base diff → affected_scope
+system/wenqu_core/source_gate.py:674:            "gate_scope": None,
+system/wenqu_core/source_gate.py:675:            "scope": None,
+system/wenqu_core/source_gate.py:701:            scope = self.affected_scope(changed_files)
+system/wenqu_core/source_gate.py:702:            result["scope"] = scope.to_dict()
+system/wenqu_core/source_gate.py:703:            result["gate_scope"] = scope.mode
+system/wenqu_core/source_gate.py:704:            result["behavioral_files"] = list(scope.behavioral_files)
+system/wenqu_core/source_gate.py:705:            result["non_behavioral_files"] = list(scope.non_behavioral_files)
+system/wenqu_core/source_gate.py:707:            if scope.mode == "none":
+system/wenqu_core/source_gate.py:714:                if scope.mode == "affected":
+system/wenqu_core/source_gate.py:715:                    commands = list(scope.selected_commands)
+system/wenqu_core/source_gate.py:725:                            detail={"gate_scope": "full"},
+system/wenqu_core/source_gate.py:741:                    if scope.mode == "affected":
+system/wenqu_core/source_gate.py:742:                        result["coverage_note"] = (
+system/wenqu_core/source_gate.py:743:                            "affected-scope PASS covers only the impacted set; "
+system/wenqu_core/station2_static.py:34:2. coverage.denominator 一律动态计算（依赖总数取自 npm metadata、源文件数取自
+system/wenqu_core/station2_static.py:48:7. 分母缩水守卫（W6A 冻结）：scanned<denominator → 整站/子件强制 BLOCKED——
+system/wenqu_core/station2_static.py:56:                  "environment": "local", "scope_hash": "<64hex>",
+system/wenqu_core/station2_static.py:163:    "project_id", "commit_sha", "environment", "scope_hash",
+system/wenqu_core/station2_static.py:189:    ".tmp", "dist", "build", "out", "coverage", ".next",
+system/wenqu_core/station2_static.py:349:    for key in ("environment", "scope_hash"):
+system/wenqu_core/station2_static.py:644:        denominator: int,
+system/wenqu_core/station2_static.py:675:        coverage: Dict[str, Any] = {
+system/wenqu_core/station2_static.py:676:            "denominator": int(denominator),
+system/wenqu_core/station2_static.py:680:            coverage["exclusions"] = sorted(set(exclusions))
+system/wenqu_core/station2_static.py:682:        # （tool/execution/coverage/finding_ids）的规范化内容摘要作为该扫描器
+system/wenqu_core/station2_static.py:683:        # 报告工件，与站0 manifest 工件、站1 gate 工件同一寻址范式
+system/wenqu_core/station2_static.py:685:            {"tool": tool, "execution": execution, "coverage": coverage,
+system/wenqu_core/station2_static.py:698:            coverage=coverage,
+system/wenqu_core/station2_static.py:716:        denominator: int = 0,
+system/wenqu_core/station2_static.py:726:            denominator=denominator,
+system/wenqu_core/station2_static.py:744:        denominator: int = 0,
+system/wenqu_core/station2_static.py:753:            denominator=denominator,
+system/wenqu_core/station2_static.py:782:    coverage：denominator=scanned=metadata.dependencies.total（动态，npm 自报依赖
+system/wenqu_core/station2_static.py:789:      每个单独计入 finding 与分母（denominator += 新增数）；resolved/integrity
+system/wenqu_core/station2_static.py:873:                "(dynamic denominator unavailable -> ERROR)"
+system/wenqu_core/station2_static.py:1113:        依赖总数都不进 coverage），失败原因入 note 供审计。
+system/wenqu_core/station2_static.py:1120:            denominator=0,
+system/wenqu_core/station2_static.py:1202:                denominator=parsed["dep_total"], scanned=parsed["dep_total"],
+system/wenqu_core/station2_static.py:1279:        denominator = parsed["dep_total"] + diff_added_count  # 新增依赖单独计入分母
+system/wenqu_core/station2_static.py:1284:            denominator=denominator,
+system/wenqu_core/station2_static.py:1285:            scanned=denominator,  # audit 覆盖在账依赖 + diff 逐一分析了每个新增依赖
+system/wenqu_core/station2_static.py:1306:      scanned：报告 statistics.total.files（解析值）。scanned<denominator → 缩水守卫
+system/wenqu_core/station2_static.py:1308:    - 计数：clone 对数=len(解析 duplicates 列表)；与 statistics.total.duplicates
+system/wenqu_core/station2_static.py:1315:      已完成、coverage 齐全）。工具崩溃/超时/报告缺失→分母已知+scanned=0→
+system/wenqu_core/station2_static.py:1359:        duplicates = payload.get("duplicates")
+system/wenqu_core/station2_static.py:1360:        if not isinstance(duplicates, list):
+system/wenqu_core/station2_static.py:1361:            raise _PayloadError("jscpd report missing 'duplicates' list")
+system/wenqu_core/station2_static.py:1367:        for idx, dup in enumerate(duplicates):
+system/wenqu_core/station2_static.py:1369:                raise _PayloadError(f"duplicates[{idx}] is not an object")
+system/wenqu_core/station2_static.py:1373:                raise _PayloadError(f"duplicates[{idx}].lines invalid: {exc}") from exc
+system/wenqu_core/station2_static.py:1377:        self_dup = total.get("duplicates")
+system/wenqu_core/station2_static.py:1378:        if isinstance(self_dup, int) and not isinstance(self_dup, bool) and self_dup != len(duplicates):
+system/wenqu_core/station2_static.py:1380:                f"self-reported duplicate count {self_dup} != parsed list count "
+system/wenqu_core/station2_static.py:1381:                f"{len(duplicates)} (parsed list is the source of truth; mismatch -> ERROR)"
+system/wenqu_core/station2_static.py:1384:            "duplicates": duplicates,
+system/wenqu_core/station2_static.py:1385:            "pairs": len(duplicates),       # 计数取解析列表
+system/wenqu_core/station2_static.py:1404:        for key in ("clone_pairs", "duplicated_lines"):
+system/wenqu_core/station2_static.py:1422:        denominator_files = _walk_source_files(
+system/wenqu_core/station2_static.py:1425:        denominator = len(denominator_files)
+system/wenqu_core/station2_static.py:1433:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1440:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1447:                "(empty output = ERROR, not zero duplicates)",
+system/wenqu_core/station2_static.py:1449:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1460:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1466:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1474:                denominator=denominator, scanned=parsed["files_reported"],
+system/wenqu_core/station2_static.py:1480:        over_lines = parsed["dup_lines"] > baseline["duplicated_lines"]
+system/wenqu_core/station2_static.py:1494:                        f"|baseline_lines={baseline['duplicated_lines']}"
+system/wenqu_core/station2_static.py:1499:                        f"clone ratchet exceeded: duplicated lines {parsed['dup_lines']} "
+system/wenqu_core/station2_static.py:1500:                        f"> baseline {baseline['duplicated_lines']}"
+system/wenqu_core/station2_static.py:1505:                parsed["duplicates"], key=lambda d: -int(d.get("lines") or 0)
+system/wenqu_core/station2_static.py:1529:                f"lines {parsed['dup_lines']}/{baseline['duplicated_lines']}"
+system/wenqu_core/station2_static.py:1535:            denominator=denominator,
+system/wenqu_core/station2_static.py:1564:    coverage：denominator=五类宇宙（ENGINE_FIVE_TYPES ∪ queue 实际 slug——动态）；
+system/wenqu_core/station2_static.py:1713:        denominator = len(universe)
+system/wenqu_core/station2_static.py:1736:            denominator=denominator,
+system/wenqu_core/station2_static.py:1838:        denominator = len(entries)
+system/wenqu_core/station2_static.py:1842:                "not SKIP; folded to BLOCKED when denominator is known)",
+system/wenqu_core/station2_static.py:1845:                denominator=denominator, scanned=0,
+system/wenqu_core/station2_static.py:1848:        if denominator == 0:
+system/wenqu_core/station2_static.py:1855:                denominator=0,
+system/wenqu_core/station2_static.py:1872:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1880:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1887:                denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1898:                    denominator=denominator, scanned=0, tool_version=self._tool_version(),
+system/wenqu_core/station2_static.py:1922:                denominator=denominator,
+system/wenqu_core/station2_static.py:1923:                scanned=denominator,
+system/wenqu_core/station2_static.py:1937:            denominator=denominator,
+system/wenqu_core/station2_static.py:1938:            scanned=denominator,
+system/wenqu_core/station2_static.py:1957:    - coverage：denominator=启用执行件数（len(scanners)——动态，构造参数决定）；
+system/wenqu_core/station2_static.py:1959:      denominator → W6A 分母缩水守卫强制整站 BLOCKED/NOT_EVALUATED（schema
+system/wenqu_core/station2_static.py:1966:      coverage.exclusions 与返回值 notes——分母语义仍是「启用件数」。
+system/wenqu_core/station2_static.py:2149:            coverage={
+system/wenqu_core/station2_static.py:2150:                "denominator": len(self._scanners),
+system/wenqu_core/station2_static.py:2214:        "scope_hash": "a" * 64,
+system/wenqu_core/station2_static.py:2249:            "duplicates": [
+system/wenqu_core/station2_static.py:2254:            "statistics": {"total": {"clones": 1, "duplicates": 1, "files": 3,
+system/wenqu_core/station2_static.py:2294:        assert rep.result["coverage"]["denominator"] == 12, rep.result["coverage"]
+system/wenqu_core/station2_static.py:2295:        assert rep.result["coverage"]["scanned"] == 12
+system/wenqu_core/station2_static.py:2298:        print("[1] supply clean OK: PASS, dynamic denominator=12 (metadata.dependencies.total)")
+system/wenqu_core/station2_static.py:2344:        baseline.write_text(_canonical_json({"clone_pairs": 1, "duplicated_lines": 10}), encoding="utf-8")
+system/wenqu_core/station2_static.py:2348:        assert rep.result["coverage"]["denominator"] == 3, rep.result["coverage"]  # 独立 walk
+system/wenqu_core/station2_static.py:2349:        assert rep.result["coverage"]["scanned"] == 3
+system/wenqu_core/station2_static.py:2352:        print("[4a] dupscan within-baseline OK: PASS, denominator=3 from independent walk")
+system/wenqu_core/station2_static.py:2354:        baseline.write_text(_canonical_json({"clone_pairs": 0, "duplicated_lines": 0}), encoding="utf-8")
+system/wenqu_core/station2_static.py:2365:        bad_report["statistics"] = {"total": dict(jscpd_report["statistics"]["total"], duplicates=5)}
+system/wenqu_core/station2_static.py:2377:        assert rep.result["coverage"] == {"denominator": 5, "scanned": 5}, rep.result["coverage"]
+system/wenqu_core/station2_static.py:2379:        print("[5a] engine all-closed OK: PASS, denominator=5 (five-type universe, dynamic)")
+system/wenqu_core/station2_static.py:2390:        assert rep.result["coverage"]["scanned"] == 4 < rep.result["coverage"]["denominator"] == 5
+system/wenqu_core/station2_static.py:2405:        assert rep.result["coverage"]["denominator"] == 2, rep.result["coverage"]  # app+pages walk
+system/wenqu_core/station2_static.py:2439:        baseline.write_text(_canonical_json({"clone_pairs": 1, "duplicated_lines": 10}), encoding="utf-8")
+system/wenqu_core/station2_static.py:2454:        assert agg["coverage"] == {"denominator": 4, "scanned": 4}, agg["coverage"]
+system/wenqu_core/station2_static.py:2459:        print("[7a] aggregate OK: supply FAIL -> station FAIL, coverage 4/4 scanners, "
+system/wenqu_core/station2_static.py:2475:        assert agg["coverage"]["scanned"] == 3 < agg["coverage"]["denominator"] == 4
+system/wenqu_core/station2_static.py:2479:              "(denominator-shrink guard), granular ERROR preserved in sub-result")
+system/wenqu_core/station2_static.py:2517:        assert agg["coverage"] == {"denominator": 1, "scanned": 1, "exclusions": ["dupscan", "engine", "route"]}
+system/wenqu_core/station2_static.py:2520:              "explicit scanner subset recorded in coverage.exclusions")
+system/wenqu_core/capacity_monitor.py:64:    "integrity_manifest",
+system/wenqu_core/capacity_monitor.py:611:def integrity_manifest(
+system/wenqu_core/capacity_monitor.py:619:    manifest: Dict[str, Any] = {}
+system/wenqu_core/capacity_monitor.py:624:            manifest[key] = {"type": "symlink", "target": str(path.readlink())}
+system/wenqu_core/capacity_monitor.py:627:            manifest[key] = {"type": "missing"}
+system/wenqu_core/capacity_monitor.py:630:            manifest[key] = {"type": "directory"}
+system/wenqu_core/capacity_monitor.py:638:        manifest[key] = {"type": "file", "size": size, "sha256": digest.hexdigest()}
+system/wenqu_core/capacity_monitor.py:642:            manifest["<current>"] = {"type": "symlink", "target": str(path.readlink())}
+system/wenqu_core/capacity_monitor.py:645:            manifest["<current>"] = {
+system/wenqu_core/capacity_monitor.py:651:            manifest["<current>"] = {"type": "missing"}
+system/wenqu_core/capacity_monitor.py:652:    return manifest
+system/wenqu_core/capacity_monitor.py:673:        "integrity": integrity_manifest(evidence_paths, current_path),
+system/wenqu_core/capacity_monitor.py:743:        before = integrity_manifest([ev], current_path=cur)
+system/wenqu_core/station3_contract.py:19:                       denominator=端点总数（spec ∪ 实际路由的并集），
+system/wenqu_core/station3_contract.py:23:                       负例=跨 org 越权必须被拒。denominator=端点数×2
+system/wenqu_core/station3_contract.py:44:- 分母动态生成：denominator 从 Prisma DMMF 或 openapi.json 现算
+system/wenqu_core/station3_contract.py:45:  （derive_dynamic_denominator），不采信载荷自报分母；报告分母或模型
+system/wenqu_core/station3_contract.py:48:- 身份三源（commit_sha/environment/scope_hash 等）一律取自冻结
+system/wenqu_core/station3_contract.py:111:    "derive_dynamic_denominator",
+system/wenqu_core/station3_contract.py:238:    """载荷携带的 data_config 与冻结 manifest.data_config_hash 不一致。"""
+system/wenqu_core/station3_contract.py:323:        raise Station3Error("prisma_dmmf.datamodel.models contains duplicate names")
+system/wenqu_core/station3_contract.py:327:def derive_dynamic_denominator(
+system/wenqu_core/station3_contract.py:334:    返回 {"denominator", "source", "source_digest"}；两者皆缺 → Station3Error
+system/wenqu_core/station3_contract.py:340:            "denominator": len(endpoints),
+system/wenqu_core/station3_contract.py:347:            "denominator": count,
+system/wenqu_core/station3_contract.py:352:        "denominator source required: openapi_spec 或 prisma_dmmf 必给其一"
+system/wenqu_core/station3_contract.py:476:    """站3 四件套共同纪律：manifest 身份正源 + TTL 时效 + 统一结果构造。
+system/wenqu_core/station3_contract.py:481:      分母缩水（scanned < denominator）→ BLOCKED/NOT_EVALUATED（铁律 2）；
+system/wenqu_core/station3_contract.py:491:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:496:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:498:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:502:        self._manifest = manifest
+system/wenqu_core/station3_contract.py:509:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:510:        return self._manifest
+system/wenqu_core/station3_contract.py:517:    def _manifest_identity(self) -> Dict[str, Any]:
+system/wenqu_core/station3_contract.py:518:        m = self._manifest
+system/wenqu_core/station3_contract.py:523:            "scope_hash": m.scope_hash,
+system/wenqu_core/station3_contract.py:579:        denominator: int,
+system/wenqu_core/station3_contract.py:587:        shrink = scanned < denominator
+system/wenqu_core/station3_contract.py:616:                or _argv_digest([tool["name"], self._manifest.run_id, self.tag])
+system/wenqu_core/station3_contract.py:630:        coverage: Dict[str, Any] = {
+system/wenqu_core/station3_contract.py:631:            "denominator": int(denominator),
+system/wenqu_core/station3_contract.py:635:            coverage["exclusions"] = list(exclusions)
+system/wenqu_core/station3_contract.py:638:            run_id=self._manifest.run_id,
+system/wenqu_core/station3_contract.py:640:            attempt_id=_make_attempt_id(self._manifest.run_id, self.tag),
+system/wenqu_core/station3_contract.py:643:            identity=self._manifest_identity(),
+system/wenqu_core/station3_contract.py:646:            coverage=coverage,
+system/wenqu_core/station3_contract.py:657:    """openapi.json ↔ 实际路由对账（denominator=端点总数，scanned=已对账数）。
+system/wenqu_core/station3_contract.py:674:    - reconciled 只覆盖部分端点 → scanned < denominator → BLOCKED；
+system/wenqu_core/station3_contract.py:676:    - denominator = |spec 端点 ∪ 实际路由|（动态现算，不采信自报数字）。
+system/wenqu_core/station3_contract.py:684:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:690:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:721:                    f"actual_routes contains duplicate endpoint {method} {path}"
+system/wenqu_core/station3_contract.py:743:            # 两份清单都在手 → 对账可全量判定（scanned=denominator）。
+system/wenqu_core/station3_contract.py:781:            denominator=len(universe),
+system/wenqu_core/station3_contract.py:814:    - denominator = 端点数×2（正例+负例）；端点全集 = openapi 端点 ∪ 实际
+system/wenqu_core/station3_contract.py:825:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:831:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:880:                    f"org_guard.endpoints has duplicate endpoint {method} {path}"
+system/wenqu_core/station3_contract.py:912:        denominator = 2 * len(universe)
+system/wenqu_core/station3_contract.py:932:            denominator=denominator,
+system/wenqu_core/station3_contract.py:966:    - denominator = max(三源格并集, 自报格数)；scanned = 完成仲裁的格数。
+system/wenqu_core/station3_contract.py:1087:        denominator = max(len(universe), declared or 0)
+system/wenqu_core/station3_contract.py:1103:            denominator=denominator,
+system/wenqu_core/station3_contract.py:1127:                                                 # manifest.data_config_hash
+system/wenqu_core/station3_contract.py:1142:    - denominator = max(objects_total, DMMF 模型数)——监控面小于 Prisma 模型数
+system/wenqu_core/station3_contract.py:1143:      = 分母缩水 → BLOCKED；objects_scanned < denominator 同样 BLOCKED。
+system/wenqu_core/station3_contract.py:1151:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1157:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1228:        # data_config 绑定：载荷自带的数据配置必须与冻结 manifest 同哈希。
+system/wenqu_core/station3_contract.py:1233:            if _hash_obj(dict(data_config)) != self._manifest.data_config_hash:
+system/wenqu_core/station3_contract.py:1235:                    "db_drift payload 的 data_config 哈希与冻结 manifest."
+system/wenqu_core/station3_contract.py:1256:                    "expected_objects contains duplicate identities"
+system/wenqu_core/station3_contract.py:1279:        denominator = max(objects_total, model_floor)
+system/wenqu_core/station3_contract.py:1357:            denominator=denominator,
+system/wenqu_core/station3_contract.py:1403:    ``expected_query_sites`` 高于实际发现数 → scanned<denominator →
+system/wenqu_core/station3_contract.py:1412:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1418:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1439:            raise RawQueryScanMalformed("tenant_columns contains duplicates")
+system/wenqu_core/station3_contract.py:1643:            denominator=max(len(sites), expected or 0),
+system/wenqu_core/station3_contract.py:1659:        contract = Station3Contract(manifest)          # 冻结 run 的 manifest
+system/wenqu_core/station3_contract.py:1665:    聚合规则（按栈选件——未提供的组件记入 coverage.exclusions，不折算失败；
+system/wenqu_core/station3_contract.py:1667:    - coverage：denominator/scanned 取各组件之和；缺席组件入 exclusions。
+system/wenqu_core/station3_contract.py:1671:    - 身份一律取自冻结 manifest；工具 digest=四组件结果 canonical 哈希。
+system/wenqu_core/station3_contract.py:1690:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1695:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:1697:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:1701:        self._manifest = manifest
+system/wenqu_core/station3_contract.py:1709:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:1710:        return self._manifest
+system/wenqu_core/station3_contract.py:1716:    # -- 四件套工厂（共享 manifest/registry/now 身份正源） -------------------
+system/wenqu_core/station3_contract.py:1719:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1724:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1729:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1734:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1744:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1786:        denominator = sum(
+system/wenqu_core/station3_contract.py:1787:            sub["coverage"]["denominator"] for _, sub in sub_results
+system/wenqu_core/station3_contract.py:1789:        scanned = sum(sub["coverage"]["scanned"] for _, sub in sub_results)
+system/wenqu_core/station3_contract.py:1795:            exclusions.extend(sub["coverage"].get("exclusions", ()))
+system/wenqu_core/station3_contract.py:1849:                "coverage": sub["coverage"],
+system/wenqu_core/station3_contract.py:1869:            run_id=self._manifest.run_id,
+system/wenqu_core/station3_contract.py:1871:            attempt_id=_make_attempt_id(self._manifest.run_id, "st3"),
+system/wenqu_core/station3_contract.py:1882:                    ["wenqu_core.station3_contract", self._manifest.run_id]
+system/wenqu_core/station3_contract.py:1895:            coverage={
+system/wenqu_core/station3_contract.py:1896:                "denominator": denominator,
+system/wenqu_core/station3_contract.py:1917:    assert 3 in plan.required_stations, "STANDARD 档必须含站3"
+system/wenqu_core/station3_contract.py:1927:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station3_contract.py:1933:        scope=["src/**", "tests/**"],
+system/wenqu_core/station3_contract.py:1938:    contract = Station3Contract(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1939:    ts = manifest.frozen_at
+system/wenqu_core/station3_contract.py:1940:    print(f"[1] manifest frozen: run={manifest.run_id} ttl={contract.ttl_days}d "
+system/wenqu_core/station3_contract.py:1963:    assert st["policy_verdict"] == "PASS" and st["coverage"] == {
+system/wenqu_core/station3_contract.py:1964:        "denominator": 3, "scanned": 3}
+system/wenqu_core/station3_contract.py:1965:    print(f"[2] openapi reconcile PASS: coverage "
+system/wenqu_core/station3_contract.py:1966:          f"{st['coverage']['scanned']}/{st['coverage']['denominator']}")
+system/wenqu_core/station3_contract.py:2006:    assert st_og["coverage"]["denominator"] == 6 and st_og["coverage"]["scanned"] == 6
+system/wenqu_core/station3_contract.py:2047:    assert st_pm_ok["coverage"] == {"denominator": 2, "scanned": 2}
+system/wenqu_core/station3_contract.py:2130:    assert final["coverage"]["denominator"] == 3 + 6 + 2 + 3
+system/wenqu_core/station3_contract.py:2131:    assert final["coverage"]["scanned"] == 3 + 6 + 2 + 3
+system/wenqu_core/station3_contract.py:2140:    assert len(final_bad["coverage"]["exclusions"]) == 2   # 按栈选件缺席记账
+system/wenqu_core/station3_contract.py:2146:    print(f"[7] aggregate OK: 全绿→PASS (coverage "
+system/wenqu_core/station3_contract.py:2147:          f"{final['coverage']['scanned']}/{final['coverage']['denominator']}); "
+system/wenqu_core/gate_aggregator.py:4:F6 六轮加固：镜像 RFC3339 严格 date-time、重复站幂等等价键收紧
+system/wenqu_core/gate_aggregator.py:5:（attempt_id+scope_hash+coverage+artifact 摘要全等）、manifest 范围绑定
+system/wenqu_core/gate_aggregator.py:6:（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）。
+system/wenqu_core/gate_aggregator.py:42:      "station":     "lint",        # 站点名（required_stations 成员或旁路站点）
+system/wenqu_core/gate_aggregator.py:56:    C3 分母缩水：required 站未全部上报 -> BLOCKED；空 required_stations 同样 BLOCKED；
+system/wenqu_core/gate_aggregator.py:59:    C6 manifest 范围绑定（F6-GATE-SCOPE-001）：expected_scope_hash/
+system/wenqu_core/gate_aggregator.py:60:       expected_denominator 给定时，逐站对账 identity.scope_hash 与
+system/wenqu_core/gate_aggregator.py:61:       coverage.denominator——scope 缺失/不符、coverage 缺失/分母自报
+system/wenqu_core/gate_aggregator.py:62:       （≠ manifest 冻结分母）、legacy 结果（无法证明 scope 绑定）一律
+system/wenqu_core/gate_aggregator.py:63:       记 scope_binding_violation 并整线 BLOCKED。
+system/wenqu_core/gate_aggregator.py:134:# date-time 检查注册后）结论必须一致。改 schema 文件时必须同步改这里。
+system/wenqu_core/gate_aggregator.py:137:#   1. date-time：镜像无条件做严格 RFC3339 解析（jsonschema 的 FormatChecker
+system/wenqu_core/gate_aggregator.py:138:#      在未安装 rfc3339-validator 时对 date-time 空转——自测按仓内既有惯例
+system/wenqu_core/gate_aggregator.py:140:#   2. PASS 的 scanned==denominator：schema 侧以 const 级联（1..64）机器判定
+system/wenqu_core/gate_aggregator.py:144:#      复验正本 system/tests/test_gate_scope_binding.py）。
+system/wenqu_core/gate_aggregator.py:148:    "coverage", "finding_ids", "artifacts",
+system/wenqu_core/gate_aggregator.py:154:_MIRROR_IDENTITY_REQUIRED = ("commit_sha", "environment", "scope_hash")
+system/wenqu_core/gate_aggregator.py:165:# RFC3339 date-time：完整日期 + [Tt] 时间(可带小数秒) + 必带时区（Z/z 或 ±HH:MM）。
+system/wenqu_core/gate_aggregator.py:168:_MIRROR_RFC3339_RE = re.compile(
+system/wenqu_core/gate_aggregator.py:186:    """format: date-time（RFC3339 严格：Z/z 后缀按 UTC 接受；纯日期/无时区拒）。
+system/wenqu_core/gate_aggregator.py:190:    RFC3339 date-time。先以结构正则把关，再交给 fromisoformat 校验日历
+system/wenqu_core/gate_aggregator.py:195:    if not _MIRROR_RFC3339_RE.match(value):
+system/wenqu_core/gate_aggregator.py:259:        if not isinstance(identity.get("scope_hash"), str):
+system/wenqu_core/gate_aggregator.py:260:            _err("identity.scope_hash must be a string")
+system/wenqu_core/gate_aggregator.py:290:                _err(f"execution.{key} must be an RFC3339 date-time "
+system/wenqu_core/gate_aggregator.py:309:    # -- coverage（可选；PASS 时必填并升级约束）------------------------------
+system/wenqu_core/gate_aggregator.py:310:    coverage = result.get("coverage") if "coverage" in result else None
+system/wenqu_core/gate_aggregator.py:311:    if "coverage" in result:
+system/wenqu_core/gate_aggregator.py:312:        if not isinstance(coverage, Mapping):
+system/wenqu_core/gate_aggregator.py:313:            _err("coverage must be an object")
+system/wenqu_core/gate_aggregator.py:315:            for key in ("denominator", "scanned"):
+system/wenqu_core/gate_aggregator.py:316:                if key not in coverage:
+system/wenqu_core/gate_aggregator.py:317:                    _err(f"coverage.required: {key}")
+system/wenqu_core/gate_aggregator.py:318:                elif not _mirror_int(coverage[key]) or coverage[key] < 0:
+system/wenqu_core/gate_aggregator.py:319:                    _err(f"coverage.{key} must be an integer >= 0")
+system/wenqu_core/gate_aggregator.py:320:            if "exclusions" in coverage and (
+system/wenqu_core/gate_aggregator.py:321:                    not isinstance(coverage["exclusions"], list)
+system/wenqu_core/gate_aggregator.py:323:                               for x in coverage["exclusions"])):
+system/wenqu_core/gate_aggregator.py:324:                _err("coverage.exclusions must be an array of strings")
+system/wenqu_core/gate_aggregator.py:352:        if "coverage" not in result:
+system/wenqu_core/gate_aggregator.py:353:            _err("PASS requires coverage")
+system/wenqu_core/gate_aggregator.py:356:        if isinstance(coverage, Mapping) and _mirror_int(
+system/wenqu_core/gate_aggregator.py:357:                coverage.get("denominator")) and _mirror_int(
+system/wenqu_core/gate_aggregator.py:358:                coverage.get("scanned")):
+system/wenqu_core/gate_aggregator.py:359:            if coverage["denominator"] < 1:
+system/wenqu_core/gate_aggregator.py:360:                _err("PASS coverage.denominator must be >= 1")
+system/wenqu_core/gate_aggregator.py:361:            if coverage["scanned"] < 1:
+system/wenqu_core/gate_aggregator.py:362:                _err("PASS coverage.scanned must be >= 1")
+system/wenqu_core/gate_aggregator.py:363:            # F4-SCHEMA-001 #2（分母缩水）：PASS 必须 scanned == denominator
+system/wenqu_core/gate_aggregator.py:366:            if coverage["scanned"] != coverage["denominator"]:
+system/wenqu_core/gate_aggregator.py:367:                _err("PASS coverage.scanned("
+system/wenqu_core/gate_aggregator.py:368:                     f"{coverage['scanned']}) != denominator("
+system/wenqu_core/gate_aggregator.py:369:                     f"{coverage['denominator']}) — denominator shrinkage")
+system/wenqu_core/gate_aggregator.py:401:        agg = GateAggregator(required_stations={"2", "7"},   # v2 站点键 = str(station_id)
+system/wenqu_core/gate_aggregator.py:407:    manifest 范围绑定（F6-GATE-SCOPE-001，正门路径）::
+system/wenqu_core/gate_aggregator.py:409:        agg = GateAggregator(required_stations=manifest_required_set,
+system/wenqu_core/gate_aggregator.py:410:                             target_sha=manifest.commit_sha,
+system/wenqu_core/gate_aggregator.py:411:                             environment=manifest.environment,
+system/wenqu_core/gate_aggregator.py:412:                             expected_scope_hash=manifest.identity.scope_hash,
+system/wenqu_core/gate_aggregator.py:413:                             expected_denominator=manifest.scope.denominator)
+system/wenqu_core/gate_aggregator.py:415:    required_stations 兼容 int 站点号（自动归一为字符串键，如 2 -> "2"）。
+system/wenqu_core/gate_aggregator.py:416:    expected_scope_hash/expected_denominator 必须成对提供（来自冻结
+system/wenqu_core/gate_aggregator.py:417:    run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
+system/wenqu_core/gate_aggregator.py:418:    逐站对账 scope 与分母，自报/缺失一律 BLOCKED（C6）。
+system/wenqu_core/gate_aggregator.py:421:    def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
+system/wenqu_core/gate_aggregator.py:422:                 *, expected_scope_hash: Optional[str] = None,
+system/wenqu_core/gate_aggregator.py:423:                 expected_denominator: Optional[int] = None) -> None:
+system/wenqu_core/gate_aggregator.py:429:        if (expected_scope_hash is None) != (expected_denominator is None):
+system/wenqu_core/gate_aggregator.py:431:                "expected_scope_hash 与 expected_denominator 必须成对提供"
+system/wenqu_core/gate_aggregator.py:432:                "（manifest 范围绑定——F6-GATE-SCOPE-001）")
+system/wenqu_core/gate_aggregator.py:433:        if expected_scope_hash is not None and (
+system/wenqu_core/gate_aggregator.py:434:                not isinstance(expected_scope_hash, str)
+system/wenqu_core/gate_aggregator.py:435:                or not expected_scope_hash.strip()):
+system/wenqu_core/gate_aggregator.py:436:            raise ValueError("expected_scope_hash must be a non-empty string")
+system/wenqu_core/gate_aggregator.py:437:        if expected_denominator is not None and (
+system/wenqu_core/gate_aggregator.py:438:                isinstance(expected_denominator, bool)
+system/wenqu_core/gate_aggregator.py:439:                or not isinstance(expected_denominator, int)
+system/wenqu_core/gate_aggregator.py:440:                or expected_denominator < 1):
+system/wenqu_core/gate_aggregator.py:441:            raise ValueError("expected_denominator must be an integer >= 1 "
+system/wenqu_core/gate_aggregator.py:442:                             "(manifest scope denominator)")
+system/wenqu_core/gate_aggregator.py:444:        self.required_stations: frozenset = frozenset(
+system/wenqu_core/gate_aggregator.py:445:            str(s).strip() for s in required_stations
+system/wenqu_core/gate_aggregator.py:450:        self.expected_scope_hash: Optional[str] = expected_scope_hash
+system/wenqu_core/gate_aggregator.py:451:        self.expected_denominator: Optional[int] = expected_denominator
+system/wenqu_core/gate_aggregator.py:455:        self._duplicates: List[str] = []
+system/wenqu_core/gate_aggregator.py:460:        self._scope_violations: List[Dict[str, Any]] = []
+system/wenqu_core/gate_aggregator.py:516:        scope_hash_value: Optional[str] = None
+system/wenqu_core/gate_aggregator.py:524:            raw_scope = identity.get("scope_hash")
+system/wenqu_core/gate_aggregator.py:525:            if isinstance(raw_scope, str):
+system/wenqu_core/gate_aggregator.py:526:                scope_hash_value = raw_scope
+system/wenqu_core/gate_aggregator.py:569:        coverage_value: Optional[Dict[str, Any]] = None
+system/wenqu_core/gate_aggregator.py:570:        raw_coverage = station_result.get("coverage")
+system/wenqu_core/gate_aggregator.py:571:        if isinstance(raw_coverage, Mapping):
+system/wenqu_core/gate_aggregator.py:572:            raw_exclusions = raw_coverage.get("exclusions")
+system/wenqu_core/gate_aggregator.py:573:            coverage_value = {
+system/wenqu_core/gate_aggregator.py:574:                "denominator": raw_coverage.get("denominator"),
+system/wenqu_core/gate_aggregator.py:575:                "scanned": raw_coverage.get("scanned"),
+system/wenqu_core/gate_aggregator.py:594:            "required": station in self.required_stations,
+system/wenqu_core/gate_aggregator.py:600:            "scope_hash": scope_hash_value,
+system/wenqu_core/gate_aggregator.py:601:            "coverage": coverage_value,
+system/wenqu_core/gate_aggregator.py:631:            "required": station in self.required_stations,
+system/wenqu_core/gate_aggregator.py:636:            # legacy 无 attempt/scope/coverage/artifact——重复等价键退化为
+system/wenqu_core/gate_aggregator.py:637:            # outcome+sha+environment（历史语义），manifest 绑定下记 C6 违规
+system/wenqu_core/gate_aggregator.py:639:            "scope_hash": None,
+system/wenqu_core/gate_aggregator.py:640:            "coverage": None,
+system/wenqu_core/gate_aggregator.py:648:        v2：attempt_id + scope_hash + coverage（分母/扫描/排除）+ artifact
+system/wenqu_core/gate_aggregator.py:650:        幂等重发；任一不等 -> duplicate_conflict（aggregate 时 BLOCKED）。
+system/wenqu_core/gate_aggregator.py:653:        legacy：无 attempt/coverage/artifact 概念，维持历史等价键。
+system/wenqu_core/gate_aggregator.py:663:                and previous.get("scope_hash") == entry.get("scope_hash")
+system/wenqu_core/gate_aggregator.py:664:                and previous.get("coverage") == entry.get("coverage")
+system/wenqu_core/gate_aggregator.py:668:    def _reconcile_manifest_binding(self, station: str,
+system/wenqu_core/gate_aggregator.py:670:        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
+system/wenqu_core/gate_aggregator.py:672:        expected_scope_hash/expected_denominator 给定时：identity.scope_hash
+system/wenqu_core/gate_aggregator.py:673:        必须等于冻结值；coverage.denominator 必须等于 manifest 冻结分母
+system/wenqu_core/gate_aggregator.py:674:        （缺失/自报一律违规）；legacy 结果无法证明 scope 绑定——同样违规。
+system/wenqu_core/gate_aggregator.py:676:        assert self.expected_scope_hash is not None  # 调用点已保证
+system/wenqu_core/gate_aggregator.py:678:            self._scope_violations.append({
+system/wenqu_core/gate_aggregator.py:680:                "reason": "legacy_result_not_manifest_bound",
+system/wenqu_core/gate_aggregator.py:681:                "detail": "manifest 正门只接受 station-result-v2"
+system/wenqu_core/gate_aggregator.py:682:                          "（legacy 结果无法证明 scope 绑定）",
+system/wenqu_core/gate_aggregator.py:685:        scope = entry.get("scope_hash")
+system/wenqu_core/gate_aggregator.py:686:        if scope != self.expected_scope_hash:
+system/wenqu_core/gate_aggregator.py:687:            self._scope_violations.append({
+system/wenqu_core/gate_aggregator.py:689:                "reason": "missing_scope_hash" if scope is None
+system/wenqu_core/gate_aggregator.py:690:                          else "scope_hash_mismatch",
+system/wenqu_core/gate_aggregator.py:691:                "scope_hash": scope,
+system/wenqu_core/gate_aggregator.py:692:                "expected": self.expected_scope_hash,
+system/wenqu_core/gate_aggregator.py:694:        coverage = entry.get("coverage")
+system/wenqu_core/gate_aggregator.py:695:        denominator = (coverage.get("denominator")
+system/wenqu_core/gate_aggregator.py:696:                       if isinstance(coverage, Mapping) else None)
+system/wenqu_core/gate_aggregator.py:697:        if denominator != self.expected_denominator:
+system/wenqu_core/gate_aggregator.py:698:            self._scope_violations.append({
+system/wenqu_core/gate_aggregator.py:700:                "reason": ("missing_coverage_denominator"
+system/wenqu_core/gate_aggregator.py:701:                           if denominator is None
+system/wenqu_core/gate_aggregator.py:702:                           else "self_declared_denominator"),
+system/wenqu_core/gate_aggregator.py:703:                "denominator": denominator,
+system/wenqu_core/gate_aggregator.py:704:                "expected": self.expected_denominator,
+system/wenqu_core/gate_aggregator.py:713:        重复站点（F6-GATE-FORMAT-DUP-002）：幂等等价键（attempt_id+scope_hash+
+system/wenqu_core/gate_aggregator.py:714:        coverage+artifact 摘要+outcome/sha/environment）全等才视为幂等重发
+system/wenqu_core/gate_aggregator.py:715:        （忽略）；否则 duplicate_conflict——aggregate() 时 BLOCKED，绝不静默择优。
+system/wenqu_core/gate_aggregator.py:734:                self._duplicates.append(station)
+system/wenqu_core/gate_aggregator.py:757:        # C6：manifest 范围绑定逐站对账（正门路径激活时）
+system/wenqu_core/gate_aggregator.py:758:        if self.expected_scope_hash is not None:
+system/wenqu_core/gate_aggregator.py:759:            self._reconcile_manifest_binding(station, entry)
+system/wenqu_core/gate_aggregator.py:788:            block(f"duplicate_station_conflict/duplicate_conflict [{names}] "
+system/wenqu_core/gate_aggregator.py:789:                  "(attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)")
+system/wenqu_core/gate_aggregator.py:790:        if self._scope_violations:
+system/wenqu_core/gate_aggregator.py:792:                f"{v['station']}:{v['reason']}" for v in self._scope_violations)
+system/wenqu_core/gate_aggregator.py:793:            block(f"scope_binding_violation [{detail}] "
+system/wenqu_core/gate_aggregator.py:794:                  "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
+system/wenqu_core/gate_aggregator.py:795:                  "必须对账冻结 manifest)")
+system/wenqu_core/gate_aggregator.py:799:        missing_required = sorted(self.required_stations - reported)
+system/wenqu_core/gate_aggregator.py:800:        bypass_reported = sorted(reported - self.required_stations)
+system/wenqu_core/gate_aggregator.py:801:        if missing_required or not self.required_stations:
+system/wenqu_core/gate_aggregator.py:802:            if not self.required_stations:
+system/wenqu_core/gate_aggregator.py:803:                block("denominator_shrinkage: no required stations configured "
+system/wenqu_core/gate_aggregator.py:806:                block("denominator_shrinkage: missing required stations [" +
+system/wenqu_core/gate_aggregator.py:826:        if not self.required_stations:
+system/wenqu_core/gate_aggregator.py:829:            reason = f"all {len(self.required_stations)} required stations PASS"
+system/wenqu_core/gate_aggregator.py:842:                    "scope_bound": e.get("scope_hash") == self.expected_scope_hash,
+system/wenqu_core/gate_aggregator.py:843:                    "denominator_bound": (
+system/wenqu_core/gate_aggregator.py:844:                        isinstance(e.get("coverage"), Mapping)
+system/wenqu_core/gate_aggregator.py:845:                        and e["coverage"].get("denominator")
+system/wenqu_core/gate_aggregator.py:846:                        == self.expected_denominator),
+system/wenqu_core/gate_aggregator.py:847:                } if self.expected_scope_hash is not None else {}),
+system/wenqu_core/gate_aggregator.py:862:                "required_total": len(self.required_stations),
+system/wenqu_core/gate_aggregator.py:863:                "required_reported": len(self.required_stations & reported),
+system/wenqu_core/gate_aggregator.py:866:                "duplicates_ignored": len(self._duplicates),
+system/wenqu_core/gate_aggregator.py:869:                **({"scope_violations": len(self._scope_violations)}
+system/wenqu_core/gate_aggregator.py:870:                   if self.expected_scope_hash is not None else {}),
+system/wenqu_core/gate_aggregator.py:876:        if self.expected_scope_hash is not None:
+system/wenqu_core/gate_aggregator.py:877:            result["scope_binding"] = {
+system/wenqu_core/gate_aggregator.py:878:                "mode": "manifest",
+system/wenqu_core/gate_aggregator.py:879:                "expected_scope_hash": self.expected_scope_hash,
+system/wenqu_core/gate_aggregator.py:880:                "expected_denominator": self.expected_denominator,
+system/wenqu_core/gate_aggregator.py:883:            result["scope_binding"] = {"mode": "self_declared"}
+system/wenqu_core/scheduler.py:131:    scope_hash: Optional[str] = None,
+system/wenqu_core/scheduler.py:139:    指纹变了（commit/scope/规则集/argv 任一变化），旧 PASS 对新输入无效。
+system/wenqu_core/scheduler.py:145:        "scope_hash": scope_hash or "",
+system/wenqu_core/scheduler.py:303:    scope_hash: Optional[str] = None
+system/wenqu_core/scheduler.py:433:    scope_hash                  TEXT,
+system/wenqu_core/scheduler.py:600:                " commit_sha, scope_hash, ruleset_hash, data_config_hash,"
+system/wenqu_core/scheduler.py:612:                    job.scope_hash, job.ruleset_hash, job.data_config_hash,
+system/wenqu_core/scheduler.py:748:            commit_sha, scope_hash, ruleset_hash, data_config_hash,
+system/wenqu_core/scheduler.py:766:            commit_sha=commit_sha, scope_hash=scope_hash,
+system/wenqu_core/scheduler.py:1355:            environment=job.environment, scope_hash=job.scope_hash,
+system/wenqu_core/scheduler.py:1837:            "scope_hash": "wenqu-dist:w4-production-observation",
+system/wenqu_core/scheduler.py:1849:        "coverage": {"denominator": 1, "scanned": scanned,
+system/wenqu_core/scheduler.py:1859:            doc["coverage"]["scanned"] = 0
+system/wenqu_core/scheduler.py:1874:                   "duplicates_ignored": 0, "conflicts": 0, "malformed": 0},
+system/wenqu_core/scheduler.py:1904:        # 不是发布门判定——不冒充 freeze_run_manifest 正门（采样器非
+system/wenqu_core/scheduler.py:1905:        # pipeline run，伪造 run-manifest 反而是契约滥用），显式走
+system/wenqu_core/scheduler.py:1907:        # mode=self_declared_diagnostic / scope_binding.mode=self_declared，
+system/wenqu_core/scheduler.py:2094:                "coverage": station_doc["coverage"],
+system/wenqu_core/station7_runtime.py:32:  exact-scope 生产写授权），本批仅定义接口签名 + NOT_APPLICABLE 输出；
+system/wenqu_core/station7_runtime.py:41:- 分母缩水守卫交由 build_station_result 强制：scanned<denominator →
+system/wenqu_core/station7_runtime.py:171:def _require_manifest(manifest: RunManifest) -> RunManifest:
+system/wenqu_core/station7_runtime.py:172:    if not isinstance(manifest, RunManifest):
+system/wenqu_core/station7_runtime.py:174:            f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station7_runtime.py:176:    return manifest
+system/wenqu_core/station7_runtime.py:179:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:180:    """身份三源一律取冻结 manifest 正源，绝不采信探针/通道自报身份。"""
+system/wenqu_core/station7_runtime.py:182:        "project_id": manifest.project_id,
+system/wenqu_core/station7_runtime.py:183:        "commit_sha": manifest.commit_sha,
+system/wenqu_core/station7_runtime.py:184:        "environment": manifest.environment,
+system/wenqu_core/station7_runtime.py:185:        "scope_hash": manifest.scope_hash,
+system/wenqu_core/station7_runtime.py:186:        "ruleset_hash": manifest.ruleset_hash,
+system/wenqu_core/station7_runtime.py:187:        "data_config_hash": manifest.data_config_hash,
+system/wenqu_core/station7_runtime.py:189:    if manifest.lockfile_hash:
+system/wenqu_core/station7_runtime.py:190:        identity["lockfile_hash"] = manifest.lockfile_hash
+system/wenqu_core/station7_runtime.py:271:    覆盖口径：denominator=哨兵数；scanned=探针文件可读且可解析的哨兵数
+system/wenqu_core/station7_runtime.py:281:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:287:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:288:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:379:        denominator = len(self._sentinels)
+system/wenqu_core/station7_runtime.py:405:            "sentinels_total": denominator,
+system/wenqu_core/station7_runtime.py:421:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:423:            attempt_id=_attempt_id(self._manifest.run_id, "st7-sentinel"),
+system/wenqu_core/station7_runtime.py:426:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:437:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station7_runtime.py:458:    覆盖口径：denominator=SLO 数；scanned=快照中拿到可用数值的 SLO 数
+system/wenqu_core/station7_runtime.py:467:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:474:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:477:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:531:        denominator = len(self._slos)
+system/wenqu_core/station7_runtime.py:573:            "slos_total": denominator,
+system/wenqu_core/station7_runtime.py:584:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:586:            attempt_id=_attempt_id(self._manifest.run_id, "st7-slo"),
+system/wenqu_core/station7_runtime.py:589:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:600:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station7_runtime.py:629:    覆盖口径：denominator=通道数；scanned=发送命令真实执行过的通道数
+system/wenqu_core/station7_runtime.py:642:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:649:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:650:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:725:        denominator = len(self._channels)
+system/wenqu_core/station7_runtime.py:753:            "channels_total": denominator,
+system/wenqu_core/station7_runtime.py:770:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:772:            attempt_id=_attempt_id(self._manifest.run_id, "st7-alert"),
+system/wenqu_core/station7_runtime.py:775:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:787:            coverage={"denominator": denominator, "scanned": scanned},
+system/wenqu_core/station7_runtime.py:802:    语义（coverage 求和 / 状态 BLOCKED>ERROR>TIMEOUT>CANCELLED>COMPLETED /
+system/wenqu_core/station7_runtime.py:826:    anchor_keys = ("commit_sha", "environment", "scope_hash")
+system/wenqu_core/station7_runtime.py:841:    denominator = sum(int(r["coverage"].get("denominator", 0)) for r in results)
+system/wenqu_core/station7_runtime.py:842:    scanned = sum(int(r["coverage"].get("scanned", 0)) for r in results)
+system/wenqu_core/station7_runtime.py:845:        for item in result["coverage"].get("exclusions", ()) or ():
+system/wenqu_core/station7_runtime.py:899:        coverage={
+system/wenqu_core/station7_runtime.py:900:            "denominator": denominator,
+system/wenqu_core/station7_runtime.py:934:    exact-scope 授权），且不在任何自动档 required 集内——本批 W6D 不实现
+system/wenqu_core/station7_runtime.py:939:      生产写授权对象（approver/scope/expiry 等五要素），flows 为业务流
+system/wenqu_core/station7_runtime.py:946:      业务写；coverage 0/0=占位未定义业务流断言点（非 vacuous pass——
+system/wenqu_core/station7_runtime.py:953:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:954:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:955:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:965:                self._manifest.run_id]
+system/wenqu_core/station7_runtime.py:967:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:969:            attempt_id=_attempt_id(self._manifest.run_id, "st5-placeholder"),
+system/wenqu_core/station7_runtime.py:972:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:986:            coverage={"denominator": 0, "scanned": 0},
+system/wenqu_core/station7_runtime.py:1007:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:1008:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:1009:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:1019:                self._manifest.run_id]
+system/wenqu_core/station7_runtime.py:1021:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:1023:            attempt_id=_attempt_id(self._manifest.run_id, "st6-placeholder"),
+system/wenqu_core/station7_runtime.py:1026:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:1040:            coverage={"denominator": 0, "scanned": 0},
+system/wenqu_core/station7_runtime.py:1058:    assert plan.required_stations == (0, 1, 2, 3, 4, 6, 7), plan.required_stations
+system/wenqu_core/station7_runtime.py:1061:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station7_runtime.py:1067:        scope=["src/**", "daemons/**"],
+system/wenqu_core/station7_runtime.py:1093:            manifest,
+system/wenqu_core/station7_runtime.py:1103:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 2, "scanned": 2}
+system/wenqu_core/station7_runtime.py:1107:            manifest,
+system/wenqu_core/station7_runtime.py:1119:        assert st["coverage"]["scanned"] == 2 < st["coverage"]["denominator"]
+system/wenqu_core/station7_runtime.py:1125:            manifest,
+system/wenqu_core/station7_runtime.py:1135:            manifest,
+system/wenqu_core/station7_runtime.py:1146:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 3, "scanned": 3}
+system/wenqu_core/station7_runtime.py:1150:            manifest,
+system/wenqu_core/station7_runtime.py:1160:            manifest,
+system/wenqu_core/station7_runtime.py:1168:        assert st["execution_status"] == "BLOCKED" and st["coverage"]["scanned"] == 1
+system/wenqu_core/station7_runtime.py:1204:            manifest,
+system/wenqu_core/station7_runtime.py:1210:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 1, "scanned": 1}
+system/wenqu_core/station7_runtime.py:1215:            manifest,
+system/wenqu_core/station7_runtime.py:1224:        assert st["policy_verdict"] == "FAIL" and st["coverage"]["scanned"] == 3
+system/wenqu_core/station7_runtime.py:1233:            manifest,

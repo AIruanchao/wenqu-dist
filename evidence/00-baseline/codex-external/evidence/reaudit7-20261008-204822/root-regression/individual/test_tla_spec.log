@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- /Users/maccc/venvs/video-agent-kit/bin/python3
+cachedir: .pytest_cache
+rootdir: /private/tmp/wenqu-reaudit7-20261008-204822
+plugins: anyio-4.14.2
+collecting ... collected 10 items
+
+system/tests/test_tla_spec.py::test_stage_order_matches_stages PASSED    [ 10%]
+system/tests/test_tla_spec.py::test_run_states_and_terminal PASSED       [ 20%]
+system/tests/test_tla_spec.py::test_run_transitions_table PASSED         [ 30%]
+system/tests/test_tla_spec.py::test_attempt_states_terminal_and_transitions PASSED [ 40%]
+system/tests/test_tla_spec.py::test_double_axis_domains PASSED           [ 50%]
+system/tests/test_tla_spec.py::test_verdict_map_rows PASSED              [ 60%]
+system/tests/test_tla_spec.py::test_outcome_mapping_full_cross_product PASSED [ 70%]
+system/tests/test_tla_spec.py::test_valid_outcome_pass_requires_completed PASSED [ 80%]
+system/tests/test_tla_spec.py::test_invariants_and_actions_defined PASSED [ 90%]
+system/tests/test_tla_spec.py::test_cfg_checks_all_invariants_and_bounds PASSED [100%]
+
+============================== 10 passed in 0.03s ==============================

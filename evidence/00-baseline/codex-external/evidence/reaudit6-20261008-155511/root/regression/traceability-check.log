@@ -1,0 +1,6 @@
+CAPTURED_AT=2026-10-08T15:57:37,525396000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 tools/ac_traceability.py --plan $'evidence/00-baseline/codex-external/æ\226¹æ¡\210.md' --out /tmp/reaudit6-root-trace.json --check 
+--- OUTPUT ---
+usage: ac_traceability.py [-h] [--json JSON] [--plan PLAN] [--check]
+ac_traceability.py: error: unrecognized arguments: --out /tmp/reaudit6-root-trace.json
+--- EXIT_CODE=2 ---

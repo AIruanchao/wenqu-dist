@@ -1,0 +1,12 @@
+== wenqu dashboard W8 self-check ==
+  ✓ index.html/app.css/app.js 三件在位
+  ✓ CSP meta（default-src/script-src/style-src 'self'）
+  ✓ 安全 meta：nosniff / frame-ancestors 'none' / no-store / no-referrer
+  ✓ 引用 app.css 与 app.js（外链，无内联脚本）
+  ✓ 四页签容器 ov/pipe/deck/bugdeck + data-t 导航
+  ✓ index.html 无内联事件（onclick=）
+  ✓ index.html div 平衡
+  ✓ app.js 零 innerHTML/insertAdjacentHTML/document.write（T-05 XSS 面）
+  ✓ app.js textContent + showTab(data-t) + /api/v1/
+  ✓ app.css 非空且含核心类
+  ✓ server.py 关键控制存在（版本化/限速/405/Host/回环绑定）

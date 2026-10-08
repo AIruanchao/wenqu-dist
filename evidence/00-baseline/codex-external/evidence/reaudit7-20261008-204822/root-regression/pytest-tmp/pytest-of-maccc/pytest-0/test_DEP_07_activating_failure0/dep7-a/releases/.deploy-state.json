@@ -1,0 +1,9 @@
+{
+  "ack_note": "human triage",
+  "acknowledged_by": "sre-lead",
+  "detail": "activation failed without valid pre-authorized rollback: SelfCheckError('install self-check returned falsy: False')",
+  "last_activated_at": 1791463874.485188,
+  "release_id": "20261008T125114Z-23cf37b70754",
+  "status": "ACTIVE",
+  "updated_at": "2026-10-08T12:51:14Z"
+}

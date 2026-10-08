@@ -1,0 +1,13 @@
+COMMAND: python3 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-ui06-noauth-probe.py'
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+{
+  "request_authorization_header": null,
+  "request_cookie_header": null,
+  "status": 200,
+  "sensitive_marker_returned": true,
+  "body_head": "{\"sensitive.log\": \"REAUDIT7-UI06-NOAUTH-SENSITIVE-7d31\\n\"}"
+}
+UI06_UNAUTH_LOG_RESULT=GAP_FALSE_GREEN
+--- STDERR ---

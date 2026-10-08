@@ -1,0 +1,24 @@
+CAPTURED_AT=2026-10-08T15:57:12,210733000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_deploy_release.py 
+--- OUTPUT ---
+========================================================================
+§20 DEP/RB/REL 族专属验收测试（实现 5 条；跳过 8 条见 NOT_IMPLEMENTABLE 登记表）
+  SKIP DEP-01: 「两个部署者争 lease→最多一个成功」：DeployManager 无 lease/互斥原语——全仓 system/（wenqu_core/*.py、daemons/、install.sh）无 lease/flock/部署锁语义（grep 实证）；switch() 仅单次 os.replace 原子，两次并发 deploy 不同内容各建 release 后先后 switch（后者胜），无『最多一个成功』仲裁可注入。
+  SKIP DEP-02: 「smoke 访问生产 DB/state→隔离拒绝」：产品无部署后 smoke runner 与隔离层（全仓 grep 无 smoke 语义）；install_self_check 钩子只收 release_dir 一个参数，无 DB/state 访问边界或沙箱判定。
+  SKIP DEP-04: 「自签/替换/revoked release key→拒绝」：release 签名体系未实现——manifest.json 无 signature/key 字段，build/verify 只做 SHA256 内容与 mode 对账（deploy_framework D1/D4），无 release key 验证语义；approval_keys.py 的 HMAC 属审批 envelope 域，非 release 域。（SBOM/签名按工单预告属未实现面。）
+  SKIP DEP-05: 「previous release 超 schema 范围→拒绝回滚」：manifest 无 schema_version/版本范围字段，rollback() 只做完好性对账（missing/extra/drift/mode），无 schema 范围判定；『未来 schema manifest』在 verify 中以未设计异常（KeyError/ValueError）崩溃而非设计内拒绝，不冒充通过。
+  SKIP DEP-06: 「无迁移锁/未验证备份/expand 超授权→激活前 BLOCKED」：deploy_framework 无迁移锁/备份验证/expand 授权语义（switch 前仅 manifest 对账）；wenqu_pipeline 的 ddl 审批 payload 字段只是授权账本 schema，无部署激活前的迁移门执行体。
+  SKIP DEP-07: 「ACTIVATING 失败且无预授权→FAILED_BLOCKED；不得自动回滚」：产品无 ACTIVATING/FAILED_BLOCKED 部署状态机；deploy_framework D2 契约恰为『自检失败自动回滚到上一版』——与该 ID『不得自动回滚』的 fenced 语义相反，不可反向断言硬凑。
+  SKIP DEP-08: 「ROLLBACK_FAILED→writer/merge/release 熔断并停等人工恢复」：回滚失败仅如实上报（DeployError 消息含 ROLLBACK FAILED、current 留在失败版），无 writer/merge/release 熔断器与停等人工恢复语义（后续 deploy 不受阻断）。
+  SKIP DEP-09: 「观察窗内夹带 contract/down migration→拒绝；要求独立授权变更」：部署面无观察窗（observation window）概念，也不解析/甄别 release 内 migration 文件内容，无对应拒绝语义。
+------------------------------------------------------------------------
+  PASS DEP-03  test_DEP_03_rollback_compatible_binary_zero_event_loss
+  PASS RB-01  test_RB_01_no_preauth_rollback_and_wrong_previous_refused
+  PASS REL-01  test_REL_01_manifest_missing_extra_hash_drift_deploy_fails
+  PASS REL-02  test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current
+  PASS REL-03  test_REL_03_doctor_red_deploy_fails_and_rolls_back
+------------------------------------------------------------------------
+结果: 5/5 passed
+逐 ID 结果已写: /private/tmp/wenqu-reaudit6-root-1791446155/evidence/04-unit-property-mutation/ac-deploy-release.json
+========================================================================
+--- EXIT_CODE=0 ---

@@ -1,0 +1,4 @@
+hollow_ops_suite_rc=0
+hollow_trace_check_rc=0
+dedicated_implemented= 99
+DOC-03= {'implemented': True, 'test_file': 'system/tests/test_ac_ops_families.py', 'evidence_path': 'evidence/00-baseline/codex-external/方案.md', 'match_type': 'dedicated', 'test_function': 'test_DOC_03_policy_forbidden_bypass_text_blocks_ci', 'section': '20.5', 'injection': 'policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本', 'expectation': 'CI 阻断', 'req': 'REQ-DOC-001', 'ac': 'AC-DOC-REGISTRY-CONSISTENT', 'work_packages': 'W1/W10', 'evidence_class': 'generated consistency report', 'line': 1114}

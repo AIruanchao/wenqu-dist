@@ -1,0 +1,146 @@
+COMMAND: set -o pipefail; for f in system/tests/test_ac_*.py; do echo "=== $f ==="; rg -n "^def test_|^class Test" "$f"; done; echo COUNT; rg -n "^def test_" system/tests/test_ac_*.py | wc -l
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+=== system/tests/test_ac_act_run.py ===
+363:def test_ACT_01_technical_pass_without_exact_authorization_controller_holds(
+415:def test_ACT_02_any_mismatch_fails_action_authorization_gate(
+481:def test_ACT_03_outbox_idempotent_recovery_no_double_green(
+564:def test_ACT_04_query_external_fact_committed_or_failed_unknown(
+641:def test_ACT_05_stale_green_or_dispatcher_loss_keeps_action_blocked(
+703:def test_ACT_06_wrong_discriminator_or_missing_fields_schema_rejected(
+752:def test_RUN_01_secret_env_channels_isolation_denied(
+865:def test_RUN_02_timeout_kills_all_descendants_no_orphan_writes(
+895:def test_RUN_03_fork_bomb_blast_network_blocked_by_allowlist(
+=== system/tests/test_ac_auth_cond.py ===
+349:def test_AUTH_01_resume_without_authorization_rejected(root: Path) -> None:
+384:def test_AUTH_02_expired_replay_scope_widening_stale_version_rejected(root: Path) -> None:
+441:def test_AUTH_03_ai_self_issued_high_risk_approval_rejected(root: Path) -> None:
+495:def test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails(root: Path) -> None:
+538:def test_AUTH_05_concurrent_double_consume_exactly_one_wins(root: Path) -> None:
+589:def test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected(root: Path) -> None:
+646:def test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected(root: Path) -> None:
+698:def test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked(root: Path) -> None:
+732:def test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected(root: Path) -> None:
+800:def test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs(root: Path) -> None:
+867:def test_COND_01_conditional_without_risk_authorization_not_eligible(root: Path) -> None:
+900:def test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected(root: Path) -> None:
+952:def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> None:
+1027:def test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked(root: Path) -> None:
+1072:def test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated(root: Path) -> None:
+1138:def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(root: Path) -> None:
+=== system/tests/test_ac_deploy_release.py ===
+174:def test_REL_01_manifest_missing_extra_hash_drift_deploy_fails(td: Path) -> None:
+268:def test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current(td: Path) -> None:
+361:def test_REL_03_doctor_red_deploy_fails_and_rolls_back(td: Path) -> None:
+449:def test_DEP_03_rollback_compatible_binary_zero_event_loss(td: Path) -> None:
+565:def test_RB_01_no_preauth_rollback_and_wrong_previous_refused(td: Path) -> None:
+732:def test_DEP_01_concurrent_deployers_lease_at_most_one_wins(td: Path) -> None:
+830:def test_DEP_02_smoke_isolation_denies_production_db_state_access(
+973:def test_DEP_04_release_key_selfsign_replace_revoked_rejected(
+1125:def test_DEP_05_previous_release_schema_out_of_range_rollback_refused(
+1210:def test_DEP_06_migration_gate_lock_backup_expand_auth_blocked_before_activation(
+1324:def test_DEP_07_activating_failure_without_preauth_failed_blocked_no_auto_rollback(
+1425:def test_DEP_08_rollback_failed_fuses_releases_until_manual_resume(
+1492:def test_DEP_09_observation_window_contract_down_migration_rejected(
+=== system/tests/test_ac_gate_family.py ===
+253:def test_GATE_01_fetch_fail_or_missing_base_ref_is_error(root: Optional[Path] = None) -> None:
+276:def test_GATE_02_zero_tests_scope_not_pure_docs_is_blocked(root: Optional[Path] = None) -> None:
+300:def test_GATE_03_missing_runner_or_dependency_is_error(root: Optional[Path] = None) -> None:
+331:def test_GATE_04_inner_exit7_selfreport_zero_findings_fails(root: Optional[Path] = None) -> None:
+361:def test_GATE_05_artifact_symlink_hardlink_outside_root_blocked(root: Optional[Path] = None) -> None:
+406:def test_GATE_06_artifact_hash_tamper_blocked(root: Optional[Path] = None) -> None:
+439:def test_GATE_07_commit_env_scope_ruleset_mismatch_blocked(root: Optional[Path] = None) -> None:
+469:def test_GATE_08_evidence_past_ttl_refused(root: Optional[Path] = None) -> None:
+486:def test_GATE_09_convergence_rounds_domain_minus1_zero_over_cap_rejected(root: Optional[Path] = None) -> None:
+526:def test_GATE_10_round_cap_n_plus_1_blocks_awaiting_human_adjudication(root: Optional[Path] = None) -> None:
+586:def test_GATE_11_same_command_relabel_not_new_heterogeneous_round(root: Optional[Path] = None) -> None:
+629:def test_GATE_12_unsigned_flip_or_adjudication_blocked(root: Optional[Path] = None) -> None:
+657:def test_MRG_01_fast_green_security_red_no_merge(root: Optional[Path] = None) -> None:
+680:def test_MRG_02_missing_fast_and_gate_red_no_merge(root: Optional[Path] = None) -> None:
+696:def test_MRG_03_same_name_forgery_or_old_sha_no_merge(root: Optional[Path] = None) -> None:
+719:def test_MRG_04_pending_skipped_neutral_cancelled_no_merge(root: Optional[Path] = None) -> None:
+746:def test_MRG_05_head_moves_during_aggregation_invalidates(root: Optional[Path] = None) -> None:
+766:def test_MRG_06_remote_429_empty_json_timeout_circuit_breaker(root: Optional[Path] = None) -> None:
+791:def test_MRG_07_head_changed_after_final_validation_atomic_reject(root: Optional[Path] = None) -> None:
+813:def test_CI_05_fork_merge_group_or_missing_check_explicit_failure(root: Optional[Path] = None) -> None:
+835:def test_CI_06_codeowners_present_ruleset_not_enforced_doctor_error(root: Optional[Path] = None) -> None:
+930:def test_CI_07_unauthorized_app_same_context_untrusted_blocked(root: Optional[Path] = None) -> None:
+955:def test_CI_08_wenqu_gate_missing_bugscan_green_no_merge(root: Optional[Path] = None) -> None:
+973:def test_CI_09_recursive_aggregate_or_duplicate_publish_rejected(root: Optional[Path] = None) -> None:
+=== system/tests/test_ac_ops_families.py ===
+304:def test_SCH_01_env_permission_denied_yields_error_and_alert():
+372:def test_SCH_02_fake_touch_heartbeat_after_fail_keeps_last_success():
+413:def test_SCH_03_sleep_missed_period_wakes_up_and_catches_up():
+469:def test_SCH_04_catchup_and_normal_race_single_logical_run():
+546:def test_SCH_05_scheduler_down_independent_watchdog_still_alerts():
+591:def test_SCH_06_one_shot_job_writes_only_wenqu_namespace():
+652:def test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes():
+731:def test_ALT_01_provider_500_and_timeout_retry_then_dead_letter():
+845:def test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health():
+918:def test_HLT_01_input_watermark_change_invalidates_snapshot():
+1055:def test_DOC_01_stop_type_count_and_enumeration_drift_blocks_ci():
+1109:def test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci():
+1180:def test_DOC_03_policy_forbidden_bypass_text_blocks_ci():
+1230:def test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci():
+1310:def test_CAP_01_peak_budget_over_margin_or_disk_full_switches_blocked():
+1529:def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
+1629:def test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets():
+=== system/tests/test_ac_state_mig.py ===
+213:def test_STATE_01_arbitrary_stage_status_schema_rejected():
+264:def test_STATE_03_concurrent_100x100_no_loss_no_dup():
+407:def test_STATE_04_kill9_all_or_nothing():
+473:def test_STATE_06_waiting_residue_superseded_not_silently_deleted():
+529:def test_STATE_07_normal_event_cannot_flip_passed_to_running():
+579:def test_STATE_08_failed_retry_new_attempt_old_evidence_intact():
+633:def test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok():
+713:def test_MIG_01_bad_json_unknown_status_quarantine():
+825:def test_MIG_02_accepted_missing_approval_invalid_reopen():
+883:def test_MIG_03_double_migration_idempotent():
+958:def test_MIG_04_source_conservation_enforced():
+1071:def test_MIG_05_project_key_conflict_explicit_no_fake_split():
+1290:def test_STATE_02_traversal_absolute_nul_overlong_ids_rejected():
+1354:def test_STATE_05_dual_writer_epoch_all_writes_rejected():
+1447:def test_STATE_09_sha_scope_policy_change_forces_new_run():
+1538:def test_STATE_11_s7_conditional_missing_risk_authorization_failed():
+=== system/tests/test_ac_station_families.py ===
+373:def test_STA_01_any_station_denominator_shrink_blocks_line():
+450:def test_STA_02_per_station_fault_keeps_evidence_aggregate_blocked():
+585:def test_DB_01_all_change_directions_recognized():
+627:def test_DB_02_single_drop_column_or_fk_still_fails():
+649:def test_DB_03_unknown_format_empty_output_rejected():
+677:def test_DB_04_allowlist_expiry_or_hash_change_fails():
+718:def test_DB_05_wrong_db_role_or_writable_source_blocked():
+766:def test_DB_06_golden_normalization_order_canonical():
+830:def test_SC_01_valid_json_high_critical_fails():
+855:def test_SC_02_empty_json_or_registry_timeout_error():
+889:def test_SC_03_lockfile_diff_added_deps_counted():
+985:def test_SC_04_skip_audit_title_no_bypass():
+1017:def test_SC_05_snapshot_signature_freshness_fail_closed():
+1080:def test_ADV_01_version_parser_anomaly_unknown_not_silent():
+1115:def test_ADV_02_multi_page_multi_range_full_traversal():
+1152:def test_TEN_01_prisma_alias_reexport_wrapper_in_denominator():
+1185:def test_TEN_02_comment_organizationId_cannot_fool():
+1212:def test_TEN_03_long_builder_included_in_analysis():
+1234:def test_TEN_04_queryraw_cross_tenant_static_analysis():
+1310:def test_TEN_05_non_export_download_path_scanned():
+1334:def test_TEN_06_org_a_access_org_b_dynamically_denied():
+1360:def test_TEN_07_new_tenant_model_grows_denominator():
+1387:def test_TEN_08_admin_cross_tenant_passes_role_negative_rejected():
+1424:def test_PERF_01_http_500_fast_still_fails():
+1454:def test_PERF_02_null_metrics_error_class():
+1486:def test_PERF_03_tail_slow_samples_enter_p95_p99():
+1540:def test_PERF_04_query_count_linear_n_plus_one():
+1618:def test_PERF_05_baseline_threshold_tamper_blocked_by_hash():
+1656:def test_PERF_06_endpoint_denominator_shrink_blocks_promotion():
+=== system/tests/test_ac_ui_family.py ===
+354:def test_UI_01_missing_closing_tag_fails_build_and_startup_gate():
+409:def test_UI_02_xss_log_and_ledger_text_does_not_execute():
+480:def test_UI_03_csrf_fake_origin_and_text_plain_writes_rejected():
+544:def test_UI_04_gate_red_with_high_other_scores_is_overall_blocked():
+606:def test_UI_05_accepted_other_and_quarantine_drilldown():
+667:def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():
+718:def test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources():
+COUNT
+     131
+--- STDERR ---

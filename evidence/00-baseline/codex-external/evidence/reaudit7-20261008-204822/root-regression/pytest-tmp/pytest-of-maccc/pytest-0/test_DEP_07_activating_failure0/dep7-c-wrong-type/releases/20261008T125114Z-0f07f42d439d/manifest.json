@@ -1,0 +1,27 @@
+{
+  "content_digest": "0f07f42d439d36f76366ae080aa92225c50cfbd0057b5edd035a1ed26c40faba",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "cebe87c9202efad0cf0233c89a8238ec3fc78b91522f7b94895120c8e7ce720a",
+      "size": 36
+    },
+    {
+      "mode": "0444",
+      "path": "flag-wrong-type2.txt",
+      "sha256": "65abd8d5ea2208953a09f8d5ea1ceed0a335cee777dbb20a7c1a7038be633151",
+      "size": 12
+    }
+  ],
+  "release_id": "20261008T125114Z-0f07f42d439d",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_07_activating_failure0/dep7-wrong-type-v2"
+}

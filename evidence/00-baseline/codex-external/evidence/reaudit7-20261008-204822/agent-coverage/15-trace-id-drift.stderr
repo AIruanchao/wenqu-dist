@@ -1,0 +1,4 @@
+INTEGRITY-FAIL: 方案文件 sha256 与冻结值不符: actual=e61b02518b16a7fac73af33060f3dd7cd1e8159d42ca14dd4d0589b757b418df frozen=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+INTEGRITY-FAIL: 方案交叉校验不一致: ['GATE-99']/['GATE-01']
+INTEGRITY-FAIL: §20 语义漂移: §20 表格缺 GATE-01 行（或行格式无法解析）
+INTEGRITY-FAIL: §20 语义漂移: §20 表格行 GATE-99 不在冻结目录中

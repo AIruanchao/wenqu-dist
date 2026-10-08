@@ -1,0 +1,33 @@
+=== source refs ===
+  main                    07a9494 [origin/main: behind 9] Merge pull request #6 from AIruanchao/release/v3.7.1
+  wave4/evidence-deploy   c345b7b [origin/wave4/evidence-deploy] evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）
+  wave4/p0-full-hardening 14600f8 [origin/wave4/p0-full-hardening] fix(wave4): Codex 三轮 12 对抗 FAIL 全量根修——授权/Schema/基建三簇
+  wave5/evidence-final    6b859cd [origin/wave5/evidence-final] evidence(wave5): 索引 20 条达标整改（全量 SHA+当前 run/HEAD）+四轮报告 248 文件快照+release 制品入仓
+  wave5/one-shot          3c0b0c0 [origin/wave5/one-shot] feat(wave5): 一步到位波——四轮 12 探针全闭+专属覆盖 0→99/131+时钟启动
+* wave6/p1f-gate          1495913 [origin/wave6/p1f-gate] fix(wave6): REL-02 竞态根修——部署快于轮询的合法完成结局+64MiB 抓窗+子进程死亡诊断+td fixture（pytest 单跑能力）
+07a94945ba8defe65d3f9ce5a3b7118a38e40328 refs/heads/main
+c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1 refs/heads/wave4/evidence-deploy
+14600f829b6049775c6381cd1e7e7f52ec9fb460 refs/heads/wave4/p0-full-hardening
+6b859cd3915895a3a8934e746149dbe833cd18a7 refs/heads/wave5/evidence-final
+3c0b0c063be882bb54cef1975f8eb7f162aab5c5 refs/heads/wave5/one-shot
+1495913085eae13155f977fcebc8400b9789e04c refs/heads/wave6/p1f-gate
+=== d32 identity ===
+commit d32c859f9043798d9e8a4984e8f57aa64567e33c
+Merge: c9de6a4 1495913
+Author:     AIruanchao <8286900@qq.com>
+AuthorDate: Thu Oct 8 20:37:48 2026 +0800
+Commit:     GitHub <noreply@github.com>
+CommitDate: Thu Oct 8 20:37:48 2026 +0800
+
+    Merge pull request #9 from AIruanchao/wave6/p1f-gate
+    
+    fix(wave6): REL-02 竞态根修（快速完成合法化）+CI 冷 runner 窗口
+=== source status porcelain v2 ===
+# branch.oid 1495913085eae13155f977fcebc8400b9789e04c
+# branch.head wave6/p1f-gate
+# branch.upstream origin/wave6/p1f-gate
+# branch.ab +0 -0
+1 .M N... 100644 100644 100644 269aa9c86de7dc77e2318c699297b92342c63779 269aa9c86de7dc77e2318c699297b92342c63779 system/VERSION
+1 .M N... 100755 100755 100755 6c237dc89a584744ef58dae83097ebeeb46796fd 6c237dc89a584744ef58dae83097ebeeb46796fd system/bin/wenqu-dashboard.py
+? SHA256-v3.8.4.txt
+=== AGENTS ===

@@ -1,0 +1,27 @@
+./00-repo-inventory.txt: OK
+./01-source-review.txt: OK
+./02-isolated-copy.txt: OK
+./03-independent-gate-schema-probe.log: OK
+./04-independent-rollback-probe.log: OK
+./05-install-double-layout.log: OK
+./06-install-missing-cli-mutation.log: OK
+./06-install-missing-cli-mutation.log.tmp: OK
+./07-acceptance-full.log: OK
+./08-acceptance-delete-adversarial.log: OK
+./09-acceptance-delete-infra.log: OK
+./10-removal-anchor-approval_schema.log: OK
+./10-removal-anchor-pipeline.log: OK
+./10-removal-anchor-rollup.tsv: OK
+./10-removal-anchor-trace_tool.log: OK
+./11-ci-wiring-static.txt: OK
+./12-developer-regression-suites.log: OK
+./CI_ADV_MUTATION_PATH.txt: OK
+./CI_INFRA_MUTATION_PATH.txt: OK
+./INSTALL_TMP_PATH.txt: OK
+./ISOLATED_COPY_PATH.txt: OK
+./SOURCE_DRIFT_NOTE.txt: OK
+./SUMMARY.md: OK
+./__pycache__/independent_gate_schema_probe.cpython-313.pyc: OK
+./independent_gate_schema_probe.py: OK
+./independent_rollback_probe.py: OK
+exit_code=0

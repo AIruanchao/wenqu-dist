@@ -1,0 +1,27 @@
+TIMESTAMP_UTC: 2026-10-08T13:04:15Z
+CWD: /tmp
+COMMAND: /tmp/reaudit7-boundary.sh 
+OUTPUT_BEGIN
+AUDIT_BOUNDARY: source repository was never written/deleted/checked out/restored/deployed by this agent; all mutation probes ran only under /tmp private copies.
+SOURCE_HEAD=1495913085eae13155f977fcebc8400b9789e04c
+SOURCE_PIPELINE_PRESENT=no (external concurrent-worktree fact; auditor did not restore)
+SOURCE_STATUS_BEGIN
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ M system/VERSION
+ M system/bin/wenqu-dashboard.py
+ D system/schemas/approval-v2.schema.json
+ D system/wenqu_core/wenqu_pipeline.py
+?? "\"\""
+?? SHA256-v3.8.4.txt
+SOURCE_STATUS_END
+PRIVATE_HEAD=d32c859f9043798d9e8a4984e8f57aa64567e33c
+PRIVATE_RELEVANT_CODE_STATUS_BEGIN
+PRIVATE_RELEVANT_CODE_STATUS_END
+PRIVATE_GENERATED_STATUS_BEGIN
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+PRIVATE_GENERATED_STATUS_END
+OUTPUT_END
+EXIT_CODE: 0

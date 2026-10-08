@@ -1,0 +1,13 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 01
+START=2026-10-08T16:01:19+0800
+{
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-01-gyfpq3h_",
+  "probe": "01",
+  "resigned_wrong_environment": "ApprovalRejected: approval rejected: environment mismatch（审批不得跨环境）",
+  "same_nonce_after_rejections_resumed": true,
+  "signed_unknown_audience": "ApprovalRejected: approval rejected: additional properties forbidden by schema",
+  "unicode_mutation": "ApprovalRejected: approval rejected: HMAC-SHA256 signature verification failed（伪签名拒绝）",
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:19+0800

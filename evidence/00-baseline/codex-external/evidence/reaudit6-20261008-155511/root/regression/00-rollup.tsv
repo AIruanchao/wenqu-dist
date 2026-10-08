@@ -1,0 +1,14 @@
+test_wenqu_pipeline	0
+test_wenqu_adversarial	0
+test_infra_hardening	0
+test_core_wiring	0
+test_runner_daemon	0
+test_gate_schema_hardening	0
+test_cli_install_ci	0
+test_ac_act_run	0
+test_ac_auth_cond	0
+test_ac_deploy_release	0
+test_ac_gate_family	0
+test_ac_ops_families	0
+test_ac_state_mig	0
+test_ac_station_families	0

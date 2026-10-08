@@ -1,0 +1,79 @@
+TIMESTAMP_UTC: 2026-10-08T12:53:45Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: bash -lc $'\nset -uo pipefail\ncd "$1"\nfiles="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"\ntotal=0; fail=0\nfor tf in $files; do\n n=$(grep -c "^def test_" "system/tests/$tf.py" || true)\n start=$(date +%s)\n python3 "system/tests/$tf.py" >/tmp/f6p0-$tf.out 2>&1\n rc=$?\n dur=$(($(date +%s)-start))\n total=$((total+n))\n echo "$tf rc=$rc def_test_count=$n duration_s=$dur"\n tail -8 /tmp/f6p0-$tf.out | sed "s/^/  | /"\n [ "$rc" -eq 0 ] || fail=1\n rm -f /tmp/f6p0-$tf.out\ndone\necho "TOTAL_DEF_TESTS=$total FAIL=$fail"\n[ "$fail" -eq 0 ] && [ "$total" -ge 95 ]\n' _ /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+test_ac_gate_family rc=0 def_test_count=24 duration_s=4
+  |   PASS MRG-03  test_MRG_03_same_name_forgery_or_old_sha_no_merge
+  |   PASS MRG-04  test_MRG_04_pending_skipped_neutral_cancelled_no_merge
+  |   PASS MRG-05  test_MRG_05_head_moves_during_aggregation_invalidates
+  |   PASS MRG-06  test_MRG_06_remote_429_empty_json_timeout_circuit_breaker
+  |   PASS MRG-07  test_MRG_07_head_changed_after_final_validation_atomic_reject
+  | ------------------------------------------------------------------------
+  | 结果: 24/24 passed
+  | ========================================================================
+test_ac_state_mig rc=0 def_test_count=16 duration_s=5
+  |   ok   MIG-03  两次迁移 → 结果幂等一致
+  |   ok   MIG-04  源行数不守恒 → 迁移失败
+  |   ok   MIG-05  project key 冲突 → 明确冲突，不拆成假项目
+  | 
+  | 不可实现登记：无（16/16 ID 均有专属真实测试）
+  | 
+  | 结果: 16 PASS / 0 FAIL；范围内不可实现 0 条；exit=0
+  | 证据工件: /private/tmp/wenqu-reaudit7-f6p0-22971/evidence/04-unit-property-mutation/ac-state-mig.json
+test_ac_deploy_release rc=0 def_test_count=13 duration_s=2
+  |   PASS RB-01  test_RB_01_no_preauth_rollback_and_wrong_previous_refused
+  |   PASS REL-01  test_REL_01_manifest_missing_extra_hash_drift_deploy_fails
+  |   PASS REL-02  test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current
+  |   PASS REL-03  test_REL_03_doctor_red_deploy_fails_and_rolls_back
+  | ------------------------------------------------------------------------
+  | 结果: 13/13 passed
+  | 逐 ID 结果已写: /private/tmp/wenqu-reaudit7-f6p0-22971/evidence/04-unit-property-mutation/ac-deploy-release.json
+  | ========================================================================
+test_ac_station_families rc=0 def_test_count=29 duration_s=4
+  |   ok  PERF-01 HTTP 500 但很快 → FAIL
+  |   ok  PERF-02 SSH/TCC/null 指标 → ERROR 类（采集缺口缩水折叠）
+  |   ok  PERF-03 尾部极慢样本 → 正确进入 p95/p99（真实计算+阈值判定）
+  |   ok  PERF-04 输入 1→100 query count 线性 → FAIL（N+1/超阈值剖析）
+  |   ok  PERF-05 修改 baseline/阈值试图洗绿 → policy hash 阻断
+  |   ok  PERF-06 样本/时长/endpoint 分母缩水 → 不得晋升 baseline
+  | 
+  | §20 六族验收测试: 29 PASS / 0 FAIL （负责 29 条；实现 29；不可实现 0）
+test_ac_ops_families rc=0 def_test_count=17 duration_s=9
+  |   PASS  SCH-03   test_SCH_03_sleep_missed_period_wakes_up_and_catches_up
+  |   PASS  SCH-04   test_SCH_04_catchup_and_normal_race_single_logical_run
+  |   PASS  SCH-05   test_SCH_05_scheduler_down_independent_watchdog_still_alerts
+  |   PASS  SCH-06   test_SCH_06_one_shot_job_writes_only_wenqu_namespace
+  |   PASS  SCH-07   test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes
+  | ------------------------------------------------------------------------
+  | RESULT: PASS=17 FAIL=0
+  | 证据工件: evidence/04-unit-property-mutation/ac-ops-families.json
+test_ac_auth_cond rc=0 def_test_count=16 duration_s=3
+  |   PASS COND-06  test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once
+  |   PASS RISK-01  test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs
+  |   PASS STOP-01  test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected
+  |   PASS STOP-02  test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked
+  |   PASS STOP-03  test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected
+  | ------------------------------------------------------------------------
+  | 结果: 16/16 passed
+  | ========================================================================
+test_ac_act_run rc=0 def_test_count=9 duration_s=5
+  |   PASS ACT-06  test_ACT_06_wrong_discriminator_or_missing_fields_schema_rejected
+  |   PASS RUN-01  test_RUN_01_secret_env_channels_isolation_denied
+  |   PASS RUN-02  test_RUN_02_timeout_kills_all_descendants_no_orphan_writes
+  |   PASS RUN-03  test_RUN_03_fork_bomb_blast_network_blocked_by_allowlist
+  | ------------------------------------------------------------------------
+  | 结果: 9/9 passed
+  | 逐 ID 结果已写: /private/tmp/wenqu-reaudit7-f6p0-22971/evidence/04-unit-property-mutation/ac-act-run.json
+  | ========================================================================
+test_ac_ui_family rc=0 def_test_count=7 duration_s=30
+  |   PASS  UI-03    test_UI_03_csrf_fake_origin_and_text_plain_writes_rejected
+  |   PASS  UI-04    test_UI_04_gate_red_with_high_other_scores_is_overall_blocked
+  |   PASS  UI-05    test_UI_05_accepted_other_and_quarantine_drilldown
+  |   PASS  UI-06    test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected
+  |   PASS  UI-07    test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources
+  | ------------------------------------------------------------------------
+  | RESULT: PASS=7 FAIL=0
+  | 证据工件: evidence/04-unit-property-mutation/ac-ui-family.json
+TOTAL_DEF_TESTS=131 FAIL=0
+OUTPUT_END
+EXIT_CODE: 0

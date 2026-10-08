@@ -1,0 +1,67 @@
+UTC_START=2026-10-08T12:52:02Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-evidence-concise.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-d32c859-runtime
+for d in "$R/evidence/07-migration-reconcile" "$R/evidence/10-ui-launchd-alert-backup" "$R/evidence/11-release-sbom" "$R/specs/tla" "$R/dist"; do echo "=== $d ==="; if test -d "$d"; then find "$d" -maxdepth 3 -type f -print | sort | while read f; do stat -f '%z %N' "$f"; done; else echo MISSING; fi; done
+echo '=== indexes ==='; find "$R" -type f \( -iname '*evidence*index*' -o -iname 'index.md' -o -iname '*manifest*.json' \) -print | sort
+echo '=== sample files tracked or referenced ==='; find "$R" -type f -path '*samples*' -print | sort; rg -l 'c9de6a488a983e86380ca207463941a8490b08ce|samples/2026-10-08.json' "$R" | sort | head -200
+echo '=== top evidence dirs ==='; find "$R/evidence" -mindepth 1 -maxdepth 1 -type d -print | sort
+--- OUTPUT ---
+=== /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile ===
+2492 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/README.md
+40960 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db
+17660 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl
+1367435 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json
+7911 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl
+3540 /private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/summary.md
+=== /private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup ===
+3674 /private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup/README.md
+485 /private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+866 /private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json
+4073 /private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup/launchd-inventory.json
+=== /private/tmp/reaudit7-d32c859-runtime/evidence/11-release-sbom ===
+MISSING
+=== /private/tmp/reaudit7-d32c859-runtime/specs/tla ===
+4582 /private/tmp/reaudit7-d32c859-runtime/specs/tla/README.md
+1022 /private/tmp/reaudit7-d32c859-runtime/specs/tla/wenqu_pipeline.cfg
+24938 /private/tmp/reaudit7-d32c859-runtime/specs/tla/wenqu_pipeline.tla
+=== /private/tmp/reaudit7-d32c859-runtime/dist ===
+108 /private/tmp/reaudit7-d32c859-runtime/dist/SHA256-vNext-candidate-f2b8fc3.txt
+155696 /private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json
+620 /private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.release.sig
+360080 /private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.sbom.spdx.json
+7095163 /private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.tar.gz
+3356318 /private/tmp/reaudit7-d32c859-runtime/dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+=== indexes ===
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/EVIDENCE-INDEX.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19-evidence-index-reconcile.log
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19b-evidence-index-reconcile.log
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/06-evidence-index-audit.log
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/audit_evidence_index.py
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/EVIDENCE-INDEX.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/evidence-index.json
+=== sample files tracked or referenced ===
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window/README.md
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_ac_ops_families.py
+=== top evidence dirs ===
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline
+/private/tmp/reaudit7-d32c859-runtime/evidence/01-threat-model-and-contracts
+/private/tmp/reaudit7-d32c859-runtime/evidence/02-schemas-and-tla
+/private/tmp/reaudit7-d32c859-runtime/evidence/03-red-probes-before
+/private/tmp/reaudit7-d32c859-runtime/evidence/04-unit-property-mutation
+/private/tmp/reaudit7-d32c859-runtime/evidence/05-concurrency-crash-chaos
+/private/tmp/reaudit7-d32c859-runtime/evidence/06-scanner-goldens
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile
+/private/tmp/reaudit7-d32c859-runtime/evidence/08-ci-and-branch-rules
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation
+/private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup
+/private/tmp/reaudit7-d32c859-runtime/evidence/11-shadow-canary
+/private/tmp/reaudit7-d32c859-runtime/evidence/12-rollback-drill
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:52:03Z

@@ -1,0 +1,60 @@
+UTC_START=2026-10-08T12:55:07Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-w4-tests.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-release-d32c859
+cd "$R"
+echo HEAD=$(git rev-parse HEAD)
+python3 system/tests/test_w4_production.py
+rc=$?; echo TEST_RC=$rc
+exit $rc
+--- OUTPUT ---
+HEAD=d32c859f9043798d9e8a4984e8f57aa64567e33c
+== W4 生产闭环三面自测（3 面）==
+-- test_backup_restore_drill_reconciliation
+  ✓ 面3 drill 真实执行 rc=0
+  ✓ 面3 演练报告落盘
+  ✓ 面3 四步齐：快照/篡改/恢复/对账
+  ✓ 面3 语料≥3 且快照 sha 清单齐
+  ✓ 面3 篡改实测生效（防伪造演练）
+  ✓ 面3 恢复后逐文件字节级全等
+-- test_heartbeat_freshness
+  ✓ 面1 tick1 bootstrap 真跑出 run
+  ✓ 面1 采样作业 COMPLETED/PASS（exit=0）
+  ✓ 面1 真 wenquctl gate 聚合 PASS（station-result-v2 铸造合法）
+  ✓ 面1 gate-aggregate.json 落盘且契约字段齐
+  ✓ 面1 shadow 刷新走诊断模式不冒充发布门（F6-GATE-SCOPE-001）
+  ✓ 面1 heartbeat.json 新鲜（tick_epoch==注入 now）
+  ✓ 面1 心跳健康态 FRESH
+  ✓ 面1 当日 tick 日志已落一行
+  ✓ 面1 tick2 走到期机制（due 非空且 run）
+  ✓ 面1 tick2 新 run 为调度执行（bootstrapped=False）
+  ✓ 面1 两跳后 run 表=2 且调度 run 占位
+  ✓ 面1 注入过期后判不健康（非 FRESH）
+  ✓ 面1 过期（1x~2x 窗口）severity=WARNING
+  ✓ 面1 过期（>2x 窗口）severity=CRITICAL（宿主疑停摆）
+  ✓ 面1 刷新铁律：NOT_APPLICABLE 不推进 last_success
+  ✓ 面1 不健康告警已入队（outbox 有 PENDING）
+  ✓ 面1 投递箱通道必送达（sent≥1，macos 注入故障不计成败）
+  ✓ 面1 投递箱回执 receipts.jsonl 落盘（含心跳告警主题）
+-- test_notification_dead_letter_dual_channel
+  ✓ 面2 CRITICAL 强制双通道入队（2 条消息）
+  ✓ 面2 双通道各占一行（dedup 按通道不互吃）
+  ✓ 面2 首轮：alertbox SENT + macos 第 1 次失败留退避
+  ✓ 面2 第 2 轮：macos 继续失败留退避（attempt 2/5）
+  ✓ 面2 第 3 轮：macos 继续失败留退避（attempt 3/5）
+  ✓ 面2 第 4 轮：macos 继续失败留退避（attempt 4/5）
+  ✓ 面2 第 5 轮：macos 达 max_attempts=5 → DEAD_LETTER
+  ✓ 面2 死信审计：channel/attempts/last_error 全记
+  ✓ 面2 通知失败→投递箱必成功（同消息对 SENT vs DEAD_LETTER）
+  ✓ 面2 死信触发断链 CRITICAL 告警（审计留痕）
+  ✓ 面2 回执链完整（receipts.jsonl 含送达 message_id）
+  ✓ 面2 投递箱 txt 通知文件落盘
+========================================
+RESULT: PASS=36 FAIL=0
+TEST_RC=0
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:55:08Z

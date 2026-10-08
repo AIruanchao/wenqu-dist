@@ -65,10 +65,13 @@ not_implementable 字段）：
        绝不透传旧结论）+ 聚合器重算产物（重写快照）即刻生效。bin/wenqu-dashboard.py
        的 /api/v1/health 为遗留自算卡（无 gate 快照水印面，且会写用户真实走势文件），
        水印契约自 W8 起由 system/dashboard/server.py 承载，本件覆盖正源。
-    5. BAK-01 的「磁盘满/tar」字面向量不可移植注入（drill 用 cp 管道）；本件以
-       同族真实失败（备份语料不可达 -> 演练 fail-closed，报告 result=FAIL、退出
-       非零、既有 PASS 工件不被改写=success 不更新）覆盖「backup 失败 -> 不更新
-       success」判定链；备份可恢复正语义以 tmp 语料四步真实演练覆盖。
+    5. BAK-01 的「磁盘满」字面向量不可移植注入（小配额 tmpfs 需 root/非 macOS）：
+       演练脚本自 R7 起 --fault enospc 以 ulimit -f 子壳（文件大小上限=ENOSPC
+       同族写失败）等价模拟并诚实登记；「tar」面由演练新增归档腿（backup/→
+       backup.tar.gz+tar -tzf 清单回读）承载——--fault tar-broken 自注入假
+       tar、外部 PATH 假 tar 注入同效（演练对 tar 零豁免）。三条故障腿全部
+       FAIL 且既有 PASS 工件零改写（success 不更新）；备份失败族（语料不可达）
+       与备份可恢复正语义（tmp 语料四步真实演练）保持原覆盖。
 """
 from __future__ import annotations
 
@@ -1537,9 +1540,15 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
     2. 断言报告结构（时间 stamp/文件 files/结果 result 三要素）+ jsonl 事件日志
        （每事件 {ts,t,event,file,result}，覆盖全部语料文件的快照/篡改/恢复/对账）；
     3. 失败分支（backup 失败族：备份语料不可达）→ 演练 fail-closed：退出非零、
-       报告 result=FAIL、既有 PASS 工件零改写（= success 不更新）。
-    诚实边界：「磁盘满/tar」字面向量不可移植注入（drill 用 cp 管道），以同族
-    真实失败覆盖「backup 失败 -> 不更新 success」判定链（见文件头边界 5）。
+       报告 result=FAIL、既有 PASS 工件零改写（= success 不更新）；
+    4. R7 对抗腿（磁盘满/tar，R7-BAK-01 三腿补齐）：
+       - --fault enospc（等价模拟，诚实登记）：恢复写路径注入文件大小上限
+         （ulimit -f 子壳=ENOSPC 同族写失败；小配额 tmpfs 在 macOS/无 root
+         不可移植）→ 演练 FAIL（恢复 cp 写出即失败）且 success 不更新；
+       - --fault tar-broken：演练自带 tar 归档腿（backup/→backup.tar.gz+
+         tar -tzf 清单回读）自注入假 tar → FAIL 且 success 不更新；
+       - 外部 PATH 注入腿（不带 --fault）：前置假 tar 二进制目录进 PATH，
+         演练经 PATH 解析真 tar——归档腿必失败 → FAIL（演练对 tar 零豁免）。
     """
     with tempfile.TemporaryDirectory(prefix="wq_bak01_") as td:
         sandbox = Path(td)
@@ -1616,6 +1625,51 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
         assert fail_events[-1]["event"] == "drill_fail" \
             and fail_events[-1]["result"] == "FAIL"
 
+        # —— R7 对抗腿：磁盘满/tar 故障注入（演练在故障下必须 FAIL 且 success 不更新）——
+        # drill_runner 未暴露 --fault 通道（编排层只读）；直接子进程调演练脚本。
+        drill_script = REPO / "system" / "sentinels" / "backup-restore-drill.sh"
+        for fault in ("enospc", "tar-broken"):
+            fault_dir = sandbox / f"fault-{fault}-reports"
+            proc = subprocess.run(
+                ["bash", str(drill_script), "--wenqu-root", str(root),
+                 "--report-dir", str(fault_dir), "--fault", fault],
+                capture_output=True, text=True, timeout=120)
+            assert proc.returncode == 1, \
+                f"--fault {fault} 演练必须 FAIL（exit 1），实得 {proc.returncode}: {proc.stderr[-300:]}"
+            freports = sorted(fault_dir.glob("drill-*.json"))
+            assert freports, fault
+            frep = json.loads(freports[-1].read_text(encoding="utf-8"))
+            assert frep["result"] == "FAIL", (fault, frep)
+            assert frep.get("fault") == fault, (fault, frep)
+            marker = "enospc" if fault == "enospc" else "tar"
+            assert marker in frep["reason"], (fault, frep["reason"])
+            fev = read_events(freports[-1].with_suffix(".jsonl"))
+            assert fev[-1]["event"] == "drill_fail" and fev[-1]["result"] == "FAIL"
+            # success 不更新：既有 PASS 工件在两次故障注入后仍逐字节不变
+            assert outcome.report_path.read_bytes() == pass_bytes, \
+                f"--fault {fault} 运行不得改写既有 PASS 报告（success 不更新）"
+
+        # 外部 PATH 注入腿（不带 --fault）：前置假 tar 二进制目录——演练经 PATH
+        # 解析真实 tar，归档腿必失败 → FAIL（对 tar 零豁免）；success 仍不更新。
+        fake_bin = sandbox / "fake-bin"
+        fake_bin.mkdir()
+        (fake_bin / "tar").write_text(
+            "#!/bin/sh\necho 'bak01-fake-tar: broken' >&2\nexit 3\n", encoding="utf-8")
+        (fake_bin / "tar").chmod(0o755)
+        path_dir = sandbox / "fault-path-inject-reports"
+        proc = subprocess.run(
+            ["bash", str(drill_script), "--wenqu-root", str(root),
+             "--report-dir", str(path_dir)],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"})
+        assert proc.returncode == 1, \
+            f"假 tar PATH 注入演练必须 FAIL，实得 {proc.returncode}"
+        pinj = sorted(path_dir.glob("drill-*.json"))
+        assert pinj
+        pj = json.loads(pinj[-1].read_text(encoding="utf-8"))
+        assert pj["result"] == "FAIL" and "tar" in pj["reason"], pj
+        assert outcome.report_path.read_bytes() == pass_bytes, "PATH 注入腿不得改写 PASS 工件"
+
     _record("BAK-01",
             f"tmp 语料 {len(rels)} 文件（真实 sqlite DB+4 JSON）四步真实演练："
             f"快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，"
@@ -1623,7 +1677,10 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
             f"→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变"
             f"（只读）；报告 {rep['stamp']} 含时间/文件/结果三要素+jsonl 事件日志"
             f"{len(evs)} 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）"
-            f"fail-closed：exit1+result=FAIL，既有 PASS 工件零改写=不更新 success")
+            f"fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f "
+            f"等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/"
+            f"外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），"
+            f"既有 PASS 工件零改写=不更新 success")
 
 
 def test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets():

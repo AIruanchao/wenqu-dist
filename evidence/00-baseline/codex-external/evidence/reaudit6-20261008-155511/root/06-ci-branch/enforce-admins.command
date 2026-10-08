@@ -1,0 +1,1 @@
+gh api repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins 

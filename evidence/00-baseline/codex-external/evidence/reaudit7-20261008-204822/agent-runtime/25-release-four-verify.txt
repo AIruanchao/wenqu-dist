@@ -1,0 +1,61 @@
+UTC_START=2026-10-08T12:53:00Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-release-verify.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-d32c859-runtime
+cd "$R"
+echo '=== four artifact inventory ==='
+for f in dist/wenqu-dist-1620c7c.tar.gz dist/wenqu-dist-1620c7c.manifest.json dist/wenqu-dist-1620c7c.release.sig dist/wenqu-dist-1620c7c.sbom.spdx.json; do stat -f 'PATH=%N SIZE=%z MODE=%Sp MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; done
+echo '=== keyring metadata only, NO CONTENT ==='
+stat -f 'PATH=%N SIZE=%z MODE=%Sp UID=%u GID=%g MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$HOME/.wenqu-dist-release/release-keyring.json"
+echo '=== manifest/sig/sbom independent fields ==='
+python3 - <<'PY'
+import json,re,hashlib,os
+m=json.load(open('dist/wenqu-dist-1620c7c.manifest.json'))
+s=json.load(open('dist/wenqu-dist-1620c7c.release.sig'))
+b=json.load(open('dist/wenqu-dist-1620c7c.sbom.spdx.json'))
+print('manifest.schema',m.get('schema'))
+print('manifest.source_commit',m.get('source_commit'), 'full40',bool(re.fullmatch(r'[0-9a-f]{40}',m.get('source_commit',''))))
+print('manifest.policy_hash',m.get('policy_hash'), 'plan_hash_len',len(m.get('policy_hash',{}).get('plan_sha256','')), 'equals_frozen_plan',m.get('policy_hash',{}).get('plan_sha256')=='96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306')
+print('manifest.version',m.get('version'),'n_files',m.get('n_files'),'artifact',m.get('artifact'))
+print('sig', {k:s.get(k) for k in ('schema','algorithm','key_id','manifest_sha256','honesty_note')})
+print('sig.manifest_hash_match',s.get('manifest_sha256')==hashlib.sha256(open('dist/wenqu-dist-1620c7c.manifest.json','rb').read()).hexdigest())
+print('sbom', {k:b.get(k) for k in ('spdxVersion','dataLicense','SPDXID','name','documentNamespace')})
+print('sbom.files',len(b.get('files',[])),'packages',len(b.get('packages',[])),'relationships',len(b.get('relationships',[])))
+PY
+echo '=== independent tool verify existing four ==='
+PYTHONPATH="$R/system" python3 "$R/tools/release_attest.py" verify --manifest "$R/dist/wenqu-dist-1620c7c.manifest.json" --keyring "$HOME/.wenqu-dist-release/release-keyring.json"
+--- OUTPUT ---
+=== four artifact inventory ===
+PATH=dist/wenqu-dist-1620c7c.tar.gz SIZE=7095163 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607  dist/wenqu-dist-1620c7c.tar.gz
+PATH=dist/wenqu-dist-1620c7c.manifest.json SIZE=155696 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560  dist/wenqu-dist-1620c7c.manifest.json
+PATH=dist/wenqu-dist-1620c7c.release.sig SIZE=620 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3  dist/wenqu-dist-1620c7c.release.sig
+PATH=dist/wenqu-dist-1620c7c.sbom.spdx.json SIZE=360080 MODE=-rw-r--r-- MTIME=2026-10-08T20:37:48+0800
+76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e  dist/wenqu-dist-1620c7c.sbom.spdx.json
+=== keyring metadata only, NO CONTENT ===
+PATH=/Users/maccc/.wenqu-dist-release/release-keyring.json SIZE=354 MODE=-rw------- UID=502 GID=20 MTIME=2026-10-08T17:49:43+0800
+=== manifest/sig/sbom independent fields ===
+manifest.schema wenqu-release-manifest/1
+manifest.source_commit 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d full40 True
+manifest.policy_hash {'plan_sha256': '96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306'} plan_hash_len 61 equals_frozen_plan False
+manifest.version 3.7.1 n_files 642 artifact {'deterministic_gzip': 'mtime=0, level=9 —— 同 commit 重建字节一致', 'path': 'wenqu-dist-1620c7c.tar.gz', 'sha256': 'e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607', 'size': 7095163, 'source': 'git archive 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (clean tree from commit object)'}
+sig {'schema': 'wenqu-release-sig/1', 'algorithm': 'HMAC-SHA256', 'key_id': 'key_release_w6p1f', 'manifest_sha256': None, 'honesty_note': None}
+sig.manifest_hash_match False
+sbom {'spdxVersion': 'SPDX-2.3', 'dataLicense': 'CC0-1.0', 'SPDXID': 'SPDXRef-DOCUMENT', 'name': 'wenqu-dist-1620c7c', 'documentNamespace': 'https://wenqu-dist.invalid/spdx/rel-1620c7c-20261008T094952Z/e2243329c33eb003'}
+sbom.files 642 packages 1 relationships 643
+=== independent tool verify existing four ===
+  PASS  manifest-schema  build_id=rel-1620c7c-20261008T094952Z
+  PASS  artifact-hash  sha256=e2243329c33eb003… size=7095163
+  PASS  files-reconcile  642/642 path+type+mode+size+sha256 全符
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=642 root=3.7.1
+  PASS  build-identity  commit=1620c7c030bd… built_at=2026-10-08T09:49:52Z tool=release_attest.py@1.0.0
+VERIFY OK
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:53:00Z

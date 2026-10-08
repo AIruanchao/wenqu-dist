@@ -16,8 +16,13 @@ NotImplemented 占位），后续接线时替换实现、签发语义不变。
 1. 高危类型（prod_write/ddl/release/fund_auth）强制双人规则：
    ``--confirm-two-persons`` + 第二签发人 key 联签（co-signature）——
    第二 key 对同一信封体再算一个独立 HMAC，**两个签名都验**才落审计。
-   联签记录落在签发审计账本（不在信封内——approval-v2 顶层键集封闭，
-   消费端 ApprovalBroker 不校验联签；此为诚实边界，见模块尾部注释）。
+   R7-AUTH-DUAL-CONSUME-005 根修（2026-10-08）：联签不再只落签发审计
+   账本——**嵌入信封**（envelope.cosignatures：主签人 + 第二签发人，
+   两名不同 key 对同一信封体的独立 HMAC）；消费端
+   （wenqu_pipeline.ApprovalBroker）对高危类型强制验证 ≥2 名不同、
+   各自可验、非 revoked key 的联签，缺失/单签/同 key 双签一律拒。
+   兼容面：联签记录同时以外置 dict 返回（result["co_signature"]）并落
+   审计账本（who/when/批了什么的既有对账面零变化）。
 2. 签发审计账本（append-only jsonl + 哈希链）：谁（actor）/何时（ts）/
    批了什么（approval_id/type/run_id/task_id/decision/payload 摘要）/
    TTL（issued_at/expires_at/ttl_seconds）+ key_id + nonce 摘要（**不落
@@ -70,9 +75,11 @@ from .wenqu_pipeline import (  # noqa: F401 —— 单一正源，杜绝规格�
     _APPROVAL_TYPES,
     ApprovalBroker,
     ApprovalRejected,
+    HIGH_RISK_APPROVAL_TYPES,
     SevenStageStateMachine,
     STOP_PRECONDITION_SPECS,
     STAGES,
+    approval_payload_digest,
 )
 
 __all__ = [
@@ -94,10 +101,10 @@ __all__ = [
 #: 签发审计账本格式版本
 APPROVAL_ISSUANCE_SCHEMA_VERSION = "1.0"
 
-#: 高危审批类型——强制双人规则（--confirm-two-persons + 第二 key 联签）
-HIGH_RISK_APPROVAL_TYPES = frozenset({
-    "prod_write", "ddl", "release", "fund_auth",
-})
+#: 高危审批类型——强制双人规则（--confirm-two-persons + 第二 key 联签）。
+#: R7-AUTH-DUAL-CONSUME-005 起单一正源=wenqu_pipeline（消费端同集合），
+#: 此处为再导出（CLI/测试既有导入路径不变）。
+HIGH_RISK_APPROVAL_TYPES = HIGH_RISK_APPROVAL_TYPES  # noqa: F811 —— re-export
 
 #: 非停等类审批的 stop_type 缺省（结构必填但语义弱；resume 必须显式给真实停等）
 DEFAULT_STOP_TYPE: Dict[str, str] = {
@@ -573,9 +580,21 @@ class ApprovalIssuer:
         envelope.pop("signature", None)
         envelope["signature"] = sign_envelope(secret, envelope)
 
+        # R7-AUTH-DUAL-CONSUME-005：高危联签嵌入信封（消费端契约要求
+        # envelope 携带 cosignatures——主签 + 第二签发人签，两名不同 key
+        # 对同一「信封体」的独立 HMAC；sign_envelope 排除 signature/
+        # cosignatures 两键，故主签名对联签数组不敏感、联签各自可验）。
+        # 兼容保留：联签记录同时以外置 dict 形态返回（result["co_signature"]，
+        # 审计/对账既有消费面零变化）。
         co_signature: Optional[Dict[str, Any]] = None
         if co_secret is not None:
             co_hex = sign_envelope(co_secret, envelope)
+            envelope["cosignatures"] = [
+                {"key_id": chosen_key_id, "actor": actor,
+                 "signature": envelope["signature"]},
+                {"key_id": second_key_id, "actor": second_actor,
+                 "signature": co_hex},
+            ]
             co_signature = {
                 "schema_version": APPROVAL_ISSUANCE_SCHEMA_VERSION,
                 "approval_id": envelope["approval_id"],
@@ -585,6 +604,7 @@ class ApprovalIssuer:
                 "second_actor": second_actor,
                 "co_signature": co_hex,
                 "ts": _utc_now_iso(now_epoch),
+                "embedded_in_envelope": True,
             }
 
         # 7. 双签名自验（先于任何落账——签出来就必须两个签名都真）
@@ -628,6 +648,9 @@ class ApprovalIssuer:
             "second_actor": second_actor,
             "co_signature": (co_signature or {}).get("co_signature"),
             "payload_fields": sorted(payload),
+            "payload_digest": approval_payload_digest(payload),
+            "cosign_key_ids": [e.get("key_id") for e in
+                               envelope.get("cosignatures") or []],
             "source": used_source.name,
             "delivery": delivery,
         })

@@ -1,0 +1,76 @@
+UTC_START=2026-10-08T12:50:02Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /private/tmp/reaudit7-d32c859-runtime && echo "--- dashboard/server.py sha ---" && shasum -a 256 system/dashboard/server.py && echo "--- legacy dashboard sha ---" && shasum -a 256 system/bin/wenqu-dashboard.py && echo "--- server routes/405/health ---" && rg -n "api/v1|WRITE_DISABLED|405|health|do_POST|do_PUT|do_DELETE|ThreadingHTTPServer|HTTPServer|7789" system/dashboard/server.py system/bin/wenqu-dashboard.py system/install.sh system/launchd 2>/dev/null | head -300 && echo "--- stored switch evidence ---" && find evidence -type f -iname "*7789*" -o -iname "*modular*" | sort && if test -f evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json; then cat evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json; fi
+--- OUTPUT ---
+--- dashboard/server.py sha ---
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  system/dashboard/server.py
+--- legacy dashboard sha ---
+ee926b4ce7651cab07632df0f0b4a8ce608192c0e3fb567273902653dd6b2a8d  system/bin/wenqu-dashboard.py
+--- server routes/405/health ---
+system/dashboard/server.py:8:  - 不变量 10：dashboard 只能等于或比权威聚合器更保守——/api/v1/health 只读 gate_aggregator
+system/dashboard/server.py:10:第一阶段（写接口关闭）：POST /api/decide → 405。
+system/dashboard/server.py:13:  python3 server.py [--port 7789] [--log]
+system/dashboard/server.py:14:  python3 server.py --port 7789 --self-check   # 自检输出 PASS 并退出
+system/dashboard/server.py:26:from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+system/dashboard/server.py:32:PORT_DEFAULT = 7789
+system/dashboard/server.py:135:def _health_history_path():
+system/dashboard/server.py:140:def health_history_writer(stop_evt):
+system/dashboard/server.py:143:    path = _health_history_path()
+system/dashboard/server.py:307:def read_health_history():
+system/dashboard/server.py:310:        with open(_health_history_path(), encoding="utf-8", errors="ignore") as f:
+system/dashboard/server.py:635:    # ── GET：严格只读（零写路径；health 只读 aggregator 快照） ──
+system/dashboard/server.py:646:        if not path.startswith("/api/v1/"):
+system/dashboard/server.py:647:            return self._err(404, "API_VERSION_REQUIRED", "API 已版本化为 /api/v1/*；未版本化路径已废止")
+system/dashboard/server.py:648:        ep = path[len("/api/v1/"):]
+system/dashboard/server.py:665:        if ep == "health":
+system/dashboard/server.py:672:        if ep == "health-history":
+system/dashboard/server.py:673:            return self._json(200, read_health_history())
+system/dashboard/server.py:687:        return self._err(404, "NOT_FOUND", "未知端点：/api/v1/%s" % ep)
+system/dashboard/server.py:707:    # ── POST：第一阶段写接口全关（/api/decide → 405）；其余路径做体量/类型校验后 404 ──
+system/dashboard/server.py:708:    def do_POST(self):
+system/dashboard/server.py:712:        if path in ("/api/decide", "/api/v1/decide"):
+system/dashboard/server.py:714:            return self._err(405, "WRITE_DISABLED",
+system/dashboard/server.py:743:        self._err(405, "METHOD_NOT_ALLOWED", "方法不被允许", allow="GET, HEAD")
+system/dashboard/server.py:745:    do_PUT = _method_not_allowed
+system/dashboard/server.py:747:    do_DELETE = _method_not_allowed
+system/dashboard/server.py:789:    ck("app.js textContent + showTab(data-t) + /api/v1/",
+system/dashboard/server.py:790:       "textContent" in js and "dataset.t" in js and "showTab" in js and "/api/v1/" in js)
+system/dashboard/server.py:792:    ck("server.py 关键控制存在（版本化/限速/405/Host/回环绑定）",
+system/dashboard/server.py:793:       all(t in src for t in ("/api/v1/", "RateLimiter", "405", "_host_ok", "127.0.0.1", "ThreadingHTTPServer")))
+system/dashboard/server.py:799:        srv = ThreadingHTTPServer(("127.0.0.1", bind_port), Handler)
+system/dashboard/server.py:802:        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+system/dashboard/server.py:843:        s, _, _, j = req("GET", "/api/v1/ping")
+system/dashboard/server.py:844:        ck("GET /api/v1/ping → 200 pong", s == 200 and isinstance(j, dict) and j.get("pong") is True)
+system/dashboard/server.py:845:        s, _, _, j = req("GET", "/api/v1/components")
+system/dashboard/server.py:846:        ck("GET /api/v1/components → 200 含 version", s == 200 and isinstance(j, dict) and "version" in j)
+system/dashboard/server.py:847:        s, _, _, j = req("GET", "/api/v1/health")
+system/dashboard/server.py:848:        ck("/api/v1/health 读 gate_aggregator（200 判定透传 或 503 结构化 ERROR，绝不 200+空集）",
+system/dashboard/server.py:854:        ck("POST /api/decide → 405（第一阶段写接口关闭）",
+system/dashboard/server.py:855:           s == 405 and isinstance(j, dict) and j.get("error", {}).get("code") == "WRITE_DISABLED")
+system/dashboard/server.py:856:        s, _, _, _ = req("POST", "/api/v1/decide", headers={"Content-Type": "application/json"}, body="{}")
+system/dashboard/server.py:857:        ck("POST /api/v1/decide → 405", s == 405)
+system/dashboard/server.py:867:        s, _, _, j = req("POST", "/api/v1/x", headers={"Content-Length": "1000000"}, body="x")
+system/dashboard/server.py:869:        s, _, _, j = req("POST", "/api/v1/x", headers={"Content-Type": "text/plain"}, body="hello")
+system/dashboard/server.py:874:        s, _, _, _ = req("OPTIONS", "/api/v1/ping")
+system/dashboard/server.py:875:        ck("OPTIONS（CORS 预检）→ 405 且无 ACAO", s == 405)
+system/dashboard/server.py:879:            st, _, _, _ = req("GET", "/api/v1/ping")
+system/dashboard/server.py:909:    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # 仅回环绑定
+system/dashboard/server.py:911:    writer = threading.Thread(target=health_history_writer, args=(stop_evt,), daemon=True,
+system/dashboard/server.py:912:                              name="health-history-writer")  # 写入与 GET 解耦：独立定时任务
+system/dashboard/server.py:915:    print(f"  health 正源 = gate_aggregator 快照（{os.environ.get('WENQU_GATE_AGGREGATE') or os.path.join(WQ, 'state', 'gate-aggregate.json')}）")
+system/bin/wenqu-dashboard.py:16:from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+system/bin/wenqu-dashboard.py:20:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+system/bin/wenqu-dashboard.py:219:  <div class="card" style="grid-column:1/-1;border-color:#3fb950" id="healthcard"><h2>❤️ 系统健康度</h2><div id="health">载入中…</div></div>
+system/bin/wenqu-dashboard.py:326: {n:7,name:'perf-baseline-runner',st:'季度档',badge:'✅现役',one:'绝对阈值+相对退化双判性能基线',det:'launchd 季度首日 05:00；首基线 CLEAN（登录 p95≈90ms / health p95≈166ms / 单进程 RSS 1623MB / PG 12 连接）'},
+system/bin/wenqu-dashboard.py:507:  const h=await j('/api/health');const hbox=document.getElementById('health');
+system/bin/wenqu-dashboard.py:521:  {const hh=await j('/api/health-history').catch(()=>[]);
+system/bin/wenqu-dashboard.py:522:   const hc=document.getElementById('health');
+system/bin/wenqu-dashboard.py:760:_EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
+system/bin/wenqu-dashboard.py:933:    def do_POST(self):
+system/bin/wenqu-dashboard.py:1040:        if self.path == "/api/health":
+system/bin/wenqu-dashboard.py:1041:            b = _CACHE.setdefault("health", _CacheEntry())
+system/bin/wenqu-dashboard.py:1179:        if self.path == "/api/health-history":
+system/bin/wenqu-dashboard.py:1366:    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+--- END OUTPUT ---
+EXIT_CODE=2
+UTC_END=2026-10-08T12:50:02Z

@@ -1,0 +1,32 @@
+system/wenqu_core/station7_runtime.py:2:"""station7_runtime.py——Codex 方案 W6D：Bug 八站·站7 运行时适配器（含站5/站6 占位）。
+system/wenqu_core/station7_runtime.py:30:站5/站6 占位接口（本批 W6D 范围声明）：
+system/wenqu_core/station7_runtime.py:32:  exact-scope 生产写授权），本批仅定义接口签名 + NOT_APPLICABLE 输出；
+system/wenqu_core/station7_runtime.py:34:  S5 独立审计）与 wenqu charter/ingest 工具链，本批同样仅占位。
+system/wenqu_core/station7_runtime.py:35:- 两者与站7 同属生产/事件域，占位集中放本文件；IMPLEMENTED=False 是
+system/wenqu_core/station7_runtime.py:136:    """告警通道规格非法：argv 模板缺 {token} 占位符、回执路径缺失。"""
+system/wenqu_core/station7_runtime.py:230:    active = [v for v in verdicts if v != "NOT_APPLICABLE"]
+system/wenqu_core/station7_runtime.py:232:        return "NOT_APPLICABLE"
+system/wenqu_core/station7_runtime.py:681:                "strings containing the {token} placeholder"
+system/wenqu_core/station7_runtime.py:926:# 站5/站6 占位接口（W6D 本批：仅签名 + NOT_APPLICABLE，不实现扫描逻辑）
+system/wenqu_core/station7_runtime.py:931:    """站5 实弹面占位接口。
+system/wenqu_core/station7_runtime.py:933:    为何占位：实弹=真实业务流全链操作，生产写须所有者明确口令（一次性
+system/wenqu_core/station7_runtime.py:940:      清单占位；
+system/wenqu_core/station7_runtime.py:942:      policy_verdict=NOT_APPLICABLE（对齐注册表判据：error=生产写授权
+system/wenqu_core/station7_runtime.py:944:    - actual_exit_code=0 语义=占位判定逻辑自身在进程内完成
+system/wenqu_core/station7_runtime.py:946:      业务写；coverage 0/0=占位未定义业务流断言点（非 vacuous pass——
+system/wenqu_core/station7_runtime.py:947:      verdict 已是 NOT_APPLICABLE）。
+system/wenqu_core/station7_runtime.py:964:        argv = ["wenqu_core.station7_runtime", "station5-live-fire-placeholder",
+system/wenqu_core/station7_runtime.py:969:            attempt_id=_attempt_id(self._manifest.run_id, "st5-placeholder"),
+system/wenqu_core/station7_runtime.py:971:            policy_verdict="NOT_APPLICABLE",
+system/wenqu_core/station7_runtime.py:991:    """站6 对抗面占位接口。
+system/wenqu_core/station7_runtime.py:993:    为何占位：对抗面走 ``wenqu charter`` 发射反方评审 + ``wenqu ingest``
+system/wenqu_core/station7_runtime.py:1000:    - 本批一律产出 BLOCKED + NOT_APPLICABLE；actual_exit_code=0 语义同
+system/wenqu_core/station7_runtime.py:1001:      Station5LiveFirePlaceholder（占位判定进程内完成）。
+system/wenqu_core/station7_runtime.py:1018:        argv = ["wenqu_core.station7_runtime", "station6-adversarial-placeholder",
+system/wenqu_core/station7_runtime.py:1023:            attempt_id=_attempt_id(self._manifest.run_id, "st6-placeholder"),
+system/wenqu_core/station7_runtime.py:1025:            policy_verdict="NOT_APPLICABLE",
+system/wenqu_core/station7_runtime.py:1273:        # [5] 站5/站6 占位 ---------------------------------------------------
+system/wenqu_core/station7_runtime.py:1277:        assert st5["station_id"] == 5 and st5["policy_verdict"] == "NOT_APPLICABLE"
+system/wenqu_core/station7_runtime.py:1282:        assert st6["station_id"] == 6 and st6["policy_verdict"] == "NOT_APPLICABLE"
+system/wenqu_core/station7_runtime.py:1285:        print("[5] placeholders OK: 站5/站6 占位 → BLOCKED/NOT_APPLICABLE（含授权参数亦然）")
+system/wenqu_core/bugscan_orchestrator.py:1310:           ("PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"),

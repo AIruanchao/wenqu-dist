@@ -1,0 +1,92 @@
+CAPTURED_AT=2026-10-08T15:56:05,782818000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_infra_hardening.py 
+--- OUTPUT ---
+== 基础设施加固对抗自测（19 组）==
+-- test_install_component_damage_fails_closed
+  ✓ F install 组件损坏后 rc≠0（doctor 不再被 || true 吞掉）
+  ✓ F install 报组件缺失中止
+-- test_install_missing_core_module_fails_closed
+  ✓ F install 删 wenqu_pipeline 后 rc≠0（fail-closed）
+  ✓ F install 明确报 wenqu_pipeline 导入失败
+-- test_install_normal_succeeds
+  ✓ F install 完好安装 rc=0
+  ✓ F install 全模块验证输出（含 wenqu_pipeline 语义）
+  ✓ F install tar 管道保 exec 位（bin/wenqu 可执行）
+-- test_p03_empty_required_stations_blocked
+  ✓ P0-3 空 required_stations 仍 BLOCKED（真空 PASS 拒绝）
+-- test_p03_legacy_fields_backcompat
+  ✓ P0-3 legacy 双站 PASS 聚合为 PASS
+  ✓ P0-3 legacy 条目标记 input_version=legacy
+  ✓ P0-3 legacy 同站冲突证据 -> BLOCKED
+-- test_p03_v2_full_chain_aggregator_to_dashboard_accept
+  ✓ P0-3 v2 双站 PASS 聚合为 PASS
+  ✓ P0-3 聚合输出含 generated_at（dashboard 强制）
+  ✓ P0-3 聚合输出含 policy_verdict（dashboard 强制）
+  ✓ P0-3 v2 站点登记为 required（station_id 键）
+  ✓ P0-3 dashboard read_gate_aggregate 对聚合输出 ACCEPT
+-- test_p03_v2_hard_semantics_fail_closed
+  ✓ P0-3 v2 policy FAIL -> BLOCKED
+  ✓ P0-3 v2 NOT_APPLICABLE -> CONDITIONAL（绝不上绿）
+  ✓ P0-3 v2 execution TIMEOUT+声称 PASS -> 整站硬失败（铁律2 纵深）
+  ✓ P0-3 v2 identity 缺失 -> BLOCKED（missing_field:identity）
+  ✓ P0-3 v2 commit_sha 与 target_sha 不一致 -> BLOCKED
+-- test_p05_cas_hardlink_preplant_must_be_rejected
+  ✓ P0-5 CAS hardlink 预置被拒（st_nlink>1）
+  ✓ P0-5 CAS contains() 对 hardlink 返回 False
+  ✓ P0-5 CAS get() 对 hardlink 拒绝
+-- test_p05_cas_interrupted_write_leaves_no_poison
+  ✓ P0-5 CAS 中途写失败向上抛出
+  ✓ P0-5 CAS 中途失败后最终路径不存在
+  ✓ P0-5 CAS 中途失败后无 .tmp 残留
+-- test_p05_cas_poison_file_selfheals
+  ✓ P0-5 CAS 毒文件重试 put 自愈成功
+  ✓ P0-5 CAS 自愈后 get 返回完整证据
+  ✓ P0-5 CAS 完好幂等 put 成功
+-- test_p05_cas_shard_symlink_swap_attack_must_fail
+  ✓ P0-5 CAS shard symlink 替换攻击被拒（IntegrityError）
+  ✓ P0-5 CAS 攻击后根外目录零写入
+-- test_p05_cas_sigkill_midwrite_retry_recovers
+  ✓ P0-5 CAS 子进程写 tmp 已出现（攻击窗口成立）
+  ✓ P0-5 CAS SIGKILL 后最终路径无半写毒文件
+  ✓ P0-5 CAS SIGKILL 后重试 put 成功
+  ✓ P0-5 CAS 重试后 get 完整返回
+-- test_p05_runner_allowlist_rejects_bin_sh
+  ✓ P0-5 Runner allowlist 拒绝 /bin/sh -c
+  ✓ P0-5 Runner allowlist 放行表内命令
+  ✓ P0-5 Runner 默认无 allowlist 保持宽松（兼容既有调用方）
+  ✓ P0-5 Runner 旧参数 allowed_executables 仍有效
+-- test_p05_runner_env_whitelist_default
+  ✓ P0-5 Runner 默认剥除非白名单环境变量
+  ✓ P0-5 Runner 白名单核心键在位（PATH/HOME）
+  ✓ P0-5 Runner env_passthrough 显式放行生效
+  ✓ P0-5 Runner inherit_env=True 恢复完整继承（兼容口）
+-- test_p05_runner_setsid_descendant_marker_must_fail
+  ✓ P0-5 Runner setsid 攻击被记 timed_out
+  ✓ P0-5 Runner setsid 孙进程被进程树击杀（marker 未写）
+-- test_p06_duplicate_returns_db_hash_and_head_is_chain_tip
+  ✓ P0-6 A/B 均为新插入
+  ✓ P0-6 重试 A 为 duplicate
+  ✓ P0-6 重试 A 返回 DB 中 A 的真实 hash（非按当前 head 重算）
+  ✓ P0-6 重试未新增行（DB 恰 2 条）
+  ✓ P0-6 返回的 hash 存在于 DB
+  ✓ P0-6 head()==最后一条（链头 B）的 hash
+  ✓ P0-6 verify_chain 全链 ok
+-- test_p07_mode_policy_source_exec_bit
+  ✓ P0-7 manifest 逐文件记录 mode
+  ✓ P0-7 0755 无扩展可执行文件保持可执行（0555）
+  ✓ P0-7 0644 带 shebang 的 .py 不强加 exec（0444）
+  ✓ P0-7 0755 .sh 保持可执行
+  ✓ P0-7 0644 .json 保持 0444
+-- test_p07_mode_tamper_detected_by_verify
+  ✓ P0-7 mode 篡改被 verify 检出（VerifyError.mode_drifted）
+  ✓ P0-7 恢复 mode 后 verify 通过
+-- test_p07_upgrade_selfcheck_rolls_back_via_relative_link
+  ✓ P0-7 v1 部署成功
+  ✓ P0-7 current 为相对链接（非绝对）
+  ✓ P0-7 cwd≠deploy 根时 previous 相对链接解析为存在目录（对抗旧缺陷）
+  ✓ P0-7 v2 自检失败抛 DeployError（含回滚+再验记录）
+  ✓ P0-7 回滚后 current 指回 v1（cwd 无关）
+  ✓ P0-7 回滚后 v1 自检仍通过（回滚目标健康）
+========================================
+RESULT: PASS=66 FAIL=0
+--- EXIT_CODE=0 ---

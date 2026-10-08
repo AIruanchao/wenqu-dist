@@ -1,0 +1,91 @@
+COMMAND: python3 system/tests/test_ac_station_families.py; r1=$?; python3 tools/ac_traceability.py --check --json /tmp/wq7b-vacuous-trace.json; r2=$?; echo DIRECT_SUITE_RC=$r1 TRACE_RC=$r2; grep -c '^def test_' system/tests/test_ac_station_families.py; grep -n -A4 'def test_SC_05' system/tests/test_ac_station_families.py; exit $((r1 || r2))
+WORKDIR: /tmp/wq7b-p1f-vacuous-one-365-67622
+EXIT_CODE: 0
+--- STDOUT ---
+  ok  STA-01 任一站 denominator 缩小 → 整线 BLOCKED
+  ok  STA-02 站2/3/4/7 逐站故障 → 独立取证 + aggregate BLOCKED
+  ok  DB-01 [+]/[-]/[*] → 全识别
+  ok  DB-02 仅一条 DROP COLUMN/删 FK → FAIL 不因数量少放行
+  ok  DB-03 未知格式/空输出（命令非零同型面）→ ERROR 类拒绝
+  ok  DB-04 allowlist 到期/对象 hash 变化 → FAIL
+  ok  DB-05 错 DB/role/transaction_read_only=off → BLOCKED（fail-closed 拒绝）
+  ok  DB-06 golden 规范化：catalog 键序 canonical + 对象全集去重（边界见 docstring）
+  ok  SC-01 有效 JSON+HIGH/CRITICAL → FAIL
+  ok  SC-02 空 JSON/registry 超时 → ERROR
+  ok  SC-03 install script/resolved/integrity 变化 → FAIL/人工审（新增依赖计入发现/分母）
+  ok  SC-04 标题含 [skip-audit] → 无绕过效果
+  ok  SC-05 离线快照签名错误/过期 → BLOCKED（fail-closed 源不可用）
+  ok  ADV-01 version parser 异常 → UNKNOWN（保守升 HIGH）不写 seen（不静默跳过）
+  ok  ADV-02 多页/多 range → 全遍历（截断=ERROR）
+  ok  TEN-01 Prisma alias/re-export/wrapper → 纳入分析（DMMF 分母）
+  ok  TEN-02 注释含 organizationId → 不能欺骗
+  ok  TEN-03 builder 超 300 字符 → 纳入分析（超长路径入分母并被判定）
+  ok  TEN-04 $queryRaw 跨租户 → 阻断（无租户谓词查询 finding）
+  ok  TEN-05 路径不含 export/download 的下载 → 纳入扫描
+  ok  TEN-06 Org A 访问/导出 Org B → 动态拒绝
+  ok  TEN-07 target SHA 新增 tenant model → 分母自动增加
+  ok  TEN-08 合法管理员跨租户正例/普通角色负例 → 前者通、后者拒
+  ok  PERF-01 HTTP 500 但很快 → FAIL
+  ok  PERF-02 SSH/TCC/null 指标 → ERROR 类（采集缺口缩水折叠）
+  ok  PERF-03 尾部极慢样本 → 正确进入 p95/p99（真实计算+阈值判定）
+  ok  PERF-04 输入 1→100 query count 线性 → FAIL（N+1/超阈值剖析）
+  ok  PERF-05 修改 baseline/阈值试图洗绿 → policy hash 阻断
+  ok  PERF-06 样本/时长/endpoint 分母缩水 → 不得晋升 baseline
+
+§20 六族验收测试: 29 PASS / 0 FAIL （负责 29 条；实现 29；不可实现 0）
+================================================================
+Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+生成时间: 2026-10-08T21:02:41+08:00  HEAD: d32c859f9043798d9e8a4984e8f57aa64567e33c
+目录完整性: OK  (冻结 131 ID，期望 131)
+方案交叉校验(§20 集合等式): PASS  方案侧 131 vs 冻结 131
+方案交叉校验(§20 逐 ID 语义比对): PASS  解析表格行 131（重复行 0——重复相同行/先毒后正一律红）
+方案文件 sha256 实算比对: PASS  actual=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+方案交叉校验(§25.1 映射展开+四列元数据): PASS  展开 131 vs 冻结 131
+----------------------------------------------------------------
+总计测试 ID        : 131
+专属已实现          : 131  (100.0%)
+代理部分覆盖(不计实现): 0
+缺失                : 0
+专属+代理覆盖参考   : 100.0%
+----------------------------------------------------------------
+前缀        总数    专属    代理
+GATE      12    12     0
+STATE     11    11     0
+DEP        9     9     0
+TEN        8     8     0
+MRG        7     7     0
+SCH        7     7     0
+UI         7     7     0
+ACT        6     6     0
+AUTH       6     6     0
+COND       6     6     0
+DB         6     6     0
+PERF       6     6     0
+CI         5     5     0
+MIG        5     5     0
+SC         5     5     0
+DOC        4     4     0
+REL        3     3     0
+RUN        3     3     0
+STOP       3     3     0
+ADV        2     2     0
+ALT        2     2     0
+STA        2     2     0
+BAK        1     1     0
+CAP        1     1     0
+DR         1     1     0
+HLT        1     1     0
+RB         1     1     0
+RISK       1     1     0
+----------------------------------------------------------------
+已实现 ID: ACT-01, ACT-02, ACT-03, ACT-04, ACT-05, ACT-06, ADV-01, ADV-02, ALT-01, ALT-02, AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, BAK-01, CAP-01, CI-05, CI-06, CI-07, CI-08, CI-09, COND-01, COND-02, COND-03, COND-04, COND-05, COND-06, DB-01, DB-02, DB-03, DB-04, DB-05, DB-06, DEP-01, DEP-02, DEP-03, DEP-04, DEP-05, DEP-06, DEP-07, DEP-08, DEP-09, DOC-01, DOC-02, DOC-03, DOC-04, DR-01, GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06, GATE-07, GATE-08, GATE-09, GATE-10, GATE-11, GATE-12, HLT-01, MIG-01, MIG-02, MIG-03, MIG-04, MIG-05, MRG-01, MRG-02, MRG-03, MRG-04, MRG-05, MRG-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07
+输出: ../../../tmp/wq7b-vacuous-trace.json  (扫描 45 个测试文件)
+================================================================
+DIRECT_SUITE_RC=0 TRACE_RC=0
+29
+1017:def test_SC_05_snapshot_signature_freshness_fail_closed():
+1018-    """第七轮隔离对抗：专属 ID 名称保留，但真实断言全部删除。"""
+1019-    assert True
+1020-
+1021-
+--- STDERR ---

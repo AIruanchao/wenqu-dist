@@ -1,0 +1,222 @@
+UTC_START=2026-10-08T12:54:21Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-w5-inspect.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile
+cd "$R"
+echo '=== README ==='; cat README.md
+echo '=== SUMMARY ==='; cat summary.md
+echo '=== ARTIFACT HASHES ==='; find . -type f -maxdepth 3 -print | sort | while read f; do stat -f 'SIZE=%z MODE=%Sp PATH=%N' "$f"; shasum -a 256 "$f"; done
+echo '=== REPORT STRUCTURE ==='
+python3 - <<'PY'
+import json
+p='reconcile-report.json'; d=json.load(open(p))
+print('top_type',type(d).__name__)
+if isinstance(d,dict):
+ print('keys',sorted(d))
+ for k,v in d.items():
+  if not isinstance(v,(list,dict)): print(k,repr(v))
+  elif isinstance(v,list): print(k,'LIST_LEN',len(v),'FIRST',repr(v[:2])[:1000])
+  else: print(k,'DICT_KEYS',sorted(v)[:100],repr(v)[:1000])
+PY
+echo '=== DB TABLES/COUNTS ==='
+cp migrated-events.db /tmp/reaudit7-migrated-events.sqlite
+sqlite3 /tmp/reaudit7-migrated-events.sqlite '.tables'
+for t in $(sqlite3 /tmp/reaudit7-migrated-events.sqlite "select name from sqlite_master where type='table' order by name"); do echo "---$t---"; sqlite3 -header -column /tmp/reaudit7-migrated-events.sqlite "pragma table_info($t);"; sqlite3 -header -column /tmp/reaudit7-migrated-events.sqlite "select count(*) as rows from $t;"; done
+echo '=== JSONL COUNTS ==='
+for f in staging-normalized/engine-rounds.jsonl migrated-events.db.migration-sidecar.jsonl; do echo $f; wc -l "$f"; head -3 "$f"; tail -3 "$f"; done
+--- OUTPUT ---
+=== README ===
+# 07-migration-reconcile — W5 旧账迁移对账证据
+
+## 证据类型
+
+481 条遗留 finding 记录 → 新事件正源的逐项迁移 reconciliation：
+
+- `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 全量索引（481 条，
+  若 W0 快照后分母变化须以新快照为准并解释差异）；
+- 坏 JSON/未知状态 → quarantine 清单；
+- 缺审批要素的 43 条 ACCEPTED → invalid/reopen 决策记录；
+- 两次迁移幂等性、源行数守恒校验输出。
+
+对应 §14（W5 迁移）。
+
+## 关联测试 ID
+
+MIG-01～05、STATE-06、RISK-01。
+
+## 当前状态（2026-10-08 W5 对账产出后更新）
+
+**进行中（证据面已产出，待人工裁定项在案）**：
+
+| 工件 | 状态 |
+|---|---|
+| `system/wenqu_core/ledger_migrator.py` | 存在（P0-6 第六轮统一正源契约；导入行经公共 EventStore.append 入 pipeline_events） |
+| 逐项 reconciliation 索引 | **已产出**：`reconcile-report.json`（tools/w5_reconcile.py 机器生成，可重跑；逐行 {row_id, 状态, reason, event_id}） |
+| 四态汇总 + 两次迁移幂等 + 源行数守恒 | **已产出**：`summary.md` + `migrated-events.db`（16 mapped / 1950 quarantined / 1 待人工 / 0 不一致 = 1967 非空行，守恒成立） |
+| ACCEPTED 缺要素处置记录 | **已产出**：`reconcile-report.json` 的 `accepted_adjudication` 清单（1 条 ACCEPTED-CLOSED，MIG-02 quarantine 待人工 reopen） |
+| Codex 验收 W5 评分 | 1/8 FAIL（2026-10-07，产出前口径） |
+
+口径裁定（如实记录）：方案 §14.2.7 明示「481 仅是旧 dashboard 启发式折叠数，不能充当
+原始迁移分母」；本目录正源为 持续修复引擎/engine-rounds.jsonl（1967 非空行），与
+481/43 的 quality-system findings 口径不同源，差异已写入报告 `source.caliber`。
+
+诚实边界：外部探针 `/private/tmp/codex-test/evidence/acceptance-20261007-231333/store-migrator-probes.json`
+含 Codex 方向的迁移器对抗探针结果，未固化入本仓。
+
+## 填写规则
+
+1. reconciliation 索引必须机器生成且可重跑；行数守恒校验失败即迁移失败，不得带病收尾。
+2. quarantine/invalid/reopen 每条决策须可追溯到源记录原文（脱敏后）。
+
+## 重跑方式
+
+```bash
+python3 tools/w5_reconcile.py            # /tmp 演练（fail-closed，exit 0 才可正式）
+python3 tools/w5_reconcile.py --formal   # 重产本目录三件套（append-only 幂等）
+```
+=== SUMMARY ===
+# W5 旧账迁移对账报告（reconciliation summary）
+
+- 生成：2026-10-08T09:29:58.137411+00:00（mode=formal，tool=tools/w5_reconcile.py，git_head=1620c7c030bd1ea5eb096e0509b7f864c4e90a6d）
+- 源：`/Users/maccc/Documents/ERP）Zcode/持续修复引擎`（1967 非空行；全程只读，SHA256 前后逐字节一致）
+- 事件正源：pipeline_events（写入 API=EventStore.append；db=`/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db`）
+
+## 口径差异（如实记录）
+
+- 预期口径：~481 条 / 43 ACCEPTED —— 24 OPEN + 4 FIXING + 172 FIXED + 67 VERIFIED + 158 CLOSED + 43 ACCEPTED + 13 OTHER = 481（quality-system findings ledger 口径）
+- 实际口径：1967 行 / ACCEPTED 味 1 条
+- 裁定：实际 1967 行 / ACCEPTED 味 1 条，与方案 ~481/43 口径不一致（不同源），如实记录。方案 §14.2.7 明示 481 仅是旧 dashboard 折叠数，不能充当迁移分母；本报告以逐行实扫为分母。
+
+## 四态汇总
+
+| 状态 | 行数 |
+|---|---|
+| mapped（已入统一事件库） | 16 |
+| quarantined（确定性隔离） | 1950 |
+| 待人工（ACCEPTED 裁定） | 1 |
+| 不一致（对账失配，必须=0） | 0 |
+| **合计（=源非空行数）** | **1967** |
+
+- 守恒等式 `source_nonblank == mapped + quarantined + 待人工 + 不一致` → conserved=True
+- quarantine 原因分布：`{"missing_field:ts": 40, "no_mappable_status": 1910}`
+
+## 幂等与完整性验证
+
+- 两次迁移：run1 imported=0/dup=16/quarantine=1；run2 imported=0/dup=16/quarantine=1
+- 行集逐字节一致（run1 快照==run2 快照）：True
+- 库逻辑快照 SHA（跨运行可比）：`f5bbaebe90b54888c2c12f2c23bb0ab3d1bb5d7ff97ff419e996fee41d2f5860`
+- 哈希链 verify_chain：True（head=fe929c37e3416f31…，共 16 事件，其中 LEDGER_MIGRATED 16 条）
+- 源文件字节不变：True
+- 孤儿事件（库内有、staging 无）：0
+- 全部检查通过：**True**
+
+## ACCEPTED 裁定清单（单独）
+
+1. `/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl` 行 1873：verdict=`ACCEPTED-CLOSED`
+   - 项目上下文：`{"task": "wenqu-v3.5.1-bugdeck"}`
+   - row_id=`b622d1e3824cb37ce5f62505c2b73b833ea37f60f10e5aa8151a53d080e1d9ca`；处置：迁移器 quarantine（unknown_status:ACCEPTED*，MIG-02 不猜映射）；人工裁定补齐审批要素后另行再录（reopen 通道）
+   - 原文预览：{"round": "r1630", "utc": "2026-10-06T19:14Z", "task": "wenqu-v3.5.1-bugdeck", "verdict": "ACCEPTED-CLOSED", "summary": "bug管线动态页第四页签（账本状态机实数据481/OPEN31+post-fi
+
+## 规范化规则（确定性）
+
+- ts 别名链：['ts', 'ts_utc', 'utc', 'timestamp', 'time']
+- status 候选链：['status', 'verdict', 'state', 'result']
+- 别名正源：wenqu_core.ledger_migrator.STATUS_ALIASES（冻结正源，本工具零自造别名）
+- 不猜填：候选值不在冻结别名表（DONE/PARTIAL/MERGED/ALL-GREEN/master=… 长文本等）一律 quarantine 记因；FIXED→FIXED_PENDING_VERIFY 由迁移器执行（M3）。
+
+## 诚实边界
+
+- 本源为引擎轮次工作日志（action 叙事行占绝大多数），非状态账本——quarantine 主因 `no_mappable_status` 属源数据本性，非工具缺陷；
+- 未写任何生产库；legacy 源目录零写入（SHA 前后一致已证）；
+- project key 冲突（MIG-05）在本真实源上计 0 例（可映射行均无 project 字段；MIG-05 行为面由 system/tests/test_ac_state_mig.py 合成旧账 fixture 逐字覆盖）。
+=== ARTIFACT HASHES ===
+SIZE=2492 MODE=-rw-r--r-- PATH=./README.md
+a8d9a79f4e0faae5f7cd0a7300916ae3a2c60159b95a4929796bfac2ab3ce04d  ./README.md
+SIZE=40960 MODE=-rw-r--r-- PATH=./migrated-events.db
+f83f40c3dfad8058b57d9e5d341319c4bce7369e0fdac12789bcb67e2082f2bd  ./migrated-events.db
+SIZE=17660 MODE=-rw-r--r-- PATH=./migrated-events.db.migration-sidecar.jsonl
+f948564ef0895641c775ee762dcde3aa7e131cd78e48bf7dad68b685048b2044  ./migrated-events.db.migration-sidecar.jsonl
+SIZE=1367435 MODE=-rw-r--r-- PATH=./reconcile-report.json
+a4d2721c52ab756f3c897ddadf56366a11c9a6657c73e8b35af134a6948052bf  ./reconcile-report.json
+SIZE=7911 MODE=-rw-r--r-- PATH=./staging-normalized/engine-rounds.jsonl
+4115949f1977a510e68e7d25c96e7b465ca361727943a6ed34b020f7ee786944  ./staging-normalized/engine-rounds.jsonl
+SIZE=3540 MODE=-rw-r--r-- PATH=./summary.md
+3e9ffee1401103023106d8c173459834b915e414b4f3a4da61fb48b55c0f22a0  ./summary.md
+=== REPORT STRUCTURE ===
+top_type dict
+keys ['accepted_adjudication', 'artifact', 'description', 'event_store', 'four_state_summary', 'generated_at', 'git_head', 'mode', 'normalization', 'quarantine_reasons', 'rows', 'runs', 'source', 'started_at', 'tool', 'verification']
+accepted_adjudication LIST_LEN 1 FIRST [{'disposition': '迁移器 quarantine（unknown_status:ACCEPTED*，MIG-02 不猜映射）；人工裁定补齐审批要素后另行再录（reopen 通道）', 'field': 'verdict', 'line_no': 1873, 'preview': '{"round": "r1630", "utc": "2026-10-06T19:14Z", "task": "wenqu-v3.5.1-bugdeck", "verdict": "ACCEPTED-CLOSED", "summary": "bug管线动态页第四页签（账本状态机实数据481/OPEN31+post-fix五步巡游+加固三卡+军火库12件+盲区16条）", "gate": "用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1", "evidence": "quality-system evid', 'project_context': {'task': 'wenqu-v3.5.1-bugdeck'}, 'raw_value': 'ACCEPTED-CLOSED', 'row_id': 'b622d1e3824cb37ce5f62505c2b73b833ea37f60f10e5aa8151a53d080e1d9ca', 'source_file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl'}]
+artifact 'w5-migration-reconcile'
+description 'W5 旧账 reconciliation：legacy jsonl 逐行规范化→LedgerMigrator（EventStore.append 统一正源 pipeline_events）→逐行对账+四态汇总+ACCEPTED 裁定清单（方案 §14/§20.2 MIG-01~05）'
+event_store DICT_KEYS ['chain_head', 'chain_verified', 'db_logical_snapshot_sha', 'db_path', 'event_count_total', 'ledger_migrated_events', 'orphan_events', 'table', 'write_api'] {'chain_head': 'fe929c37e3416f3145ead6e23459ccad3f2b2839f9482b6841c5752b35b34e7d', 'chain_verified': True, 'db_logical_snapshot_sha': 'f5bbaebe90b54888c2c12f2c23bb0ab3d1bb5d7ff97ff419e996fee41d2f5860', 'db_path': '/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db', 'event_count_total': 16, 'ledger_migrated_events': 16, 'orphan_events': [], 'table': 'pipeline_events', 'write_api': 'EventStore.append'}
+four_state_summary DICT_KEYS ['mapped', 'quarantined', 'total', '不一致', '待人工'] {'mapped': 16, 'quarantined': 1950, 'total': 1967, '不一致': 0, '待人工': 1}
+generated_at '2026-10-08T09:29:58.137411+00:00'
+git_head '1620c7c030bd1ea5eb096e0509b7f864c4e90a6d'
+mode 'formal'
+normalization DICT_KEYS ['alias_table', 'known_statuses', 'row_id_formula', 'status_candidate_fields', 'ts_alias_fields'] {'alias_table': 'wenqu_core.ledger_migrator.STATUS_ALIASES（冻结正源，本工具零自造别名）', 'known_statuses': ['BLOCKED', 'CONDITIONAL', 'FAIL', 'FIXED_PENDING_VERIFY', 'PASS'], 'row_id_formula': "sha256(source_file_abs + '\\n' + line_no + '\\n' + raw_line)", 'status_candidate_fields': ['status', 'verdict', 'state', 'result'], 'ts_alias_fields': ['ts', 'ts_utc', 'utc', 'timestamp', 'time']}
+quarantine_reasons DICT_KEYS ['missing_field:ts', 'no_mappable_status'] {'missing_field:ts': 40, 'no_mappable_status': 1910}
+rows LIST_LEN 1967 FIRST [{'duplicate_in_run': True, 'event_id': 'f1816041e1e6952c993155e3bf508edf4cd74fe9b7c31a2cd8ec13c6ff74f288', 'line_no': 1, 'mapped_from': 'result', 'preview': '{"ts": "2026-09-14T16:15:58+08:00", "step": "主会话", "action": "删7旧cron+挂引擎(automation-2716c404)", "result": "ok"}', 'reason': None, 'row_id': 'fa9dc3baf6d8e5b81ede14ec491b7aaa9935ad06a7336785335cf04ff276733b', 'source_file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl', 'state': 'mapped', 'status_normalized': 'PASS'}, {'duplicate_in_run': False, 'event_id': None, 'line_no': 2, 'mapped_from': None, 'preview': '{"ts": "2026-09-14T16:15:58+08:00", "step": "主会话", "action": "PC-w34 部署 b99efc84（虚标防线首拦→探针修正→DEPLOY_HEAD配对→放行）", "result": "绿蓝双b99efc84+health200"}', 'reason': 'no_mappable_status(candidates=result)', 'row_id': 'fdd9f0ff49514962a6c6d72f648de36ca352ffe9b3bddc89c17b084caf4ed476', 'source_file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl', 'state': 'quarantined', 'status_normalized': None}]
+runs DICT_KEYS ['run1', 'run2'] {'run1': {'conservation': {'duplicates': 16, 'equation': 'lines_total == imported + duplicates + quarantined', 'imported': 0, 'lines_total': 17, 'quarantined': 1}, 'conserved': True, 'event_table': 'pipeline_events', 'files_scanned': 1, 'imported_status_counts': {}, 'per_file': [{'duplicates': 16, 'file': '/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl', 'imported': 0, 'lines': 17, 'quarantined': 1}], 'project_key_conflicts': {}, 'quarantine_reasons': {'unknown_status:ACCEPTED-CLOSED': 1}, 'sidecar_path': '/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl', 'source_dir': '/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized', 'sqlite_path': '/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db', 'write_api': 'EventStore.append'}, 'run2': {'conservation': {'duplicates': 16, 'equation': 'lines_total == importe
+source DICT_KEYS ['caliber', 'dir', 'files', 'skipped_files', 'total_nonblank_lines'] {'caliber': {'actual_accepted_flavor': 1, 'actual_rows': 1967, 'expected': {'caliber_breakdown_from_plan_14_3': '24 OPEN + 4 FIXING + 172 FIXED + 67 VERIFIED + 158 CLOSED + 43 ACCEPTED + 13 OTHER = 481（quality-system findings ledger 口径）', 'expected_accepted': 43, 'expected_rows': '~481', 'note': '本工具正源是 持续修复引擎/engine-rounds.jsonl（引擎轮次工作日志），与方案 §14.3 的 481-finding 口径不同源；实际行数与 ACCEPTED 计数以逐行实扫为准，差异如实记录，不强行对齐、不用 481 充当分母。'}, 'verdict': '实际 1967 行 / ACCEPTED 味 1 条，与方案 ~481/43 口径不一致（不同源），如实记录'}, 'dir': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎', 'files': [{'blank_lines': 0, 'bytes': 833858, 'bytewise_unchanged': True, 'file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl', 'nonblank_lines': 1967, 'sha256': 'cd0b1dd2149a0a0c4ab3beef9f1c3da6ab85b872c9ab4ad517701817de45b2ff', 'sha256_after': 'cd0b1dd2149a0a0c4ab3beef9f1c3da6ab85b872c9ab4ad517701817de45b2ff'}], 'skipped_files': [{'file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/README.md', 'reason': 'suffix not .jsonl (frozen scan
+started_at '2026-10-08T09:29:58.111153+00:00'
+tool 'tools/w5_reconcile.py'
+verification DICT_KEYS ['all_checks_passed', 'chain_verified', 'conservation', 'idempotent', 'source_bytewise_unchanged'] {'all_checks_passed': True, 'chain_verified': True, 'conservation': {'conserved': True, 'equation': 'source_nonblank == mapped + quarantined + 待人工 + 不一致', 'mapped': 16, 'quarantined': 1950, 'source_nonblank': 1967, '不一致': 0, '待人工': 1}, 'idempotent': {'prior_db_existed': True, 'rowset_identical': True, 'run1_duplicates': 16, 'run1_imported': 0, 'run1_quarantined': 1, 'run2_duplicates': 16, 'run2_imported': 0, 'run2_imported_zero': True, 'run2_quarantined': 1, 'snapshot_sha_identical': True}, 'source_bytewise_unchanged': True}
+=== DB TABLES/COUNTS ===
+migration_runs   pipeline_events
+---migration_runs---
+cid  name           type     notnull  dflt_value       pk
+---  -------------  -------  -------  ---------------  --
+0    run_id         INTEGER  0                         1 
+1    finished_at    TEXT     1        datetime('now')  0 
+2    files_scanned  INTEGER  1                         0 
+3    lines_total    INTEGER  1                         0 
+4    imported       INTEGER  1                         0 
+5    duplicates     INTEGER  1                         0 
+6    quarantined    INTEGER  1                         0 
+7    conserved      INTEGER  1                         0 
+rows
+----
+4   
+---pipeline_events---
+cid  name             type     notnull  dflt_value  pk
+---  ---------------  -------  -------  ----------  --
+0    seq              INTEGER  0                    1 
+1    event_id         TEXT     1                    0 
+2    payload          TEXT     1                    0 
+3    prev_event_hash  TEXT     1                    0 
+4    event_hash       TEXT     1                    0 
+5    created_at       REAL     1                    0 
+rows
+----
+16  
+---sqlite_sequence---
+cid  name  type  notnull  dflt_value  pk
+---  ----  ----  -------  ----------  --
+0    name        0                    0 
+1    seq         0                    0 
+rows
+----
+2   
+=== JSONL COUNTS ===
+staging-normalized/engine-rounds.jsonl
+      17 staging-normalized/engine-rounds.jsonl
+{"action": "删7旧cron+挂引擎(automation-2716c404)", "result": "ok", "status": "ok", "step": "主会话", "ts": "2026-09-14T16:15:58+08:00"}
+{"action": "锚已设 a67564b4(#430 rebase后manifest)+gate-ready在标+Fast重派(run 34823345062)", "result": "ok", "status": "ok", "step": "engine-r2", "ts": "2026-09-14T16:33:53+08:00"}
+{"action": "#430 Gate红二因=PIT-367缺family标签(#429带入master先天红)→补ci-gate-physical推送c662042b+pytest3绿+gate-ready重拨", "result": "ok", "status": "ok", "step": "engine-r4", "ts": "2026-09-14T17:13:00+08:00"}
+{"detail": "哨兵四查全绿静默轮：①PR 2 open 全有主<48h（#795 e2e R016 PIT-632 CONFLICTING 他线留观、#785 我方归域批 mergeable=UNKNOWN 计算中）零孤儿；②master 尖头 ad891b366@18:55Z 快层三绿（CI Fast/Guard Watcher/Anchor Set success）+全量 CI 37359558439/master-fast 排队在途零 failure（gh api 直读避 run list 陈账坑）；③ghost-run-cleaner 心跳 OK scanned=5；④cloud4 磁盘字节级 79.3%<85% 不报。零动作零升级，下轮收 ad891b366 全量 CI+#785/#725 状态。", "round": "r1541", "status": "GREEN", "ts": "2026-10-05T19:01:24Z", "type": "sentinel-patrol", "verdict": "GREEN"}
+{"evidence": "quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）", "gate": "用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1", "round": "r1630", "status": "ACCEPTED-CLOSED", "summary": "bug管线动态页第四页签（账本状态机实数据481/OPEN31+post-fix五步巡游+加固三卡+军火库12件+盲区16条）", "task": "wenqu-v3.5.1-bugdeck", "ts": "2026-10-06T19:14Z", "utc": "2026-10-06T19:14Z", "verdict": "ACCEPTED-CLOSED"}
+{"alerts": "disk-usage DAILY rc0", "disk": "85.06pct re-enter 85-90 daily band (+124MB/30min mild, was 84.85 r1654), disk-usage DAILY registered rc0", "heartbeat": "FIXTURE-PASS rc0, log mtime 3min", "master": "zero new red, tip 926d59f83 stale ~8.5h, e2e port-family closed (37544652587 attempt2 success), in_progress=0", "pending": "#828 author / codeload 37426146763", "pr": "1 open #831 MERGEABLE owned skip", "round": "r1655", "status": "green", "time": "2026-10-07T06:31Z/BJ14:31", "ts": "2026-10-07T06:31Z/BJ14:31", "verdict": "green"}
+migrated-events.db.migration-sidecar.jsonl
+      68 migrated-events.db.migration-sidecar.jsonl
+{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 1, "line_sha": "940b10c3e3bd5952a11b5fe49cd746c4d817d78cda24144313aa3f9217561ff0", "status": "PASS"}
+{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 2, "line_sha": "af74b762ac483d97e211048e23a7888914275401cfe8f7a9892bf87432a6b343", "status": "PASS"}
+{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 3, "line_sha": "3ab1e3cd2b96ba17a0bed10a628322d739474d86b29f5d823d44f988c490626d", "status": "PASS"}
+{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 15, "line_sha": "6ab80af85c62dc235a30814c72f3e0b559ef83df0ca844f1dd11ee64bb03c2e3"}
+{"decision": "quarantined", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 16, "line_sha": "3b42fcc58e2e9a9674037834cf5e0a0b08320ea9718d7a3a12a81627bf1fc8a1", "preview": "{\"evidence\": \"quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）\", \"gate\": \"用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1\", \"round\": \"r1630\", \"status\": \"ACCEPTED", "reason": "unknown_status:ACCEPTED-CLOSED"}
+{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 17, "line_sha": "dfad37da9f5295840f32e38a08498bacff22ecad1e597b4d186e11331ecc9645"}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:54:21Z

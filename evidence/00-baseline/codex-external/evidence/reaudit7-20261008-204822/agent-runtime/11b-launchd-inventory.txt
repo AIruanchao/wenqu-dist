@@ -1,0 +1,182 @@
+UTC_START=2026-10-08T12:50:37Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-launchinv.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+UIDN=$(id -u)
+echo UID=$UIDN
+echo LAUNCHCTL_LIST
+launchctl list | grep -i wenqu || true
+echo USER_PLISTS
+find "$HOME/Library/LaunchAgents" -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true
+echo SYSTEM_PLISTS
+find /Library/LaunchDaemons /Library/LaunchAgents -maxdepth 1 -iname '*wenqu*' -print -exec plutil -p {} \; 2>&1 || true
+--- OUTPUT ---
+UID=502
+LAUNCHCTL_LIST
+12627	-15	com.wenqu.app-relay
+-	0	com.wenqu.obs-ttest
+-	0	com.wenqu.spec-reconcile.monthly
+-	1	com.wenqu.sentinel-pulse
+-	0	com.wenqu.scheduler
+-	0	com.wenqu.sweep
+78778	-15	com.wenqu.dashboard
+-	0	com.wenqu.observation-window
+-	0	com.wenqu.observation
+USER_PLISTS
+/Users/maccc/Library/LaunchAgents/com.wenqu.observation.plist
+{
+  "EnvironmentVariables" => {
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  }
+  "Label" => "com.wenqu.observation"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/Documents/wenqu-dist/tools/observation_daily.py"
+  ]
+  "RunAtLoad" => false
+  "StandardErrorPath" => "/Users/maccc/.wenqu/observation/logs/err.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/observation/logs/out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 9
+    "Minute" => 5
+  }
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+{
+  "Label" => "com.wenqu.spec-reconcile.monthly"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "/Users/maccc/qisemi-research/qisemi-erp-fresh/scripts/gates/spec-reconcile.py"
+    2 => "--repo-root"
+    3 => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  ]
+  "StandardErrorPath" => "/tmp/spec-reconcile.err"
+  "StandardOutPath" => "/tmp/spec-reconcile.log"
+  "StartCalendarInterval" => {
+    "Day" => 1
+    "Hour" => 5
+    "Minute" => 0
+  }
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+{
+  "EnvironmentVariables" => {
+    "HOME" => "/Users/maccc"
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    "PYTHONPATH" => "/Users/maccc/Documents/wenqu-dist/system"
+    "PYTHONUNBUFFERED" => "1"
+    "WENQU_PYTHON" => "/opt/homebrew/bin/python3"
+  }
+  "Label" => "com.wenqu.scheduler"
+  "ProcessType" => "Background"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "-m"
+    2 => "wenqu_core.scheduler"
+    3 => "tick"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log"
+  "StartInterval" => 300
+  "WorkingDirectory" => "/Users/maccc/Documents/wenqu-dist"
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.wenqu.app-relay"
+  "ProgramArguments" => [
+    0 => "/usr/bin/python3"
+    1 => "/opt/wenqu-app-relay/relay.py"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/relay.err"
+  "WorkingDirectory" => "/opt/wenqu-app-relay"
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+{
+  "Label" => "com.wenqu.observation-window"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "-c"
+    2 => "
+import json, subprocess, os
+from datetime import datetime, timezone
+# 检查 auto-merge PID 文件未复活 + Gate CI 状态 + 健康分
+checks = {}
+checks["auto_merge_dead"] = not os.path.exists(os.path.expanduser("~/.wenqu/state/auto-merge.pid"))
+try:
+    r = subprocess.run(["curl","-s","http://127.0.0.1:7789/api/health"],capture_output=True,text=True,timeout=10)
+    h = json.loads(r.stdout)
+    checks["health_score"] = h.get("score")
+    checks["gate_status"] = [p.get("详情","") for p in h.get("parts",[]) if "Gate" in p.get("项","")]
+except: checks["health_score"] = "UNREACHABLE"
+# 写日志
+log = os.path.expanduser("~/Documents/ERP）Zcode/观察窗日志.jsonl")
+with open(log,"a") as f:
+    f.write(json.dumps({"ts":datetime.now(timezone.utc).isoformat(),**checks})+"\n")
+    "
+  ]
+  "StandardOutPath" => "/tmp/wenqu-obs.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 0
+  }
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.wenqu.dashboard"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/dashboard/server.py"
+    2 => "--port"
+    3 => "7789"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/dashboard-modular.err.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/dashboard-modular.out.log"
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+{
+  "Label" => "com.wenqu.sentinel-pulse"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/opt/wenqu-app-relay/watchdog.sh"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/watchdog.err"
+  "StartInterval" => 1800
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.orchestrator.plist
+{
+  "Label" => "com.wenqu.orchestrator"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.wenqu/bin/orchestrator.sh"
+  ]
+  "RunAtLoad" => false
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/orchestrator-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/orchestrator-launchd.log"
+  "StartInterval" => 3600
+}
+/Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+{
+  "Label" => "com.wenqu.sweep"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/sweep.py"
+    2 => "--days"
+    3 => "14"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StartInterval" => 3600
+}
+SYSTEM_PLISTS
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:50:37Z

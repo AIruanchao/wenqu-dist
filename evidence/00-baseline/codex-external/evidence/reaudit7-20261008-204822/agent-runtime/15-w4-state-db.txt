@@ -1,0 +1,299 @@
+UTC_START=2026-10-08T12:51:17Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-w4state.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+NOW=$(date +%s); echo NOW_EPOCH=$NOW; date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+for f in "$HOME/.wenqu/observation/heartbeat.json" "$HOME/.wenqu/observation/samples/2026-10-08.json" "$HOME/.wenqu/observation/shadow/2026-10-08.json" "$HOME/.wenqu/state/gate-aggregate.json"; do
+ echo "===== $f ====="
+ if test -f "$f"; then m=$(stat -f %m "$f"); echo MTIME_EPOCH=$m AGE_SEC=$((NOW-m)); stat -f 'SIZE=%z MODE=%Sp UID=%u MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; python3 -m json.tool "$f"; else echo MISSING; fi
+done
+echo '===== scheduler.db read-only ====='
+DB="$HOME/.wenqu/state/scheduler.db"
+cp -p "$DB" /tmp/reaudit7-scheduler-db-copy.sqlite
+sqlite3 -readonly /tmp/reaudit7-scheduler-db-copy.sqlite '.tables'
+echo RUN_COUNTS
+sqlite3 -readonly -header -column /tmp/reaudit7-scheduler-db-copy.sqlite 'select job_id,count(*) as runs,min(started_at) as first,max(started_at) as last,sum(case when actual_exit_code=0 then 1 else 0 end) as rc0 from scheduler_runs group by job_id;'
+echo LAST_RUNS
+sqlite3 -readonly -header -column /tmp/reaudit7-scheduler-db-copy.sqlite 'select run_id,job_id,scheduled_at,started_at,finished_at,actual_exit_code,timed_out,refreshed_heartbeat,notifications_enqueued from scheduler_runs order by started_at desc limit 12;'
+echo HEARTBEATS
+sqlite3 -readonly -header -column /tmp/reaudit7-scheduler-db-copy.sqlite 'select job_id,probe_id,station_id,last_success_at,last_failure_at,consecutive_failures,last_state,input_fingerprint from scheduler_heartbeats order by job_id,probe_id;'
+echo OUTBOX
+sqlite3 -readonly -header -column /tmp/reaudit7-scheduler-db-copy.sqlite 'select status,count(*) as n,min(created_at) as first,max(created_at) as last from scheduler_outbox group by status;'
+echo LAST_LOGS
+for f in "$HOME/.wenqu/observation/logs/scheduler-launchd-out.log" "$HOME/.wenqu/observation/logs/scheduler-2026-10-08.jsonl"; do echo ===$f===; tail -12 "$f"; done
+--- OUTPUT ---
+NOW_EPOCH=1791463877
+LOCAL_NOW=2026-10-08T20:51:17+0800
+===== /Users/maccc/.wenqu/observation/heartbeat.json =====
+MTIME_EPOCH=1791463575 AGE_SEC=302
+SIZE=1483 MODE=-rw-r--r-- UID=502 MTIME=2026-10-08T20:46:15+0800
+d080c02a00f05868b867d01ded0237be26db1bbc010b5830c70049ba150c5e28  /Users/maccc/.wenqu/observation/heartbeat.json
+{
+    "label": "com.wenqu.scheduler",
+    "tick_at": "2026-10-08T12:45:50Z",
+    "tick_epoch": 1791463550.15851,
+    "job_id": "w4.observation-sample",
+    "bootstrapped": false,
+    "due": [
+        {
+            "scheduled_at": 1791463331.010995,
+            "run": true,
+            "reason": "coalesced"
+        }
+    ],
+    "runs": [
+        {
+            "run_id": "job-w4.observation-sample-1791463331011",
+            "execution_status": "COMPLETED",
+            "policy_verdict": "PASS",
+            "actual_exit_code": 0,
+            "refreshed_heartbeat": true,
+            "notifications_enqueued": 0
+        }
+    ],
+    "station_result": {
+        "policy_verdict": "PASS",
+        "coverage": {
+            "denominator": 1,
+            "scanned": 1,
+            "exclusions": []
+        },
+        "execution_status": "COMPLETED"
+    },
+    "gate": {
+        "aggregate_outcome": "PASS",
+        "policy_verdict": "PASS",
+        "reason": "all 1 required stations PASS",
+        "cli_exit": 0
+    },
+    "health": [
+        {
+            "job_id": "w4.observation-sample",
+            "state": "FRESH",
+            "healthy": true,
+            "severity": null
+        }
+    ],
+    "notifications": {
+        "dispatch": {
+            "sent": 0,
+            "failed": 0,
+            "dead_lettered": 0,
+            "errors": []
+        },
+        "outbox_stats": {
+            "SENT": 2
+        }
+    },
+    "paths": {
+        "scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db",
+        "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json",
+        "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json",
+        "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"
+    },
+    "tick_rc": 0
+}
+===== /Users/maccc/.wenqu/observation/samples/2026-10-08.json =====
+MTIME_EPOCH=1791463568 AGE_SEC=309
+SIZE=1414 MODE=-rw-r--r-- UID=502 MTIME=2026-10-08T20:46:08+0800
+0489f39325ce52a47aaabfc0ba5572a20e22fd02c2c0399caeff066868f930a9  /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+{
+    "window": "W10-observation",
+    "day_index_note": "14 \u5929\u89c2\u5bdf\u7a97\uff0c\u5f53\u65e5\u542f\u52a8\uff08launchd \u6bcf\u65e5 09:05 \u89e6\u53d1\uff09",
+    "collected_at": "2026-10-08T12:45:54.448629+00:00",
+    "host": "Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64",
+    "repo": {
+        "path": "/Users/maccc/Documents/wenqu-dist",
+        "head": "1495913085eae13155f977fcebc8400b9789e04c",
+        "head_error": null,
+        "dirty": true,
+        "dirty_files": [
+            "M system/VERSION",
+            " M system/bin/wenqu-dashboard.py",
+            "?? SHA256-v3.8.4.txt"
+        ],
+        "dirty_error": null
+    },
+    "ci_latest_main": {
+        "conclusion": "",
+        "createdAt": "2026-10-08T12:37:51Z",
+        "databaseId": 37778240376,
+        "displayTitle": "Merge pull request #9 from AIruanchao/wave6/p1f-gate",
+        "headSha": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+        "status": "in_progress",
+        "workflowName": "acceptance"
+    },
+    "dashboard_launchd": {
+        "state": "running",
+        "returncode": 0,
+        "error": null
+    },
+    "legacy_health": {
+        "status": 404,
+        "json": {
+            "error": {
+                "code": "API_VERSION_REQUIRED",
+                "detail": "API \u5df2\u7248\u672c\u5316\u4e3a /api/v1/*\uff1b\u672a\u7248\u672c\u5316\u8def\u5f84\u5df2\u5e9f\u6b62"
+            }
+        },
+        "error": "http_404"
+    },
+    "disk": {
+        "mount": "/Users/maccc",
+        "used_bytes": 468100857856,
+        "avail_bytes": 26283937792,
+        "used_pct": 94.7
+    }
+}
+===== /Users/maccc/.wenqu/observation/shadow/2026-10-08.json =====
+MTIME_EPOCH=1791463568 AGE_SEC=309
+SIZE=2299 MODE=-rw-r--r-- UID=502 MTIME=2026-10-08T20:46:08+0800
+e66e160ea88652412f42c4b67c29090dcb49e5ffebd7868ba1d467c5bc7114ce  /Users/maccc/.wenqu/observation/shadow/2026-10-08.json
+{
+    "window": "W9-shadow-clock",
+    "collected_at": "2026-10-08T12:45:54.448629+00:00",
+    "shadow": {
+        "port": 54138,
+        "server_pid": 18541,
+        "ready": true,
+        "ready_seconds": 0.54,
+        "server_log": "/Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log",
+        "terminated": "term",
+        "ready_http": 200,
+        "modular_health": {
+            "status": 200,
+            "json": {
+                "generated_at": "2026-10-08T12:40:48Z",
+                "policy_verdict": "PASS",
+                "aggregate_outcome": "PASS",
+                "technical_eligible": true,
+                "reason": "all 1 required stations PASS",
+                "reasons": [],
+                "counts": {
+                    "required_total": 1,
+                    "required_reported": 1,
+                    "required_missing": 0,
+                    "bypass_stations": 0,
+                    "duplicates_ignored": 0,
+                    "conflicts": 0,
+                    "malformed": 0
+                },
+                "stations": {
+                    "0": {
+                        "outcome": "PASS",
+                        "required": true,
+                        "sha_bound": true,
+                        "environment_ok": true,
+                        "input_version": "v2",
+                        "schema_valid": true
+                    }
+                },
+                "target_sha": "1495913085eae13155f977fcebc8400b9789e04c",
+                "environment": "production",
+                "scope_binding": {
+                    "mode": "self_declared"
+                },
+                "inputs": {
+                    "paths": 1,
+                    "docs": 1,
+                    "load_errors": 0,
+                    "schema_invalid": 0
+                },
+                "mode": "self_declared_diagnostic",
+                "source": "wenquctl-gate",
+                "cli_exit": 0
+            },
+            "error": null
+        },
+        "modular_health_path": "/api/v1/health",
+        "modular_health_v1_raw": {
+            "status": 200,
+            "error": null
+        },
+        "modular_health_unversioned_raw": {
+            "status": 404,
+            "error": "http_404"
+        },
+        "legacy_health": {
+            "status": 404,
+            "json": {
+                "error": {
+                    "code": "API_VERSION_REQUIRED",
+                    "detail": "API \u5df2\u7248\u672c\u5316\u4e3a /api/v1/*\uff1b\u672a\u7248\u672c\u5316\u8def\u5f84\u5df2\u5e9f\u6b62"
+                }
+            },
+            "error": "http_404"
+        },
+        "compare": {
+            "key_sets_equal": null,
+            "score_equal": null,
+            "only_legacy": null,
+            "only_modular": null,
+            "legacy_score": null,
+            "modular_score": null,
+            "note": "legacy /api/health \u65e0 200 JSON\uff0c\u65e0\u6cd5\u6bd4\u5bf9"
+        }
+    }
+}
+===== /Users/maccc/.wenqu/state/gate-aggregate.json =====
+MTIME_EPOCH=1791463575 AGE_SEC=302
+SIZE=911 MODE=-rw-r--r-- UID=502 MTIME=2026-10-08T20:46:15+0800
+d71854cc635894418ecfd48deb0ee5b93325b82f07c280b9fe9dbedc3ab65c6b  /Users/maccc/.wenqu/state/gate-aggregate.json
+{
+    "generated_at": "2026-10-08T12:46:15Z",
+    "policy_verdict": "PASS",
+    "aggregate_outcome": "PASS",
+    "technical_eligible": true,
+    "reason": "all 1 required stations PASS",
+    "reasons": [],
+    "counts": {
+        "required_total": 1,
+        "required_reported": 1,
+        "required_missing": 0,
+        "bypass_stations": 0,
+        "duplicates_ignored": 0,
+        "conflicts": 0,
+        "malformed": 0
+    },
+    "stations": {
+        "0": {
+            "outcome": "PASS",
+            "required": true,
+            "sha_bound": true,
+            "environment_ok": true,
+            "input_version": "v2",
+            "schema_valid": true
+        }
+    },
+    "target_sha": "1495913085eae13155f977fcebc8400b9789e04c",
+    "environment": "production",
+    "scope_binding": {
+        "mode": "self_declared"
+    },
+    "inputs": {
+        "paths": 1,
+        "docs": 1,
+        "load_errors": 0,
+        "schema_invalid": 0
+    },
+    "mode": "self_declared_diagnostic",
+    "source": "wenquctl-gate",
+    "cli_exit": 0
+}
+===== scheduler.db read-only =====
+Error: unable to open database file
+RUN_COUNTS
+Error: in prepare, unable to open database file (14)
+LAST_RUNS
+Error: in prepare, unable to open database file (14)
+HEARTBEATS
+Error: in prepare, unable to open database file (14)
+OUTBOX
+Error: in prepare, unable to open database file (14)
+LAST_LOGS
+/private/tmp/reaudit7-cmd-w4state.zsh:21: ==/Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log=== not found
+--- END OUTPUT ---
+EXIT_CODE=1
+UTC_END=2026-10-08T12:51:17Z

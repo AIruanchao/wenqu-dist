@@ -1,0 +1,604 @@
+UTC_START=2026-10-08T12:56:29Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-w4-artifact-audit.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+F=/private/tmp/reaudit7-d32c859-runtime
+echo "NOW_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+echo '=== implementation anchors ==='
+rg -n "osascript|alertbox|receipt|dead.?letter|outbox|RPO|RTO|byte|sha256|restore" "$F/system/wenqu_core" "$F/system/tests/test_w4_production.py" | head -n 260
+echo '=== receipt structure and all non-body fields ==='
+python3 - <<'PY'
+import json,pathlib
+p=pathlib.Path.home()/'.wenqu/observation/alerts/receipts.jsonl'
+print('path',p,'exists',p.is_file(),'size',p.stat().st_size if p.exists() else None)
+for i,line in enumerate(p.read_text().splitlines(),1):
+ try:
+  x=json.loads(line)
+  print('line',i,'keys',sorted(x))
+  y={k:v for k,v in x.items() if k.lower() not in {'body','message','content','payload'}}
+  print(json.dumps(y,ensure_ascii=False,sort_keys=True,indent=2))
+ except Exception as e: print('parse_error',i,type(e).__name__,str(e))
+PY
+echo '=== alertbox files metadata/hash and first 20 lines ==='
+find "$HOME/.wenqu/observation/alerts" -maxdepth 1 -type f ! -name receipts.jsonl -print0 | while IFS= read -r -d '' f; do
+ stat -f 'file=%N type=%HT mode=%Sp size=%z mtime=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"
+ shasum -a 256 "$f"
+ sed -n '1,20p' "$f"
+done
+echo '=== sqlite schema and rows ==='
+sqlite3 -readonly "$HOME/.wenqu/state/scheduler.db" '.tables'
+sqlite3 -readonly "$HOME/.wenqu/state/scheduler.db" '.schema notification_outbox'
+sqlite3 -readonly -header -column "$HOME/.wenqu/state/scheduler.db" "SELECT * FROM notification_outbox ORDER BY rowid;" 2>&1
+sqlite3 -readonly "$HOME/.wenqu/state/scheduler.db" '.schema dead_letters'
+sqlite3 -readonly -header -column "$HOME/.wenqu/state/scheduler.db" "SELECT * FROM dead_letters ORDER BY rowid;" 2>&1
+echo '=== DR reports independent field/hash/time audit ==='
+python3 - <<'PY'
+import json,hashlib,pathlib,datetime
+root=pathlib.Path.home()/'.wenqu/observation/drills'
+for p in sorted(root.glob('drill-*.json')):
+ print('--- report',p,p.stat().st_size,hashlib.sha256(p.read_bytes()).hexdigest())
+ x=json.loads(p.read_text())
+ print(json.dumps(x,ensure_ascii=False,sort_keys=True,indent=2))
+ jl=p.with_suffix('.jsonl')
+ if jl.exists():
+  rows=[json.loads(z) for z in jl.read_text().splitlines() if z.strip()]
+  print('jsonl',jl,'rows',len(rows),'sha256',hashlib.sha256(jl.read_bytes()).hexdigest())
+  print('actions',[r.get('action') for r in rows])
+  print('results',[r.get('result') or r.get('status') for r in rows])
+  for i,r in enumerate(rows,1):
+   print('row',i,json.dumps(r,ensure_ascii=False,sort_keys=True))
+PY
+--- OUTPUT ---
+NOW_UTC=2026-10-08T12:56:29Z
+=== implementation anchors ===
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:13:   alertbox 通道为真实文件投递箱——同一 CRITICAL 消息双通道入队后：
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:15:   alertbox SENT（txt 落盘 + receipts.jsonl 回执）——通知失败→投递箱必成功。
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:16:3. 恢复演练对账（BAK 面）：真实跑 system/sentinels/backup-restore-drill.sh
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:156:            outbox = NotificationOutbox(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:160:            outbox.register_channel(sched.PROD_CHANNEL_MACOS, lambda p: (
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:162:            outbox.register_channel(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:164:                sched.make_alertbox_sender(paths.alerts_dir))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:165:            mon = HeartbeatMonitor(store, outbox)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:189:            before = json.dumps(outbox.stats())
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:211:            stats0 = outbox.stats()
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:212:            _ck("面1 不健康告警已入队（outbox 有 PENDING）",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:214:            disp = outbox.dispatch_due(now=t_far + 2500)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:217:            receipts = os.path.join(paths.alerts_dir, "receipts.jsonl")
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:218:            _ck("面1 投递箱回执 receipts.jsonl 落盘（含心跳告警主题）",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:219:                os.path.isfile(receipts)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:221:                in open(receipts, encoding="utf-8").read())
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:227:# 面 2：通知死信（macos 注入真实故障；alertbox 真实投递）
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:229:def test_notification_dead_letter_dual_channel():
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:235:            outbox = NotificationOutbox(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:241:            boom = RuntimeError("injected osascript failure (face2)")
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:242:            outbox.register_channel(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:245:            outbox.register_channel(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:247:                sched.make_alertbox_sender(alerts))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:249:            ids = outbox.notify(
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:251:                "macos 通道注入故障；alertbox 必须送达",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:257:                "SELECT channel FROM scheduler_outbox WHERE message_id IN (?,?)"
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:263:            d1 = outbox.dispatch_due(now=t0)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:264:            _ck("面2 首轮：alertbox SENT + macos 第 1 次失败留退避",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:269:                d = outbox.dispatch_due(now=t)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:271:                    d["failed"] == 1 and d["dead_lettered"] == 0, str(d))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:272:            d5 = outbox.dispatch_due(now=t0 + 10)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:274:                d5["dead_lettered"] == 1, str(d5))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:275:            dead = outbox.dead_letters()
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:279:                and "osascript failure" in (dead[0]["last_error"] or ""),
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:282:                "SELECT status FROM scheduler_outbox WHERE message_id=?",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:285:                "SELECT status FROM scheduler_outbox WHERE message_id=?",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:289:                f"alertbox={sent_row} macos={dead_row}")
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:291:            d3 = outbox.dispatch_due(now=t0 + 12)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:293:                "SELECT COUNT(*) FROM scheduler_outbox WHERE "
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:294:                "meta_json LIKE '%system_dead_letter_notice%'")[0][0]
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:298:            receipts_path = os.path.join(alerts, "receipts.jsonl")
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:299:            receipts = [json.loads(l) for l in
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:300:                        open(receipts_path, encoding="utf-8") if l.strip()]
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:301:            _ck("面2 回执链完整（receipts.jsonl 含送达 message_id）",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:302:                any(r["message_id"] == alert_mid for r in receipts)
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:304:                        for r in receipts), str(receipts[:2]))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:312:# 面 3：恢复演练对账（真实跑 backup-restore-drill.sh）
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:314:def test_backup_restore_drill_reconciliation():
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:333:                             "backup-restore-drill.sh")
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:346:            == {"snapshot", "tamper", "restore", "reconcile"}
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:350:            and all("sha256" in f for f in rep["steps"]["snapshot"]["files"]))
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_w4_production.py:355:            rep["byte_match_all"] == 1
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:9:- 签名：signature = hex(hmac_sha256(secret,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:70:_SIGNATURE_LEN = 64  # hmac-sha256 hex
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:131:def generate_secret(nbytes: int = 32) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:133:    if nbytes < 16:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:134:        raise ValueError("secret entropy too low: nbytes must be >= 16")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:135:    return secrets.token_hex(nbytes)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:150:                   _canonical_json(body).encode("utf-8"), hashlib.sha256)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:300:                 nbytes: int = 32) -> "ApprovalKeyring":
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_keys.py:303:                    else generate_secret(nbytes)})
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:24:   nonce 明文**——nonce 是消费凭据，审计只留 sha256 指纹供对账）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:232:    sha256（首条为全零 GENESIS）；本条摘要 = sha256(本行 canonical JSON)。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:250:        digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:268:        return hashlib.sha256(tail.encode("utf-8")).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:312:            digest = hashlib.sha256(
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py:620:            "nonce_digest": hashlib.sha256(
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/gate_aggregator.py:164:_MIRROR_CAS_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/gate_aggregator.py:346:                         "^sha256:[0-9a-f]{64}$")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/ledger_migrator.py:130:    return hashlib.sha256(line.rstrip("\r\n").encode("utf-8")).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:62:    "peak_budget_bytes",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:177:    used_bytes: int
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:178:    free_bytes: int
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:179:    total_bytes: int
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:184:        for name in ("used_bytes", "free_bytes", "total_bytes"):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:190:        if self.total_bytes < self.used_bytes + self.free_bytes:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:192:                f"total_bytes must be >= used+free (Linux 保留块可使不等): "
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:193:                f"{self.total_bytes} < {self.used_bytes}+{self.free_bytes}"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:204:        if self.total_bytes <= 0:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:206:        return self.used_bytes / self.total_bytes
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:211:            "used_bytes": self.used_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:212:            "free_bytes": self.free_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:213:            "total_bytes": self.total_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:222:        missing = {"path", "used_bytes", "free_bytes", "total_bytes", "recorded_at"} - set(payload)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:228:                used_bytes=payload["used_bytes"],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:229:                free_bytes=payload["free_bytes"],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:230:                total_bytes=payload["total_bytes"],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:243:        used_bytes=int(usage.used),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:244:        free_bytes=int(usage.free),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:245:        total_bytes=int(usage.total),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:252:    used_bytes: int,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:253:    free_bytes: int,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:265:        used_bytes=used_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:266:        free_bytes=free_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:267:        total_bytes=used_bytes + free_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:273:def peak_budget_bytes(**components: int) -> int:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:276:    例：peak_budget_bytes(legacy_snapshot=10**9, backup=2*10**9, ...)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:305:    min_headroom_bytes: int = DEFAULT_MIN_HEADROOM_BYTES
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:306:    #: 可选路径配额：path → quota_bytes（used/quota 超阈值同样 CRITICAL）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:320:        if isinstance(self.min_headroom_bytes, bool) \
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:321:                or not isinstance(self.min_headroom_bytes, int) \
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:322:                or self.min_headroom_bytes < 0:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:324:                f"min_headroom_bytes must be a non-negative int, got {self.min_headroom_bytes!r}"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:371:        prior_peak = self.peak_used_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:374:            "peak_used_bytes_so_far": max(prior_peak, sample.used_bytes),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:405:    def peak_used_bytes(self) -> int:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:406:        """日志内见过的最大 used_bytes（空日志为 0）。"""
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:409:            value = row.get("peak_used_bytes_so_far", row.get("used_bytes", 0))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:466:        ``peak_budget`` 为 §22 八分量之和（可用 peak_budget_bytes() 构造）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:481:        headroom = sample.free_bytes - peak_budget  # 峰值预留后的安全余量
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:484:        if sample.free_bytes == 0 or ratio >= 1.0:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:487:                "detail": f"free=0 磁盘满（used={sample.used_bytes}）",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:491:            quota_ratio = sample.used_bytes / quota
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:497:                    "quota_bytes": quota,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:505:        if headroom < self._spec.min_headroom_bytes:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:509:                          f"< 最小安全余量 {self._spec.min_headroom_bytes}B",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:510:                "headroom_bytes": headroom,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:520:                       f"峰值预留后余量 {headroom}B >= {self._spec.min_headroom_bytes}B）")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:529:            "peak_budget_bytes": peak_budget,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:530:            "headroom_bytes": headroom,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:531:            "min_headroom_bytes": self._spec.min_headroom_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:540:        返回：slope_bytes_per_s / threshold_bytes / projected_seconds_to_threshold
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:546:            return {"slope_bytes_per_s": None, "projected_seconds_to_threshold": None,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:548:                    "threshold_bytes": None}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:552:            points.append((epoch, sample.used_bytes))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:557:            return {"slope_bytes_per_s": None, "projected_seconds_to_threshold": None,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:559:                    "threshold_bytes": None}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:562:        threshold_bytes = float(self._spec.used_ratio_threshold) * last.total_bytes
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:564:            return {"slope_bytes_per_s": slope, "threshold_bytes": threshold_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:567:        seconds = max(0.0, (threshold_bytes - last.used_bytes) / slope)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:569:            "slope_bytes_per_s": slope,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:570:            "threshold_bytes": threshold_bytes,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:615:    """只读完整性清单：文件 → sha256+size；symlink → 目标；缺失如实标注。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:632:        digest = hashlib.sha256()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:638:        manifest[key] = {"type": "file", "size": size, "sha256": digest.hexdigest()}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:644:            payload = path.read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:648:                "sha256": hashlib.sha256(payload).hexdigest(),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:695:        assert real.basis == "real" and real.total_bytes == real.used_bytes + real.free_bytes
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:696:        assert log.samples()[-1] == real and log.peak_used_bytes() == real.used_bytes
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:707:        budget = peak_budget_bytes(backup=550 * GiB, next_release=0)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/capacity_monitor.py:708:        peak_mon = CapacityMonitor(CapacitySpec(min_headroom_bytes=100 * GiB))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:93:def _sha256_hex(data: bytes) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:94:    return hashlib.sha256(data).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:282:        if isinstance(commands, (str, bytes)):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:287:            if isinstance(command, (str, bytes)) or not command:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:307:        stdout/stderr 只落 sha256 摘要进 git_calls（不落原文，防日志膨胀/泄漏）；
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:327:                    "stdout_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:328:                    "stderr_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:346:                    "stdout_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:347:                    "stderr_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:363:                    "stdout_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:364:                    "stderr_sha256": _sha256_hex(b""),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:382:                "stdout_sha256": _sha256_hex(completed.stdout),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:383:                "stderr_sha256": _sha256_hex(completed.stderr),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:837:                "stdout_sha256": evidence.stdout_sha256,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/source_gate.py:838:                "stderr_sha256": evidence.stderr_sha256,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:152:def _sha256_hex(data: bytes) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:153:    return hashlib.sha256(data).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:158:    return _sha256_hex(canonical.encode("utf-8"))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:168:    return f"fnd_{safe}_{_sha256_hex(seed.encode('utf-8'))[:12]}"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:194:def _cas_artifact(payload: bytes) -> Optional[Dict[str, Any]]:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:198:    return {"cas_digest": f"sha256:{_sha256_hex(payload)}", "size": len(payload)}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:619:         "receipt_path": "/tmp/canary-receipt.json"}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:671:        receipt = channel.get("receipt_path")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:683:        if not isinstance(receipt, str) or not receipt.strip():
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:685:                f"channels[{index}].receipt_path must be a non-empty string"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:687:        return {"name": name.strip(), "argv_template": list(template), "receipt_path": receipt}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:689:    def _verify_receipt(self, receipt_path: str, token: str) -> Tuple[bool, str]:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:691:            raw = Path(receipt_path).read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:693:            return False, "receipt_missing"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:719:        ok, reason = self._verify_receipt(channel["receipt_path"], token)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1178:            "receipt = sys.argv[3]\n"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1186:            "Path(receipt).write_text(json.dumps(payload))\n"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1190:        receipt_ok = tmpdir / "receipt-ok.json"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1191:        receipt_badtoken = tmpdir / "receipt-badtoken.json"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1192:        receipt_exit2 = tmpdir / "receipt-exit2.json"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1193:        receipt_nofile = tmpdir / "receipt-nofile.json"  # 永不写入 → receipt_missing
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1195:        def _channel(name: str, mode: str, receipt: Path) -> Dict[str, Any]:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1199:                                  "{token}", str(receipt)],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1200:                "receipt_path": str(receipt),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1205:            channels=[_channel("chan-ok", "ok", receipt_ok)],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1217:                _channel("chan-badtoken", "badtoken", receipt_badtoken),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1218:                _channel("chan-exit2", "exit2", receipt_exit2),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1219:                _channel("chan-nofile", "nofile", receipt_nofile),
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1229:                           "chan-nofile": "receipt_missing"}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1237:                       "receipt_path": str(tmpdir / "r.json")}],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station7_runtime.py:1261:                channels=[_channel("chan-ok", "ok", receipt_ok)],
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/ui_probe.py:234:                headers: dict | None = None, body: bytes | str = b"",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/ui_probe.py:235:                timeout: float = 10.0, host_value=_AUTO) -> tuple[int, dict, bytes]:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/ui_probe.py:240:    返回 (status, 小写头 dict, body bytes)。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/ui_probe.py:259:        chunks: list[bytes] = []
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:22:      "files":          [{"path": 相对路径, "sha256": ..., "size": ...,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:167:def _sha256_file(path: str) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:168:    digest = hashlib.sha256()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:287:          "artifact_sha256":  "<64 hex>",    # verify 时重哈希对账
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:296:    def __init__(self, backup_id: str, artifact: str, artifact_sha256: str,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:301:        self.artifact_sha256 = artifact_sha256
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:309:            return _sha256_file(self.artifact) == self.artifact_sha256
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:332:        expected = marker.get("artifact_sha256")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:334:            raise BackupProofError("backup marker artifact/sha256 missing")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:338:        actual = _sha256_file(artifact)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:436:        if not isinstance(raw, (str, bytes, os.PathLike)):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:651:            digest = hashlib.sha256()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:664:                    "sha256": file_hash,
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:733:        digest = hashlib.sha256()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:792:            expected = {p: e["sha256"] for p, e in entries.items()}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/deploy_framework.py:835:            if _sha256_file(os.path.join(release, p)) != expected[p]
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:2:"""drill_runner.py——备份/DR 演练编排器（checkpoint/restore drill 产品面）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:6:- 真实演练正源是 ``system/sentinels/backup-restore-drill.sh``：快照→篡改
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:7:  （实测字节已变，防伪造演练）→恢复→逐文件 cmp+sha256 字节级对账四步
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:8:  全部真跑；DR 模式另加 RPO/RTO 实测计时（冻结目标 RPO<=300s、RTO<=60s）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:15:                       DR 模式的 RPO/RTO 实测数字）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:45:DRILL_SCRIPT = REPO_ROOT / "system" / "sentinels" / "backup-restore-drill.sh"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:88:    只验结构不判语义（PASS/RPO 是否达标由调用方按场景断言）；任何结构
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:93:    for key in ("drill", "stamp", "result", "steps", "byte_match_all"):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:96:    if report["drill"] != "backup-restore":
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:105:    for step in ("snapshot", "tamper", "restore", "reconcile"):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:116:        if not (isinstance(f, dict) and {"rel", "sha256", "size"} <= set(f)):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:130:    n_restored = steps["restore"].get("files_restored")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:131:    if n_restored != len(snap_rels):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:132:        raise ValueError(f"恢复计数 {n_restored} != 快照文件数 {len(snap_rels)}")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:146:                    "t_restore_start_epoch", "t_reconcile_done_epoch"):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:227:    if report["result"] != "PASS" or report["byte_match_all"] is not True:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/drill_runner.py:230:            f"byte_match_all={report['byte_match_all']}",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:170:_RE_CAS_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:249:def _sha256_hex(data: bytes) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:250:    return hashlib.sha256(data).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:254:    return _sha256_hex(_canonical_json(obj).encode("utf-8"))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:357:        entry="freeze_run_manifest()（对齐 `wenqu init` 的 sha256 范围哈希语义；"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:843:    - manifest_hash = sha256(canonical(内容 sans manifest_hash))。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:913:        return f"sha256:{_sha256_hex(payload)}", len(payload)
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:921:            existing = target.read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:950:        raw = Path(path).read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1069:    return _sha256_hex(canonical.encode("utf-8"))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1411:                       f"artifacts[{idx}].cas_digest must match sha256:<64hex>")
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1634:            "cas_digest": f"sha256:{_sha256_hex(gate_payload)}",
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1718:    4. 摘要 = 规范化 argv 列表的 canonical JSON sha256（hex）。
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1722:    if isinstance(argv, (str, bytes)):
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/bugscan_orchestrator.py:1747:    return _sha256_hex(
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/__init__.py:8:- evidence.py：Content-addressed store（sha256 寻址）
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:6:- 哈希链：event_hash = sha256(prev_event_hash || canonical_payload)，
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:109:        h = hashlib.sha256()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:135:        # P0-6: event_id = sha256(canonical_payload)——稳定幂等键
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:136:        event_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:208:            # 仅校验 event_id 是有效的 sha256 hex
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/store.py:211:                    f"seq {seq}: event_id {event_id} is not a valid sha256 hex"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/cli.py:378:    receipt = {
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/cli.py:395:    print(json.dumps(receipt, ensure_ascii=False, indent=2))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:149:def _sha256_hex(data: bytes) -> str:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:150:    return hashlib.sha256(data).hexdigest()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:155:    return _sha256_hex(canonical.encode("utf-8"))
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:165:    return f"fnd_{safe}_{_sha256_hex(seed.encode('utf-8'))[:12]}"
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:191:def _cas_artifact(payload: bytes) -> Optional[Dict[str, Any]]:
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:196:    return {"cas_digest": f"sha256:{_sha256_hex(payload)}", "size": len(payload)}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:388:        report_raw: Optional[bytes] = None
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:392:            report_raw = Path(report_path).read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:717:             "artifacts": [{"cas_digest": "sha256:<64hex>", "size": 12345}]}
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:785:        report_raw: Optional[bytes] = None
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:789:            report_raw = Path(self._report_path).read_bytes()
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/station4_behavior.py:871:                    and art["cas_digest"].startswith("sha256:")
+=== receipt structure and all non-body fields ===
+path /Users/maccc/.wenqu/observation/alerts/receipts.jsonl exists True size 239
+line 1 keys ['attempt', 'channel', 'file', 'message_id', 'receipt_at', 'severity', 'subject']
+{
+  "attempt": 1,
+  "channel": "alertbox",
+  "file": "20261008-171809-INFO-aecedff27d57.txt",
+  "message_id": "aecedff27d574204a0942485b42109d2",
+  "receipt_at": "2026-10-08T09:18:09Z",
+  "severity": "INFO",
+  "subject": "[wenqu] W4 调度上线通告"
+}
+=== alertbox files metadata/hash and first 20 lines ===
+file=/Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt type=Regular File mode=-rw-r--r-- size=390 mtime=2026-10-08T17:18:09+0800
+afadddfd4fc0aa2cb795769405322fde336fb424f310adf1318c06e586673752  /Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt
+message_id: aecedff27d574204a0942485b42109d2
+channel: alertbox
+severity: INFO
+sent_at: 2026-10-08T09:18:09Z
+subject: [wenqu] W4 调度上线通告
+attempts_so_far: 1
+---
+com.wenqu.scheduler 已挂载 launchd（每 5 分钟 tick）。首跑 2026-10-08T09:16:49Z：采样 PASS / wenquctl gate 聚合 PASS / 心跳 FRESH。本通告为通知双通道（macos+投递箱）生产投递烟测。
+=== sqlite schema and rows ===
+Error: unable to open database file
+Error: unable to open database file
+Error: in prepare, unable to open database file (14)
+Error: unable to open database file
+Error: in prepare, unable to open database file (14)
+=== DR reports independent field/hash/time audit ===
+--- report /Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json 2208 64d327124a904a3742e6e14ab29fa6ccb3b32432f8ed0745eb20014e9df73e87
+{
+  "byte_match_all": true,
+  "corpus_count": 5,
+  "drill": "backup-restore",
+  "reason": "4/4 steps ok; all restored files byte-identical to snapshot",
+  "result": "PASS",
+  "stamp": "20261008T091843Z",
+  "steps": {
+    "reconcile": {
+      "files": [
+        {
+          "cmp": true,
+          "rel": "state/scheduler.db",
+          "sha256": "46e5158cc8ab194681914ad528a25c94d2807775c229a63fdf51859df51192a4",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "state/gate-aggregate.json",
+          "sha256": "5838315636bc12b1ac7087e1fbdbb2190a14c8e25dc3dec5764894b5e116aeac",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/heartbeat.json",
+          "sha256": "b9608fc57e51560d00fa34f674941f82e089a27438c4891938a1093da3f58925",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/samples/2026-10-08.json",
+          "sha256": "d85af1d45ab22174e50d46165378a906560825a464f17824b24b6c123b76e878",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/shadow/2026-10-08.json",
+          "sha256": "9a2ad7f0a245330a845e4338707bca1649f2b7118d47405261729dc1cce266f5",
+          "sha_match": true
+        }
+      ]
+    },
+    "restore": {
+      "files_restored": 5,
+      "ok": true
+    },
+    "snapshot": {
+      "files": [
+        {
+          "rel": "state/scheduler.db",
+          "sha256": "46e5158cc8ab194681914ad528a25c94d2807775c229a63fdf51859df51192a4",
+          "size": 69632
+        },
+        {
+          "rel": "state/gate-aggregate.json",
+          "sha256": "5838315636bc12b1ac7087e1fbdbb2190a14c8e25dc3dec5764894b5e116aeac",
+          "size": 819
+        },
+        {
+          "rel": "observation/heartbeat.json",
+          "sha256": "b9608fc57e51560d00fa34f674941f82e089a27438c4891938a1093da3f58925",
+          "size": 1366
+        },
+        {
+          "rel": "observation/samples/2026-10-08.json",
+          "sha256": "d85af1d45ab22174e50d46165378a906560825a464f17824b24b6c123b76e878",
+          "size": 3187
+        },
+        {
+          "rel": "observation/shadow/2026-10-08.json",
+          "sha256": "9a2ad7f0a245330a845e4338707bca1649f2b7118d47405261729dc1cce266f5",
+          "size": 2621
+        }
+      ],
+      "ok": true
+    },
+    "tamper": {
+      "actions": [
+        {
+          "how": "append",
+          "rel": "state/scheduler.db"
+        },
+        {
+          "how": "truncate",
+          "rel": "state/gate-aggregate.json"
+        },
+        {
+          "how": "delete",
+          "rel": "observation/heartbeat.json"
+        },
+        {
+          "how": "append",
+          "rel": "observation/samples/2026-10-08.json"
+        },
+        {
+          "how": "truncate",
+          "rel": "observation/shadow/2026-10-08.json"
+        }
+      ],
+      "ok": true
+    }
+  },
+  "wenqu_root": "/Users/maccc/.wenqu",
+  "workdir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T//wenqu-drill.sz5q1xQE"
+}
+--- report /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json 2707 074d74ec98e443fe381864be85fd01faa08dd039255fc0a229a1b4da9c5dc10a
+{
+  "byte_match_all": true,
+  "corpus_count": 5,
+  "dr": {
+    "fault_delay_s": 2,
+    "mode": "dr",
+    "rpo_ok": true,
+    "rpo_seconds": 2.058311,
+    "rpo_target_s": 300,
+    "rto_ok": true,
+    "rto_seconds": 0.47504,
+    "rto_target_s": 60,
+    "t_fault_epoch": 1791453481.990683,
+    "t_reconcile_done_epoch": 1791453482.827246,
+    "t_restore_start_epoch": 1791453482.352206,
+    "t_snapshot_done_epoch": 1791453479.932372
+  },
+  "drill": "backup-restore",
+  "jsonl": "/Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl",
+  "mode": "dr",
+  "reason": "4/4 steps ok; byte-identical restore; RPO=2.058311s<=300s, RTO=0.475040s<=60s (frozen targets met)",
+  "result": "PASS",
+  "stamp": "20261008T095759Z",
+  "steps": {
+    "reconcile": {
+      "files": [
+        {
+          "cmp": true,
+          "rel": "state/scheduler.db",
+          "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "state/gate-aggregate.json",
+          "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/heartbeat.json",
+          "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/samples/2026-10-08.json",
+          "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3",
+          "sha_match": true
+        },
+        {
+          "cmp": true,
+          "rel": "observation/shadow/2026-10-08.json",
+          "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f",
+          "sha_match": true
+        }
+      ]
+    },
+    "restore": {
+      "files_restored": 5,
+      "ok": true
+    },
+    "snapshot": {
+      "files": [
+        {
+          "rel": "state/scheduler.db",
+          "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc",
+          "size": 69632
+        },
+        {
+          "rel": "state/gate-aggregate.json",
+          "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29",
+          "size": 911
+        },
+        {
+          "rel": "observation/heartbeat.json",
+          "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5",
+          "size": 1484
+        },
+        {
+          "rel": "observation/samples/2026-10-08.json",
+          "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3",
+          "size": 5690
+        },
+        {
+          "rel": "observation/shadow/2026-10-08.json",
+          "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f",
+          "size": 3899
+        }
+      ],
+      "ok": true
+    },
+    "tamper": {
+      "actions": [
+        {
+          "how": "append",
+          "rel": "state/scheduler.db"
+        },
+        {
+          "how": "truncate",
+          "rel": "state/gate-aggregate.json"
+        },
+        {
+          "how": "delete",
+          "rel": "observation/heartbeat.json"
+        },
+        {
+          "how": "append",
+          "rel": "observation/samples/2026-10-08.json"
+        },
+        {
+          "how": "truncate",
+          "rel": "observation/shadow/2026-10-08.json"
+        }
+      ],
+      "ok": true
+    }
+  },
+  "wenqu_root": "/Users/maccc/.wenqu",
+  "workdir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T//wenqu-drill.mfiYlAm4"
+}
+jsonl /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl rows 25 sha256 17721d28d4fd506bf56b7feaa7b0625a5a5f85570c3a20ef1d08c65578d02f4d
+actions [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+results ['dr', 'true', 'true', 'true', 'true', 'true', 'true', 'append', 'truncate', 'delete', 'append', 'truncate', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'PASS']
+row 1 {"corpus_count": 5, "event": "drill_start", "file": "-", "result": "dr", "t": "2026-10-08T09:57:59Z", "ts": 1791453479.58793, "wenqu_root": "/Users/maccc/.wenqu"}
+row 2 {"event": "snapshot_file", "file": "state/scheduler.db", "result": "true", "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc", "size": 69632, "t": "2026-10-08T09:57:59Z", "ts": 1791453479.658907}
+row 3 {"event": "snapshot_file", "file": "state/gate-aggregate.json", "result": "true", "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29", "size": 911, "t": "2026-10-08T09:57:59Z", "ts": 1791453479.714364}
+row 4 {"event": "snapshot_file", "file": "observation/heartbeat.json", "result": "true", "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5", "size": 1484, "t": "2026-10-08T09:57:59Z", "ts": 1791453479.768643}
+row 5 {"event": "snapshot_file", "file": "observation/samples/2026-10-08.json", "result": "true", "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3", "size": 5690, "t": "2026-10-08T09:57:59Z", "ts": 1791453479.823409}
+row 6 {"event": "snapshot_file", "file": "observation/shadow/2026-10-08.json", "result": "true", "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f", "size": 3899, "t": "2026-10-08T09:57:59Z", "ts": 1791453479.89851}
+row 7 {"event": "fault_window", "fault_delay_s": 2, "file": "-", "result": "true", "rpo_seconds": 2.058311, "t": "2026-10-08T09:58:02Z", "ts": 1791453482.026323}
+row 8 {"event": "tamper_file", "file": "state/scheduler.db", "result": "append", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.062654}
+row 9 {"event": "tamper_file", "file": "state/gate-aggregate.json", "result": "truncate", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.090291}
+row 10 {"event": "tamper_file", "file": "observation/heartbeat.json", "result": "delete", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.119657}
+row 11 {"event": "tamper_file", "file": "observation/samples/2026-10-08.json", "result": "append", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.148433}
+row 12 {"event": "tamper_file", "file": "observation/shadow/2026-10-08.json", "result": "truncate", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.175743}
+row 13 {"actions": [{"how": "append", "rel": "state/scheduler.db"}, {"how": "truncate", "rel": "state/gate-aggregate.json"}, {"how": "delete", "rel": "observation/heartbeat.json"}, {"how": "append", "rel": "observation/samples/2026-10-08.json"}, {"how": "truncate", "rel": "observation/shadow/2026-10-08.json"}], "event": "tamper_verified", "file": "-", "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.325131}
+row 14 {"event": "restore_file", "file": "state/scheduler.db", "n": 1, "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.381528}
+row 15 {"event": "restore_file", "file": "state/gate-aggregate.json", "n": 2, "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.411417}
+row 16 {"event": "restore_file", "file": "observation/heartbeat.json", "n": 3, "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.452331}
+row 17 {"event": "restore_file", "file": "observation/samples/2026-10-08.json", "n": 4, "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.484366}
+row 18 {"event": "restore_file", "file": "observation/shadow/2026-10-08.json", "n": 5, "result": "true", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.514955}
+row 19 {"event": "reconcile_file", "file": "state/scheduler.db", "result": "true", "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.570256}
+row 20 {"event": "reconcile_file", "file": "state/gate-aggregate.json", "result": "true", "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.632087}
+row 21 {"event": "reconcile_file", "file": "observation/heartbeat.json", "result": "true", "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.689484}
+row 22 {"event": "reconcile_file", "file": "observation/samples/2026-10-08.json", "result": "true", "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.745593}
+row 23 {"event": "reconcile_file", "file": "observation/shadow/2026-10-08.json", "result": "true", "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f", "t": "2026-10-08T09:58:02Z", "ts": 1791453482.801029}
+row 24 {"event": "dr_metrics", "file": "-", "result": "true", "rpo_seconds": 2.058311, "rpo_target_s": 300, "rto_seconds": 0.47504, "rto_target_s": 60, "t": "2026-10-08T09:58:02Z", "ts": 1791453482.882164}
+row 25 {"event": "drill_pass", "file": "-", "result": "PASS", "rpo_seconds": 2.058311, "rto_seconds": 0.47504, "t": "2026-10-08T09:58:02Z", "ts": 1791453482.918655}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:56:29Z

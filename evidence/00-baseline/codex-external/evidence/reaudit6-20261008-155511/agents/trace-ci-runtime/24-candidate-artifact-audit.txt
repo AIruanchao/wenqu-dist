@@ -1,0 +1,39 @@
+$ ls -l dist
+total 6568
+-rw-r--r--@ 1 maccc  wheel      108 Oct  8 15:47 SHA256-vNext-candidate-f2b8fc3.txt
+-rw-r--r--@ 1 maccc  wheel  3356318 Oct  8 15:47 wenqu-vNext-candidate-f2b8fc3.tar.gz
+rc=0
+$ cat dist/SHA256-vNext-candidate-f2b8fc3.txt
+0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00  dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+rc=0
+$ shasum -a 256 candidate and manifest
+0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00  /tmp/reaudit6-trace.dxHErV/dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+d9c83e11091968ce419790e0c17236464066c6f9f9360fc524f49a1ff7c75562  /tmp/reaudit6-trace.dxHErV/dist/SHA256-vNext-candidate-f2b8fc3.txt
+rc=0
+$ tar -tzf candidate sample/count
+wenqu-f2b8fc3/
+wenqu-f2b8fc3/.github/
+wenqu-f2b8fc3/.github/workflows/
+wenqu-f2b8fc3/.github/workflows/acceptance.yml
+wenqu-f2b8fc3/.gitignore
+wenqu-f2b8fc3/.mimosa-ignore
+wenqu-f2b8fc3/CHANGELOG.md
+wenqu-f2b8fc3/README.md
+wenqu-f2b8fc3/SHA256-v1.0.18.txt
+wenqu-f2b8fc3/SHA256-v1.0.6.txt
+wenqu-f2b8fc3/SHA256-v1.0.7.txt
+wenqu-f2b8fc3/SHA256-v1.0.8.txt
+wenqu-f2b8fc3/SHA256-v2.0.txt
+wenqu-f2b8fc3/SHA256-v3.0.0.txt
+wenqu-f2b8fc3/SHA256-v3.1.0.txt
+wenqu-f2b8fc3/SHA256-v3.2.0.txt
+wenqu-f2b8fc3/SHA256-v3.3.0.txt
+wenqu-f2b8fc3/SHA256-v3.4.0.txt
+wenqu-f2b8fc3/SHA256-v3.4.1.txt
+wenqu-f2b8fc3/SHA256-v3.4.2.txt
+     451
+rc=0
+$ file candidate
+/tmp/reaudit6-trace.dxHErV/dist/wenqu-vNext-candidate-f2b8fc3.tar.gz: gzip compressed data, from Unix, original size modulo 2^32 6615040
+rc=0
+$ candidates signatures/SBOM

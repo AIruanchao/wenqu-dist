@@ -1,0 +1,20 @@
+$ WQ_FROZEN_REPO=/tmp/wenqu-reaudit6-root-1791446155 PYTHONDONTWRITEBYTECODE=1 python3 auth_exact_target_bypass_probe.py
+{
+  "actual_action_target": "prod://release/UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD",
+  "chain_ok": true,
+  "committed_state": "COMMITTED",
+  "consumed_event_has_payload": false,
+  "receipt_status": "RECONCILED",
+  "reserved_event_action_target": "prod://release/UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD",
+  "reserved_event_approval_id": "apr_reaudit6_ypass_01",
+  "reserved_state": "RESERVED",
+  "result": "VULNERABLE",
+  "signed_release_payload": {
+    "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "environment": "staging",
+    "manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "previous_release_id": "rel-independent-5",
+    "release_id": "rel-independent-6"
+  }
+}
+exit_code=1

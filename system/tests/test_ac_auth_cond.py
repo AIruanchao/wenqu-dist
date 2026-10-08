@@ -285,6 +285,29 @@ def _action_approval(run_id: str, task_id: str, *, version: int,
     return _sign(ap)
 
 
+def _cosign_ap(ap: Dict[str, Any], *, second_key_id: str = KEY_B,
+               second_actor: str = "erge",
+               primary_actor: str = "chaoge") -> Dict[str, Any]:
+    """R7-AUTH-DUAL-CONSUME-005：给已主签的高危（prod_write）审批补嵌入
+    联签数组——主签人 + 第二签发人（fixtures 双 active key）对同一信封体
+    的独立 HMAC。既有断言不动（只增不减），成功路径按新消费契约补联签。"""
+    body = {k: v for k, v in ap.items()
+            if k not in ("signature", "cosignatures")}
+    out = dict(ap)
+    out["cosignatures"] = [
+        {"key_id": ap["key_id"], "actor": primary_actor,
+         "signature": ap["signature"]},
+        {"key_id": second_key_id, "actor": second_actor,
+         "signature": sign_envelope(KEYRING.get(second_key_id), body)},
+    ]
+    return out
+
+
+def _descriptor(ap: Dict[str, Any]) -> Dict[str, Any]:
+    """exact action descriptor（reserve_action 实参声明的动作描述=payload 副本）。"""
+    return dict(ap["payload"])
+
+
 def _external_receipt(reserved: Dict[str, Any], run_id: str,
                       *, watermark: str = ID_STAGING["commit_sha"],
                       outcome: str = "COMMITTED",
@@ -977,10 +1000,12 @@ def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> 
         _ok(mgr.authorize_risk(run_id, risk)["consumed"] is True, "risk 类精确授权消费")
 
         # action 类精确授权（prod_write 审批）→ Action Gate 全链恰一次
-        action_ap = _action_approval(run_id, "task_cond03", version=v,
-                                     stage="S7_GATE")
+        # R7：prod_write 高危——补嵌入双联签 + exact descriptor（新消费契约）
+        action_ap = _cosign_ap(_action_approval(run_id, "task_cond03",
+                                                version=v, stage="S7_GATE"))
         reserved = mgr.reserve_action(run_id, "prod-write",
-                                      "db://staging/erp#cond03", action_ap)
+                                      "db://staging/erp#cond03", action_ap,
+                                      action_descriptor=_descriptor(action_ap))
         _ok(reserved["action_state"] == "RESERVED", "action 授权预留成功")
         mgr.start_action(run_id, reserved["action_id"], receipt="cond03 caller self-report")
         receipt = _external_receipt(reserved, run_id)
@@ -997,9 +1022,11 @@ def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> 
             run_id, reserved["action_id"], receipt))
         _raises(ApprovalReuseError, lambda: mgr.reserve_action(
             run_id, "prod-write", "db://staging/erp#cond03-2", action_ap))
-        fresh_ap = _action_approval(run_id, "task_cond03", version=v, stage="S7_GATE")
+        fresh_ap = _cosign_ap(_action_approval(run_id, "task_cond03",
+                                               version=v, stage="S7_GATE"))
         second = mgr.reserve_action(run_id, "prod-write",
-                                    "db://staging/erp#cond03-2", fresh_ap)
+                                    "db://staging/erp#cond03-2", fresh_ap,
+                                    action_descriptor=_descriptor(fresh_ap))
         mgr.start_action(run_id, second["action_id"])
         # 旧动作的 attestation 移植到新动作（action_id 不一致）→ Action Gate 拒
         _raises(ActionError, lambda: mgr.commit_action(
@@ -1126,10 +1153,13 @@ def test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated(root: Pat
         _raises(ApprovalRejected, lambda: mgr.reserve_action(
             run4, "prod-write", "db://staging/erp#cond05", stale_action),
             contains="state_version")
-        fresh_action = _action_approval(run4, "task_cond05d", version=3,
-                                        stage="S1_REQUIREMENT")
+        fresh_action = _cosign_ap(_action_approval(run4, "task_cond05d",
+                                                   version=3,
+                                                   stage="S1_REQUIREMENT"))
         _ok(mgr.reserve_action(run4, "prod-write", "db://staging/erp#cond05",
-                               fresh_action)["action_state"] == "RESERVED",
+                               fresh_action,
+                               action_descriptor=_descriptor(
+                                   fresh_action))["action_state"] == "RESERVED",
             "对照组：重验通过的新授权可预留")
         _ok(store.verify_chain()["ok"], "事件链完整性保持")
         store.close()
@@ -1175,9 +1205,10 @@ def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(roo
 
         # 腿二：动作失败后重放 attestation → 终态不再裁决；须新授权才能再动作
         mgr = RunManager(EventStore(db), keyring=KEYRING)
-        ap2 = _action_approval(run_id, "task_cond06", version=v, stage="S7_GATE")
+        ap2 = _cosign_ap(_action_approval(run_id, "task_cond06", version=v,
+                                          stage="S7_GATE"))
         reserved = mgr.reserve_action(run_id, "prod-write", "db://staging/erp#cond06",
-                                      ap2)
+                                      ap2, action_descriptor=_descriptor(ap2))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="cond06 started")
         failed = mgr.fail_action(run_id, aid, "runner crash; outcome unknown")
@@ -1191,9 +1222,11 @@ def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(roo
         _raises(ApprovalReuseError, lambda: mgr.reserve_action(
             run_id, "prod-write", "db://staging/erp#cond06-2", ap2),
             contains="nonce")  # 失败后旧授权已消费——须新授权
-        ap3 = _action_approval(run_id, "task_cond06", version=v, stage="S7_GATE")
+        ap3 = _cosign_ap(_action_approval(run_id, "task_cond06", version=v,
+                                          stage="S7_GATE"))
         renewed = mgr.reserve_action(run_id, "prod-write",
-                                     "db://staging/erp#cond06-2", ap3)
+                                     "db://staging/erp#cond06-2", ap3,
+                                     action_descriptor=_descriptor(ap3))
         _ok(renewed["action_state"] == "RESERVED", "失败后凭新授权可再动作（修复路径）")
         mgr.start_action(run_id, renewed["action_id"])
         committed = mgr.commit_action(

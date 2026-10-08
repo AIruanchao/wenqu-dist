@@ -4,78 +4,197 @@
   "title": "Bug 八站 Station Result Schema v2",
   "description": "每站统一结果——Codex 方案 §7.2 契约。P0-4 加固：PASS 必须带 coverage（分母>0）与非空 artifacts，且 execution rc=0 + assertion PASS；rc 非 0 不得 PASS。F4-SCHEMA-001 加固：PASS 必须 execution COMPLETED 且 coverage.scanned == denominator（分母缩水即拒）；执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE 裁决（TIMEOUT+PASS/TIMEOUT+CONDITIONAL 双轴洗白全拒；NOT_APPLICABLE 是站级探针缺失/不适用语义，聚合层落 CONDITIONAL 不上绿）",
   "type": "object",
-  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+  "required": [
+    "schema_version",
+    "run_id",
+    "station_id",
+    "attempt_id",
+    "execution_status",
+    "policy_verdict",
+    "identity",
+    "tool",
+    "execution"
+  ],
   "properties": {
-    "schema_version": {"const": "2.0"},
-    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
-    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
-    "attempt_id": {"type": "string"},
-    "execution_status": {"enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]},
-    "policy_verdict": {"enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]},
+    "schema_version": {
+      "const": "2.0"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "station_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7
+    },
+    "attempt_id": {
+      "type": "string"
+    },
+    "execution_status": {
+      "enum": [
+        "COMPLETED",
+        "ERROR",
+        "BLOCKED",
+        "TIMEOUT",
+        "CANCELLED"
+      ]
+    },
+    "policy_verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "CONDITIONAL",
+        "NOT_APPLICABLE",
+        "NOT_EVALUATED"
+      ]
+    },
     "identity": {
       "type": "object",
-      "required": ["commit_sha", "environment", "scope_hash"],
+      "required": [
+        "commit_sha",
+        "environment",
+        "scope_hash"
+      ],
       "properties": {
-        "project_id": {"type": "string"},
-        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-        "environment": {"type": "string"},
-        "scope_hash": {"type": "string"},
-        "ruleset_hash": {"type": "string"},
-        "data_config_hash": {"type": "string"},
-        "lockfile_hash": {"type": "string"}
+        "project_id": {
+          "type": "string"
+        },
+        "commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "scope_hash": {
+          "type": "string"
+        },
+        "ruleset_hash": {
+          "type": "string"
+        },
+        "data_config_hash": {
+          "type": "string"
+        },
+        "lockfile_hash": {
+          "type": "string"
+        }
       }
     },
     "tool": {
       "type": "object",
-      "required": ["name", "version"],
+      "required": [
+        "name",
+        "version"
+      ],
       "properties": {
-        "name": {"type": "string"},
-        "version": {"type": "string"},
-        "digest": {"type": "string"}
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
       }
     },
     "execution": {
       "type": "object",
-      "required": ["argv_digest", "started_at", "ended_at", "actual_exit_code", "expected_exit_set", "assertion_verdict"],
+      "required": [
+        "argv_digest",
+        "started_at",
+        "ended_at",
+        "actual_exit_code",
+        "expected_exit_set",
+        "assertion_verdict"
+      ],
       "properties": {
-        "argv_digest": {"type": "string"},
-        "cwd_digest": {"type": "string"},
-        "started_at": {"type": "string", "format": "date-time"},
-        "ended_at": {"type": "string", "format": "date-time"},
-        "timeout_s": {"type": "integer", "minimum": 1},
+        "argv_digest": {
+          "type": "string"
+        },
+        "cwd_digest": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1
+        },
         "actual_exit_code": {
           "type": "integer",
           "description": "trusted runner 实际 waitpid 捕获——不可由调用者填写"
         },
         "expected_exit_set": {
           "type": "array",
-          "items": {"type": "integer"},
+          "items": {
+            "type": "integer"
+          },
           "description": "该测试允许的内层退出码集合（负例可有非零）"
         },
         "assertion_verdict": {
-          "enum": ["PASS", "FAIL", "ERROR"],
+          "enum": [
+            "PASS",
+            "FAIL",
+            "ERROR"
+          ],
           "description": "测试 harness 对行为是否符合预期的判断"
         }
       }
     },
     "coverage": {
       "type": "object",
-      "required": ["denominator", "scanned"],
+      "required": [
+        "denominator",
+        "scanned"
+      ],
       "properties": {
-        "denominator": {"type": "integer", "minimum": 0},
-        "scanned": {"type": "integer", "minimum": 0},
-        "exclusions": {"type": "array", "items": {"type": "string"}}
+        "denominator": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    "finding_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "artifacts": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["cas_digest", "size"],
+        "required": [
+          "cas_digest",
+          "size"
+        ],
         "properties": {
-          "cas_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-          "size": {"type": "integer", "minimum": 1}
+          "cas_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       }
     }
@@ -83,27 +202,70 @@
   "additionalProperties": false,
   "allOf": [
     {
-      "if": {"properties": {"execution_status": {"enum": ["ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]}}, "required": ["execution_status"]},
+      "if": {
+        "properties": {
+          "execution_status": {
+            "enum": [
+              "ERROR",
+              "BLOCKED",
+              "TIMEOUT",
+              "CANCELLED"
+            ]
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
       "then": {
         "properties": {
-          "policy_verdict": {"enum": ["FAIL", "NOT_EVALUATED", "NOT_APPLICABLE"]}
+          "policy_verdict": {
+            "enum": [
+              "FAIL",
+              "NOT_EVALUATED",
+              "NOT_APPLICABLE"
+            ]
+          }
         }
       }
     },
     {
-      "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
-      "then": {
-        "required": ["coverage", "artifacts"],
+      "if": {
         "properties": {
-          "execution_status": {"const": "COMPLETED"},
+          "policy_verdict": {
+            "const": "PASS"
+          }
+        },
+        "required": [
+          "policy_verdict"
+        ]
+      },
+      "then": {
+        "required": [
+          "coverage",
+          "artifacts"
+        ],
+        "properties": {
+          "execution_status": {
+            "const": "COMPLETED"
+          },
           "coverage": {
             "type": "object",
-            "required": ["denominator", "scanned"],
+            "required": [
+              "denominator",
+              "scanned"
+            ],
             "properties": {
-              "denominator": {"type": "integer", "minimum": 1},
-              "scanned": {"type": "integer", "minimum": 1}
+              "denominator": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "scanned": {
+                "type": "integer",
+                "minimum": 1
+              }
             },
-            "allOf": [
+            "allOf":[
               {"if": {"properties": {"scanned": {"const": 1}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 1}}, "required": ["denominator"]}},
               {"if": {"properties": {"scanned": {"const": 2}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 2}}, "required": ["denominator"]}},
               {"if": {"properties": {"scanned": {"const": 3}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 3}}, "required": ["denominator"]}},
@@ -167,8 +329,200 @@
               {"if": {"properties": {"scanned": {"const": 61}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 61}}, "required": ["denominator"]}},
               {"if": {"properties": {"scanned": {"const": 62}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 62}}, "required": ["denominator"]}},
               {"if": {"properties": {"scanned": {"const": 63}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 63}}, "required": ["denominator"]}},
-              {"if": {"properties": {"scanned": {"const": 64}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 64}}, "required": ["denominator"]}}
-            ]
+              {"if": {"properties": {"scanned": {"const": 64}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 64}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 65}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 65}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 66}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 66}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 67}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 67}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 68}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 68}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 69}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 69}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 70}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 70}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 71}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 71}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 72}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 72}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 73}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 73}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 74}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 74}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 75}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 75}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 76}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 76}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 77}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 77}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 78}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 78}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 79}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 79}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 80}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 80}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 81}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 81}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 82}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 82}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 83}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 83}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 84}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 84}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 85}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 85}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 86}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 86}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 87}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 87}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 88}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 88}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 89}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 89}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 90}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 90}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 91}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 91}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 92}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 92}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 93}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 93}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 94}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 94}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 95}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 95}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 96}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 96}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 97}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 97}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 98}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 98}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 99}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 99}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 100}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 100}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 101}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 101}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 102}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 102}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 103}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 103}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 104}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 104}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 105}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 105}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 106}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 106}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 107}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 107}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 108}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 108}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 109}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 109}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 110}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 110}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 111}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 111}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 112}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 112}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 113}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 113}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 114}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 114}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 115}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 115}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 116}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 116}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 117}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 117}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 118}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 118}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 119}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 119}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 120}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 120}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 121}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 121}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 122}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 122}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 123}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 123}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 124}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 124}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 125}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 125}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 126}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 126}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 127}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 127}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 128}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 128}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 129}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 129}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 130}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 130}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 131}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 131}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 132}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 132}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 133}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 133}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 134}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 134}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 135}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 135}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 136}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 136}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 137}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 137}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 138}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 138}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 139}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 139}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 140}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 140}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 141}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 141}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 142}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 142}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 143}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 143}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 144}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 144}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 145}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 145}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 146}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 146}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 147}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 147}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 148}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 148}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 149}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 149}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 150}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 150}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 151}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 151}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 152}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 152}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 153}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 153}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 154}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 154}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 155}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 155}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 156}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 156}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 157}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 157}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 158}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 158}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 159}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 159}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 160}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 160}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 161}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 161}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 162}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 162}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 163}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 163}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 164}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 164}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 165}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 165}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 166}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 166}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 167}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 167}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 168}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 168}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 169}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 169}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 170}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 170}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 171}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 171}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 172}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 172}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 173}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 173}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 174}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 174}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 175}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 175}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 176}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 176}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 177}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 177}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 178}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 178}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 179}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 179}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 180}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 180}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 181}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 181}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 182}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 182}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 183}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 183}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 184}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 184}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 185}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 185}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 186}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 186}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 187}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 187}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 188}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 188}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 189}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 189}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 190}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 190}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 191}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 191}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 192}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 192}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 193}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 193}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 194}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 194}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 195}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 195}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 196}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 196}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 197}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 197}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 198}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 198}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 199}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 199}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 200}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 200}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 201}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 201}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 202}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 202}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 203}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 203}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 204}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 204}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 205}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 205}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 206}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 206}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 207}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 207}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 208}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 208}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 209}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 209}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 210}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 210}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 211}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 211}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 212}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 212}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 213}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 213}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 214}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 214}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 215}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 215}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 216}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 216}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 217}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 217}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 218}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 218}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 219}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 219}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 220}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 220}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 221}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 221}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 222}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 222}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 223}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 223}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 224}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 224}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 225}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 225}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 226}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 226}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 227}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 227}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 228}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 228}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 229}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 229}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 230}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 230}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 231}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 231}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 232}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 232}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 233}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 233}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 234}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 234}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 235}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 235}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 236}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 236}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 237}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 237}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 238}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 238}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 239}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 239}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 240}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 240}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 241}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 241}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 242}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 242}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 243}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 243}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 244}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 244}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 245}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 245}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 246}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 246}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 247}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 247}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 248}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 248}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 249}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 249}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 250}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 250}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 251}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 251}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 252}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 252}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 253}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 253}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 254}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 254}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 255}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 255}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 256}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 256}}, "required": ["denominator"]}}
+          ]
           },
           "artifacts": {
             "type": "array",
@@ -176,15 +530,22 @@
           },
           "execution": {
             "type": "object",
-            "required": ["actual_exit_code", "assertion_verdict"],
+            "required": [
+              "actual_exit_code",
+              "assertion_verdict"
+            ],
             "properties": {
-              "actual_exit_code": {"const": 0},
-              "assertion_verdict": {"const": "PASS"}
+              "actual_exit_code": {
+                "const": 0
+              },
+              "assertion_verdict": {
+                "const": "PASS"
+              }
             }
           }
         }
       }
     }
   ],
-  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，schema 侧以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64；级联外不判定，不误拒合法大分母全扫）。F6-SCHEMA-BOUND-001（2026-10-08 Codex 第六轮根修，采纳镜像无界等式分支）：(c) 的全量机器强制由 gate_aggregator.mirror_validate_station_result_v2 的无界等式判定承担——样例 coverage {scanned:65, denominator:66}（及任意 scanned≠denominator，无论多大）必须机器强制红：镜像必拒、该站强制 BLOCKED（schema-invalid 一律 fail-closed）。机器复验正本为 system/tests/test_gate_scope_binding.py（65/66 全红 + 65/65 全绿 + 1..64 级联内镜像↔schema 一致性自测 + >64 声明边界）；两侧一致性自测另见 system/tests/test_gate_schema_hardening.py"
+  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，schema 侧以 const 级联机器判定 1..256（R7-SCHEMA 分母分叉根修，2026-10-08 生成式扩展自 1..64；级联外不判定，不误拒合法大分母全扫）。F6-SCHEMA-BOUND-001（2026-10-08 Codex 第六轮根修，采纳镜像无界等式分支）：(c) 的全量机器强制由 gate_aggregator.mirror_validate_station_result_v2 的无界等式判定承担——样例 coverage {scanned:65, denominator:66}（级联内）及任意 scanned≠denominator（无论多大，含 >256 级联外）必须机器强制红：schema 级联内双侧拒、级联外镜像必拒、该站强制 BLOCKED（schema-invalid 一律 fail-closed）。机器复验正本为 system/tests/test_gate_scope_binding.py（65/66 全红 + 65/65 全绿 + 1..256 级联内镜像↔schema 一致性自测 + >256 声明边界）；两侧一致性自测另见 system/tests/test_gate_schema_hardening.py"
 }

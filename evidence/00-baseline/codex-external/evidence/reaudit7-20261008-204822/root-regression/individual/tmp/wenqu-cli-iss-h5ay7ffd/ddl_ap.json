@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0",
+  "approval_id": "apr_94f8af22fcb745fe85e22f5d64a387d3",
+  "approval_type": "ddl",
+  "key_id": "key_cli_a",
+  "run_id": "run_20261008T205700Z_c609aa70",
+  "task_id": "task_cli_iss",
+  "stop_event_id": "n/a-ddl",
+  "stop_type": "ddl",
+  "stage": "S1_REQUIREMENT",
+  "environment": "staging",
+  "authorized_scope": "scope-hash-001",
+  "policy_hash": "policy-sha-001",
+  "ruleset_hash": "rules-7",
+  "input_watermark": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_state_version": 4,
+  "actor": "chaoge",
+  "issued_at": "2026-10-08T12:57:01Z",
+  "expires_at": "2026-10-08T13:57:01Z",
+  "nonce": "9499387b81c48a884122e24d4c3b8ed2",
+  "decision": "approve",
+  "payload": {
+    "database_identity": "db://staging/erp",
+    "statement_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "before_schema_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "after_schema_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "backup_id": "bak-1",
+    "rollback_plan_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "signature": "38baa3d0bb49fc7b6bc42578f611fc6854e086baae4948dc0dccc0f63f852bf4"
+}

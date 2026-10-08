@@ -1,0 +1,15 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 10
+START=2026-10-08T16:01:20+0800
+{
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-10-2n35mlrv",
+  "outcomes": {
+    "read_symlink_after_lstat": "IntegrityError: symlink planted at content path '9b40678c18a4ecec8085505adbaaceee3cf7dc40325108a0e3c0d6b48972734a.json'; refusing",
+    "write_hardlink_after_lstat": "contained; outside unchanged",
+    "write_symlink_after_lstat": "contained; outside unchanged"
+  },
+  "outside_final": "OUTSIDE-SENTINEL",
+  "probe": "10",
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:20+0800

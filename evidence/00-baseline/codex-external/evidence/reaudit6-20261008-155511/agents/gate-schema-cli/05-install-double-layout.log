@@ -1,0 +1,143 @@
+$ HOME=<fake> bash system/bin/wenquctl --help
+usage: wenquctl [-h]
+                {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding,gate} ...
+
+wenqu 七段管线控制 CLI（P0-1/P0-2 接线——直通 RunManager）
+
+positional arguments:
+  {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding,gate}
+    create              创建七段 run
+    advance             推进当前段（启动/完成 attempt）
+    status              run 只读快照
+    raise-waiting       触发停等
+    resume              消费一次性 resume 审批恢复 WAITING
+    authorize-risk      消费一次性 risk 授权
+    complete            终态判定
+    register-finding    登记面追加 finding
+    gate                聚合 station-result-v2 结果为整线 gate 判定（退出码
+                        PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
+
+options:
+  -h, --help            show this help message and exit
+exit_code=0
+$ HOME=<fake> bash system/install.sh --prefix <prefix>
+╔══════════════════════════════════════╗
+║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+╚══════════════════════════════════════╝
+目标：/tmp/reaudit6-install-cli.1VNfVJ/prefix
+wenqu_core 全模块导入验证通过（15 模块）
+✓ wenqu_core 安装验证通过（全模块可导入，含 wenqu_pipeline）
+✓ 安装体 wenquctl 验证通过（/tmp/reaudit6-install-cli.1VNfVJ/prefix/bin/wenquctl --help rc=0）
+✓ PATH 已写入 /tmp/reaudit6-install-cli.1VNfVJ/home/.bashrc（新开终端生效）
+✓ 配置：/tmp/reaudit6-install-cli.1VNfVJ/prefix/env（编辑后 wenqu doctor 校验）
+── 依赖探测 ──
+✓ git git version 2.39.5 (Apple Git-154)
+✓ python3 Python 3.14.8
+✓ node v22.23.2
+△ 缺 psql（仅影响 DB 类组件）
+△ 缺 psycopg2：pip3 install psycopg2-binary
+✓ TLA+ 工具链
+✓ Z3 定理证明器
+── 自检 ──
+△ doctor rc=1：全新安装未配置（容忍）——编辑 /tmp/reaudit6-install-cli.1VNfVJ/prefix/env 后 wenqu doctor 复检
+
+安装完成。三步上手：
+  1. 编辑 /tmp/reaudit6-install-cli.1VNfVJ/prefix/env —— 填你的仓库/DB/告警参数
+  2. cd 你的项目 && wenqu init      —— 初始化项目级质量体系
+  3. wenqu status                   —— 查看全组件状态
+
+exit_code=0
+$ HOME=<fake> <prefix>/bin/wenquctl --help
+usage: wenquctl [-h]
+                {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding,gate} ...
+
+wenqu 七段管线控制 CLI（P0-1/P0-2 接线——直通 RunManager）
+
+positional arguments:
+  {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding,gate}
+    create              创建七段 run
+    advance             推进当前段（启动/完成 attempt）
+    status              run 只读快照
+    raise-waiting       触发停等
+    resume              消费一次性 resume 审批恢复 WAITING
+    authorize-risk      消费一次性 risk 授权
+    complete            终态判定
+    register-finding    登记面追加 finding
+    gate                聚合 station-result-v2 结果为整线 gate 判定（退出码
+                        PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
+
+options:
+  -h, --help            show this help message and exit
+exit_code=0
+$ HOME=<fake> <prefix>/bin/wenquctl gate --results gate.json --required 2
+{"generated_at": "2026-10-08T07:59:38Z", "policy_verdict": "PASS", "aggregate_outcome": "PASS", "technical_eligible": true, "reason": "all 1 required stations PASS", "reasons": [], "counts": {"required_total": 1, "required_reported": 1, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "stations": {"2": {"outcome": "PASS", "required": true, "sha_bound": true, "environment_ok": true, "input_version": "v2", "schema_valid": true}}, "target_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "environment": "local", "inputs": {"paths": 1, "docs": 1, "load_errors": 0, "schema_invalid": 0}}
+exit_code=0
+$ find <prefix> -maxdepth 3 -type f ...
+<TMP>/prefix/bin/blast-radius.py
+<TMP>/prefix/bin/check-openapi-compat.py
+<TMP>/prefix/bin/coverage-ratchet.py
+<TMP>/prefix/bin/cursor-auto-verify.sh
+<TMP>/prefix/bin/deploy-preflight.sh
+<TMP>/prefix/bin/gate-learner.py
+<TMP>/prefix/bin/hardening-doctor.sh
+<TMP>/prefix/bin/iron-gate.sh
+<TMP>/prefix/bin/relay-push.sh
+<TMP>/prefix/bin/risk-scorer.py
+<TMP>/prefix/bin/same-name-census.py
+<TMP>/prefix/bin/spec-reconcile.py
+<TMP>/prefix/bin/tla2tools.jar
+<TMP>/prefix/bin/ts-to-tla.py
+<TMP>/prefix/bin/wenqu
+<TMP>/prefix/bin/wenqu-dashboard.py
+<TMP>/prefix/bin/wenqu-env.sh
+<TMP>/prefix/bin/wenquctl
+<TMP>/prefix/bin/workorder-precheck.sh
+<TMP>/prefix/bin/zero-rework.sh
+<TMP>/prefix/ci/ci-fast.yml
+<TMP>/prefix/ci/nightly.yml
+<TMP>/prefix/daemons/auto-merge.sh
+<TMP>/prefix/daemons/cdc-conservation-stream.py
+<TMP>/prefix/daemons/conservation-daemon.py
+<TMP>/prefix/dashboard/app.css
+<TMP>/prefix/dashboard/app.js
+<TMP>/prefix/dashboard/index.html
+<TMP>/prefix/dashboard/server.py
+<TMP>/prefix/db/conservation-triggers.sql
+<TMP>/prefix/db/self-heal.sql
+<TMP>/prefix/env
+<TMP>/prefix/env.example
+<TMP>/prefix/lib/wenqu_core/__init__.py
+<TMP>/prefix/lib/wenqu_core/approval_keys.py
+<TMP>/prefix/lib/wenqu_core/bugscan_orchestrator.py
+<TMP>/prefix/lib/wenqu_core/cli.py
+<TMP>/prefix/lib/wenqu_core/deploy_framework.py
+<TMP>/prefix/lib/wenqu_core/gate_aggregator.py
+<TMP>/prefix/lib/wenqu_core/ledger_migrator.py
+<TMP>/prefix/lib/wenqu_core/runner.py
+<TMP>/prefix/lib/wenqu_core/scheduler.py
+<TMP>/prefix/lib/wenqu_core/source_gate.py
+<TMP>/prefix/lib/wenqu_core/station2_static.py
+<TMP>/prefix/lib/wenqu_core/station3_contract.py
+<TMP>/prefix/lib/wenqu_core/station4_behavior.py
+<TMP>/prefix/lib/wenqu_core/station7_runtime.py
+<TMP>/prefix/lib/wenqu_core/store.py
+<TMP>/prefix/lib/wenqu_core/wenqu_pipeline.py
+<TMP>/prefix/schemas/approval-v2.schema.json
+<TMP>/prefix/schemas/evidence-v2.schema.json
+<TMP>/prefix/schemas/finding-event-v2.schema.json
+<TMP>/prefix/schemas/run-event-v2.schema.json
+<TMP>/prefix/schemas/station-result-v2.schema.json
+<TMP>/prefix/sentinels/ci-event-sentinel.sh
+<TMP>/prefix/sentinels/conservation-sentinel.sh
+<TMP>/prefix/sentinels/ssl-cert-sentinel.sh
+<TMP>/prefix/sentinels/weekly-watchdog.sh
+<TMP>/prefix/specs/PaymentConservation.cfg
+<TMP>/prefix/specs/PaymentConservation.tla
+<TMP>/prefix/specs/z3/payment_invariants.smt2
+<TMP>/prefix/templates/adversarial.spec.ts
+<TMP>/prefix/templates/user-guide-template.md
+<TMP>/prefix/templates/work-order-template.md
+$ sha256/install layout
+e36f61adf3f116a55624fc91c5ea5de9bf603a9e0fa26bf269c40deca51202ec  <TMP>/prefix/bin/wenquctl
+20f32ff21819af79f60269378cb12426781ecb73f5e4254d53ed254f91bcdc8b  <TMP>/prefix/lib/wenqu_core/cli.py
+summary source_help_rc=0 install_rc=0 installed_help_rc=0 installed_gate_rc=0

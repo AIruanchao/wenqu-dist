@@ -1,0 +1,17 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 07
+START=2026-10-08T16:01:20+0800
+{
+  "chain": {
+    "head": "648286bf810b48c8a35d5df4c4f4d84f95ce8040890fe03c5967473db12973c3",
+    "length": 4,
+    "ok": true
+  },
+  "different_signed_envelope_same_nonce_rejected": "ApprovalReuseError: nonce already consumed (approval apr_reaudit6_b4ad5790d94845d4b510ac7f36cd1146 不可复用——不变量 #5, 事件正源已登记)",
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-07-m55_3rvr",
+  "probe": "07",
+  "restored_action_count": 1,
+  "side_table_rows_after_events_only_copy": 0,
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:20+0800

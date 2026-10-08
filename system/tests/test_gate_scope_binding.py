@@ -15,9 +15,9 @@
     -> test_f6_format002_mirror_rfc3339_strict_datetime        （纯日期/无时区拒）
     -> test_f6_format002_duplicate_equivalence_key             （attempt/scope/coverage/artifact 全等才算幂等）
     -> test_f6_format002_cli_no_false_reject_schema_legal_nesting（CLI 私有校验误拒消除）
-  F6-SCHEMA-BOUND-001       PASS 分母等值 schema 级联只到 64
+  F6-SCHEMA-BOUND-001       PASS 分母等值 schema 级联（R7-SCHEMA 生成式扩展 1..256）
     -> test_f6_schema001_mirror_unbounded_and_65_66_machine_red（65/66 任意缩水
-       镜像机器红 + 1..64 级联内两侧一致性自测 + >64 声明边界）
+       镜像机器红 + 1..256 级联内两侧一致性自测 + >256 声明边界）
   F6-TRC-PARSER-002         ac_traceability parser fail-open
     -> test_f6_trc002_missing_plan_check_exit2                 （--plan 缺失 --check 必 exit 2）
     -> test_f6_trc002_duplicate_and_poison_rows_detected       （重复相同行/先毒后正必红）
@@ -36,6 +36,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
 ROOT = os.path.dirname(REPO)                                        # 仓根
 sys.path.insert(0, REPO)
 
+from wenqu_core.approval_keys import ApprovalKeyring  # noqa: E402
 from wenqu_core.bugscan_orchestrator import (  # noqa: E402
     BugscanPlanner, RunManifest, default_registry,
 )
@@ -67,18 +68,29 @@ def _tail(text, n=200):
 
 
 # ───────────────────────── fixture：冻结 manifest + 绑定结果 ─────────────────────────
+# R7-GATE-MANIFEST-AUTH-001（诚实更新，只增不减）：正门现在必须 --verify-key，
+# fixture 相应升级为「签名的 manifest + 验签 keyring 文件」——既有断言全部
+# 保留，且全部改走生产正门（签名验签路径）而非降级诊断。
 def _freeze(tmp):
-    """冻结一个 FAST run（required={0,1}，scope 3 路径 → denominator=3）。"""
+    """冻结一个 FAST run（required={0,1}，scope 3 路径 → denominator=3）。
+
+    以 release/manifest 专用 key 签名（R7-GATE-MANIFEST-AUTH-001），
+    同时落一个验签 keyring JSON 供 --verify-key 使用。
+    """
     planner = BugscanPlanner(default_registry())
     plan = planner.plan("FAST")
+    keyring = ApprovalKeyring.generate("key_f6_manifest")
     manifest = planner.freeze_run_manifest(
         plan, run_id="run-f6-scope", project_id="f6/erp",
         commit_sha=SHA, environment="staging",
         scope=["src/**", "tests/**", "tools/**"],
-        ruleset={"version": "w6a-f6"}, data_config={"profile": "default"})
+        ruleset={"version": "w6a-f6"}, data_config={"profile": "default"},
+        signing_keyring=keyring, signing_key_id="key_f6_manifest")
     path = os.path.join(tmp, "run-manifest.json")
     manifest.save(path)
-    return manifest, path
+    keyring_path = os.path.join(tmp, "manifest-keys.json")
+    keyring.save_json(keyring_path)
+    return manifest, path, keyring_path
 
 
 def _bound(manifest, station, **over):
@@ -141,10 +153,11 @@ def _is_invalid(validator, doc):
 def test_f6_scope001_manifest_front_door_full_pass():
     """正门对照：required/分母/身份全部对账冻结 manifest → PASS rc=0。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6a_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
         s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
-        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+        rc, out = _gate(["--results", s0, s1, "--manifest", mpath,
+                           "--verify-key", kpath])
         _ck("F6-SCOPE-001 正门全对账 rc=0 PASS", rc == 0 and out.get("policy_verdict") == "PASS",
             f"rc={rc} {_tail(out.get('reason'))}")
         _ck("F6-SCOPE-001 mode=manifest + scope_binding 就位",
@@ -162,9 +175,10 @@ def test_f6_scope001_manifest_front_door_full_pass():
 def test_f6_scope001_missing_station_blocked():
     """反例：manifest required={0,1} 但站 1 缺报 → BLOCKED rc=2。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6b_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
-        rc, out = _gate(["--results", s0, "--manifest", mpath])
+        rc, out = _gate(["--results", s0, "--manifest", mpath,
+                           "--verify-key", kpath])
         reasons = "".join(out.get("reasons", []))
         _ck("F6-SCOPE-001 缺站 rc=2 BLOCKED + denominator_shrinkage",
             rc == 2 and out.get("aggregate_outcome") == BLOCKED
@@ -175,12 +189,13 @@ def test_f6_scope001_missing_station_blocked():
 def test_f6_scope001_self_declared_denominator_blocked():
     """反例：站结果自报 coverage 分母（≠manifest 冻结分母）→ BLOCKED rc=2。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6c_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
         shrunk = _bound(manifest, 1)
         shrunk["coverage"] = {"denominator": 2, "scanned": 2}  # 自报缩水分母
         s1 = _write(shrunk, os.path.join(td, "s1.json"))
-        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+        rc, out = _gate(["--results", s0, s1, "--manifest", mpath,
+                           "--verify-key", kpath])
         reasons = "".join(out.get("reasons", []))
         _ck("F6-SCOPE-001 自报分母 rc=2 BLOCKED + self_declared_denominator",
             rc == 2 and out.get("aggregate_outcome") == BLOCKED
@@ -208,12 +223,13 @@ def test_f6_scope001_self_declared_denominator_blocked():
 def test_f6_scope001_scope_hash_mismatch_blocked():
     """反例：站结果 identity.scope_hash 与冻结 manifest 不符 → BLOCKED rc=2。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6d_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         rogue = _bound(manifest, 0)
         rogue["identity"] = dict(rogue["identity"], scope_hash="9" * 64)
         s0 = _write(rogue, os.path.join(td, "s0.json"))
         s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
-        rc, out = _gate(["--results", s0, s1, "--manifest", mpath])
+        rc, out = _gate(["--results", s0, s1, "--manifest", mpath,
+                           "--verify-key", kpath])
         reasons = "".join(out.get("reasons", []))
         _ck("F6-SCOPE-001 scope_hash 不符 rc=2 BLOCKED + scope_hash_mismatch",
             rc == 2 and out.get("aggregate_outcome") == BLOCKED
@@ -223,7 +239,8 @@ def test_f6_scope001_scope_hash_mismatch_blocked():
         rogue2 = _bound(manifest, 0)
         rogue2["identity"] = dict(rogue2["identity"], commit_sha="2" * 40)
         s0b = _write(rogue2, os.path.join(td, "s0b.json"))
-        rc2, out2 = _gate(["--results", s0b, s1, "--manifest", mpath])
+        rc2, out2 = _gate(["--results", s0b, s1, "--manifest", mpath,
+                           "--verify-key", kpath])
         _ck("F6-SCOPE-001 commit_sha 不符（正门）rc=2 BLOCKED",
             rc2 == 2 and out2.get("aggregate_outcome") == BLOCKED
             and "sha_evidence_violation" in "".join(out2.get("reasons", [])),
@@ -234,7 +251,7 @@ def test_f6_scope001_bare_invocation_refused_and_diagnostic():
     """反例复刻（P0 本体）：无 manifest 裸调用默认拒绝（rc=3）；
     显式 --allow-self-declared 才走诊断路径（自报口径，仅诊断）。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6e_") as td:
-        manifest, _mpath = _freeze(td)
+        manifest, _mpath, _kpath = _freeze(td)
         s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
         s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
         rc, out = _gate(["--results", s0, s1])
@@ -260,25 +277,29 @@ def test_f6_scope001_bare_invocation_refused_and_diagnostic():
 def test_f6_scope001_tampered_manifest_and_flag_conflicts():
     """反例：篡改 manifest（manifest_hash 防篡改复核拒）/旗标互斥全 ERROR(3)。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6f_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
         s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
         tampered = json.load(open(mpath, encoding="utf-8"))
         tampered["scope"]["paths"].append("rogue/**")  # 缩水攻击：悄悄扩/改范围
         tpath = _write(tampered, os.path.join(td, "tampered.json"))
-        rc, out = _gate(["--results", s0, s1, "--manifest", tpath])
+        rc, out = _gate(["--results", s0, s1, "--manifest", tpath,
+                           "--verify-key", kpath])
         _ck("F6-SCOPE-001 篡改 manifest rc=3（hash 复核拒绝）",
             rc == 3 and "manifest" in (out.get("reason") or "").lower(),
             f"rc={rc} {_tail(out.get('reason'))}")
         rc2, out2 = _gate(["--results", s0, "--manifest", mpath,
+                           "--verify-key", kpath,
                            "--allow-self-declared"])
         _ck("F6-SCOPE-001 --manifest 与 --allow-self-declared 互斥 rc=3",
             rc2 == 3 and out2.get("mode") == "flag_conflict", f"rc={rc2}")
         rc3, out3 = _gate(["--results", s0, "--manifest", mpath,
+                           "--verify-key", kpath,
                            "--required", "0"])
         _ck("F6-SCOPE-001 --manifest 与自报 --required 互斥 rc=3",
             rc3 == 3 and out3.get("mode") == "flag_conflict", f"rc={rc3}")
         rc4, out4 = _gate(["--results", s0, s1, "--manifest", mpath,
+                           "--verify-key", kpath,
                            "--sha", "2" * 40])
         _ck("F6-SCOPE-001 --sha 与冻结 SHA 冲突 rc=3（身份以 manifest 为正源）",
             rc4 == 3 and out4.get("mode") == "manifest_identity_conflict",
@@ -288,12 +309,13 @@ def test_f6_scope001_tampered_manifest_and_flag_conflicts():
 def test_f6_scope001_legacy_result_not_manifest_bound():
     """反例：正门下混入 legacy 结果（无法证明 scope 绑定）→ BLOCKED。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6g_") as td:
-        manifest, mpath = _freeze(td)
+        manifest, mpath, kpath = _freeze(td)
         legacy = _write({"station": "0", "outcome": "PASS", "sha": SHA,
                          "environment": "staging"},
                         os.path.join(td, "legacy0.json"))
         s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
-        rc, out = _gate(["--results", legacy, s1, "--manifest", mpath])
+        rc, out = _gate(["--results", legacy, s1, "--manifest", mpath,
+                           "--verify-key", kpath])
         reasons = "".join(out.get("reasons", []))
         _ck("F6-SCOPE-001 legacy 结果正门下 BLOCKED",
             rc == 2 and "legacy_result_not_manifest_bound" in reasons,
@@ -434,18 +456,21 @@ def test_f6_format002_cli_no_false_reject_schema_legal_nesting():
 
 
 # ══════════════════════════════════════════════════════════════════════
-# F6-SCHEMA-BOUND-001：PASS 分母等值只到 64（镜像无界等式分支 + 一致性自测）
+# F6-SCHEMA-BOUND-001：PASS 分母等值（镜像无界等式分支 + 一致性自测）
+# R7-SCHEMA 同步（2026-10-08 第七轮）：schema const 级联生成式扩展 1..64→
+# 1..256——>64 分母分叉闭合（65/66 等缩水正式 schema 同拒）；>256 声明边界。
 # ══════════════════════════════════════════════════════════════════════
 def test_f6_schema001_mirror_unbounded_and_65_66_machine_red():
-    """F6 规格的镜像无界等式分支：schema const 级联维持 1..64（F4 既有边界，
-    test_gate_schema_hardening 锁定），65/66 等任意缩水由镜像机器强制红；
-    1..64 级联内做镜像↔schema 两侧一致性自测；>64 为声明边界（schema 不判）。
+    """F6 规格的镜像无界等式分支：schema const 级联 1..256（R7 生成式扩展，
+    test_gate_schema_hardening 锁定新边界），65/66 等任意缩水由镜像+schema
+    双侧机器强制红；1..256 级联内做镜像↔schema 两侧一致性自测；>256 为
+    声明边界（schema 不判）。
     """
     schema = json.load(open(SCHEMA_PATH, encoding="utf-8"))
     cascade = schema["allOf"][1]["then"]["properties"]["coverage"]["allOf"]
     consts = [e["if"]["properties"]["scanned"]["const"] for e in cascade]
-    _ck("F6-SCHEMA-001 schema const 级联 1..64（F4 边界保持——>64 走镜像）",
-        consts == list(range(1, 65)),
+    _ck("F6-SCHEMA-001 schema const 级联 1..256（R7 生成式扩展——>256 走镜像）",
+        consts == list(range(1, 257)),
         f"n={len(consts)} head={consts[:2]} tail={consts[-2:]}")
     _ck("F6-SCHEMA-001 $comment 写明 65/66 机器红 + 镜像无界等式 + 本测试为复验正本",
         "65/66" in schema["$comment"] and "无界等式" in schema["$comment"]
@@ -479,8 +504,8 @@ def test_f6_schema001_mirror_unbounded_and_65_66_machine_red():
     try:
         v = _jsonschema_validator()
         mismatch = []
-        # 两侧一致性自测（级联内 1..64 全量）：等值两收 / 缩水两拒
-        for n in range(1, 65):
+        # 两侧一致性自测（级联内 1..256 全量）：等值两收 / 缩水两拒
+        for n in range(1, 257):
             equal_doc = _pass_doc(n, n)
             shrink_doc = _pass_doc(n, n - 1) if n >= 2 else _pass_doc(1, 2)
             if bool(mirror_validate_station_result_v2(equal_doc)) \
@@ -490,16 +515,20 @@ def test_f6_schema001_mirror_unbounded_and_65_66_machine_red():
                     or not _is_invalid(v, shrink_doc):
                 mismatch.append(
                     f"{shrink_doc['coverage']}: shrink not both-rejected")
-        _ck("F6-SCHEMA-001 级联内 1..64 两侧一致性（等值两收/缩水两拒，全量）",
+        _ck("F6-SCHEMA-001 级联内 1..256 两侧一致性（等值两收/缩水两拒，全量）",
             not mismatch, "; ".join(mismatch[:4]))
-        # 声明边界：>64 schema 不判（F4 契约），镜像兜底
-        for sc, dn in ((65, 66), (255, 256), (300, 299)):
+        # R7 分叉闭合：>64 缩水在级联内——正式 schema 同拒（不再单靠镜像）
+        for sc, dn in ((65, 66), (255, 256)):
+            _ck(f"F6-SCHEMA-001 schema 拒 PASS {sc}/{dn}（R7 级联内分叉闭合）",
+                _is_invalid(v, _pass_doc(sc, dn)) is True)
+        # 声明边界：>256 schema 不判（R7 契约），镜像无界兜底
+        for sc, dn in ((300, 299),):
             _ck(f"F6-SCHEMA-001 schema 对 {sc}/{dn} 不判（声明边界，镜像兜底）",
                 _is_invalid(v, _pass_doc(sc, dn)) is False)
-        for sc, dn in ((3, 2), (64, 63)):
+        for sc, dn in ((3, 2), (64, 63), (256, 255)):
             _ck(f"F6-SCHEMA-001 schema 级联内拒 {sc}/{dn}",
                 _is_invalid(v, _pass_doc(sc, dn)) is True)
-        for sc, dn in ((65, 65), (300, 300), (64, 64)):
+        for sc, dn in ((65, 65), (300, 300), (64, 64), (256, 256)):
             _ck(f"F6-SCHEMA-001 schema 收 PASS {sc}/{dn}",
                 not _is_invalid(v, _pass_doc(sc, dn)))
     except ImportError:

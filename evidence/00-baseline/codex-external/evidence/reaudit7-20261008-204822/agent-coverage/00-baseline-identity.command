@@ -1,0 +1,1 @@
+set -o pipefail; printf "HEAD="; git rev-parse HEAD; printf "STATUS_BEGIN\n"; git status --short; printf "STATUS_END\n"; printf "PLAN_SHA="; shasum -a 256 evidence/00-baseline/codex-external/方案.md; printf "FILE_COUNT="; git ls-files | wc -l

@@ -52,7 +52,22 @@
       "pattern": "^[0-9a-f]{64}$",
       "description": "hex(hmac_sha256(secret, canonical_json(envelope_without_signature)))——形状约束仅为第一道闸，Broker 层真实验签"
     },
-    "payload": {"type": "object"}
+    "payload": {"type": "object"},
+    "cosignatures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key_id", "actor", "signature"],
+        "properties": {
+          "key_id": {"type": "string", "pattern": "^key_[a-zA-Z0-9_-]+$"},
+          "actor": {"type": "string", "minLength": 1},
+          "signature": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      },
+      "description": "R7-AUTH-DUAL-CONSUME-005：高危类型（prod_write/ddl/release/fund_auth）消费侧必携带——≥2 名不同 key 对同一信封体（envelope 去掉 signature/cosignatures）的独立 HMAC 联签；缺失/单签/同 key 双签/revoked 一律 ApprovalRejected（Broker 层按 keyring 逐条验签，schema 只能约束形状）。低危类型携带即拒（防「已联签」错觉——schema 层不区分，Broker 结构层终审）"
+    }
   },
   "additionalProperties": false,
   "allOf": [

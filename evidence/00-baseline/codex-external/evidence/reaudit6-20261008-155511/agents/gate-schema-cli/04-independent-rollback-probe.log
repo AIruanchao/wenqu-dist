@@ -1,0 +1,42 @@
+$ PYTHONDONTWRITEBYTECODE=1 python3 independent_rollback_probe.py "$ISO"
+{
+  "caught_deploy_error": "deploy failed at install self-check: SelfCheckError('install self-check returned falsy: False'); rolled back to /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085; rollback self-check re-verified",
+  "raw_initial_link": "../../../immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+  "raw_final_link": "../../../immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+  "before_resolved": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+  "after_resolved": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+  "stable_release": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+  "stable_verify": {
+    "ok": true,
+    "release_dir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+    "release_id": "20261008T075921Z-cedafa6a6085",
+    "missing": [],
+    "extra": [],
+    "drifted": [],
+    "mode_drifted": [],
+    "checked": 2
+  },
+  "self_check_calls": [
+    {
+      "release_dir": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-052528550d0b",
+      "version": "candidate-v2-bad"
+    },
+    {
+      "release_dir": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6 rollback root with spaces cia8m6bc/immutable releases/tier one/tier two/20261008T075921Z-cedafa6a6085",
+      "version": "stable-v1"
+    }
+  ],
+  "current_is_symlink": true,
+  "cwd_during_deploy": "/",
+  "relative_depth_segments": [
+    "..",
+    "..",
+    "..",
+    "immutable releases",
+    "tier one",
+    "tier two",
+    "20261008T075921Z-cedafa6a6085"
+  ]
+}
+ASSERT_ROLLBACK=PASS
+exit_code=0

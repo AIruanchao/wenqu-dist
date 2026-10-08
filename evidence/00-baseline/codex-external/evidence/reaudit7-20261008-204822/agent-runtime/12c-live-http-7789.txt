@@ -1,0 +1,260 @@
+UTC_START=2026-10-08T12:50:41Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-http.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+for spec in 'GET /' 'GET /api/v1/ping' 'GET /api/v1/components' 'GET /api/v1/health' 'GET /api/health' 'POST /api/decide' 'POST /api/v1/decide' 'PUT /api/v1/health' 'OPTIONS /api/v1/ping'; do
+ method=${spec%% *}; reqpath=${spec#* }
+ echo "===== $method $reqpath ====="
+ body=$(mktemp /tmp/reaudit7-http.XXXXXX); hdr=$(mktemp /tmp/reaudit7-hdr.XXXXXX)
+ if [[ $method == POST ]]; then
+   code=$(curl -sS --max-time 8 -X "$method" -H 'Content-Type: application/json' --data '{}' -D "$hdr" -o "$body" -w '%{http_code}' "http://127.0.0.1:7789$reqpath"); rc=$?
+ else
+   code=$(curl -sS --max-time 8 -X "$method" -D "$hdr" -o "$body" -w '%{http_code}' "http://127.0.0.1:7789$reqpath"); rc=$?
+ fi
+ echo CURL_RC=$rc HTTP_CODE=$code
+ sed -n '1,40p' "$hdr"
+ echo BODY_SHA256=$(shasum -a 256 "$body"|awk '{print $1}')
+ echo BODY_BYTES=$(wc -c < "$body"|tr -d ' ')
+ head -c 8000 "$body"; echo
+ rm -f "$body" "$hdr"
+done
+--- OUTPUT ---
+===== GET / =====
+CURL_RC=0 HTTP_CODE=200
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: text/html; charset=utf-8
+Content-Length: 11922
+
+BODY_SHA256=caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2
+BODY_BYTES=11922
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>问渠 wenqu · 仪表盘</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- W8 安全加固：CSP 禁内联脚本/样式；frame-ancestors 仅在服务器 CSP 响应头生效（meta 中为文档性声明） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head><body>
+<h1>问渠 wenqu <span class="badge" id="ver">…</span></h1>
+<div class="sub">本地质量工程体系 · <span id="ts"></span> · <span id="port"></span></div>
+<nav class="tabs-nav" id="tabs">
+  <button class="tab active" data-t="ov">总览</button>
+  <button class="tab" data-t="pipe">管线流程</button>
+  <button class="tab" data-t="deck">问渠全流程</button>
+  <button class="tab" data-t="bugdeck">bug 管线</button>
+</nav>
+<div id="pipe" class="hidden"><div class="pl"><h3>四轨出生制 v3.1</h3><div class="src">正源：optimal-quality-process（方案/规格/规则类自动触发；假设任何单轨不可信——任何错误至少被两层独立机制拦截）</div>
+<div class="flow">
+ <div class="frow"><div class="node"><b>S0 brief 起草</b><span>FACT 编号事实+TERM 术语表+ASSUMPTION 假设</span></div>
+ <div class="node"><b>S0.5 brief 复审</b><span>冻结前两轨异源审完备性（brief=全员上界）</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow">
+  <div class="node lane"><b>ZCode 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>Claude 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>M3 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>Codex 轨</b><span>盲写·完整性前置检查</span></div></div>
+ <div class="arrow">▼ S1 四起草 → S1.5 双格式落地（哈希校验）</div>
+ <div class="mx">
+  <div></div><div class="hd">ZCode</div><div class="hd">Claude</div><div class="hd">M3</div><div class="hd">Codex</div>
+  <div class="hd">ZCode</div><div class="self">自</div><div class="rv">审②</div><div class="rv">审③</div><div class="rv">审④</div>
+  <div class="hd">Claude</div><div class="rv">审①</div><div class="self">自</div><div class="rv">审⑤</div><div class="rv">审⑥</div>
+  <div class="hd">M3</div><div class="rv">审⑦</div><div class="rv">审⑧</div><div class="self">自</div><div class="rv">审⑨</div>
+  <div class="hd">Codex</div><div class="rv">审⑩</div><div class="rv">审⑪</div><div class="rv">审⑫</div><div class="self">自</div></div>
+ <div class="arrow">▼ S2 四方交叉盲审 = 4×3 十二份（批次封口/迟到不入批/BLOCKER 即断）</div>
+ <div class="frow"><div class="node alt"><b>S2.5 材料打包</b><span>杂交稿+处置矩阵+对质索引+BLOCKER 清单（双写校验）</span></div>
+ <div class="node alt"><b>S3 对质大会</b><span>六审齐无条件启动；异议保护：1:2 分歧不得被多数决关闭</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow"><div class="node fin"><b>三源终审</b><span>螺旋熔断停审</span></div><div class="node fin"><b>用户终裁</b><span>发布/打回</span></div></div>
+</div></div>
+
+<div class="pl"><h3>EQS 七段开发管线</h3><div class="src">正源：eqs-dev-flow（顺序不可倒；质量关卡放激励正确的一侧——验收域在方案时冻结，实扫在完成时执行）</div>
+<div class="flow"><div class="frow">
+ <div class="node"><b>① 需求卡</b><span>范围/风险/成功条件</span></div><div class="arrow">▸</div>
+ <div class="node"><b>② 双轨方案</b><span>CC 独立写+ZCode 审</span></div><div class="arrow">▸</div>
+ <div class="node alt"><b>③ EQS 前置门禁</b><span>冻结「收敛底表」=考卷（过门禁≠完成）</span></div><div class="arrow">▸</div>
+ <div class="node"><b>④ 实现</b><span>Cursor 冻结工单+ZCode 亲验三步</span></div><div class="arrow">▸</div>
+ <div class="node"><b>⑤ 亲验</b><span>diff 全读/独立复跑/关键断言</span></div><div class="arrow">▸</div>
+ <div class="node alt"><b>⑥ 递归清零</b><span>对照底表 N 轮异源实扫</span></div><div class="arrow">▸</div>
+ <div class="node fin"><b>⑦ EQS 全量+Gate</b><span>验收契约终判</span></div></div></div></div>
+
+<div class="pl"><h3>问渠八站 · 一环一本账</h3><div class="src">正源：bug-scan-pipeline（站序=成本×确定性递增，便宜的先拦；编排层不造轮子）</div>
+<div class="flow">
+ <div class="frow">
+  <div class="node"><b>站0 范围冻结</b><span>每次开扫首站·五元组指纹</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站1 源闸</b><span>PR 阻断·CI Fast+棘轮</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站2 静态与供应链</b><span>周·dupscan+引擎五类+CVE</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站3 契约与数据</b><span>周·openapi+org-guard+矩阵</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow">
+  <div class="node"><b>站4 行为面</b><span>nightly·e2e 全量+抽检</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站5 实弹面</b><span>发布前·真单 14 节链+18 发对抗</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站6 对抗面</b><span>事件·上产 24h 四轴+反例轮</span></div><div class="arrow">▸</div>
+  <div class="node"><b>站7 运行时</b><span>持续·Argus 哨兵（不参与收敛声明）</span></div></div>
+ <div class="arrow">▼ 横切 · 收敛环（任何「干净/扫完」声明必过）</div>
+ <div class="frow"><div class="node alt node-wide"><b>递归清零 v2.2</b><span>N 轮异源实扫：FAST=1 / STANDARD=2 / INCIDENT=3（末轮含 S3 对抗或 S5 独立审计）；上限 N+1 超限转人工；每轮 rounds.jsonl 工件，无工件不计轮；同命令族+同时辰+换模型转述≠异源</span></div></div>
+</div></div></div>
+<div id="deck" class="hidden">
+ <div class="pl"><h3>问渠八站 · 动态卡片</h3><div class="src">正源：bug-scan-pipeline SKILL.md §1（站序=成本×确定性递增，便宜的先拦）——点卡片展开执行件/通过判据；点档位查看该档点亮的站点；▶ 自动巡游全流程</div>
+  <div class="tools">
+    <button class="pbtn" id="playBtn">▶ 自动巡游</button>
+    <div class="pbar"><i id="pfill"></i></div>
+    <span id="playmsg" class="dim fs12">8 站 + 收敛环</span>
+  </div>
+  <div class="tools" id="tiers"></div>
+  <div id="tierinfo" class="src flush">档位×站点矩阵：选择档位查看该档覆盖的站点与 lane/N（升档站点集=高档∪原档，只增不减）</div>
+  <div class="deck" id="stdeck"></div>
+  <div class="card" id="ringcard">
+    <div class="ring"><b>收敛</b></div>
+    <div><b class="t-acc">收敛环（横切）· 递归清零 v2.2</b>
+    <p class="p-note">任何「这站干净/整线扫完」声明 → N 轮异源实扫：FAST=1 / STANDARD=2 / INCIDENT=3（末轮含 S3 对抗或 S5 独立审计）；上限 N+1 超限转人工；S1-S5 证据源实质轮换——同命令族+同时辰+换模型转述同一日志≠异源；每轮 rounds.jsonl 工件，无工件不计轮。证据时效双上限：权限/漏洞情报类 ≤7 天、其余 ≤30 天，跨类从短；指纹五元组（SHA+规则版本集+环境+范围哈希+数据/配置版本）变化即失效重跑。</p></div>
+  </div>
+  <div class="src mt8">一本账 = rounds.jsonl / findings.jsonl 账本族（无工件不计轮）；跳站依赖=每档继承证据表显式化，nightly 继承站3 须周档未超时
+===== GET /api/v1/ping =====
+CURL_RC=0 HTTP_CODE=200
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 50
+
+BODY_SHA256=2cb2bf41466fcfa5807b1ce50b6e795b9ed276909433a61e9bb8d111c4c21159
+BODY_BYTES=50
+{"pong": true, "server": "wenqu-dashboard-w8/1.0"}
+===== GET /api/v1/components =====
+CURL_RC=0 HTTP_CODE=200
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 585
+
+BODY_SHA256=dab6eca62dd63eb57be10ab9329436ad46d51a0c0a9edca950700d8afb25fc4f
+BODY_BYTES=585
+{"version": "3.8.4", "bin": [{"name": "wenqu-env.sh", "ok": true}, {"name": "iron-gate.sh", "ok": true}, {"name": "blast-radius.py", "ok": true}, {"name": "cursor-auto-verify.sh", "ok": true}, {"name": "deploy-preflight.sh", "ok": true}, {"name": "hardening-doctor.sh", "ok": true}, {"name": "wenqu-dashboard.py", "ok": true}], "sentinels": [{"name": "ci-event-sentinel.sh", "ok": true}, {"name": "conservation-sentinel.sh", "ok": true}, {"name": "ssl-cert-sentinel.sh", "ok": true}], "daemons": [{"name": "auto-merge.sh", "ok": false}, {"name": "conservation-daemon.py", "ok": true}]}
+===== GET /api/v1/health =====
+CURL_RC=0 HTTP_CODE=200
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 768
+
+BODY_SHA256=bf6e156ad7959888dbe4efc4c4aa4094aa439e4854e040abcb9c776eb6f5e909
+BODY_BYTES=768
+{"generated_at": "2026-10-08T12:46:15Z", "policy_verdict": "PASS", "aggregate_outcome": "PASS", "technical_eligible": true, "reason": "all 1 required stations PASS", "reasons": [], "counts": {"required_total": 1, "required_reported": 1, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "stations": {"0": {"outcome": "PASS", "required": true, "sha_bound": true, "environment_ok": true, "input_version": "v2", "schema_valid": true}}, "target_sha": "1495913085eae13155f977fcebc8400b9789e04c", "environment": "production", "scope_binding": {"mode": "self_declared"}, "inputs": {"paths": 1, "docs": 1, "load_errors": 0, "schema_invalid": 0}, "mode": "self_declared_diagnostic", "source": "wenquctl-gate", "cli_exit": 0}
+===== GET /api/health =====
+CURL_RC=0 HTTP_CODE=404
+HTTP/1.1 404 Not Found
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 116
+
+BODY_SHA256=5db0a1cd8504a7da0a51fe8c3f29eb354d277c4ee086a190f526ce9dcaf0582f
+BODY_BYTES=116
+{"error": {"code": "API_VERSION_REQUIRED", "detail": "API 已版本化为 /api/v1/*；未版本化路径已废止"}}
+===== POST /api/decide =====
+CURL_RC=0 HTTP_CODE=405
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 126
+
+BODY_SHA256=c98d4988920ca7a0765f0b7be12c6e2b9ee9f31d26e28403aac7921a76d7327b
+BODY_BYTES=126
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+===== POST /api/v1/decide =====
+CURL_RC=0 HTTP_CODE=405
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:41 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 126
+
+BODY_SHA256=c98d4988920ca7a0765f0b7be12c6e2b9ee9f31d26e28403aac7921a76d7327b
+BODY_BYTES=126
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+===== PUT /api/v1/health =====
+CURL_RC=0 HTTP_CODE=405
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:42 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 73
+
+BODY_SHA256=4a4ae20cbce5d847c773caebab960adee1c77003d76c607bdddc3aeef867b792
+BODY_BYTES=73
+{"error": {"code": "METHOD_NOT_ALLOWED", "detail": "方法不被允许"}}
+===== OPTIONS /api/v1/ping =====
+CURL_RC=0 HTTP_CODE=405
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:50:42 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 73
+
+BODY_SHA256=4a4ae20cbce5d847c773caebab960adee1c77003d76c607bdddc3aeef867b792
+BODY_BYTES=73
+{"error": {"code": "METHOD_NOT_ALLOWED", "detail": "方法不被允许"}}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:50:42Z

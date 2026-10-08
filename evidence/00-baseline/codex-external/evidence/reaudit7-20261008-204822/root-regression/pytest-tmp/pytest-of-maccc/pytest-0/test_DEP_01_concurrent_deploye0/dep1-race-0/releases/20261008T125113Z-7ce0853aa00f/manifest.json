@@ -1,0 +1,33 @@
+{
+  "content_digest": "7ce0853aa00ffd9940046381d42fd39cde5782f4d7a5e811e0eda1b0d1cccc54",
+  "created_at": "2026-10-08T12:51:13Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "bin/payload.bin",
+      "sha256": "4d8a21cbea23a0d6525790fec7c020fff0c1330ab69bf062d14fec6262c8a2d5",
+      "size": 67108864
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "690837fc4f8fa489c608cc49c6ca083a5ad48ed7fa810e300141c93797c2148f",
+      "size": 27
+    },
+    {
+      "mode": "0444",
+      "path": "flag-big.txt",
+      "sha256": "5e46266be5fda8508117bfafcbb22d0e177a3b476ed603a39e47f1586b2ef4a3",
+      "size": 4
+    }
+  ],
+  "release_id": "20261008T125113Z-7ce0853aa00f",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_01_concurrent_deploye0/dep1-big-0"
+}

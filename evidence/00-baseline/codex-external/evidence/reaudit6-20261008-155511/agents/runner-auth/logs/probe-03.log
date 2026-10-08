@@ -1,0 +1,11 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 03
+START=2026-10-08T16:01:19+0800
+{
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-03-lyway7rc",
+  "numeric_truthy_rejected": "ApprovalPreconditionError: (\"objective precondition 'probe_recovered' must be a real boolean, got int 1（自报字符串/数字不作数）\", {'stop_type': 'resource', 'field': 'probe_recovered', 'got_type': 'int'})",
+  "probe": "03",
+  "same_nonce_valid_bool_resumed": true,
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:19+0800

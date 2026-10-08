@@ -1,0 +1,35 @@
+COMMAND: rm '/tmp/wq7b-p1f-delete-gate-365-67622/system/tests/test_ac_gate_family.py'; rm '/tmp/wq7b-p1f-delete-ui-365-67622/system/tests/test_ac_ui_family.py'; cp '/tmp/reaudit7-trace-mutations-b-45894/id-drift.md' '/tmp/wq7b-tamper-id-365-67622/evidence/00-baseline/codex-external/方案.md'; cp '/tmp/reaudit7-trace-mutations-b-45894/semantic-injection-drift.md' '/tmp/wq7b-tamper-semantic-365-67622/evidence/00-baseline/codex-external/方案.md'; cp '/tmp/reaudit7-trace-mutations-b-45894/section251-metadata-drift.md' '/tmp/wq7b-tamper-251-365-67622/evidence/00-baseline/codex-external/方案.md'; python3 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/make-one-vacuous.py' '/tmp/wq7b-p1f-vacuous-one-365-67622/system/tests/test_ac_station_families.py' test_SC_05_snapshot_signature_freshness_fail_closed; for d in '/tmp/wq7b-p1f-delete-gate-365-67622' '/tmp/wq7b-p1f-delete-ui-365-67622' '/tmp/wq7b-p1f-vacuous-one-365-67622' '/tmp/wq7b-tamper-id-365-67622' '/tmp/wq7b-tamper-semantic-365-67622' '/tmp/wq7b-tamper-251-365-67622'; do echo "--- $d"; git -C "$d" status --short; done
+WORKDIR: /tmp
+EXIT_CODE: 0
+--- STDOUT ---
+--- /tmp/wq7b-p1f-delete-gate-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ D system/tests/test_ac_gate_family.py
+--- /tmp/wq7b-p1f-delete-ui-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ D system/tests/test_ac_ui_family.py
+--- /tmp/wq7b-p1f-vacuous-one-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-id-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-semantic-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-251-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- STDERR ---
+/Library/Developer/CommandLineTools/usr/bin/python3: can't open file '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/make-one-vacuous.py': [Errno 2] No such file or directory

@@ -1,0 +1,27 @@
+{
+  "content_digest": "2ce4fccc5ef77b49d70470dec590b804fca9fd910de581021a9d37067495f19c",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "54cbe9fd8a9d63981f1967c5057f95e36283538d5fefb02cee8a976f5d428f3d",
+      "size": 38
+    },
+    {
+      "mode": "0444",
+      "path": "flag-not-approved2.txt",
+      "sha256": "8556423daeb480a6c0e65ffc1c55791ba8bfe9f757f7d61ffec7d003c48a4852",
+      "size": 14
+    }
+  ],
+  "release_id": "20261008T125114Z-2ce4fccc5ef7",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_07_activating_failure0/dep7-not-approved-v2"
+}

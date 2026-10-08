@@ -1,0 +1,175 @@
+{
+  "entry_count": 20,
+  "strict_pass": 0,
+  "strict_fail": 20,
+  "rows": [
+    {
+      "entry_id": "EV-CI-001",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64",
+        "evidence_path_is_directory_not_artifact"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64",
+        "evidence_path_is_directory_not_artifact"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "issues": [
+        "evidence_path_is_directory_not_artifact"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "issues": [
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "issues": [
+        "empty:commit",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "issues": [
+        "empty:argv",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "issues": [
+        "empty:run_id",
+        "empty:argv",
+        "empty:real_rc",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64",
+        "evidence_path_is_directory_not_artifact"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "issues": [
+        "empty:artifact_sha256",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-CI-003",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-R3-001",
+      "issues": [
+        "commit_not_exact_sha"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-R3-002",
+      "issues": [
+        "empty:argv",
+        "empty:real_rc",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TRACE-002",
+      "issues": [
+        "empty:artifact_sha256",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-DEP-001",
+      "issues": [
+        "empty:artifact_sha256",
+        "commit_not_exact_sha",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-W5-001",
+      "issues": [
+        "artifact_hash_mismatch:7752f6c5361ec785c03ea212f500ea1c96de0f43cbd9016e5de312cc4009523a"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-CI-004",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-REL-002",
+      "issues": [
+        "empty:run_id",
+        "artifact_hash_mismatch:d9c83e11091968ce419790e0c17236464066c6f9f9360fc524f49a1ff7c75562"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-TRACE-003",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-R4-001",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    },
+    {
+      "entry_id": "EV-W9W10-001",
+      "issues": [
+        "empty:artifact_sha256",
+        "artifact_sha256_not_exact64"
+      ],
+      "strict_pass": false
+    }
+  ]
+}

@@ -17,6 +17,12 @@ verify 四件套）全链自测。
   未知 key_id / rotated key 签发 → sign 拒；revoked key 验签即拒；
   确定性构建：同 commit 两次 build → tar sha256 字节一致。
 
+R7-REL-POLICY-HASH-011 根修回归钉（2026-10-08 第七轮 P0：release policy
+hash 曾截损 61hex 且 verify 不校验绑定）：
+  manifest.policy_hash.plan_sha256 必须是 64hex 且 == tar 内方案快照实算值
+  == 冻结正源值；差一位 hex（重签自洽攻击）/ 61hex 截损（重签）/ 缺
+  policy_hash / 成员不存在 → verify 必拒（exit 1）。
+
 密钥纪律：测试只用 system/tests/fixtures/approval-keys.json（测试专用 HMAC
 密钥，仓内公开）与运行时临时目录生成的临时 keyring；生产签发密钥绝不入档、
 绝不回显。HMAC 为对称签名（tamper-evident，非非否认）——诚实边界见工具头注。
@@ -43,6 +49,15 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_DIR))
 TOOL = os.path.join(REPO_ROOT, "tools", "release_attest.py")
 FIXTURE_KEYRING = os.path.join(TESTS_DIR, "fixtures", "approval-keys.json")
+
+#: 方案冻结正源（独立字面量，非 import 同源——防同源盲区：若工具 import 链
+#: 被改坏，此处独立钉住第七轮定案的 64hex 真值）。
+PLAN_MEMBER = "evidence/00-baseline/codex-external/方案.md"
+PLAN_SHA256_TRUTH = ("96b8646f6f08fd5fc408bc64f332dff0"
+                     "aeabbb5bf51d3129fcaaa24612c32306")
+#: 第七轮 P0 实锄的 61hex 截损值（R7-REL-POLICY-HASH-011 案发常量）。
+PLAN_SHA256_BUGGY_61 = ("96b8646f6f08fd5fc408bc64f332dff0"
+                        "aeabbb5bf51d9fcaaa24612c32306")
 
 PASS_N = FAIL_N = 0
 
@@ -101,6 +116,9 @@ def write_keyring(path: str, keys: Dict[str, str],
                    meta: Dict[str, Dict[str, Any]]) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"keys": keys, "meta": meta}, fh)
+    # R7-AUTH-KEY-PERM-006 对齐：loader 对非 0600 keyring fail-closed——
+    # 测试自产 keyring 一律收紧到 0600（与生产 keyring 同纪律）。
+    os.chmod(path, 0o600)
 
 
 # ====================================================================== #
@@ -111,7 +129,8 @@ def test_full_chain_green_and_deterministic():
         tar, manifest, sig, sbom, v = full_chain(tmp)
         assert v.returncode == 0, f"全链 verify 应绿:\n{v.stdout}\n{v.stderr}"
         for line in ("manifest-schema", "artifact-hash", "files-reconcile",
-                     "signature", "sbom-reconcile", "build-identity"):
+                     "plan-hash", "signature", "sbom-reconcile",
+                     "build-identity"):
             assert f"PASS  {line}" in v.stdout, f"缺 PASS {line}:\n{v.stdout}"
         # 四件套齐 + manifest 基本身份字段
         for p in (tar, manifest, sig, sbom):
@@ -127,6 +146,19 @@ def test_full_chain_green_and_deterministic():
         assert m["artifact"]["size"] == os.path.getsize(tar)
         assert len(m["files"]) == m["n_files"] >= 600, \
             f"发行树文件数异常: {m['n_files']}"
+        # R7-011：policy_hash 必须实算=冻结=64hex（manifest 侧三重钉）
+        ph = m["policy_hash"]
+        assert re.fullmatch(r"[0-9a-f]{64}", ph["plan_sha256"]), \
+            f"plan_sha256 非 64hex: {ph['plan_sha256']!r}"
+        assert ph["plan_sha256"] == PLAN_SHA256_TRUTH, \
+            f"plan_sha256 与冻结正源不符: {ph['plan_sha256']}"
+        assert ph["plan_member"] == PLAN_MEMBER
+        with tarfile.open(tar, "r:gz") as tf:
+            fh_ = tf.extractfile(PLAN_MEMBER)
+            assert fh_ is not None, f"tar 缺方案快照成员: {PLAN_MEMBER}"
+            member_sha = hashlib.sha256(fh_.read()).hexdigest()
+        assert ph["plan_sha256"] == member_sha, \
+            "policy_hash.plan_sha256 与 tar 内方案快照实算值不等（绑定断裂）"
 
         # 确定性：同 commit 二次 build → tar 字节一致
         r2 = run_tool("build", "--dist-dir", os.path.join(tmp, "dist2"))
@@ -423,11 +455,86 @@ def test_verify_report_artifact():
         assert rep["result"] == "PASS"
         ids = [c["check"] for c in rep["checks"]]
         for expect_id in ("manifest-schema", "artifact-hash",
-                          "files-reconcile", "signature", "sbom-reconcile",
-                          "build-identity"):
+                          "files-reconcile", "plan-hash", "signature",
+                          "sbom-reconcile", "build-identity"):
             assert expect_id in ids, f"报告缺检查项 {expect_id}: {ids}"
         assert all(c["ok"] for c in rep["checks"])
         assert rep["keyring"].endswith("approval-keys.json")
+
+
+# ====================================================================== #
+# 9. R7-REL-POLICY-HASH-011：plan-hash 绑定（正确 / 差一位 / 61hex 截损 /
+#    缺 policy_hash / 成员不存在 → verify 必拒）
+# ====================================================================== #
+def _rewrite_manifest(manifest: str, m: Dict[str, Any]) -> None:
+    with open(manifest, "w", encoding="utf-8") as fh:
+        json.dump(m, fh, ensure_ascii=False, indent=1, sort_keys=True)
+
+
+def _resign(manifest: str) -> None:
+    """用测试 key 对改过的 manifest 重签（攻击者持 key 的自洽攻击面）。"""
+    r = run_tool("sign", "--manifest", manifest,
+                 "--keyring", FIXTURE_KEYRING, "--key-id", "key_test_1")
+    assert r.returncode == 0, f"重签失败: {r.stderr}"
+
+
+def test_plan_hash_binding():
+    with tempfile.TemporaryDirectory() as tmp:
+        tar, manifest, sig, sbom, v = full_chain(tmp)
+        assert v.returncode == 0, "前置全链应绿"
+        assert "PASS  plan-hash" in v.stdout, v.stdout
+
+        # 9a. 差一位 hex（64hex 合法格式、末位翻转）+ 重签自洽 → 必拒
+        m = json.load(open(manifest, encoding="utf-8"))
+        good = m["policy_hash"]["plan_sha256"]
+        assert good == PLAN_SHA256_TRUTH, good
+        bad_one = good[:-1] + ("0" if good[-1] != "0" else "1")
+        assert len(bad_one) == 64 and bad_one != good
+        m["policy_hash"]["plan_sha256"] = bad_one
+        _rewrite_manifest(manifest, m)
+        _resign(manifest)
+        v2 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v2.returncode != 0, "plan hash 差一位（已重签自洽）verify 仍绿"
+        assert "方案快照 sha256 与 manifest.policy_hash.plan_sha256 不符" \
+            in v2.stdout, f"应被 plan-hash 等值校验拦截:\n{v2.stdout}"
+
+        # 9b. 61hex 截损值（第七轮案发常量）+ 重签自洽 → 格式校验即拒
+        m = json.load(open(manifest, encoding="utf-8"))
+        m["policy_hash"]["plan_sha256"] = PLAN_SHA256_BUGGY_61
+        _rewrite_manifest(manifest, m)
+        _resign(manifest)
+        v3 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v3.returncode != 0, "61hex 截损 plan hash（已重签）verify 仍绿"
+        assert "应 64 位小写 hex" in v3.stdout, \
+            f"应被 plan-hash 格式校验拦截:\n{v3.stdout}"
+
+        # 9c. policy_hash 整体缺失 + 重签 → 必拒（fail-closed）
+        m = json.load(open(manifest, encoding="utf-8"))
+        del m["policy_hash"]
+        _rewrite_manifest(manifest, m)
+        _resign(manifest)
+        v4 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v4.returncode != 0, "缺 policy_hash（已重签）verify 仍绿"
+        assert "policy_hash 缺失" in v4.stdout, v4.stdout
+
+        # 9d. plan_member 指向不存在成员 + 重签 → 必拒（9c 已删 policy_hash，
+        #     此处重建完整对象只把成员路径指空）
+        m = json.load(open(manifest, encoding="utf-8"))
+        m["policy_hash"] = {
+            "plan_member": "evidence/00-baseline/NOPE.md",
+            "plan_sha256": PLAN_SHA256_TRUTH,
+            "plan_sha256_frozen": PLAN_SHA256_TRUTH,
+            "frozen_match": True,
+        }
+        _rewrite_manifest(manifest, m)
+        _resign(manifest)
+        v5 = run_tool("verify", "--manifest", manifest,
+                      "--keyring", FIXTURE_KEYRING)
+        assert v5.returncode != 0, "plan_member 指空成员（已重签）verify 仍绿"
+        assert "归档缺方案快照成员" in v5.stdout, v5.stdout
 
 
 TESTS: List[Tuple[str, Any]] = [
@@ -439,6 +546,7 @@ TESTS: List[Tuple[str, Any]] = [
     ("篡改 manifest/sig/缺件 → verify 必拒", test_tamper_manifest_and_sig_rejected),
     ("key 生命周期：rotated 不得签发/revoked 验签即拒", test_key_lifecycle_fail_closed),
     ("verify --report 机器可读报告工件", test_verify_report_artifact),
+    ("plan-hash 绑定（正确/差一位/61hex 截损/缺 policy_hash/成员不存在）", test_plan_hash_binding),
 ]
 
 

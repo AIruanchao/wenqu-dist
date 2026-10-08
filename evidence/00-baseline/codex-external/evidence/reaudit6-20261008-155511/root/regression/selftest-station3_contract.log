@@ -1,0 +1,12 @@
+CAPTURED_AT=2026-10-08T15:57:36,960854000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/wenqu_core/station3_contract.py 
+--- OUTPUT ---
+[1] manifest frozen: run=selftest-st3-001 ttl=7d (permission_vulnerability 严档)
+[2] openapi reconcile PASS: coverage 3/3
+[3] openapi negative paths OK: unowned+spec_only→FAIL / partial reconcile→BLOCKED
+[4] org-guard OK: 正例全通+负例全拦→PASS / 越权放行→FAIL / 漏探端点→BLOCKED
+[5] perm-matrix OK: runtime>db>static 仲裁+冲突→FAIL / 可写 DB 源拒绝
+[6] db-drift OK: 零变化=CLEAN / DROP未白名单=FAIL(HIGH) / 三绑定白名单=PASS / 过期=FAIL / 只读+data_config+DMMF 分母守卫全负例拦截
+[7] aggregate OK: 全绿→PASS (coverage 14/14); 混入坏件→FAIL; 空选件拒绝
+SELF-TEST PASS
+--- EXIT_CODE=0 ---

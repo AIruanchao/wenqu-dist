@@ -1,0 +1,2 @@
+{"id": "S-1", "sev": "LOW", "status": "OPEN", "kind": "finding", "ts": "2026-10-08T12:54:33Z"}
+{"kind": "transition", "id": "S-1", "from": "OPEN", "to": "CLOSED", "note": "审计可见性测试", "ts": "2026-10-08T12:54:33Z"}

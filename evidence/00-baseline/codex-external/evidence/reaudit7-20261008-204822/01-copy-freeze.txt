@@ -1,0 +1,10 @@
+copy_head=d32c859f9043798d9e8a4984e8f57aa64567e33c
+copy_status=0
+d32c859 (HEAD) Merge pull request #9 from AIruanchao/wave6/p1f-gate
+1495913 (origin/wave6/p1f-gate, origin/HEAD, wave6/p1f-gate) fix(wave6): REL-02 竞态根修——部署快于轮询的合法完成结局+64MiB 抓窗+子进程死亡诊断+td fixture（pytest 单跑能力）
+c9de6a4 Merge pull request #8 from AIruanchao/wave6/p1f-gate
+fb23a2f fix(wave6): CI 冷 runner 就绪窗 15→60s+stderr 尾部入失败消息（UI/HLT 双面）——修 macOS CI 红
+ffd7b2b fix(wave6): CAP-01 不变量跨平台化（used+free≤total，Linux 保留块）+README 66 项
+bb10605 diag(wave6): P1f 失败时输出测试尾部 25 行（一次性诊断 Ubuntu 红）
+4fca609 fix(wave6): 演练脚本跨平台化（shasum/sha256sum+stat -f/-c 助手）——修 Ubuntu P1f 红
+95dff5e feat(wave6): 干到能力上限波——专属覆盖 131/131+TLA+/签名制品+W4/W5 生产闭环+签发端+正源统一

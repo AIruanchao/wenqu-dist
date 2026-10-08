@@ -1,0 +1,285 @@
+.........EEEEEEEEEEEEEEEE............................................... [ 28%]
+........................................................................ [ 57%]
+........................................................................ [ 85%]
+....................................                                     [100%]
+==================================== ERRORS ====================================
+_____ ERROR at setup of test_AUTH_01_resume_without_authorization_rejected _____
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 349
+  def test_AUTH_01_resume_without_authorization_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:349
+_ ERROR at setup of test_AUTH_02_expired_replay_scope_widening_stale_version_rejected _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 384
+  def test_AUTH_02_expired_replay_scope_widening_stale_version_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:384
+__ ERROR at setup of test_AUTH_03_ai_self_issued_high_risk_approval_rejected ___
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 441
+  def test_AUTH_03_ai_self_issued_high_risk_approval_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:441
+_ ERROR at setup of test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 495
+  def test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:495
+__ ERROR at setup of test_AUTH_05_concurrent_double_consume_exactly_one_wins ___
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 538
+  def test_AUTH_05_concurrent_double_consume_exactly_one_wins(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:538
+_ ERROR at setup of test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 589
+  def test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:589
+_ ERROR at setup of test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 646
+  def test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:646
+_ ERROR at setup of test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 698
+  def test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:698
+_ ERROR at setup of test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 732
+  def test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:732
+_ ERROR at setup of test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 800
+  def test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:800
+_ ERROR at setup of test_COND_01_conditional_without_risk_authorization_not_eligible _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 867
+  def test_COND_01_conditional_without_risk_authorization_not_eligible(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:867
+_ ERROR at setup of test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 900
+  def test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:900
+_ ERROR at setup of test_COND_03_authorized_conditional_action_gate_exactly_once _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 952
+  def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:952
+_ ERROR at setup of test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 1027
+  def test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:1027
+_ ERROR at setup of test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 1072
+  def test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:1072
+_ ERROR at setup of test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once _
+file /private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py, line 1138
+  def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(root: Path) -> None:
+E       fixture 'root' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, td, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/private/tmp/wenqu-reaudit7-20261008-204822/system/tests/test_ac_auth_cond.py:1138
+=============================== warnings summary ===============================
+system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_01_resume_without_authorization_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_02_expired_replay_scope_widening_stale_version_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_03_ai_self_issued_high_risk_approval_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_05_concurrent_double_consume_exactly_one_wins
+ERROR system/tests/test_ac_auth_cond.py::test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked
+ERROR system/tests/test_ac_auth_cond.py::test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs
+ERROR system/tests/test_ac_auth_cond.py::test_COND_01_conditional_without_risk_authorization_not_eligible
+ERROR system/tests/test_ac_auth_cond.py::test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected
+ERROR system/tests/test_ac_auth_cond.py::test_COND_03_authorized_conditional_action_gate_exactly_once
+ERROR system/tests/test_ac_auth_cond.py::test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked
+ERROR system/tests/test_ac_auth_cond.py::test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated
+ERROR system/tests/test_ac_auth_cond.py::test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once
+236 passed, 22 warnings, 16 errors in 208.57s (0:03:28)

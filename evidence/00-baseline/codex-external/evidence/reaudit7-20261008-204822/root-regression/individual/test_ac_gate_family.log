@@ -1,0 +1,30 @@
+========================================================================
+§20 GATE/MRG/CI 族专属验收测试（实现 24 条；NOT_IMPLEMENTABLE 登记已清零）
+------------------------------------------------------------------------
+  PASS CI-05  test_CI_05_fork_merge_group_or_missing_check_explicit_failure
+  PASS CI-06  test_CI_06_codeowners_present_ruleset_not_enforced_doctor_error
+  PASS CI-07  test_CI_07_unauthorized_app_same_context_untrusted_blocked
+  PASS CI-08  test_CI_08_wenqu_gate_missing_bugscan_green_no_merge
+  PASS CI-09  test_CI_09_recursive_aggregate_or_duplicate_publish_rejected
+  PASS GATE-01  test_GATE_01_fetch_fail_or_missing_base_ref_is_error
+  PASS GATE-02  test_GATE_02_zero_tests_scope_not_pure_docs_is_blocked
+  PASS GATE-03  test_GATE_03_missing_runner_or_dependency_is_error
+  PASS GATE-04  test_GATE_04_inner_exit7_selfreport_zero_findings_fails
+  PASS GATE-05  test_GATE_05_artifact_symlink_hardlink_outside_root_blocked
+  PASS GATE-06  test_GATE_06_artifact_hash_tamper_blocked
+  PASS GATE-07  test_GATE_07_commit_env_scope_ruleset_mismatch_blocked
+  PASS GATE-08  test_GATE_08_evidence_past_ttl_refused
+  PASS GATE-09  test_GATE_09_convergence_rounds_domain_minus1_zero_over_cap_rejected
+  PASS GATE-10  test_GATE_10_round_cap_n_plus_1_blocks_awaiting_human_adjudication
+  PASS GATE-11  test_GATE_11_same_command_relabel_not_new_heterogeneous_round
+  PASS GATE-12  test_GATE_12_unsigned_flip_or_adjudication_blocked
+  PASS MRG-01  test_MRG_01_fast_green_security_red_no_merge
+  PASS MRG-02  test_MRG_02_missing_fast_and_gate_red_no_merge
+  PASS MRG-03  test_MRG_03_same_name_forgery_or_old_sha_no_merge
+  PASS MRG-04  test_MRG_04_pending_skipped_neutral_cancelled_no_merge
+  PASS MRG-05  test_MRG_05_head_moves_during_aggregation_invalidates
+  PASS MRG-06  test_MRG_06_remote_429_empty_json_timeout_circuit_breaker
+  PASS MRG-07  test_MRG_07_head_changed_after_final_validation_atomic_reject
+------------------------------------------------------------------------
+结果: 24/24 passed
+========================================================================

@@ -1,0 +1,6 @@
+audit_started=2026-10-08T07:56:05Z
+cwd=/Users/maccc/Documents/wenqu-dist
+host=M2Pro-Agent
+uname=Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64
+python=Python 3.13.13
+gh=gh version 2.96.0 (2026-07-02)
