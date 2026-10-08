@@ -1,0 +1,29 @@
+$ test ! -e /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/wenqu_core/wenqu_pipeline.py
+[exit=0]
+$ HOME=/tmp/wenqu-reaudit3-home.9DQrNI PATH=/tmp/wenqu-reaudit3-install.tVY6W7/bin:$PATH bash /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/install.sh --prefix /tmp/wenqu-reaudit3-install.tVY6W7
+╔══════════════════════════════════════╗
+║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+╚══════════════════════════════════════╝
+目标：/tmp/wenqu-reaudit3-install.tVY6W7
+✓ wenqu_core 安装验证通过（TrustedRunner 可导入）
+✓ 配置：/tmp/wenqu-reaudit3-install.tVY6W7/env（编辑后 wenqu doctor 校验）
+── 依赖探测 ──
+✓ git git version 2.39.5 (Apple Git-154)
+✓ python3 Python 3.13.13
+✓ node v22.23.2
+△ 缺 psql（仅影响 DB 类组件）
+△ 缺 psycopg2：pip3 install psycopg2-binary
+✓ TLA+ 工具链
+✓ Z3 定理证明器
+── 自检 ──
+✓ 安装自检通过（配置警告不影响安装——配置后 wenqu doctor 复检）
+
+安装完成。三步上手：
+  1. 编辑 /tmp/wenqu-reaudit3-install.tVY6W7/env —— 填你的仓库/DB/告警参数
+  2. cd 你的项目 && wenqu init      —— 初始化项目级质量体系
+  3. wenqu status                   —— 查看全组件状态
+
+[exit=0]
+$ test ! -e /tmp/wenqu-reaudit3-install.tVY6W7/lib/wenqu_core/wenqu_pipeline.py
+[exit=0]
+SUMMARY installer_rc=0 missing_pipeline_in_install=true home=/tmp/wenqu-reaudit3-home.9DQrNI prefix=/tmp/wenqu-reaudit3-install.tVY6W7

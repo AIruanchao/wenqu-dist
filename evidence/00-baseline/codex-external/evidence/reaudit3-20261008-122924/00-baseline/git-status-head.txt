@@ -1,0 +1,20 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\ \&\&\ echo\ \"PWD=\$PWD\"\ \&\&\ git\ status\ --short\ \&\&\ git\ status\ --porcelain=v2\ \&\&\ git\ rev-parse\ HEAD\ \&\&\ git\ branch\ --show-current\ \&\&\ git\ log\ --oneline\ --decorate\ -12
+START: 2026-10-08T12:29:39+08:00
+PWD=/Users/maccc/Documents/wenqu-dist
+ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+main
+ff050bb (HEAD -> main, origin/main) feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+e00de14 fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）
+1858a75 fix(p0-9): dashboard /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒）
+be50cb8 fix(p0-6+7): EventStore 幂等（内容哈希 event_id）+表名 pipeline_events 避冲突+部署 exec bit 保留+首败 current link 删除
+05b93db fix(ci): core wiring test CI-safe (skip jsonschema/subprocess if unavailable)
+fa72292 fix(p0-1): core wiring test into acceptance + install doctor tolerance
+9637859 fix(p0-1+7): 新核心接线 install.sh+wenqu CLI+核心接线测试 8/8+doctor 区分新装/损坏
+38adb4e fix(p0-3+4+5): Schema 业务不变量硬化+Gate 零分母真空 PASS 根修+Runner 进程组杀树+CAS 防目录逃逸/损坏假成功（Codex 验收 P0 整改批 1）
+8eb4afe release(system): v3.6.3——Codex 三审 6 条全修：已拍XSS escD+SSE BoundedSemaphore+趋势复用安全入口+sweep 时区统一+日志pre修复+九节点去重
+ccf584f release(system): v3.6.2——Codex 6 条代码发现全修：锁finally+XSS escD+七态钻取+FIXING趋势+SSE限流+sweep边界
+4aeb199 release(system): v3.6.1——Codex 终审首轮修复：时区后缀剥离防 naive/aware 混算 TypeError+流转行更新 ts_of（陈账计时含流转）；余 6 条在册待下批（锁 finally/ACCEPTED 合规治理/XSS textContent/钻取补全/FIXING 趋势/SSE watcher）
+9919bcf feat(w6b+c+d): 站2静态供应链+站3契约数据+站4行为+站7运行时+站5/6占位——Codex W6B-D 全量落地（三子代理并行，8+11+11+22 自测全绿）
+
+EXIT_CODE: 0
+END: 2026-10-08T12:29:39+08:00

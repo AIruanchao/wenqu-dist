@@ -1,0 +1,521 @@
+$ nl -ba system/bin/wenqu-dashboard.py | sed -n 810,985p
+   810	    for f in _ledger_files(root):  # 复用安全入口（realpath 根边界+basename 校验——勿自行 join 绕过）
+   811	        for l in open(f, errors="ignore"):
+   812	            l = l.strip()
+   813	            if "record_type" not in l or "transition" not in l:
+   814	                continue
+   815	            try:
+   816	                d = json.loads(l)
+   817	            except ValueError:
+   818	                continue
+   819	            if not isinstance(d, dict) or d.get("record_type") != "state_transition":
+   820	                continue
+   821	            tr = str(d.get("transition", ""))
+   822	            if "->" not in tr:
+   823	                continue
+   824	            src, to = tr.split("->", 1)[0].strip().upper(), tr.rsplit(">", 1)[1].strip()
+   825	            if src.startswith("SEVERITY"):
+   826	                continue
+   827	            st = _norm_status(to)
+   828	            if st == "OTHER":
+   829	                continue
+   830	            t = str(d.get("time") or d.get("ts") or "")[:10]
+   831	            if len(t) == 10 and t.startswith("20"):
+   832	                day_st[(t, st)] = day_st.get((t, st), 0) + 1
+   833	    out_days = []
+   834	    today = datetime.now().strftime("%Y-%m-%d")
+   835	    for i in range(29, -1, -1):
+   836	        d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+   837	        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+   838	        out_days.append({"d": d[5:], **counts})
+   839	    return {"days": out_days}
+   840	
+   841	
+   842	class H(BaseHTTPRequestHandler):
+   843	    def log_message(self, *a):
+   844	        pass
+   845	
+   846	    @staticmethod
+   847	    def _decide_write(out_lines):
+   848	        """写回决策台账（原子：先写 tmp 再 replace）。"""
+   849	        p = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+   850	        tmp = p + ".tmp-decide"
+   851	        with open(tmp, "w", encoding="utf-8") as f:
+   852	            f.write("\n".join(out_lines) + "\n")
+   853	        os.replace(tmp, p)
+   854	
+   855	    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+   856	        data = body if isinstance(body, bytes) else body.encode()
+   857	        self.send_response(code)
+   858	        self.send_header("Content-Type", ctype)
+   859	        self.send_header("Content-Length", str(len(data)))
+   860	        self.end_headers()
+   861	        self.wfile.write(data)
+   862	
+   863	    def do_POST(self):
+   864	        if self.path == "/api/decide":
+   865	            port = self.server.server_address[1]
+   866	            allowed_origins = {
+   867	                "http://127.0.0.1:%d" % port,
+   868	                "http://localhost:%d" % port,
+   869	            }
+   870	            origins = self.headers.get_all("Origin", [])
+   871	            if len(origins) != 1 or origins[0] not in allowed_origins:
+   872	                return self._send(403, '{"error":"forbidden"}')
+   873	            allowed_hosts = {
+   874	                "127.0.0.1", "localhost",
+   875	                "127.0.0.1:%d" % port, "localhost:%d" % port,
+   876	            }
+   877	            hosts = self.headers.get_all("Host", [])
+   878	            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
+   879	                return self._send(403, '{"error":"forbidden"}')
+   880	            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
+   881	            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+   882	            if (not expected_key or len(supplied_keys) != 1
+   883	                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
+   884	                return self._send(403, '{"error":"forbidden"}')
+   885	            requested_with = self.headers.get_all("X-Requested-With", [])
+   886	            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
+   887	                return self._send(403, '{"error":"forbidden"}')
+   888	            try:
+   889	                n = int(self.headers.get("Content-Length") or 0)
+   890	            except ValueError:
+   891	                return self._send(400, '{"error":"bad length"}')
+   892	            if n > 1048576:
+   893	                return self._send(413, '{"error":"body too large"}')
+   894	            try:
+   895	                body = json.loads(self.rfile.read(n).decode()) if n else {}
+   896	            except ValueError:
+   897	                return self._send(400, '{"error":"bad json"}')
+   898	            if not isinstance(body, dict):
+   899	                return self._send(400, '{"error":"body must be object"}')
+   900	            dec_id, action = body.get("id"), body.get("action")
+   901	            if not dec_id or action not in ("take", "reject"):
+   902	                return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
+   903	            path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+   904	            try:
+   905	                _DECIDE_LOCK.acquire()  # 读改写整段互斥（finally 统一释放——行级异常不再泄漏锁）
+   906	                try:
+   907	                    lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
+   908	                    out, hit = [], False
+   909	                    for l in lines:
+   910	                        try:
+   911	                            d = json.loads(l)
+   912	                        except ValueError:
+   913	                            out.append(l); continue
+   914	                        if not isinstance(d, dict):  # 合法 JSON 非对象（数组/null/数字）原样保留，防 AttributeError 泄漏锁
+   915	                            out.append(l); continue
+   916	                        if d.get("id") == dec_id and d.get("status") == "待拍":
+   917	                            d["status"] = "已拍"
+   918	                            d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+   919	                            d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
+   920	                            hit = True
+   921	                        out.append(json.dumps(d, ensure_ascii=False))
+   922	                    if not hit:
+   923	                        return self._send(404, '{"error":"id 不存在或非待拍"}')
+   924	                    self._decide_write(out)
+   925	                    return self._send(200, '{"ok":true}')
+   926	                finally:
+   927	                    _DECIDE_LOCK.release()
+   928	            except OSError as e:
+   929	                return self._send(500, json.dumps({"error": str(e)}))
+   930	        return self._send(404, '{"error":"not found"}')
+   931	
+   932	    def do_GET(self):
+   933	        if self.path == "/" or self.path.startswith("/index"):
+   934	            return self._send(200, PAGE, "text/html; charset=utf-8")
+   935	        if self.path == "/api/components":
+   936	            c = components()
+   937	            flat = {}
+   938	            for grp, items in c["components"].items():
+   939	                flat[grp] = items
+   940	            return self._send(200, json.dumps({"version": c["version"], **flat}, ensure_ascii=False))
+   941	        if self.path == "/api/daemons":
+   942	            daemons, state = {}, os.path.join(WQ, "state")
+   943	            if os.path.isdir(state):
+   944	                for f in os.listdir(state):
+   945	                    if f.endswith(".pid"):
+   946	                        try:
+   947	                            pid = int(open(os.path.join(state, f)).read().strip())
+   948	                            os.kill(pid, 0)
+   949	                            st = "运行中"
+   950	                        except OSError:
+   951	                            st = "已退出"
+   952	                        daemons[f[:-4]] = st
+   953	            cron = 0
+   954	            try:
+   955	                cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.count("wenqu/sentinels")
+   956	            except OSError:
+   957	                pass
+   958	            return self._send(200, json.dumps({"daemons": daemons, "cron": cron}, ensure_ascii=False))
+   959	        if self.path == "/api/ratchet":
+   960	            for cand in ("scripts/dupscan/baseline.json", os.path.join(os.environ.get("WENQU_REPO_DIR", ""), "scripts/dupscan/baseline.json")):
+   961	                if cand and os.path.isfile(cand):
+   962	                    try:
+   963	                        d = json.load(open(cand))
+   964	                        return self._send(200, json.dumps({"available": True, "layers": {
+   965	                            k: {"clones": v.get("clones"), "rate": v.get("duplicate_rate_pct")} for k, v in d.get("layers", {}).items()}}, ensure_ascii=False))
+   966	                    except (OSError, ValueError):
+   967	                        pass
+   968	            return self._send(200, json.dumps({"available": False}, ensure_ascii=False))
+   969	        if self.path == "/api/rounds":
+   970	            rounds, path = [], os.environ.get("WENQU_LEDGER")
+   971	            if not path:
+   972	                for cand in ("ERP）Zcode/持续修复引擎/engine-rounds.jsonl", "持续修复引擎/engine-rounds.jsonl"):
+   973	                    p = os.path.expanduser(f"~/Documents/{cand}")
+   974	                    if os.path.isfile(p):
+   975	                        path = p
+   976	                        break
+   977	            if path and os.path.isfile(path):
+   978	                try:
+   979	                    lines = [l for l in open(path, errors="ignore") if l.strip()][-8:]
+   980	                    for l in lines:
+   981	                        try:
+   982	                            d = json.loads(l)
+   983	                            rnd = d.get("round") or d.get("id") or ""
+   984	                            ts = str(d.get("ts", ""))[5:16]
+   985	                            st = d.get("state") or d.get("summary") or d.get("title") or ""
+[exit_code]0
+$ nl -ba system/bin/wenqu-dashboard.py | sed -n 1240,1305p
+  1240	                        continue
+  1241	                    if not isinstance(d, dict):  # 非对象行防 AttributeError
+  1242	                        continue
+  1243	                    if d.get("status") == "待拍" or want_all:
+  1244	                        row = {k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")}
+  1245	                        if want_all:
+  1246	                            row["status"] = d.get("status")
+  1247	                        out.append(row)
+  1248	            except OSError:
+  1249	                pass
+  1250	            return self._send(200, json.dumps(out, ensure_ascii=False))
+  1251	        if self.path == "/api/logs":
+  1252	            b = _EP_CACHE.setdefault("logs", {"ts": 0.0, "data": None})
+  1253	            if b["data"] is not None and time.time() - b["ts"] < 15:  # 日志尾 15s 滞后可接受
+  1254	                return self._send(200, b["data"])
+  1255	            out, logdir = {}, os.path.join(WQ, "logs")
+  1256	            if os.path.isdir(logdir):
+  1257	                for f in sorted(os.listdir(logdir)):
+  1258	                    if f.endswith(".log"):
+  1259	                        try:
+  1260	                            tail = subprocess.run(["tail", "-n", "20", os.path.join(logdir, f)], capture_output=True, text=True).stdout
+  1261	                            out[f] = tail or "(空)"
+  1262	                        except OSError:
+  1263	                            pass
+  1264	            if not out:
+  1265	                out["(说明)"] = "哨兵经 wenqu cron 安装后，日志将出现在 ~/.wenqu/logs/"
+  1266	            out = json.dumps(out, ensure_ascii=False)
+  1267	            b["data"], b["ts"] = out, time.time()
+  1268	            return self._send(200, out)
+  1269	        return self._send(404, '{"error":"not found"}')
+  1270	
+  1271	
+  1272	def main():
+  1273	    # 启动自检：HTML div 平衡+容器层级（fail-fast——2026-10-07 总览空白事故根治）
+  1274	    lint_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "html-balance-lint.py")
+  1275	    if os.path.isfile(lint_path):
+  1276	        import subprocess as _sp
+  1277	        rc = _sp.run(["python3", lint_path, os.path.abspath(__file__)],
+  1278	                     capture_output=True, text=True).returncode
+  1279	        if rc != 0:
+  1280	            print("::error::dashboard HTML 平衡自检 FAIL——拒绝启动（修复 div 嵌套后重试）", file=sys.stderr)
+  1281	            sys.exit(2)
+  1282	    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+  1283	    print(f"wenqu dashboard → http://127.0.0.1:{PORT}  (Ctrl-C 停)")
+  1284	    signal.signal(signal.SIGINT, lambda *a: sys.exit(0))
+  1285	    srv.serve_forever()
+  1286	
+  1287	
+  1288	if __name__ == "__main__":
+  1289	    main()
+[exit_code]0
+$ nl -ba system/bin/wenqu | sed -n 80,140p
+    80	  ls "$WQ"/state/*.pid >/dev/null 2>&1 || info "无运行中守护"
+    81	  [ -x /usr/bin/cron ] || command -v crontab >/dev/null && { crontab -l 2>/dev/null | grep -c wenqu | xargs -I{} echo "▸ cron 任务 {} 条"; } || true
+    82	  ;;
+    83	db)  # DB 组件安装（触发器/自愈）
+    84	  hdr "安装 DB 守恒组件"
+    85	  case "${1:-}" in
+    86	  triggers) bash -c "cat '$WQ/db/conservation-triggers.sql' | ${WENQU_DB_SSH:+ssh $WENQU_DB_SSH} psql ${WENQU_DB_NAME:-mydb}" ;;
+    87	  selfheal) bash -c "cat '$WQ/db/self-heal.sql' | ${WENQU_DB_SSH:+ssh $WENQU_DB_SSH} psql ${WENQU_DB_NAME:-mydb}" ;;
+    88	  *) echo "用法：wenqu db triggers|selfheal" ;;
+    89	  esac ;;
+    90	cron)  # 哨兵 cron 安装
+    91	  hdr "安装哨兵 cron"
+    92	  CRON_TMP=$(mktemp); crontab -l 2>/dev/null > "$CRON_TMP" || true
+    93	  add_cron() { grep -qF "$2" "$CRON_TMP" || { echo "$1 $WQ/sentinels/$2 >> $WQ/logs/$2.log 2>&1" >> "$CRON_TMP"; ok "$2 ($1)"; }; }
+    94	  add_cron "*/30 * * * *"  ci-event-sentinel.sh
+    95	  add_cron "5 5 * * *"     conservation-sentinel.sh
+    96	  add_cron "0 8 * * 1"     ssl-cert-sentinel.sh
+    97	  crontab "$CRON_TMP" && ok "crontab 已更新"; rm -f "$CRON_TMP" ;;
+    98	uncron)
+    99	  hdr "卸载哨兵 cron"
+   100	  CRON_TMP=$(mktemp); crontab -l 2>/dev/null | grep -v wenqu/sentinels > "$CRON_TMP"; crontab "$CRON_TMP"
+   101	  ok "已移除全部 wenqu 哨兵 cron"; rm -f "$CRON_TMP" ;;
+   102	dashboard)  # Web 仪表盘（P0-1：优先用新 dashboard，回退旧版）
+   103	  if [ -f "$WQ/dashboard/server.py" ]; then
+   104	    # P0-1 修：新 dashboard 优先——只读+安全加固版
+   105	    python3 "$WQ/dashboard/server.py" --port "${1:-7788}"
+   106	  elif [ -f "$WQ/bin/wenqu-dashboard.py" ]; then
+   107	    # 回退：旧单文件版（过渡期兼容）
+   108	    exec python3 "$WQ/bin/wenqu-dashboard.py" "${1:-7788}"
+   109	  else
+   110	    bad "dashboard 不可用（$WQ/dashboard/server.py 与 $WQ/bin/wenqu-dashboard.py 均不存在）"
+   111	    exit 1
+   112	  fi ;;
+   113	tla)  # 形式化验证
+   114	  hdr "TLA+ 模型检查"
+   115	  java -cp "$WQ/bin/tla2tools.jar" tlc2.TLC -deadlock -config "$WQ/specs/PaymentConservation.cfg" "$WQ/specs/PaymentConservation.tla" 2>&1 | tail -15 ;;
+   116	z3)  # SMT 定理证明
+   117	  hdr "Z3 不变量证明"
+   118	  z3 "$WQ/specs/z3/payment_invariants.smt2" 2>&1 | tail -10 ;;
+   119	help|*)
+   120	  cat <<'H'
+   121	wenqu v3.0 —— 问渠质量工程体系
+   122	  wenqu init        初始化项目（配置模板+git 钩子）
+   123	  wenqu verify      零返工验证管线（铁门→影响面→定向测试→风险分）
+   124	  wenqu gate        快速铁门（20 规则，0.1s）
+   125	  wenqu blast       影响面分析（依赖图 BFS）
+   126	  wenqu preflight   部署前置五门（血统/指纹/形态/演练）
+   127	  wenqu doctor      全组件体检
+   128	  wenqu start|stop|status   守护进程管理
+   129	  wenqu cron|uncron         哨兵 cron 安装/卸载
+   130	  wenqu db triggers|selfheal DB 守恒组件安装
+   131	  wenqu dashboard   Web 仪表盘（本机 7788 端口，零依赖）
+   132	  wenqu tla|z3      形式化验证 / SMT 证明
+   133	H
+   134	  ;;
+   135	esac
+[exit_code]0
+$ nl -ba system/dashboard/server.py | sed -n 530,760p
+   530	    return {"available": True, "projects": projects,
+   531	            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev,
+   532	                      "last_ts": tot_last[:16]},
+   533	            "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
+   534	            "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],
+   535	            "stale_open": stale_open,
+   536	            "_all_items": all_items}
+   537	
+   538	
+   539	# ───────────────────────────── HTTP 处理器 ─────────────────────────────
+   540	class Handler(BaseHTTPRequestHandler):
+   541	    server_version = SERVER_VERSION
+   542	    sys_version = ""
+   543	    protocol_version = "HTTP/1.1"
+   544	    timeout = REQUEST_TIMEOUT  # 单连接读超时（慢速攻击面收敛）
+   545	
+   546	    def log_message(self, fmt, *args):
+   547	        if _LOG_ENABLED:
+   548	            sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+   549	
+   550	    # ── 安全响应头（每个响应都带；永不发 Access-Control-Allow-* = CORS 默认拒绝） ──
+   551	    def _sec_headers(self):
+   552	        for k, v in (("Content-Security-Policy", CSP_HEADER),
+   553	                     ("X-Content-Type-Options", "nosniff"),
+   554	                     ("X-Frame-Options", "DENY"),
+   555	                     ("Cache-Control", "no-store"),
+   556	                     ("Referrer-Policy", "no-referrer")):
+   557	            self.send_header(k, v)
+   558	
+   559	    def _send(self, code, data, ctype="application/json; charset=utf-8", allow=None):
+   560	        if isinstance(data, str):
+   561	            data = data.encode("utf-8")
+   562	        self.send_response(code)
+   563	        self._sec_headers()
+   564	        self.send_header("Content-Type", ctype)
+   565	        if allow:
+   566	            self.send_header("Allow", allow)
+   567	        self.send_header("Content-Length", str(len(data)))
+   568	        self.end_headers()
+   569	        if self.command != "HEAD":
+   570	            self.wfile.write(data)
+   571	
+   572	    def _json(self, code, obj, allow=None):
+   573	        self._send(code, json.dumps(obj, ensure_ascii=False), allow=allow)
+   574	
+   575	    def _err(self, code, err_code, detail, allow=None):
+   576	        self._json(code, {"error": {"code": err_code, "detail": detail}}, allow=allow)
+   577	
+   578	    # ── 入口安全闸：Host（防 DNS rebinding）→ Origin/Sec-Fetch-Site（CORS 默认拒绝）→ 速率限制 ──
+   579	    def _gate(self):
+   580	        try:
+   581	            ip = self.client_address[0] or "?"
+   582	        except Exception:
+   583	            ip = "?"
+   584	        if not self._host_ok():
+   585	            self.close_connection = True
+   586	            self._err(403, "HOST_FORBIDDEN", "Host 头不是允许的本地源（DNS rebinding 防护）")
+   587	            return False
+   588	        if not self._origin_ok():
+   589	            self.close_connection = True
+   590	            self._err(403, "CROSS_ORIGIN_DENIED", "跨源请求被拒绝（CORS 默认拒绝）")
+   591	            return False
+   592	        if not _LIMITER.allow(ip):
+   593	            self.close_connection = True
+   594	            self._err(429, "RATE_LIMITED", "超过 %d 请求/%ds" % (RATE_MAX, int(RATE_WINDOW)))
+   595	            return False
+   596	        return True
+   597	
+   598	    def _host_ok(self):
+   599	        host = (self.headers.get("Host") or "").strip()
+   600	        if not host:
+   601	            return False
+   602	        if host.startswith("["):  # IPv6 字面量
+   603	            h, _, rest = host[1:].partition("]")
+   604	            port = rest[1:] if rest.startswith(":") else ""
+   605	        else:
+   606	            h, _, port = host.partition(":")
+   607	        h = h.lower().rstrip(".")
+   608	        if h not in ("127.0.0.1", "localhost", "::1"):
+   609	            return False
+   610	        if port and port != str(self.server.server_address[1]):
+   611	            return False
+   612	        return True
+   613	
+   614	    def _origin_ok(self):
+   615	        origin = self.headers.get("Origin")
+   616	        if origin:
+   617	            port = self.server.server_address[1]
+   618	            allowed = {"http://127.0.0.1:%d" % port, "http://localhost:%d" % port}
+   619	            if origin.rstrip("/") not in allowed:
+   620	                return False
+   621	        sfs = self.headers.get("Sec-Fetch-Site")
+   622	        if sfs and sfs not in ("same-origin", "none"):
+   623	            return False
+   624	        return True
+   625	
+   626	    # ── 静态文件（白名单精确匹配——无路径参数即无穿越面） ──
+   627	    def _serve_static(self, fname, ctype):
+   628	        try:
+   629	            with open(os.path.join(DASH_DIR, fname), "rb") as f:
+   630	                data = f.read()
+   631	        except OSError as e:
+   632	            return self._err(500, "STATIC_READ_ERROR", str(e))
+   633	        self._send(200, data, ctype)
+   634	
+   635	    # ── GET：严格只读（零写路径；health 只读 aggregator 快照） ──
+   636	    def do_GET(self):
+   637	        if not self._gate():
+   638	            return
+   639	        path = self.path.split("?", 1)[0]
+   640	        query = self.path.split("?", 1)[1] if "?" in self.path else ""
+   641	        if path in STATIC_FILES:
+   642	            fname, ctype = STATIC_FILES[path]
+   643	            return self._serve_static(fname, ctype)
+   644	        if not path.startswith("/api/"):
+   645	            return self._err(404, "NOT_FOUND", "路径不存在：%s" % path)
+   646	        if not path.startswith("/api/v1/"):
+   647	            return self._err(404, "API_VERSION_REQUIRED", "API 已版本化为 /api/v1/*；未版本化路径已废止")
+   648	        ep = path[len("/api/v1/"):]
+   649	        qs = parse_qs(query)
+   650	
+   651	        if ep == "ping":
+   652	            return self._json(200, {"pong": True, "server": SERVER_VERSION})
+   653	        if ep == "components":
+   654	            return self._json(200, read_components())
+   655	        if ep == "daemons":
+   656	            return self._json(200, read_daemons())
+   657	        if ep == "ratchet":
+   658	            return self._json(200, read_ratchet())
+   659	        if ep == "rounds":
+   660	            return self._json(200, read_rounds())
+   661	        if ep == "rounds-heat":
+   662	            return self._json(200, read_rounds_heat())
+   663	        if ep == "logs":
+   664	            return self._send(200, read_logs())
+   665	        if ep == "health":
+   666	            r = read_gate_aggregate()
+   667	            if not r["ok"]:
+   668	                return self._err(503, r["code"], r["detail"])
+   669	            out = dict(r["data"])
+   670	            out.setdefault("source", "gate-aggregator")
+   671	            return self._json(200, out)
+   672	        if ep == "health-history":
+   673	            return self._json(200, read_health_history())
+   674	        if ep == "bugscan-ledger":
+   675	            d = bugscan_ledger()
+   676	            if "_all_items" in d:  # 无参请求不下发内部全集；?items=STATE 按状态过滤钻取
+   677	                want = (qs.get("items") or [""])[0]
+   678	                d = dict(d)
+   679	                full = d.pop("_all_items")
+   680	                if want:
+   681	                    d["items_state"] = want
+   682	                    d["items_total"] = sum(1 for x in full if x["st"] == want)
+   683	                    d["items"] = [x for x in full if x["st"] == want][:60]
+   684	            return self._json(200, d)
+   685	        if ep == "decisions":
+   686	            return self._json(200, read_decisions(want_all="1" in (qs.get("all") or [])))
+   687	        return self._err(404, "NOT_FOUND", "未知端点：/api/v1/%s" % ep)
+   688	
+   689	    def do_HEAD(self):
+   690	        if not self._gate():
+   691	            return
+   692	        path = self.path.split("?", 1)[0]
+   693	        if path in STATIC_FILES:
+   694	            fname, ctype = STATIC_FILES[path]
+   695	            try:
+   696	                size = os.path.getsize(os.path.join(DASH_DIR, fname))
+   697	            except OSError:
+   698	                return self._err(404, "NOT_FOUND", path)
+   699	            self.send_response(200)
+   700	            self._sec_headers()
+   701	            self.send_header("Content-Type", ctype)
+   702	            self.send_header("Content-Length", str(size))
+   703	            self.end_headers()
+   704	            return
+   705	        self._err(404, "NOT_FOUND", "HEAD 仅支持静态资源")
+   706	
+   707	    # ── POST：第一阶段写接口全关（/api/decide → 405）；其余路径做体量/类型校验后 404 ──
+   708	    def do_POST(self):
+   709	        if not self._gate():
+   710	            return
+   711	        path = self.path.split("?", 1)[0]
+   712	        if path in ("/api/decide", "/api/v1/decide"):
+   713	            self.close_connection = True
+   714	            return self._err(405, "WRITE_DISABLED",
+   715	                             "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘", allow="GET, HEAD")
+   716	        te = (self.headers.get("Transfer-Encoding") or "").lower()
+   717	        if te and te != "identity":
+   718	            self.close_connection = True
+   719	            return self._err(411, "LENGTH_REQUIRED", "不支持 chunked 请求体")
+   720	        try:
+   721	            n = int(self.headers.get("Content-Length") or 0)
+   722	        except ValueError:
+   723	            self.close_connection = True
+   724	            return self._err(400, "BAD_LENGTH", "Content-Length 非法")
+   725	        if n > MAX_BODY:
+   726	            self.close_connection = True
+   727	            return self._err(413, "BODY_TOO_LARGE", "请求体超限（>%d 字节）" % MAX_BODY)
+   728	        if n > 0:
+   729	            ct = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+   730	            if ct != "application/json":  # Content-Type 精确校验（仅接受 application/json）
+   731	                self.close_connection = True
+   732	                return self._err(415, "UNSUPPORTED_MEDIA_TYPE", "Content-Type 必须为 application/json")
+   733	            try:
+   734	                self.rfile.read(n)
+   735	            except OSError:
+   736	                return
+   737	        self._err(404, "NOT_FOUND", "POST 端点不存在（第一阶段写接口全关）")
+   738	
+   739	    def _method_not_allowed(self):
+   740	        if not self._gate():
+   741	            return
+   742	        self.close_connection = True
+   743	        self._err(405, "METHOD_NOT_ALLOWED", "方法不被允许", allow="GET, HEAD")
+   744	
+   745	    do_PUT = _method_not_allowed
+   746	    do_PATCH = _method_not_allowed
+   747	    do_DELETE = _method_not_allowed
+   748	    do_OPTIONS = _method_not_allowed  # 不回 CORS 预检头 = 跨源预检必败
+   749	
+   750	
+   751	# ───────────────────────────── 自检 ─────────────────────────────
+   752	def self_check(port):
+   753	    global _LOG_ENABLED
+   754	    _LOG_ENABLED = False
+   755	    print("== wenqu dashboard W8 self-check ==")
+   756	    fails = []
+   757	
+   758	    def ck(name, cond):
+   759	        print(("  ✓ " if cond else "  ✗ ") + name)
+   760	        if not cond:
+[exit_code]0

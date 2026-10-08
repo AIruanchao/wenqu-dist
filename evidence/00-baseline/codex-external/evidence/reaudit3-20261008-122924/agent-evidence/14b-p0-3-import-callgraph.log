@@ -1,0 +1,21 @@
+TIMESTAMP_START=2026-10-08T04:31:20Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 - <<'PY'
+import ast, pathlib
+for p in pathlib.Path('.').rglob('*.py'):
+    if '.git' in p.parts or 'evidence' in p.parts: continue
+    try: t=ast.parse(p.read_text(errors='ignore'))
+    except: continue
+    for n in ast.walk(t):
+        if isinstance(n,(ast.Import,ast.ImportFrom)):
+            s=ast.unparse(n)
+            if 'gate_aggregator' in s or 'GateAggregator' in s:
+                print(f'{p}:{getattr(n,lineno,0)}:{s}')
+PY
+--- OUTPUT BEGIN ---
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+NameError: name 'lineno' is not defined
+--- OUTPUT END ---
+EXIT_CODE=1
+TIMESTAMP_END=2026-10-08T04:31:20Z

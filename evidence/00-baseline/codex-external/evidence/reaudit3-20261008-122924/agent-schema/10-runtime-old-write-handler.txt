@@ -1,0 +1,158 @@
+$ nl -ba ~/.wenqu/bin/wenqu-dashboard.py | sed -n 842,935p
+   842	    def log_message(self, *a):
+   843	        pass
+   844	
+   845	    @staticmethod
+   846	    def _decide_write(out_lines):
+   847	        """写回决策台账（原子：先写 tmp 再 replace）。"""
+   848	        p = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+   849	        tmp = p + ".tmp-decide"
+   850	        with open(tmp, "w", encoding="utf-8") as f:
+   851	            f.write("\n".join(out_lines) + "\n")
+   852	        os.replace(tmp, p)
+   853	
+   854	    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+   855	        data = body if isinstance(body, bytes) else body.encode()
+   856	        self.send_response(code)
+   857	        self.send_header("Content-Type", ctype)
+   858	        self.send_header("Content-Length", str(len(data)))
+   859	        self.end_headers()
+   860	        self.wfile.write(data)
+   861	
+   862	    def do_POST(self):
+   863	        if self.path == "/api/decide":
+   864	            try:
+   865	                n = int(self.headers.get("Content-Length") or 0)
+   866	            except ValueError:
+   867	                return self._send(400, '{"error":"bad length"}')
+   868	            if n > 1048576:
+   869	                return self._send(413, '{"error":"body too large"}')
+   870	            try:
+   871	                body = json.loads(self.rfile.read(n).decode()) if n else {}
+   872	            except ValueError:
+   873	                return self._send(400, '{"error":"bad json"}')
+   874	            if not isinstance(body, dict):
+   875	                return self._send(400, '{"error":"body must be object"}')
+   876	            dec_id, action = body.get("id"), body.get("action")
+   877	            if not dec_id or action not in ("take", "reject"):
+   878	                return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
+   879	            path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+   880	            try:
+   881	                _DECIDE_LOCK.acquire()  # 读改写整段互斥（finally 统一释放——行级异常不再泄漏锁）
+   882	                try:
+   883	                    lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
+   884	                    out, hit = [], False
+   885	                    for l in lines:
+   886	                        try:
+   887	                            d = json.loads(l)
+   888	                        except ValueError:
+   889	                            out.append(l); continue
+   890	                        if not isinstance(d, dict):  # 合法 JSON 非对象（数组/null/数字）原样保留，防 AttributeError 泄漏锁
+   891	                            out.append(l); continue
+   892	                        if d.get("id") == dec_id and d.get("status") == "待拍":
+   893	                            d["status"] = "已拍"
+   894	                            d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+   895	                            d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
+   896	                            hit = True
+   897	                        out.append(json.dumps(d, ensure_ascii=False))
+   898	                    if not hit:
+   899	                        return self._send(404, '{"error":"id 不存在或非待拍"}')
+   900	                    self._decide_write(out)
+   901	                    return self._send(200, '{"ok":true}')
+   902	                finally:
+   903	                    _DECIDE_LOCK.release()
+   904	            except OSError as e:
+   905	                return self._send(500, json.dumps({"error": str(e)}))
+   906	        return self._send(404, '{"error":"not found"}')
+   907	
+   908	    def do_GET(self):
+   909	        if self.path == "/" or self.path.startswith("/index"):
+   910	            return self._send(200, PAGE, "text/html; charset=utf-8")
+   911	        if self.path == "/api/components":
+   912	            c = components()
+   913	            flat = {}
+   914	            for grp, items in c["components"].items():
+   915	                flat[grp] = items
+   916	            return self._send(200, json.dumps({"version": c["version"], **flat}, ensure_ascii=False))
+   917	        if self.path == "/api/daemons":
+   918	            daemons, state = {}, os.path.join(WQ, "state")
+   919	            if os.path.isdir(state):
+   920	                for f in os.listdir(state):
+   921	                    if f.endswith(".pid"):
+   922	                        try:
+   923	                            pid = int(open(os.path.join(state, f)).read().strip())
+   924	                            os.kill(pid, 0)
+   925	                            st = "运行中"
+   926	                        except OSError:
+   927	                            st = "已退出"
+   928	                        daemons[f[:-4]] = st
+   929	            cron = 0
+   930	            try:
+   931	                cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.count("wenqu/sentinels")
+   932	            except OSError:
+   933	                pass
+   934	            return self._send(200, json.dumps({"daemons": daemons, "cron": cron}, ensure_ascii=False))
+   935	        if self.path == "/api/ratchet":
+[exit_code]=0
+$ git diff --no-index --unified=8 runtime repo lines 830-930
+diff --git a/Users/maccc/.wenqu/bin/wenqu-dashboard.py b/system/bin/wenqu-dashboard.py
+index 80771ba..e8a5c0b 100755
+--- a/Users/maccc/.wenqu/bin/wenqu-dashboard.py
++++ b/system/bin/wenqu-dashboard.py
+@@ -1,14 +1,15 @@
+ #!/usr/bin/env python3
+ """wenqu dashboard —— 单文件零依赖 Web 仪表盘（v3.1 新增）
+ 
+ 用法：wenqu dashboard [端口=7788]
+ 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
+ """
++import hmac
+ import json
+ from datetime import datetime, timedelta
+ import os
+ import re
+ import signal
+ import subprocess
+ import sys
+ import threading
+@@ -856,16 +857,39 @@ class H(BaseHTTPRequestHandler):
+         self.send_response(code)
+         self.send_header("Content-Type", ctype)
+         self.send_header("Content-Length", str(len(data)))
+         self.end_headers()
+         self.wfile.write(data)
+ 
+     def do_POST(self):
+         if self.path == "/api/decide":
++            port = self.server.server_address[1]
++            allowed_origins = {
++                "http://127.0.0.1:%d" % port,
++                "http://localhost:%d" % port,
++            }
++            origins = self.headers.get_all("Origin", [])
++            if len(origins) != 1 or origins[0] not in allowed_origins:
++                return self._send(403, '{"error":"forbidden"}')
++            allowed_hosts = {
++                "127.0.0.1", "localhost",
++                "127.0.0.1:%d" % port, "localhost:%d" % port,
++            }
++            hosts = self.headers.get_all("Host", [])
++            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
++                return self._send(403, '{"error":"forbidden"}')
++            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
++            supplied_keys = self.headers.get_all("X-Auth-Key", [])
++            if (not expected_key or len(supplied_keys) != 1
++                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
++                return self._send(403, '{"error":"forbidden"}')
++            requested_with = self.headers.get_all("X-Requested-With", [])
++            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
++                return self._send(403, '{"error":"forbidden"}')
+             try:
+                 n = int(self.headers.get("Content-Length") or 0)
+             except ValueError:
+                 return self._send(400, '{"error":"bad length"}')
+             if n > 1048576:
+                 return self._send(413, '{"error":"body too large"}')
+             try:
+                 body = json.loads(self.rfile.read(n).decode()) if n else {}
+[exit_code_diff]=

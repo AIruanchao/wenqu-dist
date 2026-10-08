@@ -1,0 +1,121 @@
+COMMAND: bash -lc $'set +e; uid=$(id -u); launchctl print gui/$uid/com.wenqu.observation-window 2>&1; echo LOG_CANDIDATES; ls -l "$HOME/Documents/ERP�\211Zcode/�\202�\237�\227�\227��\227.jsonl" /tmp/wenqu-obs.log 2>&1; echo LOG_TAIL; tail -20 "$HOME/Documents/ERP�\211Zcode/�\202�\237�\227�\227��\227.jsonl" /tmp/wenqu-obs.log 2>&1'
+START: 2026-10-08T12:34:22+08:00
+gui/502/com.wenqu.observation-window = {
+	active count = 0
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+	type = LaunchAgent
+	state = not running
+
+	program = python3
+	arguments = {
+		python3
+		-c
+		
+import json, subprocess, os
+from datetime import datetime, timezone
+# 检查 auto-merge PID 文件未复活 + Gate CI 状态 + 健康分
+checks = {}
+checks["auto_merge_dead"] = not os.path.exists(os.path.expanduser("~/.wenqu/state/auto-merge.pid"))
+try:
+    r = subprocess.run(["curl","-s","http://127.0.0.1:7789/api/health"],capture_output=True,text=True,timeout=10)
+    h = json.loads(r.stdout)
+    checks["health_score"] = h.get("score")
+    checks["gate_status"] = [p.get("详情","") for p in h.get("parts",[]) if "Gate" in p.get("项","")]
+except: checks["health_score"] = "UNREACHABLE"
+# 写日志
+log = os.path.expanduser("~/Documents/ERP）Zcode/观察窗日志.jsonl")
+with open(log,"a") as f:
+    f.write(json.dumps({"ts":datetime.now(timezone.utc).isoformat(),**checks})+"\n")
+    
+	}
+
+	stdout path = /tmp/wenqu-obs.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.wenqu.observation-window
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+	last exit code = 0
+
+	event triggers = {
+		com.wenqu.observation-window.268435568 => {
+			keepalive = 0
+			service = com.wenqu.observation-window
+			stream = com.apple.launchd.calendarinterval
+			monitor = com.apple.UserEventAgent-Aqua
+			descriptor = {
+				"Minute" => 0
+				"Hour" => 8
+			}
+		}
+	}
+
+	event channels = {
+		"com.apple.launchd.calendarinterval" = {
+			port = 0xc309f
+			active = 0
+			managed = 1
+			reset = 0
+			hide = 0
+			watching = 1
+		}
+	}
+
+	resource coalition = {
+		ID = 518571
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.observation-window
+	}
+
+	jetsam coalition = {
+		ID = 518572
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.observation-window
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = inferred program
+}
+LOG_CANDIDATES
+-rw-r--r--@ 1 maccc  staff  121 Oct  8 08:00 /Users/maccc/Documents/ERP）Zcode/观察窗日志.jsonl
+-rw-r--r--  1 maccc  wheel    0 Oct  8 08:00 /tmp/wenqu-obs.log
+LOG_TAIL
+==> /Users/maccc/Documents/ERP）Zcode/观察窗日志.jsonl <==
+{"ts": "2026-10-08T00:00:04.231018+00:00", "auto_merge_dead": true, "health_score": 40, "gate_status": ["Gate=failure"]}
+
+==> /tmp/wenqu-obs.log <==
+
+EXIT_CODE: 0
+END: 2026-10-08T12:34:22+08:00

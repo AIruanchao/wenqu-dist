@@ -1,0 +1,34 @@
+$ python3 schema_adversarial.py /Users/maccc/Documents/wenqu-dist
+CHECK_SCHEMA approval-v2.schema.json: PASS
+CHECK_SCHEMA evidence-v2.schema.json: PASS
+CHECK_SCHEMA finding-event-v2.schema.json: PASS
+CHECK_SCHEMA run-event-v2.schema.json: PASS
+CHECK_SCHEMA station-result-v2.schema.json: PASS
+APP_missing_payload_fixed: actual=REJECT expected=REJECT => EXPECTED
+  first_error='payload' is a required property
+APP_merge_with_only_risk_payload_fixed: actual=REJECT expected=REJECT => EXPECTED
+  first_error='repo_id' is a required property
+APP_merge_plus_risk_cross_type_extra: actual=ACCEPT expected=REJECT => UNEXPECTED
+APP_payload_arbitrary_extra: actual=ACCEPT expected=REJECT => UNEXPECTED
+APP_payload_wrong_types: actual=ACCEPT expected=REJECT => UNEXPECTED
+APP_missing_exact_binding_envelope: actual=ACCEPT expected=REJECT => UNEXPECTED
+APP_bad_dates_default_Draft7: actual=ACCEPT expected=REJECT => UNEXPECTED
+APP_bad_dates_with_FormatChecker: actual=ACCEPT expected=REJECT => UNEXPECTED
+FINDING_p0_accepted_fixed: actual=REJECT expected=REJECT => EXPECTED
+  first_error='CRITICAL' is not one of ['MEDIUM', 'LOW']
+FINDING_closed_from_open_fixed: actual=REJECT expected=REJECT => EXPECTED
+  first_error='OPEN' is not one of ['VERIFIED']
+FINDING_accepted_missing_compensating_controls: actual=ACCEPT expected=REJECT => UNEXPECTED
+FINDING_accepted_from_closed_illegal_transition: actual=ACCEPT expected=REJECT => UNEXPECTED
+FINDING_fix_completed_closed_to_open: actual=ACCEPT expected=REJECT => UNEXPECTED
+FINDING_risk_invalidated_without_transition: actual=ACCEPT expected=REJECT => UNEXPECTED
+EVIDENCE_missing_schema_verdict_artifact: actual=ACCEPT expected=REJECT => UNEXPECTED
+EVIDENCE_empty_artifact: actual=ACCEPT expected=REJECT => UNEXPECTED
+EVIDENCE_bad_dates_default_Draft7: actual=ACCEPT expected=REJECT => UNEXPECTED
+STATION_pass_without_coverage_artifacts: actual=ACCEPT expected=REJECT => UNEXPECTED
+STATION_vacuous_zero_denominator_pass: actual=ACCEPT expected=REJECT => UNEXPECTED
+STATION_shrunk_coverage_pass: actual=ACCEPT expected=REJECT => UNEXPECTED
+STATION_nonzero_rc_policy_pass: actual=ACCEPT expected=REJECT => UNEXPECTED
+RUN_error_plus_pass: actual=ACCEPT expected=REJECT => UNEXPECTED
+RUN_completed_pass_with_findings: actual=ACCEPT expected=REJECT => UNEXPECTED
+[exit_code]=0

@@ -1,0 +1,3 @@
+$ PYTHONPATH=system python3 inline stale risk authorization probe
+{"actual_state_version": 2, "approval_expected_state_version": 1, "observed": "ACCEPT", "record": {"approval_id": "apr_stale_risk", "approval_type": "risk", "consumed": true, "nonce_digest": "c84e2d0ab5952736fec0e0487d01c3e1322675fd6f602a70352045af68358bea", "run_id": "run_20261008T123256Z_a8d91556", "stop_type": "scope"}, "security_expectation": "REJECT"}
+[exit=0]

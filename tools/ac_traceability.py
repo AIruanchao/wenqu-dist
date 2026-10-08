@@ -334,6 +334,67 @@ def cross_check_plan(plan_path, catalog):
     }
 
 
+def _norm_meta(s):
+    """§25.1 表格与冻结元数据的归一化：全角～→半角~、去首尾空白。"""
+    return s.replace("～", "~").strip()
+
+
+def cross_check_plan_251(plan_path, catalog):
+    """真解析方案 §25.1 映射表：范围展开成 ID 集合 + 逐前缀四列元数据对账。
+
+    防的是第三轮验收实锤的假绿：篡改 §25.1 映射（换 REQ/AC/工作包/证据类）
+    时旧版工具根本不解析该表却声称"§25.1 集合等式"。
+    """
+    try:
+        with open(plan_path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError as e:
+        return {"ok": False, "error": f"读取方案失败: {e}"}
+    m = re.search(r"^## 25\.1\b", text, re.M)
+    if not m:
+        return {"ok": False, "error": "方案中未找到 §25.1 小节"}
+    rest = text[m.start():]
+    m_end = re.search(r"^# 2[6-9]\.|^---\s*$", rest[m.end() - m.start():], re.M)
+    section = rest if not m_end else rest[: m.end() - m.start() + m_end.start()]
+    row_re = re.compile(
+        r"^\|\s*([A-Z]{2,5})-(\d{2})(?:～(\d{2}))?\s*\|([^|]+)\|([^|]+)\|([^|]+)\|")
+    expanded, meta, problems = set(), {}, []
+    for line in section.splitlines():
+        mm = row_re.match(line)
+        if not mm:
+            continue
+        prefix, lo = mm.group(1), int(mm.group(2))
+        hi = int(mm.group(3)) if mm.group(3) else lo
+        req_ac, work_packages, evidence_class = mm.group(4), mm.group(5), mm.group(6)
+        parts = [p.strip() for p in req_ac.split("/", 1)]
+        if len(parts) != 2 or not parts[0].startswith("REQ-") or not parts[1].startswith("AC-"):
+            problems.append(f"§25.1 行 {prefix}-{lo:02d}～{hi:02d} 需求/AC 列格式非法: {req_ac.strip()!r}")
+            continue
+        for n in range(lo, hi + 1):
+            tid = f"{prefix}-{n:02d}"
+            if tid in expanded:
+                problems.append(f"§25.1 重复展开 ID: {tid}")
+            expanded.add(tid)
+        meta[prefix] = (_norm_meta(req_ac.replace(" / ", "/", 1)),
+                        _norm_meta(work_packages), _norm_meta(evidence_class))
+    if not expanded:
+        return {"ok": False, "error": "§25.1 表格解析出 0 行（格式漂移？）"}
+    frozen = set(catalog)
+    if expanded != frozen:
+        problems.append(f"§25.1 展开集合≠冻结目录: 仅方案={sorted(expanded - frozen)} 仅冻结={sorted(frozen - expanded)}")
+    for prefix, plan_meta in sorted(meta.items()):
+        frozen_meta = PREFIX_META.get(prefix)
+        if frozen_meta is None:
+            problems.append(f"§25.1 前缀 {prefix} 不在冻结元数据中")
+            continue
+        norm_frozen = (_norm_meta(frozen_meta[0] + "/" + frozen_meta[1]),
+                       _norm_meta(frozen_meta[2]), _norm_meta(frozen_meta[3]))
+        if plan_meta != norm_frozen:
+            problems.append(f"§25.1 前缀 {prefix} 四列元数据与冻结值不符: 方案={plan_meta} 冻结={norm_frozen}")
+    return {"ok": not problems, "problems": problems,
+            "expanded_count": len(expanded), "frozen_count": len(frozen)}
+
+
 EXCLUDE_DIRS = {"__pycache__", ".pytest_cache", ".git", "node_modules"}
 
 
@@ -488,6 +549,10 @@ def main():
         plan_check = cross_check_plan(args.plan, catalog)
         if not plan_check.get("ok", False):
             problems.append(f"方案交叉校验不一致: {plan_check.get('plan_only')}/{plan_check.get('frozen_only')}")
+        plan_check_251 = cross_check_plan_251(args.plan, catalog)
+        if not plan_check_251.get("ok", False):
+            problems.append("§25.1 映射交叉校验不一致: " + "; ".join(
+                plan_check_251.get("problems") or [plan_check_251.get("error", "未知")]))
 
     direct, scanned = collect_test_matches(catalog)
     evidence_map = collect_evidence_matches(catalog)
@@ -580,10 +645,15 @@ def main():
     print(f"目录完整性: {report['meta']['catalog_integrity']}  "
           f"(冻结 {total} ID，期望 {EXPECTED_TOTAL})")
     if plan_check is not None:
-        print(f"方案交叉校验(§25.1 集合等式): {'PASS' if plan_check.get('ok') else 'FAIL'}"
+        print(f"方案交叉校验(§20 集合等式): {'PASS' if plan_check.get('ok') else 'FAIL'}"
               f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
         if not plan_check.get("ok"):
             print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
+        print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
+              f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
+              f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")
+        for p in (plan_check_251.get("problems") or [])[:5]:
+            print(f"  §25.1 问题: {p}")
     elif args.plan and not os.path.isfile(args.plan):
         print(f"方案交叉校验: SKIP（{args.plan} 不存在，使用内置冻结目录 sha256 锚定）")
     print("-" * 64)

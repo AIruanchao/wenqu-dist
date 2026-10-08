@@ -1,0 +1,163 @@
+$ sha256sum /private/tmp/codex-test/方案.md evidence/00-baseline/codex-external/方案.md /private/tmp/codex-test/验收报告.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593  /private/tmp/codex-test/验收报告.md
+[exit_code]=0
+$ rg -n "P0-4|P0-5|P0-9|Schema|schema|CAS|dashboard|decide|Origin|Host|Auth|CSRF|TOCTOU|§3|§4|§5" /private/tmp/codex-test/验收报告.md /private/tmp/codex-test/方案.md
+/private/tmp/codex-test/验收报告.md:25:本轮只确认了“若干新基础模块、Schema、文档和 Dashboard 文件真实存在，部分模块自测可运行”。没有形成方案要求的：
+/private/tmp/codex-test/验收报告.md:31:5. 统一事件正源、CAS、outbox、迁移与投影；
+/private/tmp/codex-test/验收报告.md:45:| W1 契约、Schema、威胁模型、红探针 | 10 | 4 | FAIL |
+/private/tmp/codex-test/验收报告.md:46:| W2 Trusted Runner、事件账本、授权、CAS | 15 | 3 | FAIL |
+/private/tmp/codex-test/验收报告.md:72:- system/dashboard/ 有 4 个文件。
+/private/tmp/codex-test/验收报告.md:73:- system/schemas/ 有 5 个 Draft-07 JSON Schema。
+/private/tmp/codex-test/验收报告.md:83:| compileall system/wenqu_core system/dashboard | rc=0 |
+/private/tmp/codex-test/验收报告.md:108:- /Users/maccc/Documents/wenqu-dist/system/install.sh:14-24 只复制旧 bin/sentinels/daemons/db/ci/templates/specs/config，不安装 wenqu_core、schemas、新 dashboard。
+/private/tmp/codex-test/验收报告.md:109:- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu:109-110 启动旧 wenqu-dashboard.py，不是新 system/dashboard/server.py。
+/private/tmp/codex-test/验收报告.md:110:- 运行目录 /Users/maccc/.wenqu/ 中不存在 wenqu_core、schemas 和新 dashboard。
+/private/tmp/codex-test/验收报告.md:116:> 在隔离副本中整体移走 system/wenqu_core 和 system/schemas 后，默认 release-check、53 项 acceptance、20 项 pytest 和 CLI selftest 仍全部为 rc=0。
+/private/tmp/codex-test/验收报告.md:145:### P0-3 station、正式 Schema、Aggregator、Dashboard 契约断链
+/private/tmp/codex-test/验收报告.md:148:- station-result-v2.schema.json 定义的是 {station_id,execution_status,policy_verdict,identity,...}。
+/private/tmp/codex-test/验收报告.md:159:### P0-4 五个 Schema 未编码关键业务不变量
+/private/tmp/codex-test/验收报告.md:161:离线 jsonschema.Draft7Validator 实测以下坏样例全部被接受：
+/private/tmp/codex-test/验收报告.md:165:3. evidence 没有 schema_version、verdict、artifact；
+/private/tmp/codex-test/验收报告.md:172:- approval-v2.schema.json:7 未要求 payload；
+/private/tmp/codex-test/验收报告.md:177:Schema 合法不等于业务契约安全。
+/private/tmp/codex-test/验收报告.md:179:### P0-5 Trusted Runner / CAS 可被突破
+/private/tmp/codex-test/验收报告.md:184:- CAS get 接受指向 root 外、内容哈希正确的符号链接；
+/private/tmp/codex-test/验收报告.md:185:- CAS shard 父目录为 symlink 时，put 可把内容写到 CAS root 外；
+/private/tmp/codex-test/验收报告.md:195:此外 runner 默认继承全环境、allowlist 可关闭，无不可变 commit snapshot、网络 deny-by-default、资源/输出上限、低权限隔离或原始输出 CAS。
+/private/tmp/codex-test/验收报告.md:197:### P0-6 EventStore 幂等失败，且与迁移器 DB Schema 互斥
+/private/tmp/codex-test/验收报告.md:224:- manifest 不含 source/policy commit、mode、runtime、Schema 兼容范围、SBOM、签名/attestation；
+/private/tmp/codex-test/验收报告.md:250:### P0-9 实际 7789 仍是旧控制面，保留未认证写入口
+/private/tmp/codex-test/验收报告.md:254:- launchd 实际启动 /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789；
+/private/tmp/codex-test/验收报告.md:255:- 其 SHA 与仓内旧 system/bin/wenqu-dashboard.py 一致；
+/private/tmp/codex-test/验收报告.md:256:- 新 system/dashboard 四文件未运行。
+/private/tmp/codex-test/验收报告.md:260:- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:850-888 的 /api/decide 没有认证、Origin、Host、CSRF、一次性授权或审计签名，直接重写决策 JSONL；
+/private/tmp/codex-test/验收报告.md:262:- read-only Host 负探针用 Host: attacker.example 请求仍返回 HTTP 200；
+/private/tmp/codex-test/验收报告.md:327:必须修复为结构化进程匹配（PID、argv、可执行路径、排除自身），再等待至少一次真实 08:00 执行并验证日志 schema、时区、失败告警和 freshness。
+/private/tmp/codex-test/验收报告.md:339:- 未展示 exact SHA、ruleset、scope、data/config hash、TTL、runner attestation、Action Authorization Gate、deployment saga。
+/private/tmp/codex-test/验收报告.md:353:   - 冻结唯一 station-result、gate-aggregate、run/finding/approval/evidence schema；
+/private/tmp/codex-test/验收报告.md:359:   - EventStore 与 Migrator 统一一个版本化 DB schema；
+/private/tmp/codex-test/验收报告.md:360:   - 加稳定 idempotency key、state_version CAS、原子授权消费、外部 anchor；
+/private/tmp/codex-test/验收报告.md:362:   - CAS 防父目录 symlink、临时文件加 fsync 加 rename、已存在内容复核。
+/private/tmp/codex-test/验收报告.md:371:   - manifest 加 source/policy commit、mode、SBOM、Schema/API 兼容、签名/attestation；
+/private/tmp/codex-test/验收报告.md:426:- runtime-dashboard-identity.txt
+/private/tmp/codex-test/验收报告.md:429:- dashboard-security-readonly.txt
+/private/tmp/codex-test/验收报告.md:443:- M system/bin/wenqu-dashboard.py（57 insertions / 30 deletions）
+/private/tmp/codex-test/验收报告.md:450:3. 未解决本报告其余核心阻断（未接线、授权、Runner/CAS、EventStore、统一 Gate、部署、CI 等）；
+/private/tmp/codex-test/方案.md:64:9. 租户扫描器硬编码 27 个模型；Schema 中直接含 `organizationId` 的模型约 193 个，遗漏约 172 个。
+/private/tmp/codex-test/方案.md:68:    - dashboard SHA256=`d20adef…`。
+/private/tmp/codex-test/方案.md:69:11. 运行体 `/Users/maccc/.wenqu/bin/wenqu-dashboard.py` 在复审期间再次被外部热改并重启：
+/private/tmp/codex-test/方案.md:85:这些测试不覆盖自动合流、真实状态机、授权、dashboard DOM、LaunchAgent 真环境和证据伪造，因此不能抵消以下安全负例：
+/private/tmp/codex-test/方案.md:118:7. dashboard 只读展示权威聚合结果，永远不能比 Gate 更绿。
+/private/tmp/codex-test/方案.md:142:| 7789 dashboard | 两条管线的只读控制面，不是管线本身，也不能自行制造 PASS |
+/private/tmp/codex-test/方案.md:150:| 可执行核心/制品 | `wenqu-dist`；`releases/<release-id>` | runner/store/state/gate/dashboard/installer 唯一实现，manifest 校验，不得热改 |
+/private/tmp/codex-test/方案.md:153:| 可变状态 | SQLite event store | WAL、事务、CAS、append-only 事件 |
+/private/tmp/codex-test/方案.md:169:schema_version
+/private/tmp/codex-test/方案.md:192:14. dashboard 只能等于或比权威聚合器更保守，绝不能更绿。
+/private/tmp/codex-test/方案.md:216:- localhost 恶意网页、CSRF、日志/账本 XSS 注入；
+/private/tmp/codex-test/方案.md:233:schema normalizer
+/private/tmp/codex-test/方案.md:239:dashboard
+/private/tmp/codex-test/方案.md:263:- **唯一条件放行路径：** 所有非接受项均 PASS，且 approval broker 签发绑定完整 finding 集合和失效域的 risk authorization 后，aggregator 可铸造 `AUTHORIZED_CONDITIONAL` attestation。内部 aggregate、详情页和 dashboard 仍保持琥珀色 CONDITIONAL，不得显示 PASS；P0/P1 永不适用。risk authorization 与 action authorization 是两个判别类型；可由同一个人类批准包同时签发，但必须分别校验、分别消费。
+/private/tmp/codex-test/方案.md:264:- **Check 映射：** PASS→`success/PASS`；未获 risk authorization 的 CONDITIONAL→`failure/CONDITIONAL_BLOCKED`；合法条件态→`success/AUTHORIZED_CONDITIONAL`；BLOCKED/ERROR/STALE→failure。任何绿色 context 只表达 technical eligibility，不等于动作授权；另一个 `Action Authorization Gate` 只在 exact action authorization 有效时对对应 SHA/action 成功。
+/private/tmp/codex-test/方案.md:379:`BACKUP_VERIFIED` 表示一致性 checkpoint 已完成恢复抽验；`EXPANDED` 只允许已授权、幂等、前后兼容的 additive migration。`ROLLED_BACK` 为成功回切终态；`FAILED_BLOCKED`、`ROLLBACK_FAILED` 都是硬阻断终态，必须保留 current/现场、熔断 writer/合流/后续发布并停等用户，不得继续自动尝试。每次转换绑定 `deployment_id/release_id/previous_release_id/schema_version/writer_epoch/migration_lock_id/backup_id/authorization_id/state_version/evidence`。部署状态独立于任务 run 状态；destructive contract migration 使用独立状态机和独立后续授权，不得夹带在本次激活中。
+/private/tmp/codex-test/方案.md:394:AuthorizedConditionalCannotBeReplayed
+/private/tmp/codex-test/方案.md:448:- optimistic `state_version`/CAS；
+/private/tmp/codex-test/方案.md:472:ddl:        database_identity + statement_digest + before/after_schema_hash + backup_id + rollback_plan_hash
+/private/tmp/codex-test/方案.md:475:rollback:   failed_deployment_id + exact_previous_release_id + trigger + schema_compatibility_hash
+/private/tmp/codex-test/方案.md:478:resume 与本地审批消费必须同事务；外部动作按 §6.1 durable saga 处理。过期、重复、错误 actor、错误 scope、错误 SHA/环境、旧版本或 payload 与 discriminator 不符全部拒绝。第一阶段关闭 dashboard 写接口，仅允许受控 CLI/broker 写入。
+/private/tmp/codex-test/方案.md:494:runner 必须以 argv 数组启动命令，实际 waitpid 捕获退出码；以 `O_NOFOLLOW/lstat/realpath` 拒绝 symlink、非普通文件和根外路径；原始输出复制进 CAS 后 fsync，再写 manifest。调用者不得填写实际退出码或总 findings。
+/private/tmp/codex-test/方案.md:516:│ wenqu-dist：唯一 executable core/安装器/dashboard/gate   │
+/private/tmp/codex-test/方案.md:528:│                  ├─ CAS evidence                      │
+/private/tmp/codex-test/方案.md:539:             dashboard read-only API
+/private/tmp/codex-test/方案.md:557:PR、人工执行、launchd、dashboard、CI 均只能调用该入口，不允许脚本自行定义退出码、心跳或完成语义。
+/private/tmp/codex-test/方案.md:578:  "schema_version": "2.0",
+/private/tmp/codex-test/方案.md:616: └─W1 契约/Schema/威胁模型/TLA/红探针
+/private/tmp/codex-test/方案.md:617:    └─W2 trusted runner + event store + 授权 + CAS
+/private/tmp/codex-test/方案.md:628:W2+W3B+W5+W6A～W6D+W7A ──→ W8 dashboard/控制面/最终投影接线
+/private/tmp/codex-test/方案.md:634:W3A/W4 框架/W7A 可在冻结契约后并行开发；W3B 必须等待 W3A 与 W6A～W6D 的真实结果契约完成。W8 在 W7A 的布局中完成 dashboard 与迁移投影接线，W7B 才把包括 W8 在内的全部组件打成最终候选。最终制品、启用、接线和切换必须满足上述真实数据依赖。W3A 只产生可验证的源闸原语，不发布最终 required context；W3B 才是八站聚合和合流控制器，因此不存在 W3↔W6A 自依赖。
+/private/tmp/codex-test/方案.md:638:- dashboard 不得先于权威 aggregator；
+/private/tmp/codex-test/方案.md:639:- 迁移不得先于 schema；
+/private/tmp/codex-test/方案.md:677:   - 暂停 dashboard `/api/decide` 写入；
+/private/tmp/codex-test/方案.md:689:- dashboard、CLI、Gate 对外统一显示 BLOCKED；
+/private/tmp/codex-test/方案.md:710:停止进程、卸载调度、撤销凭据、改 branch protection、改 live dashboard 均须用户逐项授权。
+/private/tmp/codex-test/方案.md:714:# 10. 工作包 W1：契约、Schema、威胁模型、TLA 与红探针
+/private/tmp/codex-test/方案.md:725:schemas/run-event-v2.schema.json
+/private/tmp/codex-test/方案.md:726:schemas/station-result-v2.schema.json
+/private/tmp/codex-test/方案.md:727:schemas/finding-event-v2.schema.json
+/private/tmp/codex-test/方案.md:728:schemas/evidence-v2.schema.json
+/private/tmp/codex-test/方案.md:729:schemas/approval-v2.schema.json
+/private/tmp/codex-test/方案.md:730:schemas/health-v2.schema.json
+/private/tmp/codex-test/方案.md:739:治理文档必须由同一 machine registry/schema 生成或校验，修复当前漂移：
+/private/tmp/codex-test/方案.md:769:- JSON Schema 对所有示例和反例给出确定结果；
+/private/tmp/codex-test/方案.md:778:Schema 在观察期采用 expand/contract；新字段先 additive，旧 reader 保持兼容。禁止用回滚删除已写事件或缩小验证规则。
+/private/tmp/codex-test/方案.md:782:# 11. 工作包 W2：Trusted Runner、事件账本、授权与 CAS
+/private/tmp/codex-test/方案.md:806:4. CAS 写入使用私有临时文件、fsync、原子 rename；拒绝链接和根外路径。
+/private/tmp/codex-test/方案.md:807:5. SQLite 写入使用事务、幂等键和 CAS；状态与 outbox 原子提交。
+/private/tmp/codex-test/方案.md:812:10. W1 必须冻结 runner 后端：优先专用低权限账号上的 ephemeral VM/container；默认无 Keychain、无 SSH agent、无生产凭据、网络 deny-by-default，repo/state/CAS 按最小权限挂载，并限制 CPU、内存、进程数、输出/文件大小。
+/private/tmp/codex-test/方案.md:890:- verifier 必须重验 CAS hash、identity、TTL、required 站集合。
+/private/tmp/codex-test/方案.md:913:6. merge 前重新读取 head/base/ruleset，防 TOCTOU。
+/private/tmp/codex-test/方案.md:926:Action Authorization Gate
+/private/tmp/codex-test/方案.md:929:`Bugscan Required Gate` 聚合八站。问渠内部 S7 决策只消费 exact-SHA 的 S1～S6、`Bugscan Required Gate` 和其他冻结的 release inputs；`Wenqu Required Gate` 是 S7 的唯一外部输出，绝不能作为 S7 输入或被 S7 递归聚合。`Action Authorization Gate` 独立表达 §6.1 的 exact action authorization，不能由前两个技术 Gate 推导。三者必须由默认分支固定版本或外部受控 App 发布，冻结 GitHub App/integration ID、workflow commit、expected head/merge-group SHA；PR 不能通过修改自己的 workflow/manifest 自证通过。workflow/action 均钉 commit SHA，workflow 目录受 CODEOWNERS 保护。
+/private/tmp/codex-test/方案.md:939:Action Authorization Gate
+/private/tmp/codex-test/方案.md:959:| 技术 Gate 全绿但 Action Authorization Gate 缺失/旧 SHA | 不合流、不发布 |
+/private/tmp/codex-test/方案.md:1018:- `wait-list --jsonl` 带 `schema_version`；
+/private/tmp/codex-test/方案.md:1039:- CAS/manifest 做只读快照；
+/private/tmp/codex-test/方案.md:1057:建议增加独立 off-host dead-man 检查本机 dashboard/aggregator/alert heartbeat；若本期不建设，最终风险边界必须明确“本机、launchd 和本机网络同时失效时无法自报”。
+/private/tmp/codex-test/方案.md:1091:7. 输出守恒报告：源非空行数、合法 JSON 行数、事件数、候选 logical finding、fingerprint 冲突、有效导入、重复、quarantine、需重开项。481 仅是旧 dashboard 启发式折叠数，不能充当原始迁移分母。
+/private/tmp/codex-test/方案.md:1132:- 每个 finding 有 stable fingerprint、位置和 CAS 证据；
+/private/tmp/codex-test/方案.md:1137:每站必须冻结：入口、覆盖分母、工具/规则版本、PASS/FAIL/ERROR 判据、TTL、产物 schema、正负测试、责任仓和回滚方式。
+/private/tmp/codex-test/方案.md:1184:1. Git `schema.prisma`；
+/private/tmp/codex-test/方案.md:1187:4. 生产只读 `pg_catalog/information_schema`。
+/private/tmp/codex-test/方案.md:1189:规范化对象至少包括 schema、table、column(type/null/default)、PK、FK、unique、index、enum、check、trigger、migration history。
+/private/tmp/codex-test/方案.md:1191:每轮 DB evidence 还必须记录：current database、server/version、schema、role、`transaction_read_only`、Prisma/PostgreSQL 版本、diff 方向、catalog scope、extension-owned object 处理策略、默认值/表达式/顺序规范化规则和 migration checksum。连错数据库、角色非只读、方向反转、未知对象类型均 BLOCKED。
+/private/tmp/codex-test/方案.md:1193:迁移类变更还必须覆盖 fresh DB、代表性 legacy/minimal schema、前向迁移、迁移后审计以及失败后的回滚/恢复；只证明“看见漂移”不等于迁移安全。
+/private/tmp/codex-test/方案.md:1224:1. 从 Prisma DMMF/schema 自动生成直接和关系间接租户模型分母，禁止硬编码 27 项。
+/private/tmp/codex-test/方案.md:1286:built_at, builder, schema_version, policy_hash,
+/private/tmp/codex-test/方案.md:1289:min_schema_version, max_schema_version,
+/private/tmp/codex-test/方案.md:1298:2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+/private/tmp/codex-test/方案.md:1300:4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+/private/tmp/codex-test/方案.md:1302:6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+/private/tmp/codex-test/方案.md:1304:8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+/private/tmp/codex-test/方案.md:1306:10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+/private/tmp/codex-test/方案.md:1307:11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+/private/tmp/codex-test/方案.md:1310:并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+/private/tmp/codex-test/方案.md:1320:- DB schema 与二进制不兼容；
+/private/tmp/codex-test/方案.md:1322:- 正源 dashboard 缺闭合标签或缺必需 linter。
+/private/tmp/codex-test/方案.md:1339:system/dashboard/index.html
+/private/tmp/codex-test/方案.md:1340:system/dashboard/app.js
+/private/tmp/codex-test/方案.md:1341:system/dashboard/app.css
+/private/tmp/codex-test/方案.md:1342:system/dashboard/server.py
+/private/tmp/codex-test/方案.md:1384:- 服务继续仅绑定 `127.0.0.1` 或权限受控 UDS，禁止 wildcard；严格 Host 校验防 DNS rebinding，CORS 默认拒绝；
+/private/tmp/codex-test/方案.md:1388:- Host/Origin allowlist、body size limit、Content-Type 精确校验；
+/private/tmp/codex-test/方案.md:1389:- 第一阶段 `/api/decide` 返回 405；
+/private/tmp/codex-test/方案.md:1390:- 恢复写操作前必须有：UDS 0600 控制服务或等效隔离、本地 session bootstrap、HttpOnly/SameSite cookie、CSRF、真实 actor、idempotency key、CAS、append-only event；
+/private/tmp/codex-test/方案.md:1404:- CSRF/伪 Origin/text/plain 写入被拒；
+/private/tmp/codex-test/方案.md:1424:6. **正式切换：** 用户逐项授权后切 writer epoch、CI required、scheduler、dashboard read model。
+/private/tmp/codex-test/方案.md:1432:- dashboard 与 aggregator 判定差异；
+/private/tmp/codex-test/方案.md:1447:1. dashboard 绿但 Gate 红；
+/private/tmp/codex-test/方案.md:1490:- dashboard/CLI/aggregator 判定差异=0；
+/private/tmp/codex-test/方案.md:1502:2. 服务 restart 后 build/manifest/DB schema 对账；
+/private/tmp/codex-test/方案.md:1507:7. CAS 缺块/损坏检测；
+/private/tmp/codex-test/方案.md:1515:- 更新 Skill 时同步版本、front matter、机器 schema、实际列表和回归；
+/private/tmp/codex-test/方案.md:1569:| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+/private/tmp/codex-test/方案.md:1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+/private/tmp/codex-test/方案.md:1585:| STATE-01 | 任意 stage/status | schema 拒绝 |
+/private/tmp/codex-test/方案.md:1636:| UI-03 | CSRF/伪 Origin/text/plain 写入 | 拒绝 |
+/private/tmp/codex-test/方案.md:1662:| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+/private/tmp/codex-test/方案.md:1688:| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+/private/tmp/codex-test/方案.md:1694:| UI-06 | DNS rebinding/伪 Host/未认证日志读取 | 拒绝 |
+/private/tmp/codex-test/方案.md:1733:在该能力落地前，保持手工受保护流程，并诚实标注“无法机器证明人类身份”；不得恢复 dashboard 一键批准。
+/private/tmp/codex-test/方案.md:1759:迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+/private/tmp/codex-test/方案.md:1762:peak = legacy_snapshot + imported_db + WAL_peak + CAS_copy
+/private/tmp/codex-test/方案.md:1770:CAS 必须冻结 retention、RPO/RTO 和 GC 规则。GC 前证明目标 digest 没有 event/manifest/backup 引用，并完成恢复抽验；引用图未知或 checkpoint 未锚定时禁止回收。
+/private/tmp/codex-test/方案.md:1778:1. 停止/启动现役 auto-merge、dashboard、sentinel、LaunchAgent；
+/private/tmp/codex-test/方案.md:1791:- 代码：current 原子切回上个**兼容 v2 schema**的 release；
+/private/tmp/codex-test/方案.md:1830:  02-schemas-and-tla/
+/private/tmp/codex-test/方案.md:1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+/private/tmp/codex-test/方案.md:1861:| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+/private/tmp/codex-test/方案.md:1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+/private/tmp/codex-test/方案.md:1872:| FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+/private/tmp/codex-test/方案.md:1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+/private/tmp/codex-test/方案.md:1969:| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+[exit_code]=0

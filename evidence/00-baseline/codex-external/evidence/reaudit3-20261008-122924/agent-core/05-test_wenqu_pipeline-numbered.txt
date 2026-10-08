@@ -1,0 +1,524 @@
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""wenqu_pipeline P0-2 行为自测——全流程/规则/拒绝路径/并发双消费/哈希链。
+     4	
+     5	P0-2 接线锚点：删除 wenqu_core/wenqu_pipeline.py 后此测试必红
+     6	（acceptance.sh P1b 节硬依赖，CI 必红）。
+     7	"""
+     8	import os
+     9	import sys
+    10	import json
+    11	import tempfile
+    12	import threading
+    13	
+    14	REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
+    15	sys.path.insert(0, REPO)
+    16	
+    17	from wenqu_core.store import EventStore, ChainIntegrityError
+    18	from wenqu_core.wenqu_pipeline import (
+    19	    SevenStageStateMachine as SM, NineStopTypes, ApprovalBroker, RunManager,
+    20	    StageOrderError, InvalidTransitionError, InvalidOutcomeError,
+    21	    PipelineError, TerminalRunError, ApprovalRejected, ApprovalReuseError,
+    22	    ApprovalPreconditionError, AttemptImmutabilityError, RunNotFoundError,
+    23	    STAGES,
+    24	)
+    25	
+    26	PASS_N, FAIL_N = 0, 0
+    27	def check(name, fn):
+    28	    global PASS_N, FAIL_N
+    29	    try:
+    30	        fn()
+    31	        print(f"  ok  {name}")
+    32	        PASS_N += 1
+    33	    except Exception as e:
+    34	        print(f"  FAIL {name}: {type(e).__name__}: {e}")
+    35	        FAIL_N += 1
+    36	
+    37	def expect(exc, fn):
+    38	    try:
+    39	        fn()
+    40	    except exc:
+    41	        return
+    42	    except Exception as e:
+    43	        raise AssertionError(f"expected {exc.__name__}, got {type(e).__name__}: {e}")
+    44	    raise AssertionError(f"expected {exc.__name__}, nothing raised")
+    45	
+    46	IDENT = {
+    47	    "commit_sha": "a" * 40,
+    48	    "environment": "staging",
+    49	    "scope_hash": "scope-hash-001",
+    50	    "repo_id": "qisemi-erp",
+    51	    "ruleset_hash": "rules-7",
+    52	}
+    53	
+    54	def fresh():
+    55	    tmp = tempfile.mkdtemp(prefix="wenqu-pipe-")
+    56	    store = EventStore(os.path.join(tmp, "events.db"))
+    57	    mgr = RunManager(store)
+    58	    return store, mgr
+    59	
+    60	# ------------------------------------------------------------------ #
+    61	def t_rule_engine():
+    62	    assert SM.stages() == STAGES and len(STAGES) == 7
+    63	    assert SM.next_stage("S1_REQUIREMENT") == "S2_SOLUTION"
+    64	    assert SM.next_stage("S7_GATE") is None
+    65	    expect(StageOrderError, lambda: SM.stage_index("S8_NOPE"))
+    66	    expect(StageOrderError, lambda: SM.next_stage("S9"))
+    67	    # 前段非 PASSED 不得启动后段（含 CONDITIONAL 也不行）
+    68	    for bad in ("PENDING", "RUNNING", "COMPLETED_CONDITIONAL", "FAILED", "WAITING"):
+    69	        sts = {"S1_REQUIREMENT": bad, "S2_SOLUTION": "PENDING"}
+    70	        expect(StageOrderError, lambda s=bad: SM.ensure_prior_stages_passed(
+    71	            {"S1_REQUIREMENT": s}, "S2_SOLUTION"))
+    72	    SM.ensure_prior_stages_passed({"S1_REQUIREMENT": "PASSED"}, "S2_SOLUTION")
+    73	    # 转换表
+    74	    SM.validate_run_transition("CREATED", "RUNNING")
+    75	    SM.validate_run_transition("WAITING", "RUNNING")
+    76	    SM.validate_run_transition("RUNNING", "SUCCEEDED")
+    77	    expect(InvalidTransitionError, lambda: SM.validate_run_transition("CREATED", "WAITING"))
+    78	    expect(InvalidTransitionError, lambda: SM.validate_run_transition("SUCCEEDED", "RUNNING"))
+    79	    expect(InvalidTransitionError, lambda: SM.validate_run_transition("WAITING", "SUCCEEDED"))
+    80	    SM.validate_attempt_transition("PENDING", "RUNNING")
+    81	    SM.validate_attempt_transition("RUNNING", "WAITING")
+    82	    expect(InvalidTransitionError, lambda: SM.validate_attempt_transition("WAITING", "RUNNING"))
+    83	    # 双轴：非 COMPLETED 不得 PASS；PASS 不得带 findings
+    84	    SM.validate_outcome("COMPLETED", "PASS")
+    85	    expect(InvalidOutcomeError, lambda: SM.validate_outcome("ERROR", "PASS"))
+    86	    expect(InvalidOutcomeError, lambda: SM.validate_outcome("TIMEOUT", "PASS"))
+    87	    expect(InvalidOutcomeError, lambda: SM.validate_outcome("COMPLETED", "PASS", ["fnd_x"]))
+    88	    expect(InvalidOutcomeError, lambda: SM.validate_outcome("COMPLETED", "GREEN"))
+    89	    # 九类停等 + 前置规格（含 exm-fuse 的 either-or）
+    90	    assert len(list(NineStopTypes)) == 9
+    91	    assert set(SM.stop_types()) == {
+    92	        "ambiguity", "prod-write", "ddl", "release", "scope",
+    93	        "fund-auth", "exm-fuse", "resource", "ext-unavail"}
+    94	    SM.validate_preconditions("ambiguity", {"requirement_four_elements": "四要素", "scope_hash": "sh"})
+    95	    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("ambiguity", {"scope_hash": "sh"}))
+    96	    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("ambiguity", None))
+    97	    SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1", "fuse_lifted_evidence": "probe"})
+    98	    SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1", "independent_ruling_ref": "ruling-9"})
+    99	    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1"}))
+   100	    h = SM.objective_precondition_hash({"a": 1})
+   101	    assert len(h) == 64 and h == SM.objective_precondition_hash({"a": 1})
+   102	
+   103	# ------------------------------------------------------------------ #
+   104	def t_happy_path():
+   105	    store, mgr = fresh()
+   106	    r = mgr.create_run("task_p02", IDENT)
+   107	    run_id = r["run_id"]
+   108	    assert r["state"] == "CREATED" and r["state_version"] == 1
+   109	    st = mgr.get_run(run_id)
+   110	    assert st.state == "CREATED" and st.stage_statuses() == {s: "PENDING" for s in STAGES}
+   111	    # 推进 7 段：首次不带 outcome 启动 S1，随后逐段 PASS
+   112	    out = mgr.advance_stage(run_id)  # 启动 S1
+   113	    assert out["stage"] == "S1_REQUIREMENT" and "started_attempt_id" in out
+   114	    assert mgr.get_run(run_id).state == "RUNNING"
+   115	    for i, stage in enumerate(STAGES):
+   116	        cur = mgr.get_run(run_id).current_stage
+   117	        assert cur == stage, f"current={cur} expect={stage}"
+   118	        out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+   119	        assert out["attempt_status"] == "PASSED"
+   120	        if i < 6:
+   121	            assert out.get("next_stage") == STAGES[i + 1]
+   122	        else:
+   123	            assert out.get("next_stage") is None and out["ready_for_completion"] is True
+   124	    st = mgr.get_run(run_id)
+   125	    assert st.current_stage is None
+   126	    assert all(v == "PASSED" for v in st.stage_statuses().values())
+   127	    done = mgr.complete_run(run_id)
+   128	    assert done["final_state"] == "SUCCEEDED" and done["policy_verdict"] == "PASS"
+   129	    expect(TerminalRunError, lambda: mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS"))
+   130	    expect(TerminalRunError, lambda: mgr.complete_run(run_id))
+   131	    assert store.verify_chain()["ok"]
+   132	    st = mgr.get_run(run_id)  # 终态后重取快照再比对
+   133	    # 重放一致性：第二个 RunManager（独立连接）看到同一状态
+   134	    mgr2 = RunManager(store)
+   135	    st2 = mgr2.get_run(run_id)
+   136	    assert st2.state == "SUCCEEDED" and st2.state_version == st.state_version
+   137	    assert st2.stage_statuses() == st.stage_statuses()
+   138	
+   139	# ------------------------------------------------------------------ #
+   140	def t_retry_new_attempt():
+   141	    store, mgr = fresh()
+   142	    run_id = mgr.create_run("task_retry", IDENT)["run_id"]
+   143	    mgr.advance_stage(run_id)  # S1 RUNNING
+   144	    out = mgr.advance_stage(run_id, execution_status="ERROR", policy_verdict="FAIL")
+   145	    assert out["attempt_status"] == "FAILED"
+   146	    st = mgr.get_run(run_id)
+   147	    s1 = st.stages["S1_REQUIREMENT"]
+   148	    assert s1.status == "FAILED" and len(s1.attempts) == 1
+   149	    old_id = s1.attempts[0].attempt_id
+   150	    # 重试：新 attempt_id，旧 attempt 不可变
+   151	    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+   152	    assert out["attempt_id"] != old_id and out["attempt_status"] == "PASSED"
+   153	    assert out.get("next_stage") == "S2_SOLUTION"
+   154	    st = mgr.get_run(run_id)
+   155	    s1 = st.stages["S1_REQUIREMENT"]
+   156	    assert len(s1.attempts) == 2
+   157	    assert s1.attempts[0].attempt_id == old_id and s1.attempts[0].status == "FAILED"
+   158	    assert s1.attempts[1].status == "PASSED"
+   159	    assert st.stages["S2_SOLUTION"].status == "RUNNING"
+   160	    assert store.verify_chain()["ok"]
+   161	
+   162	# ------------------------------------------------------------------ #
+   163	PRECONDITIONS = {
+   164	    "gate_reference": "gate:sha-abc", "rollback_level": "R3",
+   165	}
+   166	def make_resume_approval(run_id, stop_event_id, stop_type, state_version,
+   167	                         preconditions=None, **over):
+   168	    pre = dict(preconditions if preconditions is not None else PRECONDITIONS)
+   169	    ph = SM.objective_precondition_hash(pre)
+   170	    ap = {
+   171	        "schema_version": "2.0",
+   172	        "approval_id": "apr_resume_1",
+   173	        "approval_type": "resume",
+   174	        "run_id": run_id,
+   175	        "stop_event_id": stop_event_id,
+   176	        "stop_type": stop_type,
+   177	        "environment": IDENT["environment"],
+   178	        "authorized_scope": IDENT["scope_hash"],
+   179	        "input_watermark": IDENT["commit_sha"],
+   180	        "actor": "chaoge",
+   181	        "issued_at": "2026-10-08T00:00:00Z",
+   182	        "expires_at": "2099-01-01T00:00:00Z",
+   183	        "expected_state_version": state_version,
+   184	        "nonce": "nonce-0123456789abcdef",
+   185	        "decision": "approve",
+   186	        "signature": "sig" + "x" * 60,
+   187	        "payload": {
+   188	            "stop_event_id": stop_event_id,
+   189	            "stop_type": stop_type,
+   190	            "objective_precondition_hash": ph,
+   191	        },
+   192	    }
+   193	    ap.update(over)
+   194	    return ap, pre
+   195	
+   196	def t_waiting_resume_happy():
+   197	    store, mgr = fresh()
+   198	    run_id = mgr.create_run("task_wait", IDENT)["run_id"]
+   199	    mgr.advance_stage(run_id)  # S1 RUNNING
+   200	    w = mgr.raise_waiting(run_id, "prod-write", "需要生产写授权：批量修数")
+   201	    assert w["stop_type"] == "prod-write" and w["run_state"] == "WAITING"
+   202	    assert set(w["required_preconditions"]) == {"gate_reference", "rollback_level"}
+   203	    st = mgr.get_run(run_id)
+   204	    assert st.state == "WAITING" and st.waiting.stop_event_id == w["stop_event_id"]
+   205	    assert st.stages["S1_REQUIREMENT"].status == "WAITING"
+   206	    old_att = st.stages["S1_REQUIREMENT"].current_attempt.attempt_id
+   207	    v_before = st.state_version
+   208	    # WAITING 中不得推进/complete
+   209	    expect(PipelineError, lambda: mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS"))
+   210	    expect(PipelineError, lambda: mgr.complete_run(run_id))
+   211	    # 合法 resume：一次性授权 + 客观前置条件（必要且充分）
+   212	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "prod-write", v_before)
+   213	    rec = mgr.resume_waiting(run_id, ap, pre)
+   214	    assert rec["resumed"] is True and rec["run_state"] == "RUNNING"
+   215	    st = mgr.get_run(run_id)
+   216	    assert st.state == "RUNNING" and st.waiting is None
+   217	    s1 = st.stages["S1_REQUIREMENT"]
+   218	    assert s1.current_attempt.attempt_id != old_att  # attempt 不可变→新 id
+   219	    assert s1.attempts[-2].status == "WAITING" and s1.attempts[-1].status == "RUNNING"
+   220	    assert len(s1.attempts) == 2 and st.state_version == v_before + 1
+   221	    # 九类停等逐类走一遍（raise→resume；每类用独立 run）
+   222	    for stop_type in SM.stop_types():
+   223	        rid = mgr.create_run(f"task_{stop_type.replace('-','_')}", IDENT)["run_id"]
+   224	        mgr.advance_stage(rid)
+   225	        pre_map = {
+   226	            "ambiguity": {"requirement_four_elements": "四要素冻结", "scope_hash": IDENT["scope_hash"]},
+   227	            "prod-write": {"gate_reference": "g1", "rollback_level": "R2"},
+   228	            "ddl": {"ddl_statement_digest": "d" * 8, "environment": "staging",
+   229	                    "verification_fresh": "f", "verification_legacy": "l",
+   230	                    "verification_minimal": "m", "rollback_verified": "rv"},
+   231	            "release": {"release_id": "rel-1", "commit_sha": IDENT["commit_sha"],
+   232	                        "environment": "staging", "gate_reference": "g",
+   233	                        "manifest_sha256": "m" * 8, "rollback_plan": "rp"},
+   234	            "scope": {"new_scope_hash": "nsh-2", "risk_refrozen": "r",
+   235	                      "required_set_refrozen": "q", "evidence_refrozen": "e"},
+   236	            "fund-auth": {"fund_subject_role": "ops", "positive_test_ref": "p",
+   237	                          "negative_test_ref": "n", "conservation_check": "c",
+   238	                          "audit_target": "a"},
+   239	            "exm-fuse": {"adjudication_ref": "EXM-7", "fuse_lifted_evidence": "probe-ok"},
+   240	            "resource": {"resource_probe_ref": "p", "probe_recovered": "yes",
+   241	                         "safety_margin_met": "yes"},
+   242	            "ext-unavail": {"dependency_probe_ref": "p", "probe_recovered": "yes",
+   243	                            "evidence_freshness_reverified": "yes"},
+   244	        }[stop_type]
+   245	        w2 = mgr.raise_waiting(rid, stop_type, f"停等测试 {stop_type}")
+   246	        v = mgr.get_run(rid).state_version
+   247	        ap2, pre2 = make_resume_approval(
+   248	            rid, w2["stop_event_id"], stop_type, v,
+   249	            preconditions=pre_map,
+   250	            nonce=f"nonce-{stop_type}-0011223344",
+   251	            approval_id=f"apr_{stop_type.replace('-','_')}")
+   252	        ap2["payload"] = {
+   253	            "stop_event_id": w2["stop_event_id"], "stop_type": stop_type,
+   254	            "objective_precondition_hash": SM.objective_precondition_hash(pre2),
+   255	        }
+   256	        rec2 = mgr.resume_waiting(rid, ap2, pre2)
+   257	        assert rec2["resumed"] is True, stop_type
+   258	        assert mgr.get_run(rid).state == "RUNNING", stop_type
+   259	    assert store.verify_chain()["ok"]
+   260	
+   261	# ------------------------------------------------------------------ #
+   262	def t_approval_rejections():
+   263	    store, mgr = fresh()
+   264	    run_id = mgr.create_run("task_rej", IDENT)["run_id"]
+   265	    mgr.advance_stage(run_id)
+   266	    w = mgr.raise_waiting(run_id, "prod-write", "拒绋试验")
+   267	    v = mgr.get_run(run_id).state_version
+   268	
+   269	    def resume(ap, pre=None):
+   270	        _p = pre if pre is not None else PRECONDITIONS
+   271	        return mgr.resume_waiting(run_id, ap, _p)
+   272	
+   273	    base = make_resume_approval(run_id, w["stop_event_id"], "prod-write", v)[0]
+   274	    # 1) 结构类
+   275	    bad = dict(base); del bad["nonce"]
+   276	    expect(ApprovalRejected, lambda: resume(bad))
+   277	    bad = dict(base); bad["schema_version"] = "1.0"
+   278	    expect(ApprovalRejected, lambda: resume(bad))
+   279	    bad = dict(base); bad["nonce"] = "short"
+   280	    expect(ApprovalRejected, lambda: resume(bad))
+   281	    bad = dict(base); bad["signature"] = "tiny"
+   282	    expect(ApprovalRejected, lambda: resume(bad))
+   283	    bad = dict(base); bad["unknown_field"] = 1
+   284	    expect(ApprovalRejected, lambda: resume(bad))
+   285	    bad = dict(base); bad["stop_type"] = "no-such-stop"
+   286	    expect(ApprovalRejected, lambda: resume(bad))
+   287	    bad = dict(base); bad["approval_type"] = "merge"  # payload 判别联合不符
+   288	    expect(ApprovalRejected, lambda: resume(bad))
+   289	    bad = json.loads(json.dumps(base)); del bad["payload"]["objective_precondition_hash"]
+   290	    expect(ApprovalRejected, lambda: resume(bad))
+   291	    # 2) decision / TTL
+   292	    bad = dict(base); bad["decision"] = "deny"
+   293	    expect(ApprovalRejected, lambda: resume(bad))
+   294	    bad = dict(base); bad["decision"] = "conditional"
+   295	    expect(ApprovalRejected, lambda: resume(bad))
+   296	    bad = dict(base); bad["expires_at"] = "2026-10-01T00:00:00Z"  # 已过期
+   297	    expect(ApprovalRejected, lambda: resume(bad))
+   298	    bad = dict(base); bad["issued_at"] = "2098-01-01T00:00:00Z"
+   299	    bad["expires_at"] = "2099-01-01T00:00:00Z"  # 未生效
+   300	    expect(ApprovalRejected, lambda: resume(bad))
+   301	    # 3) 绑定：scope/环境/SHA/stop_event/stop_type/stage/task
+   302	    bad = dict(base); bad["authorized_scope"] = "other-scope"
+   303	    expect(ApprovalRejected, lambda: resume(bad))
+   304	    bad = dict(base); bad["environment"] = "production"
+   305	    expect(ApprovalRejected, lambda: resume(bad))
+   306	    bad = dict(base); bad["input_watermark"] = "b" * 40
+   307	    expect(ApprovalRejected, lambda: resume(bad))
+   308	    bad = dict(base); bad["stop_event_id"] = "f" * 64
+   309	    expect(ApprovalRejected, lambda: resume(bad))
+   310	    bad = dict(base); bad["stop_type"] = "ddl"; bad["payload"] = dict(base["payload"], stop_type="ddl")
+   311	    expect(ApprovalRejected, lambda: resume(bad))
+   312	    bad = dict(base); bad["stage"] = "S4_IMPLEMENT"
+   313	    expect(ApprovalRejected, lambda: resume(bad))
+   314	    bad = dict(base); bad["run_id"] = "run_other"
+   315	    expect(ApprovalRejected, lambda: resume(bad))
+   316	    # 4) state_version CAS
+   317	    bad = dict(base); del bad["expected_state_version"]
+   318	    expect(ApprovalRejected, lambda: resume(bad))
+   319	    bad = dict(base); bad["expected_state_version"] = v + 5
+   320	    expect(ApprovalRejected, lambda: resume(bad))
+   321	    # 5) 前置条件：缺键 / 哈希不匹配
+   322	    expect(ApprovalPreconditionError, lambda: resume(base, {"gate_reference": "g"}))
+   323	    tampered = dict(PRECONDITIONS, rollback_level="R0")  # 哈希绑定之外的内容
+   324	    expect(ApprovalPreconditionError, lambda: resume(base, tampered))
+   325	    # 全部拒绝后：状态未变、nonce 未占用、无事件消耗
+   326	    st = mgr.get_run(run_id)
+   327	    assert st.state == "WAITING" and st.state_version == v
+   328	    assert mgr.broker.consumed_approvals(run_id=run_id) == []
+   329	    # 一次性消费：同一审批二次使用 → ApprovalReuseError
+   330	    ok_pre = dict(PRECONDITIONS)
+   331	    rec = mgr.resume_waiting(run_id, base, ok_pre)
+   332	    assert rec["resumed"] is True
+   333	    expect(ApprovalReuseError, lambda: mgr.resume_waiting(run_id, base, ok_pre))
+   334	    # resume 后再 raise 一次，用新 nonce/新 stop_event 验证旧 nonce 不可跨事件复用
+   335	    mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")  # S1 done→S2 running
+   336	    w2 = mgr.raise_waiting(run_id, "resource", "第二次停等")
+   337	    v2 = mgr.get_run(run_id).state_version
+   338	    pre2 = {"resource_probe_ref": "p", "probe_recovered": "yes", "safety_margin_met": "yes"}
+   339	    ap2 = {
+   340	        **{k: val for k, val in base.items() if k not in ("payload",)},
+   341	        "stop_event_id": w2["stop_event_id"], "stop_type": "resource",
+   342	        "expected_state_version": v2, "nonce": "nonce-0123456789abcdef",  # 旧 nonce
+   343	        "payload": {"stop_event_id": w2["stop_event_id"], "stop_type": "resource",
+   344	                    "objective_precondition_hash": SM.objective_precondition_hash(pre2)},
+   345	    }
+   346	    expect(ApprovalReuseError, lambda: mgr.resume_waiting(run_id, ap2, pre2))
+   347	    assert store.verify_chain()["ok"]
+   348	
+   349	# ------------------------------------------------------------------ #
+   350	def t_concurrent_double_consume():
+   351	    tmp = tempfile.mkdtemp(prefix="wenqu-pipe-cc-")
+   352	    db = os.path.join(tmp, "events.db")
+   353	    store = EventStore(db)
+   354	    mgr = RunManager(store)
+   355	    run_id = mgr.create_run("task_cc", IDENT)["run_id"]
+   356	    mgr.advance_stage(run_id)
+   357	    w = mgr.raise_waiting(run_id, "prod-write", "并发双消费")
+   358	    v = mgr.get_run(run_id).state_version
+   359	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "prod-write", v,
+   360	                                   nonce="nonce-cc-00112233445566")
+   361	    # 第二个独立管理器（独立连接，模拟并发进程）
+   362	    mgr_b = RunManager(EventStore(db))
+   363	    results, errors = [], []
+   364	    def worker(m):
+   365	        try:
+   366	            results.append(m.resume_waiting(run_id, ap, dict(pre)))
+   367	        except Exception as e:
+   368	            errors.append(e)
+   369	    t1 = threading.Thread(target=worker, args=(mgr,))
+   370	    t2 = threading.Thread(target=worker, args=(mgr_b,))
+   371	    t1.start(); t2.start(); t1.join(); t2.join()
+   372	    succ = [r for r in results if r.get("resumed")]
+   373	    reuse = [e for e in errors if isinstance(e, ApprovalReuseError)]
+   374	    assert len(succ) == 1, f"expected exactly 1 success, got {len(succ)} (errors={errors})"
+   375	    assert len(reuse) == 1, f"expected 1 ApprovalReuseError, got {errors!r}"
+   376	    st = mgr.get_run(run_id)
+   377	    assert st.state == "RUNNING" and st.state_version == v + 1
+   378	    assert len(mgr.broker.consumed_approvals(run_id=run_id)) == 1
+   379	    assert store.verify_chain()["ok"]
+   380	
+   381	# ------------------------------------------------------------------ #
+   382	def make_risk_approval(run_id, **over):
+   383	    ap = {
+   384	        "schema_version": "2.0", "approval_id": "apr_risk_1",
+   385	        "approval_type": "risk", "run_id": run_id,
+   386	        "stop_event_id": "n/a-soft-terminal", "stop_type": "scope",
+   387	        "environment": IDENT["environment"],
+   388	        "authorized_scope": IDENT["scope_hash"],
+   389	        "input_watermark": IDENT["commit_sha"],
+   390	        "actor": "chaoge", "issued_at": "2026-10-08T00:00:00Z",
+   391	        "expires_at": "2099-01-01T00:00:00Z",
+   392	        "nonce": "nonce-risk-0011223344", "decision": "approve",
+   393	        "signature": "sig" + "y" * 60,
+   394	        "payload": {"finding_fingerprints": ["fp1"], "severity": "HIGH",
+   395	                    "reason": "r" * 12, "compensating_controls": ["c1"],
+   396	                    "expiry": "2026-12-31"},
+   397	    }
+   398	    ap.update(over)
+   399	    return ap
+   400	
+   401	def t_conditional_terminal():
+   402	    store, mgr = fresh()
+   403	    run_id = mgr.create_run("task_cond", IDENT)["run_id"]
+   404	    for i in range(6):  # S1..S6 PASS
+   405	        mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+   406	    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="CONDITIONAL")
+   407	    assert out["attempt_status"] == "COMPLETED_CONDITIONAL"
+   408	    assert out.get("next_stage") is None
+   409	    st = mgr.get_run(run_id)
+   410	    assert st.current_stage == "S7_GATE"  # 软终态段仍阻塞推进
+   411	    out = mgr.advance_stage(run_id)  # 软终态可重试：attempt 不可变 → 新 attempt
+   412	    assert out.get("started_attempt_id"), out
+   413	    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="CONDITIONAL")
+   414	    # 无 risk 授权 → complete_run fail-closed
+   415	    expect(PipelineError, lambda: mgr.complete_run(run_id))
+   416	    rec = mgr.authorize_risk(run_id, make_risk_approval(run_id))
+   417	    assert rec["consumed"] is True
+   418	    # risk 审批不可复用
+   419	    expect(ApprovalReuseError, lambda: mgr.authorize_risk(run_id, make_risk_approval(run_id)))
+   420	    done = mgr.complete_run(run_id)
+   421	    assert done["final_state"] == "COMPLETED_CONDITIONAL"
+   422	    assert done["policy_verdict"] == "CONDITIONAL"
+   423	    expect(TerminalRunError, lambda: mgr.complete_run(run_id))
+   424	    assert store.verify_chain()["ok"]
+   425	
+   426	# ------------------------------------------------------------------ #
+   427	def t_cancel_supersede_notfound():
+   428	    store, mgr = fresh()
+   429	    run_id = mgr.create_run("task_cancel", IDENT)["run_id"]
+   430	    out = mgr.cancel_run(run_id)
+   431	    assert out["final_state"] == "CANCELLED"
+   432	    st = mgr.get_run(run_id)
+   433	    assert st.terminal and st.state == "CANCELLED"
+   434	    run2 = mgr.create_run("task_sup", IDENT)["run_id"]
+   435	    mgr.advance_stage(run2)
+   436	    out = mgr.supersede_run(run2, "commit_sha 变更，旧证据失效（不变量 #3）")
+   437	    assert out["final_state"] == "SUPERSEDED"
+   438	    expect(RunNotFoundError, lambda: mgr.get_run("run_ghost"))
+   439	    # FAILED 终态：中途放弃
+   440	    run3 = mgr.create_run("task_fail", IDENT)["run_id"]
+   441	    mgr.advance_stage(run3)
+   442	    mgr.advance_stage(run3, execution_status="ERROR", policy_verdict="FAIL")
+   443	    done = mgr.complete_run(run3)
+   444	    assert done["final_state"] == "FAILED"
+   445	    assert store.verify_chain()["ok"]
+   446	
+   447	# ------------------------------------------------------------------ #
+   448	def t_eventstore_interop():
+   449	    """broker/manager 的链式插入与 EventStore.append 交错后链仍完整。"""
+   450	    store, mgr = fresh()
+   451	    run_id = mgr.create_run("task_mix", IDENT)["run_id"]
+   452	    mgr.advance_stage(run_id)
+   453	    store.append({"external": "probe", "n": 1})      # EventStore 直写
+   454	    mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+   455	    store.append({"external": "probe", "n": 2})
+   456	    w = mgr.raise_waiting(run_id, "resource", "mix")
+   457	    v = mgr.get_run(run_id).state_version
+   458	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "resource", v,
+   459	                                   preconditions={"resource_probe_ref": "p",
+   460	                                                  "probe_recovered": "yes",
+   461	                                                  "safety_margin_met": "yes"},
+   462	                                   nonce="nonce-mix-00011122233344",
+   463	                                   approval_id="apr_mix_1")
+   464	    ap["payload"]["objective_precondition_hash"] = SM.objective_precondition_hash(pre)
+   465	    assert mgr.resume_waiting(run_id, ap, pre)["resumed"]
+   466	    store.append({"external": "probe", "n": 3})
+   467	    assert store.verify_chain()["ok"]
+   468	    assert mgr.get_run(run_id).state == "RUNNING"
+   469	
+   470	# ------------------------------------------------------------------ #
+   471	def t_schema_crosscheck():
+   472	    """结构校验器与 approval-v2.schema.json 交叉验证（jsonschema 可用时）。"""
+   473	    try:
+   474	        import jsonschema
+   475	    except ImportError:
+   476	        print("  (skip) jsonschema 未安装，跳过交叉验证")
+   477	        return
+   478	    schema = json.load(open(os.path.join(REPO, "schemas", "approval-v2.schema.json")))
+   479	    store, mgr = fresh()
+   480	    run_id = mgr.create_run("task_x", IDENT)["run_id"]
+   481	    mgr.advance_stage(run_id)
+   482	    w = mgr.raise_waiting(run_id, "prod-write", "x")
+   483	    v = mgr.get_run(run_id).state_version
+   484	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "prod-write", v)
+   485	    # 合法样例：schema 与内置校验器都放行
+   486	    jsonschema.validate(ap, schema)
+   487	    ApprovalBroker.validate_structure(ap)
+   488	    # 篡改样例：两者都拒绝
+   489	    for mut in (lambda a: a.update({"schema_version": "1.9"}),
+   490	                lambda a: a.update({"decision": "maybe"}),
+   491	                lambda a: a.update({"nonce": "short"}),
+   492	                lambda a: a.pop("actor"),
+   493	                lambda a: a["payload"].pop("objective_precondition_hash")):
+   494	        bad = json.loads(json.dumps(ap))
+   495	        mut(bad)
+   496	        try:
+   497	            jsonschema.validate(bad, schema)
+   498	            schema_rejects = False
+   499	        except jsonschema.ValidationError:
+   500	            schema_rejects = True
+   501	        try:
+   502	            ApprovalBroker.validate_structure(bad)
+   503	            mine_rejects = False
+   504	        except ApprovalRejected:
+   505	            mine_rejects = True
+   506	        assert schema_rejects and mine_rejects, f"分歧: schema={schema_rejects} mine={mine_rejects} on {bad}"
+   507	
+   508	TESTS = [
+   509	    ("规则引擎（七段/转换/双轴/九类前置）", t_rule_engine),
+   510	    ("全流程七段 PASS → SUCCEEDED + 重放一致", t_happy_path),
+   511	    ("FAIL 重试 → 新 attempt_id，旧 attempt 不可变", t_retry_new_attempt),
+   512	    ("九类停等 raise→resume（必要且充分）", t_waiting_resume_happy),
+   513	    ("审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希）", t_approval_rejections),
+   514	    ("并发双消费：恰好一个成功", t_concurrent_double_consume),
+   515	    ("COMPLETED_CONDITIONAL 终态 + risk 授权", t_conditional_terminal),
+   516	    ("cancel/supersede/not_found/FAILED", t_cancel_supersede_notfound),
+   517	    ("与 EventStore.append 交错链完整性", t_eventstore_interop),
+   518	    ("与 approval-v2 schema 交叉验证", t_schema_crosscheck),
+   519	]
+   520	if __name__ == "__main__":
+   521	    for name, fn in TESTS:
+   522	        check(name, fn)
+   523	    print(f"\nP0-2 状态机+审批 Broker: {PASS_N} PASS / {FAIL_N} FAIL")
+   524	    sys.exit(1 if FAIL_N else 0)

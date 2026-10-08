@@ -1,0 +1,89 @@
+TIMESTAMP_START=2026-10-08T04:32:14Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/p0_7_deploy_probe.py'
+--- OUTPUT BEGIN ---
+{
+  "mode_probe": {
+    "source_modes": {
+      "run.sh": "0o755",
+      "runner": "0o755",
+      "notexec.py": "0o644"
+    },
+    "release_modes": {
+      "run.sh": "0o555",
+      "runner": "0o444",
+      "notexec.py": "0o555"
+    },
+    "manifest_file_entry_keys": [
+      "path",
+      "sha256",
+      "size"
+    ],
+    "verify_after_chmod_0555_to_0444": {
+      "ok": true,
+      "release_dir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p07-yydvqasw/releases/20261008T043214Z-281c231153af",
+      "release_id": "20261008T043214Z-281c231153af",
+      "missing": [],
+      "extra": [],
+      "drifted": [],
+      "checked": 3
+    }
+  },
+  "first_failure": {
+    "error": "deploy failed at install self-check: SelfCheckError('install self-check returned falsy: False'); first deploy: current link removed (no failed release active)",
+    "current_lexists": false,
+    "current_islink": false
+  },
+  "upgrade_failure": {
+    "before_link": "releases/20261008T043214Z-381dc77bfdcb",
+    "before_real": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p07-yydvqasw/upgrade/releases/20261008T043214Z-381dc77bfdcb",
+    "error": "deploy failed at install self-check: SelfCheckError('install self-check returned falsy: False'); no previous release to roll back to",
+    "after_link": "releases/20261008T043214Z-e4ac9467ec29",
+    "after_real": "/private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p07-yydvqasw/upgrade/releases/20261008T043214Z-e4ac9467ec29",
+    "rolled_back_to_before": false,
+    "failed_release_remained_active": true
+  },
+  "manifest": {
+    "actual_top_keys": [
+      "content_digest",
+      "created_at",
+      "files",
+      "release_id",
+      "source_dir"
+    ],
+    "missing_plan_fields": [
+      "artifact_sha256",
+      "attestation/signature",
+      "build_id",
+      "builder",
+      "built_at",
+      "dependency lock/SBOM hash",
+      "max_schema_version",
+      "min_schema_version",
+      "policy_hash",
+      "python/node/runtime identity",
+      "quality_policy_commit",
+      "schema_version",
+      "source_commit",
+      "version"
+    ]
+  },
+  "installer": {
+    "contains_cp_R": true,
+    "contains_doctor_or_true": true,
+    "imports_DeployManager": false
+  },
+  "assessment": {
+    "claimed_sh_exec_fix_passes": true,
+    "claimed_first_failure_link_cleanup_passes": true,
+    "residual_extensionless_exec_loses_bit": true,
+    "residual_nonexec_shebang_py_gains_bit": true,
+    "residual_mode_not_verified": true,
+    "residual_upgrade_failure_not_rolled_back": true,
+    "residual_manifest_incomplete": true,
+    "residual_installer_bypasses_framework": true
+  }
+}
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:32:14Z

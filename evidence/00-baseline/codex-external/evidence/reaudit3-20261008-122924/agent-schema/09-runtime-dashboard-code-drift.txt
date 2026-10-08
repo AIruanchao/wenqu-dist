@@ -1,0 +1,141 @@
+$ rg -n "def do_POST|X-Auth-Key|Origin|Host|WENQU_DASHBOARD_KEY|api/decide|def do_GET|innerHTML|textContent" ~/.wenqu/bin/wenqu-dashboard.py | head -120
+20:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+231:function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
+259:  const dk=document.getElementById('stdeck');dk.innerHTML='';
+263:    d.innerHTML=`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
+268:  const tb=document.getElementById('tiers');tb.innerHTML='';
+270:    const b=document.createElement('button');b.className='tbtn';b.textContent=t.k;
+274:      document.getElementById('tierinfo').innerHTML=`<b style="color:var(--acc)">${t.k}</b> → 站点 {${t.s.join('、')}} · lane/N = ${t.lane}`;
+285:  if(btn.dataset.run){btn.dataset.run='';btn.textContent='▶ 自动巡游';cards.forEach(c=>c.classList.remove('now'));ring.classList.remove('now');return}
+286:  btn.dataset.run='1';btn.textContent='⏸ 停止巡游';
+293:      document.getElementById('playmsg').innerHTML='走查完成——任何「干净/扫完」声明必过收敛环（递归清零 v2.2）';
+294:      stopPlay();btn.dataset.run='';btn.textContent='▶ 自动巡游';return;
+299:    document.getElementById('playmsg').innerHTML=`站${STATIONS[i].n} <b>${STATIONS[i].name}</b> · ${STATIONS[i].tier}`;
+359:    const dk=document.getElementById(dkid);dk.innerHTML='';
+363:      d.innerHTML=fh(s);dk.appendChild(d);
+377:  l6.innerHTML='<div class="lab" style="color:var(--dim);font-size:10px;margin:12px 0 6px;letter-spacing:.5px">v2.0 六层强化（SKILL §8 血统段 2026-10-03「我要最强」）</div>';
+382:  sp.innerHTML=PFCURVE.map(v=>`<i title="${v} 发现" style="height:${Math.max(3,v*2)}px;${v===0?'background:linear-gradient(180deg,#3fb950,#1f6feb)':''}"></i>`).join('');
+388:  if(pfTimer){clearInterval(pfTimer);pfTimer=null;cards.forEach(c=>c.classList.remove('now'));btn.textContent='▶ 巡游五步';return}
+389:  btn.textContent='⏸ 停止巡游';
+397:      document.getElementById('pfmsg').innerHTML='走查完成——封环条件三条全满足才可宣言收敛';
+398:      btn.textContent='▶ 巡游五步';return;
+403:    document.getElementById('pfmsg').innerHTML=`第${POSTFIX[i].n}步 <b>${POSTFIX[i].name}</b> · ${POSTFIX[i].tier}`;
+411:  if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
+425:  box.innerHTML=h;
+434:    el.innerHTML='<div class="dim" style="font-size:11px">载入中…</div>';
+440:    el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">${stt} 明细 ${d2.items_total||0} 条（严重度序${(d2.items_total||0)>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 ${stt} 收起</div>`+
+443:  const pb=document.getElementById('bglproj');pb.innerHTML='';
+464:    document.getElementById('trendsvg').innerHTML=svg;
+474:  const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
+483:  document.getElementById('ver').textContent=c.version||'';
+484:  const d=await j('/api/daemons');const db=document.getElementById('daemon');db.innerHTML='';
+486:  if(!ds.length)db.innerHTML='<span class="dim">无运行中守护（wenqu start）</span>';
+488:  document.getElementById('cronline').textContent=`定时哨兵：${d.cron} 条`;
+490:  rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
+491:  if(r.available){rb.innerHTML='';
+497:  rbox.innerHTML='';
+499:  const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
+500:  for(const[n,t]of Object.entries(lg)){const h2=document.createElement('h2');h2.style.marginTop='8px';h2.textContent=n;lbox.appendChild(h2);const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p);}
+509:    hbox.innerHTML=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+525:     bar.innerHTML=cells+`<span class="dim" style="font-size:10px;margin-left:6px">近 30 天轮次</span>`;
+528:   if(sp){sp.innerHTML=window.__hist.map(v=>`<i class="${v<75?'hot':''}" style="height:${Math.max(3,v*0.3)}px" title="${v}"></i>`).join('');}
+537:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+544:  if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+545:  else{dbox.innerHTML='';
+550:      const btn=document.createElement('button');btn.className='pbtn';btn.style.cssText='padding:1px 10px;font-size:11px';btn.textContent='✓ 采纳';
+552:      const btn2=document.createElement('button');btn2.className='pbtn';btn2.style.cssText='padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)';btn2.textContent='✗ 驳回';
+566:  document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
+569:setInterval(()=>{const t=document.getElementById('ts');if(t)t.textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});},1000);
+862:    def do_POST(self):
+863:        if self.path == "/api/decide":
+908:    def do_GET(self):
+[exit_code]=
+$ git diff --no-index runtime repo dashboard (head/tail stats)
+ .../maccc/.wenqu => system}/bin/wenqu-dashboard.py | 24 ++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+[exit_code]=1
+$ cmp -s runtime repo; echo
+[exit_code]=1
+$ launchctl print gui/$UID/com.wenqu.dashboard (selected)
+gui/502/com.wenqu.dashboard = {
+	active count = 1
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	type = LaunchAgent
+	state = running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+		7789
+	}
+
+	stdout path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	stderr path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_REPO_DIR => /Users/maccc/qisemi-research/qisemi-erp-fresh
+		XPC_SERVICE_NAME => com.wenqu.dashboard
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 11
+	pid = 81385
+	immediate reason = inefficient
+	forks = 32848
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Terminated: 15
+
+	resource coalition = {
+		ID = 448492
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	jetsam coalition = {
+		ID = 448493
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}
+[exit_code]=

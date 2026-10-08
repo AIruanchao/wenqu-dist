@@ -1,0 +1,624 @@
+TIMESTAMP_START=2026-10-08T04:30:08Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=nl -ba tools/ac_traceability.py | sed -n '1,760p'
+--- OUTPUT BEGIN ---
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""ac_traceability.py — Codex 方案 §20 全部 131 个验收 ID 的追踪矩阵生成器（P0-10）。
+     4	
+     5	正源：Codex 重构方案 /private/tmp/codex-test/方案.md
+     6	  SHA256 96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+     7	  §20（20.1～20.5）定义全部测试 ID 的注入/期望；§25.1 给出 ID 范围→需求/AC/工作包/证据类映射。
+     8	本工具把 §20/§25.1 全量转录为冻结目录（PLAN_TEST_CATALOG），运行时扫描仓内测试资产，
+     9	对每个 ID 判定是否有对应的测试文件或测试函数，并输出 JSON 追踪矩阵与覆盖率统计。
+    10	
+    11	用法：
+    12	  python3 tools/ac_traceability.py                 # 扫描 + 写 evidence/traceability-matrix.json + 输出统计
+    13	  python3 tools/ac_traceability.py --json PATH     # 指定输出路径
+    14	  python3 tools/ac_traceability.py --plan PATH     # 用真实方案文件交叉校验 ID 集合（可选）
+    15	  python3 tools/ac_traceability.py --check         # 目录完整性失败时 exit 2（CI 用）
+    16	
+    17	判定口径（诚实优先）：
+    18	  implemented=true  仅当：某测试文件中存在「以该 ID 命名/标注的测试函数或用例」
+    19	      （.py: ID 出现在 test_*/selftest 函数体内或函数名含 ID；.sh: ID 字面量出现在测试脚本中）。
+    20	  implemented=false 但 test_file 非空时，test_file 指向 PROXY_ALIASES 登记的相邻测试
+    21	      （部分覆盖，match_type=proxy_partial）——代理测试不冒充专属验收。
+    22	证据口径：evidence_path 为 evidence/ 下含该 ID 的非 README 工件（本工具自身输出除外）。
+    23	"""
+    24	import argparse
+    25	import ast
+    26	import json
+    27	import os
+    28	import re
+    29	import subprocess
+    30	import sys
+    31	from datetime import datetime, timezone, timedelta
+    32	
+    33	REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    34	PLAN_SHA256 = "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306"
+    35	EXPECTED_TOTAL = 131
+    36	
+    37	# ---------------------------------------------------------------- 冻结目录：§25.1 前缀元数据
+    38	# (req, ac, work_packages, evidence_class)
+    39	PREFIX_META = {
+    40	    "GATE": ("REQ-EVID-001", "AC-EVID-FAIL-CLOSED", "W2/W3A/W3B", "raw rc、CAS、before/after"),
+    41	    "AUTH": ("REQ-AUTH-001", "AC-AUTH-ONE-TIME", "W1/W2", "signed payload、replay log"),
+    42	    "ACT": ("REQ-ACT-001", "AC-ACT-SAGA", "W2/W3B/W7B", "outbox、external receipt、reconcile"),
+    43	    "MRG": ("REQ-MERGE-001", "AC-MERGE-EXACT-SHA", "W3B", "ruleset、check、merge audit"),
+    44	    "STATE": ("REQ-STATE-001", "AC-STATE-APPEND-ONLY", "W1/W2", "event log、property/crash run"),
+    45	    "MIG": ("REQ-MIG-001", "AC-MIG-RECONCILE", "W5", "row mapping、decision、quarantine"),
+    46	    "DB": ("REQ-DB-001", "AC-DB-FOUR-TRACK", "W6C", "catalog diff、DB identity"),
+    47	    "SC": ("REQ-SC-001", "AC-SC-FAIL-CLOSED", "W6B", "audit JSON、SBOM、signature"),
+    48	    "ADV": ("REQ-ADV-001", "AC-ADV-COMPLETE", "W6B", "pages/ranges fixture"),
+    49	    "TEN": ("REQ-TENANT-001", "AC-TENANT-DENOMINATOR", "W6C", "DMMF/AST/runtime probes"),
+    50	    "PERF": ("REQ-PERF-001", "AC-PERF-VALID", "W6D", "raw samples/profile/baseline auth"),
+    51	    "SCH": ("REQ-SCHED-001", "AC-SCHED-RESULT", "W4", "launchd/job result/freshness"),
+    52	    "ALT": ("REQ-ALERT-001", "AC-ALERT-DELIVERED", "W4", "outbox/attempt/receipt/dead-letter"),
+    53	    "BAK": ("REQ-BACKUP-001", "AC-BACKUP-RESTORABLE", "W4/W7A", "checkpoint/restore drill"),
+    54	    "REL": ("REQ-RELEASE-001", "AC-RELEASE-MANIFEST", "W7A/W7B", "manifest/build identity"),
+    55	    "STOP": ("REQ-STOP-001", "AC-STOP-AUTH-AND-FACT", "W1/W2", "nine-type matrix/events"),
+    56	    "RUN": ("REQ-RUNNER-001", "AC-RUNNER-ISOLATED", "W2", "sandbox/quota/process-tree logs"),
+    57	    "CI": ("REQ-CI-001", "AC-CI-TERMINAL", "W3B", "check runs/ruleset/DAG validation"),
+    58	    "COND": ("REQ-COND-001", "AC-COND-NOT-PASS", "W1/W2/W3B", "risk/action auth、attestation、context"),
+    59	    "RISK": ("REQ-RISK-001", "AC-RISK-INVALIDATE", "W2/W5", "revoke/invalidate/reopen events"),
+    60	    "STA": ("REQ-STATION-001", "AC-STATION-COVERAGE", "W6A~W6D/W3B", "station results/aggregate"),
+    61	    "DEP": ("REQ-DEPLOY-001", "AC-DEPLOY-FENCED", "W7A/W7B", "lease/migration/activation events"),
+    62	    "RB": ("REQ-ROLLBACK-001", "AC-ROLLBACK-EXACT", "W7B", "preauthorization/compatibility/drill"),
+    63	    "UI": ("REQ-UI-001", "AC-UI-TRUTHFUL-SECURE", "W8", "Playwright/DOM/security trace"),
+    64	    "HLT": ("REQ-HEALTH-001", "AC-HEALTH-ATOMIC", "W8", "input watermark/snapshot retry"),
+    65	    "DOC": ("REQ-DOC-001", "AC-DOC-REGISTRY-CONSISTENT", "W1/W10", "generated consistency report"),
+    66	    "CAP": ("REQ-CAP-001", "AC-CAP-SAFE-MARGIN", "W0/W7A", "peak budget/disk-full injection"),
+    67	    "DR": ("REQ-DR-001", "AC-DR-RPO-RTO", "W4/W7B/W10", "restored state/RPO/RTO timing"),
+    68	}
+    69	
+    70	# ---------------------------------------------------------------- 冻结目录：§20 逐 ID（注入, 期望）
+    71	# 逐字转录自方案 §20.1～§20.5 表格。
+    72	ID_DEFS = {
+    73	    # -- §20.1 Gate、授权、合流 --
+    74	    ("GATE", 1): ("base ref 不存在/fetch 失败", "ERROR/BLOCKED"),
+    75	    ("GATE", 2): ("零测试、scope 未证明纯文档", "BLOCKED"),
+    76	    ("GATE", 3): ("test runner/依赖缺失", "ERROR"),
+    77	    ("GATE", 4): ("内层 exit 7、自报零 finding", "assertion FAIL/BLOCKED"),
+    78	    ("GATE", 5): ("artifact symlink/hardlink/根外", "BLOCKED"),
+    79	    ("GATE", 6): ("artifact hash 篡改", "BLOCKED"),
+    80	    ("GATE", 7): ("commit/env/scope/ruleset 不符", "BLOCKED"),
+    81	    ("GATE", 8): ("evidence 过 TTL", "BLOCKED"),
+    82	    ("GATE", 9): ("N=-1/0/超上限", "参数错误"),
+    83	    ("GATE", 10): ("超过 N+1", "BLOCKED 等人工裁定"),
+    84	    ("GATE", 11): ("同命令换 S 标签", "不计异源轮"),
+    85	    ("GATE", 12): ("unsigned flip/adjudication", "BLOCKED"),
+    86	    ("AUTH", 1): ("无授权 resume", "拒绝"),
+    87	    ("AUTH", 2): ("过期/重放/扩范围/旧 state_version", "拒绝"),
+    88	    ("AUTH", 3): ("AI/runner 尝试自行签发高风险批准", "拒绝"),
+    89	    ("ACT", 1): ("technical PASS，但无 exact merge/release action authorization",
+    90	                 "context 可表技术 PASS，controller 不动作"),
+    91	    ("ACT", 2): ("action、method、head/merge-group、artifact/env 任一不符",
+    92	                 "Action Authorization Gate failure，拒绝动作"),
+    93	    ("ACT", 3): ("check 发布前/后 crash 或回执丢失", "outbox 幂等恢复；同一 check_run 更新，不产生伪双绿"),
+    94	    ("ACT", 4): ("merge/release 调用前/后 crash 或回执丢失", "先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试"),
+    95	    ("ACT", 5): ("外部陈旧绿、dispatcher/App 失联", "direct merge 被角色/ruleset 拒绝；动作保持 BLOCKED"),
+    96	    ("ACT", 6): ("merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段", "schema 拒绝"),
+    97	    ("MRG", 1): ("Fast 绿、Security 红", "不合流"),
+    98	    ("MRG", 2): ("没有 Fast、Gate 红", "不合流"),
+    99	    ("MRG", 3): ("check 同名伪造/旧 SHA", "不合流"),
+   100	    ("MRG", 4): ("pending/skipped/neutral/cancelled", "不合流"),
+   101	    ("MRG", 5): ("head 在聚合后改变", "旧结论失效"),
+   102	    ("MRG", 6): ("GitHub 429/空 JSON/超时", "断路，不合流"),
+   103	    # -- §20.2 状态、账本、迁移 --
+   104	    ("STATE", 1): ("任意 stage/status", "schema 拒绝"),
+   105	    ("STATE", 2): ("../、绝对路径、NUL、超长 ID", "拒绝"),
+   106	    ("STATE", 3): ("100×100 并发写", "零丢失/重复"),
+   107	    ("STATE", 4): ("事务各点 kill -9", "全有或全无"),
+   108	    ("STATE", 5): ("双 writer epoch", "所有写入拒绝"),
+   109	    ("STATE", 6): ("WAITING 终态残留", "SUPERSEDED 事件，不静默删"),
+   110	    ("MIG", 1): ("坏 JSON/未知状态", "quarantine+BLOCKED"),
+   111	    ("MIG", 2): ("缺审批信息的 ACCEPTED", "invalid/reopen"),
+   112	    ("MIG", 3): ("两次迁移", "结果幂等一致"),
+   113	    ("MIG", 4): ("源行数不守恒", "迁移失败"),
+   114	    ("MIG", 5): ("project key 冲突", "明确冲突，不拆成假项目"),
+   115	    # -- §20.3 Bug 扫描器 --
+   116	    ("DB", 1): ("[+]/[-]/[*]", "全识别"),
+   117	    ("DB", 2): ("仅一条 DROP COLUMN/删 FK", "FAIL，不因数量少放行"),
+   118	    ("DB", 3): ("未知格式/空输出/命令非零", "ERROR"),
+   119	    ("DB", 4): ("allowlist 到期/对象 hash 变化", "FAIL"),
+   120	    ("SC", 1): ("有效 JSON+HIGH/CRITICAL", "FAIL"),
+   121	    ("SC", 2): ("空 JSON/registry 超时", "ERROR"),
+   122	    ("SC", 3): ("install script/resolved/integrity 变化", "FAIL/人工审"),
+   123	    ("SC", 4): ("标题含 [skip-audit]", "无绕过效果"),
+   124	    ("ADV", 1): ("version parser 异常", "UNKNOWN，不写 seen"),
+   125	    ("ADV", 2): ("多页/多 range", "全遍历"),
+   126	    ("TEN", 1): ("Prisma alias/re-export/wrapper", "纳入分析"),
+   127	    ("TEN", 2): ("注释含 organizationId", "不能欺骗"),
+   128	    ("TEN", 3): ("builder 超 300 字符", "纳入分析"),
+   129	    ("TEN", 4): ("$queryRaw 跨租户", "阻断"),
+   130	    ("TEN", 5): ("路径不含 export/download 的下载", "纳入扫描"),
+   131	    ("TEN", 6): ("Org A 访问/导出 Org B", "动态拒绝"),
+   132	    ("PERF", 1): ("HTTP 500 但很快", "FAIL"),
+   133	    ("PERF", 2): ("SSH/TCC/null 指标", "ERROR"),
+   134	    ("PERF", 3): ("尾部极慢样本", "正确进入 p95/p99"),
+   135	    ("PERF", 4): ("输入 1→100，query count 线性", "FAIL"),
+   136	    # -- §20.4 调度、发布、UI --
+   137	    ("SCH", 1): ("launchd 无 Documents 权限", "ERROR+告警"),
+   138	    ("SCH", 2): ("脚本 FAIL 后 touch heartbeat", "测试抓获、last_success 不变"),
+   139	    ("SCH", 3): ("睡眠错过周期", "唤醒补跑"),
+   140	    ("ALT", 1): ("provider 500/超时", "outbox 重试/dead-letter"),
+   141	    ("BAK", 1): ("磁盘满/tar/backup 失败", "不更新 success"),
+   142	    ("REL", 1): ("manifest 缺件/多件/错 hash", "部署失败"),
+   143	    ("REL", 2): ("部署中 kill -9", "保持旧 current 或完整新 current"),
+   144	    ("REL", 3): ("doctor 红", "部署失败并回退"),
+   145	    ("UI", 1): ("少一个闭合标签", "构建/启动门失败"),
+   146	    ("UI", 2): ("XSS 日志/账本文本", "不执行"),
+   147	    ("UI", 3): ("CSRF/伪 Origin/text/plain 写入", "拒绝"),
+   148	    ("UI", 4): ("Gate 红、其他项高分", "总体 BLOCKED"),
+   149	    ("UI", 5): ("ACCEPTED/OTHER/quarantine", "均可钻取"),
+   150	    # -- §20.5 补充契约、隔离与治理探针 --
+   151	    ("STOP", 1): ("九种 stop type 使用错误类型审批", "全拒绝"),
+   152	    ("STOP", 2): ("resource/ext-unavail 未恢复但已批准", "仍不可 resume"),
+   153	    ("STOP", 3): ("九种 stop type 的客观条件已满足但缺一次性授权", "九类全部拒绝 resume"),
+   154	    ("STATE", 7): ("普通事件把 PASSED 改回 RUNNING", "拒绝"),
+   155	    ("STATE", 8): ("FAILED 重试", "新 attempt，旧证据不覆盖"),
+   156	    ("STATE", 9): ("SHA/scope/policy 变化", "强制新 run"),
+   157	    ("STATE", 10): ("WAITING/FAILED attempt 直接改回 RUNNING", "拒绝；追加新 attempt 后由 stage projection 指向它"),
+   158	    ("STATE", 11): ("S7 CONDITIONAL 缺 risk authorization", "S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING"),
+   159	    ("AUTH", 4): ("canonical payload/Unicode/audience 任一字节改变", "验签失败"),
+   160	    ("AUTH", 5): ("并发双消费 approval", "恰一成功"),
+   161	    ("AUTH", 6): ("key revoked/clock rollback/无 user-presence", "拒绝"),
+   162	    ("RUN", 1): ("被测程序读取 Keychain/SSH agent/生产配置", "隔离拒绝"),
+   163	    ("RUN", 2): ("timeout 后子孙进程", "全部终止，无孤儿写盘"),
+   164	    ("RUN", 3): ("fork bomb/输出爆量/网络外连", "配额/allowlist 阻断"),
+   165	    ("CI", 5): ("fork、merge_group、check 不产生", "明确 FAILURE/BLOCKED"),
+   166	    ("CI", 6): ("CODEOWNERS 文件存在但 ruleset 未强制", "doctor ERROR"),
+   167	    ("CI", 7): ("未授权 App 发布同名 context/旧 details URL", "不可信、阻断"),
+   168	    ("CI", 8): ("Wenqu Gate 缺失但 Bugscan 绿", "不合流"),
+   169	    ("CI", 9): ("S7 把 Wenqu Required Gate 当自身输入、重复发布或递归聚合", "schema/DAG 校验拒绝并发布 FAILURE"),
+   170	    ("MRG", 7): ("最后校验后 head 变化", "expected-SHA 原子拒绝"),
+   171	    ("COND", 1): ("CONDITIONAL 无 risk authorization", "technical eligibility=false，技术 context failure"),
+   172	    ("COND", 2): ("授权跨 SHA/env/扩 finding 集/重放", "拒绝"),
+   173	    ("COND", 3): ("合法低风险接受、其余全 PASS、risk 与 action 两类精确授权",
+   174	                  "内部仍 CONDITIONAL；技术 context=success/AUTHORIZED_CONDITIONAL；Action Gate 成功后动作恰一次"),
+   175	    ("COND", 4): ("P0/P1 尝试风险接受或条件授权", "拒绝并保持 BLOCKED"),
+   176	    ("COND", 5): ("授权后新增 finding、TTL 到期、SHA/scope/policy/watermark 变化",
+   177	                  "authorization、attestation、context 失效；动作前重验拒绝"),
+   178	    ("COND", 6): ("并发双消费或动作失败后重放 attestation", "最多一次消费；失败后须新授权"),
+   179	    ("RISK", 1): ("主动撤销或 fingerprint/severity/policy/control 改变", "追加 REVOKED/INVALIDATED，立即重开并可进入修复链"),
+   180	    ("DB", 5): ("错 DB/role/transaction_read_only=off", "BLOCKED"),
+   181	    ("DB", 6): ("catalog 顺序、默认表达式、extension 对象", "golden 规范化正确"),
+   182	    ("SC", 5): ("离线快照签名错误/过期/分页不全", "BLOCKED"),
+   183	    ("TEN", 7): ("target SHA 新增 tenant model", "分母自动增加"),
+   184	    ("TEN", 8): ("合法管理员跨租户正例/普通角色负例", "前者通、后者拒"),
+   185	    ("PERF", 5): ("修改 baseline/阈值试图洗绿", "policy hash 阻断"),
+   186	    ("PERF", 6): ("样本/时长/endpoint 分母缩水", "不得晋升 baseline"),
+   187	    ("STA", 1): ("任一站 denominator 缩小", "整线 BLOCKED"),
+   188	    ("STA", 2): ("站2/3/4/7逐站故障", "继续独立取证，aggregate BLOCKED"),
+   189	    ("SCH", 4): ("catch-up 与正常调度并发", "只有一个 logical run"),
+   190	    ("SCH", 5): ("scheduler 整体故障", "独立 watchdog 仍告警"),
+   191	    ("SCH", 6): ("one-shot job", "只写 wenqu namespace"),
+   192	    ("SCH", 7): ("COMPLETED+NOT_APPLICABLE 或过期/异指纹 PASS", "不刷新任何实体的 last_success"),
+   193	    ("DEP", 1): ("两个部署者争 lease", "最多一个成功"),
+   194	    ("DEP", 2): ("smoke 访问生产 DB/state", "隔离拒绝"),
+   195	    ("DEP", 3): ("新事件后回滚兼容二进制", "事件零丢失"),
+   196	    ("DEP", 4): ("自签/替换/revoked release key", "拒绝"),
+   197	    ("DEP", 5): ("previous release 超 schema 范围", "拒绝回滚"),
+   198	    ("DEP", 6): ("无迁移锁/未验证备份/expand 超授权", "激活前 BLOCKED，旧 current 不变"),
+   199	    ("DEP", 7): ("ACTIVATING 失败且无预授权", "FAILED_BLOCKED；不得自动回滚或继续发布"),
+   200	    ("DEP", 8): ("ROLLBACK_FAILED", "writer/merge/release 熔断并停等人工恢复"),
+   201	    ("DEP", 9): ("观察窗内夹带 contract/down migration", "拒绝；要求独立授权变更"),
+   202	    ("RB", 1): ("无预授权自动回滚/错误旧版本", "拒绝"),
+   203	    ("UI", 6): ("DNS rebinding/伪 Host/未认证日志读取", "拒绝"),
+   204	    ("UI", 7): ("慢请求/高并发/超大日志", "不耗尽资源"),
+   205	    ("HLT", 1): ("聚合期间输入 watermark 变化", "snapshot 作废重算"),
+   206	    ("DOC", 1): ("one-shot 停等数量/枚举漂移", "CI 阻断"),
+   207	    ("DOC", 2): ("bug skill 版本/清单/验收数量漂移", "CI 阻断"),
+   208	    ("DOC", 3): ("policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本", "CI 阻断"),
+   209	    ("DOC", 4): ("文档宣称现役/PASS，但 registry 或 Gate 为 BLOCKED", "CI 阻断"),
+   210	    ("ALT", 2): ("waiting 到期但零 send attempt/receipt", "ERROR+告警，不能以 watchdog exit0 记健康"),
+   211	    ("CAP", 1): ("峰值空间超过安全余量或磁盘满", "切换 BLOCKED，旧证据和 current 均完整"),
+   212	    ("DR", 1): ("恢复演练", "实测满足冻结 RPO/RTO"),
+   213	}
+   214	
+   215	SECTION_OF = {}  # (prefix, num) -> "20.x"
+   216	for _id in [
+   217	    *[("GATE", i) for i in range(1, 13)], *[("AUTH", i) for i in range(1, 4)],
+   218	    *[("ACT", i) for i in range(1, 7)], *[("MRG", i) for i in range(1, 7)],
+   219	]:
+   220	    SECTION_OF[_id] = "20.1"
+   221	for _id in [*[("STATE", i) for i in range(1, 7)], *[("MIG", i) for i in range(1, 6)]]:
+   222	    SECTION_OF[_id] = "20.2"
+   223	for _id in [
+   224	    *[("DB", i) for i in range(1, 5)], *[("SC", i) for i in range(1, 5)],
+   225	    *[("ADV", i) for i in range(1, 3)], *[("TEN", i) for i in range(1, 7)],
+   226	    *[("PERF", i) for i in range(1, 5)],
+   227	]:
+   228	    SECTION_OF[_id] = "20.3"
+   229	for _id in [
+   230	    *[("SCH", i) for i in range(1, 4)], ("ALT", 1), ("BAK", 1),
+   231	    *[("REL", i) for i in range(1, 4)], *[("UI", i) for i in range(1, 6)],
+   232	]:
+   233	    SECTION_OF[_id] = "20.4"
+   234	# 其余（§20.5 补充）在构建目录时兜底。
+   235	
+   236	# ---------------------------------------------------------------- 代理测试登记（诚实部分覆盖）
+   237	# 只登记确实存在且语义相邻的仓内测试；implemented 仍为 false（无 §20 ID 专属用例）。
+   238	PROXY_ALIASES = {
+   239	    "GATE-02": {
+   240	        "test_file": "system/tests/test_core_wiring.py",
+   241	        "test_function": "test_gate_aggregator_blocks_empty",
+   242	        "note": "空 required_stations → BLOCKED 与 GATE-02『零测试→BLOCKED』语义相邻；"
+   243	                "但非完整注入面（无 base ref/纯文档 scope 判定），不冒充专属验收",
+   244	    },
+   245	    "COND-04": {
+   246	        "test_file": "system/tests/test_core_wiring.py",
+   247	        "test_function": "test_schema_rejects_p0_accepted_risk",
+   248	        "note": "Schema 层拒 CRITICAL ACCEPTED_RISK（P0-4 批 e00de14 已扩到全量加固）；"
+   249	                "COND-04 还要求条件授权拒绝与保持 BLOCKED 的状态机行为，未覆盖",
+   250	    },
+   251	    "STATE-03": {
+   252	        "test_file": "tests/acceptance.sh",
+   253	        "test_function": "I 节 并发 8 进程撞锁写账本零损坏 / L 节 并发 ingest 同 id 不双入账",
+   254	        "note": "并发正确性语义相邻，但对象是遗留 cli findings.jsonl 账本，"
+   255	                "非 wenqu_core EventStore（100×100 规模亦未达），不冒充专属验收",
+   256	    },
+   257	}
+   258	
+   259	# 扫描根（相对 REPO_ROOT）：测试资产可能所在目录
+   260	SCAN_ROOTS = ["tests", "system/tests", "cli", "system/wenqu_core", "probes"]
+   261	EVIDENCE_ROOT = os.path.join(REPO_ROOT, "evidence")
+   262	SELF_OUTPUT_NAMES = {"traceability-matrix.json"}
+   263	
+   264	
+   265	def build_catalog():
+   266	    """构建 131 个 ID 的冻结目录并做完整性自检。"""
+   267	    catalog = {}
+   268	    for (prefix, num), (injection, expectation) in ID_DEFS.items():
+   269	        test_id = f"{prefix}-{num:02d}"
+   270	        req, ac, wps, ev_class = PREFIX_META[prefix]
+   271	        catalog[test_id] = {
+   272	            "prefix": prefix,
+   273	            "section": SECTION_OF.get((prefix, num), "20.5"),
+   274	            "injection": injection,
+   275	            "expectation": expectation,
+   276	            "req": req,
+   277	            "ac": ac,
+   278	            "work_packages": wps,
+   279	            "evidence_class": ev_class,
+   280	        }
+   281	    problems = []
+   282	    if len(catalog) != EXPECTED_TOTAL:
+   283	        problems.append(f"目录数量 {len(catalog)} != {EXPECTED_TOTAL}")
+   284	    # 前缀分母核对（§25.1 范围展开）
+   285	    expected_counts = {
+   286	        "GATE": 12, "AUTH": 6, "ACT": 6, "MRG": 7, "STATE": 11, "MIG": 5, "DB": 6,
+   287	        "SC": 5, "ADV": 2, "TEN": 8, "PERF": 6, "SCH": 7, "ALT": 2, "BAK": 1,
+   288	        "REL": 3, "STOP": 3, "RUN": 3, "CI": 5, "COND": 6, "RISK": 1, "STA": 2,
+   289	        "DEP": 9, "RB": 1, "UI": 7, "HLT": 1, "DOC": 4, "CAP": 1, "DR": 1,
+   290	    }
+   291	    actual_counts = {}
+   292	    for tid in catalog:
+   293	        actual_counts[tid.split("-")[0]] = actual_counts.get(tid.split("-")[0], 0) + 1
+   294	    if actual_counts != expected_counts:
+   295	        for k in sorted(set(expected_counts) | set(actual_counts)):
+   296	            if expected_counts.get(k) != actual_counts.get(k):
+   297	                problems.append(
+   298	                    f"前缀 {k}: 期望 {expected_counts.get(k)} 实际 {actual_counts.get(k)}")
+   299	    # 编号连续性（CI 特例：05~09）
+   300	    ranges = {"CI": (5, 9)}
+   301	    for tid in catalog:
+   302	        prefix, num = tid.split("-")[0], int(tid.split("-")[1])
+   303	        lo, hi = ranges.get(prefix, (1, expected_counts[prefix]))
+   304	        if not (lo <= num <= hi):
+   305	            problems.append(f"ID {tid} 超出定义范围 {lo}~{hi}")
+   306	    dup = EXPECTED_TOTAL - len(catalog)
+   307	    if dup:
+   308	        problems.append(f"疑似重复/缺失 {dup} 项")
+   309	    return catalog, problems
+   310	
+   311	
+   312	def cross_check_plan(plan_path, catalog):
+   313	    """可选：解析方案 §20 表格提取 ID 集合，与冻结目录做集合等式校验（§25.1 要求）。"""
+   314	    try:
+   315	        with open(plan_path, encoding="utf-8") as f:
+   316	            text = f.read()
+   317	    except OSError as e:
+   318	        return {"ok": False, "error": f"读取方案失败: {e}", "plan_ids": None}
+   319	    body = text
+   320	    # 只取 §20～§21 之间的正文，避免 §25 表格里的范围写法（GATE-01～12）污染集合
+   321	    m20 = re.search(r"^# 20\.", body, re.M)
+   322	    m21 = re.search(r"^# 21\.", body, re.M)
+   323	    if m20 and m21:
+   324	        body = body[m20.start():m21.start()]
+   325	    ids = set(re.findall(r"\b([A-Z]{2,5}-\d{2})\b", body))
+   326	    plan_ids = {i for i in ids if not re.match(r"^(FND|W\d)", i)}
+   327	    frozen = set(catalog)
+   328	    return {
+   329	        "ok": plan_ids == frozen,
+   330	        "plan_only": sorted(plan_ids - frozen),
+   331	        "frozen_only": sorted(frozen - plan_ids),
+   332	        "plan_ids_count": len(plan_ids),
+   333	        "frozen_count": len(frozen),
+   334	    }
+   335	
+   336	
+   337	EXCLUDE_DIRS = {"__pycache__", ".pytest_cache", ".git", "node_modules"}
+   338	
+   339	
+   340	def iter_test_files():
+   341	    for root_rel in SCAN_ROOTS:
+   342	        root = os.path.join(REPO_ROOT, root_rel)
+   343	        if not os.path.isdir(root):
+   344	            continue
+   345	        for dirpath, dirnames, filenames in os.walk(root):
+   346	            dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+   347	            for fn in filenames:
+   348	                if fn.endswith((".py", ".sh")):
+   349	                    yield os.path.join(dirpath, fn)
+   350	
+   351	
+   352	TESTISH_NAME = re.compile(r"(^test_|_self_test$|^_?selftest|self_test)", re.I)
+   353	
+   354	
+   355	def scan_python(path, wanted_forms):
+   356	    """在 .py 中定位 ID 出现点，归属到 test 型函数才算 implemented。"""
+   357	    try:
+   358	        with open(path, encoding="utf-8") as f:
+   359	            src = f.read()
+   360	        tree = ast.parse(src)
+   361	    except (OSError, SyntaxError, UnicodeDecodeError) as e:
+   362	        return {}, f"parse 失败: {e}"
+   363	    funcs = []  # (name, lineno, end_lineno)
+   364	    for node in ast.walk(tree):
+   365	        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+   366	            funcs.append((node.name, node.lineno, node.end_lineno or node.lineno))
+   367	    lines = src.splitlines()
+   368	    hits = {}
+   369	    for form in wanted_forms:
+   370	        for i, line in enumerate(lines, start=1):
+   371	            if form in line:
+   372	                owner = None
+   373	                for name, lo, hi in funcs:
+   374	                    if lo <= i <= hi:
+   375	                        owner = name
+   376	                        break
+   377	                if owner is not None and TESTISH_NAME.search(owner):
+   378	                    hits.setdefault(form, []).append((owner, i))
+   379	    return hits, None
+   380	
+   381	
+   382	def scan_shell(path, wanted_forms):
+   383	    try:
+   384	        with open(path, encoding="utf-8") as f:
+   385	            lines = f.read().splitlines()
+   386	    except (OSError, UnicodeDecodeError) as e:
+   387	        return {}, f"read 失败: {e}"
+   388	    hits = {}
+   389	    for form in wanted_forms:
+   390	        for i, line in enumerate(lines, start=1):
+   391	            if form in line and not line.strip().startswith("#"):
+   392	                hits.setdefault(form, []).append(("(script-case)", i))
+   393	    return hits, None
+   394	
+   395	
+   396	def collect_test_matches(catalog):
+   397	    """返回 {test_id: {"test_file":..., "test_function":..., "line":...}}（专属命中）。"""
+   398	    # 归一化形态：GATE-01 / GATE_01（函数名下划线写法）
+   399	    id_forms = {}
+   400	    for tid in catalog:
+   401	        prefix, num = tid.split("-")
+   402	        id_forms[tid] = [f"{prefix}-{num}", f"{prefix}_{num}", f"test_{prefix}_{num}"]
+   403	    matches = {}
+   404	    scanned = []
+   405	    all_forms = sorted({f for forms in id_forms.values() for f in forms})
+   406	    for path in iter_test_files():
+   407	        rel = os.path.relpath(path, REPO_ROOT)
+   408	        scanned.append(rel)
+   409	        try:
+   410	            with open(path, encoding="utf-8", errors="ignore") as f:
+   411	                content = f.read()
+   412	        except OSError:
+   413	            continue
+   414	        present = [f for f in all_forms if f in content]
+   415	        if not present:
+   416	            continue
+   417	        if path.endswith(".py"):
+   418	            hits, err = scan_python(path, present)
+   419	        else:
+   420	            hits, err = scan_shell(path, present)
+   421	        if err:
+   422	            continue
+   423	        # form -> test_id 反查
+   424	        for tid, forms in id_forms.items():
+   425	            for form in forms:
+   426	                if form in hits:
+   427	                    owner, line = hits[form][0]
+   428	                    matches.setdefault(tid, {
+   429	                        "test_file": rel, "test_function": owner,
+   430	                        "line": line, "match_kind": "dedicated",
+   431	                    })
+   432	                    break
+   433	    return matches, scanned
+   434	
+   435	
+   436	def collect_evidence_matches(catalog):
+   437	    """evidence/ 下含 ID 的非 README 工件（排除本工具输出）。"""
+   438	    matches = {}
+   439	    if not os.path.isdir(EVIDENCE_ROOT):
+   440	        return matches
+   441	    for dirpath, dirnames, filenames in os.walk(EVIDENCE_ROOT):
+   442	        for fn in filenames:
+   443	            if fn == "README.md" or fn in SELF_OUTPUT_NAMES or fn.endswith(".sha256"):
+   444	                continue
+   445	            p = os.path.join(dirpath, fn)
+   446	            rel = os.path.relpath(p, REPO_ROOT)
+   447	            try:
+   448	                if os.path.getsize(p) > 2_000_000:
+   449	                    continue
+   450	                with open(p, encoding="utf-8", errors="ignore") as f:
+   451	                    content = f.read()
+   452	            except OSError:
+   453	                continue
+   454	            for tid in catalog:
+   455	                if tid in content:
+   456	                    matches.setdefault(tid, rel)
+   457	    return matches
+   458	
+   459	
+   460	def git_head():
+   461	    try:
+   462	        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT,
+   463	                             capture_output=True, text=True, timeout=10)
+   464	        if out.returncode == 0:
+   465	            return out.stdout.strip()
+   466	    except Exception:
+   467	        pass
+   468	    return None
+   469	
+   470	
+   471	def main():
+   472	    ap = argparse.ArgumentParser(description="§20 131 验收 ID 追踪矩阵生成器")
+   473	    ap.add_argument("--json", default=os.path.join(EVIDENCE_ROOT, "traceability-matrix.json"),
+   474	                    help="输出 JSON 路径（默认 evidence/traceability-matrix.json）")
+   475	    ap.add_argument("--plan",
+   476	                    default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+   477	                                         "evidence", "00-baseline", "codex-external", "方案.md"),
+   478	                    help="方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；存在则做 ID 集合交叉校验）")
+   479	    ap.add_argument("--check", action="store_true",
+   480	                    help="目录完整性/集合校验失败时 exit 2")
+   481	    args = ap.parse_args()
+   482	
+   483	    catalog, problems = build_catalog()
+   484	    integrity_ok = not problems
+   485	
+   486	    plan_check = None
+   487	    if args.plan and os.path.isfile(args.plan):
+   488	        plan_check = cross_check_plan(args.plan, catalog)
+   489	        if not plan_check.get("ok", False):
+   490	            problems.append(f"方案交叉校验不一致: {plan_check.get('plan_only')}/{plan_check.get('frozen_only')}")
+   491	
+   492	    direct, scanned = collect_test_matches(catalog)
+   493	    evidence_map = collect_evidence_matches(catalog)
+   494	
+   495	    matrix = {}
+   496	    n_impl = n_proxy = 0
+   497	    for tid in sorted(catalog):
+   498	        meta = catalog[tid]
+   499	        entry = {
+   500	            "implemented": False,
+   501	            "test_file": "",
+   502	            "evidence_path": "",
+   503	            "match_type": "missing",
+   504	            "test_function": "",
+   505	            "section": meta["section"],
+   506	            "injection": meta["injection"],
+   507	            "expectation": meta["expectation"],
+   508	            "req": meta["req"],
+   509	            "ac": meta["ac"],
+   510	            "work_packages": meta["work_packages"],
+   511	            "evidence_class": meta["evidence_class"],
+   512	        }
+   513	        if tid in direct:
+   514	            entry.update(implemented=True, match_type="dedicated",
+   515	                         test_file=direct[tid]["test_file"],
+   516	                         test_function=direct[tid]["test_function"],
+   517	                         line=direct[tid]["line"])
+   518	            n_impl += 1
+   519	        elif tid in PROXY_ALIASES:
+   520	            pa = PROXY_ALIASES[tid]
+   521	            entry.update(implemented=False, match_type="proxy_partial",
+   522	                         test_file=pa["test_file"],
+   523	                         test_function=pa["test_function"],
+   524	                         proxy_note=pa["note"])
+   525	            n_proxy += 1
+   526	        if tid in evidence_map:
+   527	            entry["evidence_path"] = evidence_map[tid]
+   528	        matrix[tid] = entry
+   529	
+   530	    total = len(matrix)
+   531	    missing = total - n_impl - n_proxy
+   532	    by_prefix = {}
+   533	    for tid, e in matrix.items():
+   534	        pfx = tid.split("-")[0]
+   535	        st = by_prefix.setdefault(pfx, {"total": 0, "dedicated": 0, "proxy": 0})
+   536	        st["total"] += 1
+   537	        if e["match_type"] == "dedicated":
+   538	            st["dedicated"] += 1
+   539	        elif e["match_type"] == "proxy_partial":
+   540	            st["proxy"] += 1
+   541	
+   542	    now = datetime.now(timezone(timedelta(hours=8)))
+   543	    report = {
+   544	        "meta": {
+   545	            "tool": "tools/ac_traceability.py",
+   546	            "generated_at": now.isoformat(timespec="seconds"),
+   547	            "repo_root": REPO_ROOT,
+   548	            "repo_head": git_head(),
+   549	            "plan_source": "/private/tmp/codex-test/方案.md",
+   550	            "plan_sha256": PLAN_SHA256,
+   551	            "catalog_integrity": "OK" if integrity_ok else "FAIL",
+   552	            "catalog_problems": problems,
+   553	            "plan_cross_check": plan_check,
+   554	            "scanned_files": scanned,
+   555	            "scan_roots": SCAN_ROOTS,
+   556	            "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true",
+   557	        },
+   558	        "stats": {
+   559	            "total_ids": total,
+   560	            "dedicated_implemented": n_impl,
+   561	            "proxy_partial": n_proxy,
+   562	            "missing": missing,
+   563	            "dedicated_coverage_pct": round(100.0 * n_impl / total, 2) if total else 0.0,
+   564	            "dedicated_plus_proxy_pct": round(100.0 * (n_impl + n_proxy) / total, 2) if total else 0.0,
+   565	            "by_prefix": by_prefix,
+   566	        },
+   567	        "matrix": matrix,
+   568	    }
+   569	
+   570	    out_path = args.json
+   571	    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+   572	    with open(out_path, "w", encoding="utf-8") as f:
+   573	        json.dump(report, f, ensure_ascii=False, indent=2, sort_keys=False)
+   574	        f.write("\n")
+   575	
+   576	    # ---------------- 覆盖率统计输出 ----------------
+   577	    print("=" * 64)
+   578	    print("Codex 方案 §20 验收 ID 追踪矩阵（P0-10）")
+   579	    print(f"生成时间: {report['meta']['generated_at']}  HEAD: {report['meta']['repo_head'] or 'N/A'}")
+   580	    print(f"目录完整性: {report['meta']['catalog_integrity']}  "
+   581	          f"(冻结 {total} ID，期望 {EXPECTED_TOTAL})")
+   582	    if plan_check is not None:
+   583	        print(f"方案交叉校验(§25.1 集合等式): {'PASS' if plan_check.get('ok') else 'FAIL'}"
+   584	              f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
+   585	        if not plan_check.get("ok"):
+   586	            print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
+   587	    elif args.plan and not os.path.isfile(args.plan):
+   588	        print(f"方案交叉校验: SKIP（{args.plan} 不存在，使用内置冻结目录 sha256 锚定）")
+   589	    print("-" * 64)
+   590	    print(f"总计测试 ID        : {total}")
+   591	    print(f"专属已实现          : {n_impl}  ({report['stats']['dedicated_coverage_pct']}%)")
+   592	    print(f"代理部分覆盖(不计实现): {n_proxy}")
+   593	    print(f"缺失                : {missing}")
+   594	    print(f"专属+代理覆盖参考   : {report['stats']['dedicated_plus_proxy_pct']}%")
+   595	    print("-" * 64)
+   596	    print(f"{'前缀':<8}{'总数':>4}{'专属':>6}{'代理':>6}")
+   597	    for pfx in sorted(by_prefix, key=lambda x: (-by_prefix[x]["total"], x)):
+   598	        st = by_prefix[pfx]
+   599	        print(f"{pfx:<8}{st['total']:>4}{st['dedicated']:>6}{st['proxy']:>6}")
+   600	    print("-" * 64)
+   601	    if n_impl:
+   602	        print("已实现 ID:", ", ".join(t for t in sorted(matrix) if matrix[t]["implemented"]))
+   603	    if n_proxy:
+   604	        print("代理覆盖 ID:", ", ".join(t for t in sorted(matrix)
+   605	                                        if matrix[t]["match_type"] == "proxy_partial"))
+   606	    print(f"输出: {os.path.relpath(out_path, REPO_ROOT)}  (扫描 {len(scanned)} 个测试文件)")
+   607	    print("=" * 64)
+   608	
+   609	    if args.check and problems:
+   610	        for p in problems:
+   611	            print(f"INTEGRITY-FAIL: {p}", file=sys.stderr)
+   612	        sys.exit(2)
+   613	    sys.exit(0)
+   614	
+   615	
+   616	if __name__ == "__main__":
+   617	    main()
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:30:08Z

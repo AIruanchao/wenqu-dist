@@ -1,0 +1,433 @@
+TIMESTAMP_START=2026-10-08T04:30:08Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=nl -ba tests/acceptance.sh | sed -n '1,760p'; printf '%s\n' '=== active workflow ==='; nl -ba .github/workflows/acceptance.yml; printf '%s\n' '=== release check ==='; nl -ba tests/release-check.sh
+--- OUTPUT BEGIN ---
+     1	#!/usr/bin/env bash
+     2	# wenqu-dist 发行版回归测试件（v1.0.2 起）——把验收面固化为可重复跑的脚本。
+     3	# 用法：bash tests/acceptance.sh   （零依赖：python3+bash；从发行包根目录跑）
+     4	# 任何一步 FAIL 即退出非 0。发行版任何变更（CLI fork/探测器/文档）后必须全绿再打包。
+     5	set -u
+     6	ROOT=$(cd "$(dirname "$0")/.." && pwd)
+     7	WQ="$ROOT/cli/wenqu"
+     8	PASS_N=0; FAIL_N=0
+     9	ck() { # ck <名称> <期望exit> <实际exit>
+    10	  if [ "$2" = "$3" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ $1 (exit=$3)"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ $1 (期望 exit=$2 实际 $3)"; fi
+    11	}
+    12	TD=$(mktemp -d); trap 'rm -rf "$TD"' EXIT
+    13	
+    14	echo "== A. selftest 契约 =="
+    15	python3 "$WQ" selftest >/dev/null 2>&1; ck "selftest" 0 $?
+    16	
+    17	echo "== B. 新仓三步（预埋缺陷全中+verify 门红）=="
+    18	R="$TD/repo"; H="$TD/home"; mkdir -p "$R"
+    19	printf '#!/usr/bin/env bash\nT=$(mktemp -d)\ntrap "rm -rf $T" EXIT\ndocker run x\ntrap "docker rm x" EXIT\ndocker exec -e PGPASSWORD=s db psql -c 1\n' > "$R/deploy.sh"
+    20	printf '# n\n[ "$N" -ge 5 ] # note || FAIL="n"\n' > "$R/check.sh"
+    21	echo "x=1" > "$R/a.py"
+    22	python3 "$WQ" --home "$H" init --path "$R" >/dev/null 2>&1; ck "init" 0 $?
+    23	cp "$ROOT/probes/stations.json" "$H/stations.json"
+    24	for st in trap-double guard-comment-swallow cred-cli-expose; do
+    25	  python3 "$WQ" --home "$H" run $st --path "$R" >/dev/null 2>&1; RC=$?
+    26	  # fork10（S4-1）：只断言 exit=1 无法区分「真命中」与「探测器报错」（原 36 项全绿含假绿——
+    27	  # trap-double 实际命中炸参错误）；追加双断言：finding 标题 exit=1 形态+日志含探测器标记行
+    28	  LOGF=$(ls -t "$H"/runs/*-$st.log 2>/dev/null | head -1)
+    29	  MARK=""
+    30	  case $st in
+    31	    trap-double) MARK="double-EXIT-trap: ./deploy.sh";;
+    32	    guard-comment-swallow) MARK="guard-swallow";;
+    33	    cred-cli-expose) MARK="cred-expose";;
+    34	  esac
+    35	  if [ "$RC" = "1" ] && grep -q "$MARK" "$LOGF" 2>/dev/null; then
+    36	    PASS_N=$((PASS_N+1)); echo "  ✅ 探测器真命中 ${st}（标记行在日志）"
+    37	  else
+    38	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 探测器 ${st} 未真命中（rc=$RC 日志无标记）"
+    39	  fi
+    40	done
+    41	python3 "$WQ" --home "$H" verify --path "$R" >/dev/null 2>&1; ck "verify 门红（OPEN 3/0）" 1 $?
+    42	
+    43	echo "== C. 干净仓不误报 =="
+    44	R2="$TD/clean"; H2="$TD/chome"; mkdir -p "$R2"; echo "y=1" > "$R2/b.py"
+    45	python3 "$WQ" --home "$H2" init --path "$R2" >/dev/null 2>&1
+    46	cp "$ROOT/probes/stations.json" "$H2/stations.json"
+    47	python3 "$WQ" --home "$H2" run trap-double --path "$R2" >/dev/null 2>&1; ck "干净仓 PASS" 0 $?
+    48	[ ! -e "$R2/.wenqu" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ --home 零写入仓"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 仓被写入"; }
+    49	
+    50	echo "== D. fork2：convergence 空转拒绝 =="
+    51	python3 "$WQ" --home "$H2" verify --path "$R2" --convergence 3 >/dev/null 2>&1; ck "空轮次拒绝 Converged" 1 $?
+    52	
+    53	echo "== E. fork2：run --round 参与收敛判定（独立 home 防 OPEN 残留掩蔽，F10 修正）=="
+    54	HE="$TD/ehome"; RE="$TD/erepo"; mkdir -p "$RE"
+    55	printf '#!/usr/bin/env bash\ntrap "rm x" EXIT\ntrap "rm y" EXIT\n' > "$RE/b.sh"; echo "k=1" > "$RE/k.py"
+    56	python3 "$WQ" --home "$HE" init --path "$RE" >/dev/null 2>&1
+    57	cp "$ROOT/probes/stations.json" "$HE/stations.json"
+    58	python3 "$WQ" --home "$HE" run trap-double --path "$RE" --round 1 >/dev/null 2>&1
+    59	OPENED=$(python3 "$WQ" --home "$HE" findings --path "$RE" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+    60	[ -n "$OPENED" ] && python3 "$WQ" --home "$HE" close "$OPENED" --to CLOSED --note e >/dev/null 2>&1
+    61	python3 "$WQ" --home "$HE" verify --path "$RE" --convergence 1 >/dev/null 2>&1; ck "有轮次新发现=未收敛" 1 $?
+    62	
+    63	echo "== F. fork2/3：超时不落账+值域 =="
+    64	H3="$TD/thome"; mkdir -p "$H3"
+    65	printf '{"hang":{"cmd":["bash","-c","sleep 3"],"sev":"LOW","timeout":1}}' > "$H3/stations.json"
+    66	python3 "$WQ" --home "$H3" init --path "$R2" >/dev/null 2>&1
+    67	BEFORE=$(wc -l < "$H3/findings.jsonl" 2>/dev/null || echo 0)
+    68	python3 "$WQ" --home "$H3" run hang --path "$R2" >/dev/null 2>&1; ck "超时 exit 2" 2 $?
+    69	AFTER=$(wc -l < "$H3/findings.jsonl" 2>/dev/null || echo 0)
+    70	[ "$BEFORE" = "$AFTER" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 超时不落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 超时落账了"; }
+    71	
+    72	echo "== G2. fork3：参数值域守卫 =="
+    73	python3 "$WQ" --home "$H3" run hang --path "$R2" --round -1 >/dev/null 2>&1; ck "--round 负数拒绝" 2 $?
+    74	python3 "$WQ" --home "$H3" verify --path "$R2" --convergence -1 >/dev/null 2>&1; ck "--convergence 负数拒绝" 2 $?
+    75	printf '{"badto":{"cmd":["bash","-c","exit 0"],"sev":"LOW","timeout":"abc"}}' > "$H3/stations.json"
+    76	python3 "$WQ" --home "$H3" run badto --path "$R2" >/dev/null 2>&1; ck "timeout 非数字拒绝" 2 $?
+    77	printf '{"negto":{"cmd":["bash","-c","exit 0"],"sev":"LOW","timeout":-5}}' > "$H3/stations.json"
+    78	python3 "$WQ" --home "$H3" run negto --path "$R2" >/dev/null 2>&1; ck "timeout 负数拒绝" 2 $?
+    79	
+    80	echo "== G. 未知站位兜底 =="
+    81	python3 "$WQ" --home "$H" run no-such --path "$R" >/dev/null 2>&1; ck "未知站位 exit 2" 2 $?
+    82	
+    83	echo "== I. 并发写账本安全（8 进程撞锁）=="
+    84	H4="$TD/parhome"; R4="$TD/parrepo"; mkdir -p "$R4"; echo "z=1" > "$R4/c.py"
+    85	python3 "$WQ" --home "$H4" init --path "$R4" >/dev/null 2>&1
+    86	printf '{"sf":{"cmd":["bash","-c","sleep 0.3; exit 1"],"sev":"LOW"}}' > "$H4/stations.json"
+    87	for i in 1 2 3 4 5 6 7 8; do python3 "$WQ" --home "$H4" run sf --path "$R4" >/dev/null 2>&1 & done
+    88	wait
+    89	N_OK=$(python3 - "$H4/findings.jsonl" <<'PYEOF'
+    90	import json, sys
+    91	try:
+    92	    rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+    93	    ids = [r["id"] for r in rows if r.get("kind") == "finding"]
+    94	    ok = (not any(True for _ in ())) and len(ids) == len(set(ids)) == 8 and sum(1 for r in rows if r.get("kind")=="run") == 8
+    95	    print("1" if ok else "0")
+    96	except Exception:
+    97	    print("0")
+    98	PYEOF
+    99	)
+   100	ck "并发 8 进程账本零损坏" 1 $N_OK
+   101	
+   102	echo "== J. fork4：repair 不伤审计行+隔离正常+追加式 =="
+   103	python3 "$WQ" --home "$H" repair >/dev/null 2>&1; ck "repair exit 0" 0 $?
+   104	grep -q '"kind": "run"' "$H/findings.jsonl" && { PASS_N=$((PASS_N+1)); echo "  ✅ run 审计行经 repair 存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ run 行被 repair 隔离"; }
+   105	python3 "$WQ" --home "$H" sweep trap-double --path "$R" >/dev/null 2>&1 || true  # 不判 exit（轮次状态而定），仅确认不再因无 run 记录而死
+   106	echo '{"kind":"finding","id":"BAD","sev":"超纲","status":"OPEN"}' >> "$H/findings.jsonl"
+   107	Q1=0
+   108	if [ -f "$H/findings.jsonl.quarantine" ]; then Q1=$(wc -l < "$H/findings.jsonl.quarantine"); fi
+   109	python3 "$WQ" --home "$H" repair >/dev/null 2>&1
+   110	Q2=0
+   111	if [ -f "$H/findings.jsonl.quarantine" ]; then Q2=$(wc -l < "$H/findings.jsonl.quarantine"); fi
+   112	if [ "$Q2" -gt "$Q1" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ quarantine 追加式（${Q1}到${Q2}）"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ quarantine 覆盖丢失历史（${Q1}到${Q2}）"; fi
+   113	
+   114	echo "== K. fork5：sweep 精确匹配+空格文件名 =="
+   115	H5="$TD/swhome"; R5="$TD/swrepo"; mkdir -p "$R5"; echo "w=1" > "$R5/d.py"
+   116	python3 "$WQ" --home "$H5" init --path "$R5" >/dev/null 2>&1
+   117	printf '{"tests-x": {"cmd": ["bash","-c","exit 1"], "sev": "HIGH"},\n "tests": {"cmd": ["bash","-c","exit 0"], "sev": "HIGH"}}' > "$H5/stations.json"
+   118	python3 "$WQ" --home "$H5" run tests-x --path "$R5" >/dev/null 2>&1
+   119	python3 "$WQ" --home "$H5" run tests --path "$R5" >/dev/null 2>&1
+   120	python3 "$WQ" --home "$H5" sweep tests --path "$R5" >/dev/null 2>&1
+   121	python3 "$WQ" --home "$H5" findings --path "$R5" --status OPEN 2>/dev/null | grep -q "tests-x" && { PASS_N=$((PASS_N+1)); echo "  ✅ 子串站名不被误关"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ sweep 误关别家发现"; }
+   122	R6="$TD/sprepo"; H6="$TD/sphome2"; mkdir -p "$R6/my dir" "$H6"
+   123	printf '#!/usr/bin/env bash\ntrap "rm x" EXIT\ntrap "rm y" EXIT\n' > "$R6/my dir/bad script.sh"; echo "v=1" > "$R6/e.py"
+   124	cp "$ROOT/probes/stations.json" "$H6/stations.json"
+   125	python3 "$WQ" --home "$H6" init --path "$R6" >/dev/null 2>&1
+   126	python3 "$WQ" --home "$H6" run trap-double --path "$R6" >/dev/null 2>&1; ck "空格文件名真命中" 1 $?
+   127	
+   128	echo "== L. fork6：四高防线（并发/非对象行/铸轮/状态机）=="
+   129	H6="$TD/inghome"; R7="$TD/ingrepo"; mkdir -p "$R7"; echo "q=1" > "$R7/f.py"
+   130	python3 "$WQ" --home "$H6" init --path "$R7" >/dev/null 2>&1
+   131	echo '{"id":"X-1","sev":"HIGH","status":"OPEN","title":"dup"}' > "$TD/dup.jsonl"
+   132	(python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & (python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & wait
+   133	python3 "$WQ" --home "$H6" findings --path "$R7" >/dev/null 2>&1; ck "并发 ingest 后账本可用" 0 $?
+   134	DUPN=$(grep -c '"id": "X-1"' "$H6/findings.jsonl" 2>/dev/null || echo 0)
+   135	[ "$DUPN" -le 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 同 id 不双入账（$DUPN 条）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 双入账 $DUPN 条"; }
+   136	echo '[1,2]' >> "$H6/findings.jsonl"
+   137	python3 "$WQ" --home "$H6" repair >/dev/null 2>&1; ck "非对象行 repair 自愈" 0 $?
+   138	H7="$TD/chhome"; rm -rf "$H7"
+   139	python3 "$WQ" --home "$H7" init --path "$R7" >/dev/null 2>&1
+   140	printf '{"t9":{"cmd":["bash","-c","exit 0"],"sev":"LOW"}}' > "$H7/stations.json"
+   141	python3 "$WQ" --home "$H7" run t9 --path "$R7" --round 1 >/dev/null 2>&1
+   142	python3 "$WQ" --home "$H7" charter --round 2 --name t9 --path "$R7" >/dev/null 2>&1
+   143	python3 "$WQ" --home "$H7" charter --round 3 --name t9 --path "$R7" >/dev/null 2>&1
+   144	python3 "$WQ" --home "$H7" verify --path "$R7" --convergence 3 >/dev/null 2>&1; ck "charter 铸轮被拒" 1 $?
+   145	echo '{"id":"D-9","sev":"LOW","status":"OPEN","title":"t"}' > "$TD/d9.jsonl"
+   146	H8="$TD/smhome"; rm -rf "$H8"
+   147	python3 "$WQ" --home "$H8" init --path "$R7" >/dev/null 2>&1
+   148	python3 "$WQ" --home "$H8" ingest "$TD/d9.jsonl" >/dev/null 2>&1
+   149	python3 "$WQ" --home "$H8" close D-9 --to CLOSED --note x >/dev/null 2>&1
+   150	echo '{"kind":"transition","id":"D-9","from":"OPEN","to":"FIXED"}' > "$TD/tr.jsonl"
+   151	python3 "$WQ" --home "$H8" ingest "$TD/tr.jsonl" >/dev/null 2>&1; ck "ingest 状态机横跳被拒" 2 $?
+   152	
+   153	echo "== M. fork7：GBK 字节行不锁死写路径 =="
+   154	H9="$TD/gbkhome"; R9="$TD/gbkrepo"; mkdir -p "$R9"; echo "u=1" > "$R9/g.py"
+   155	python3 "$WQ" --home "$H9" init --path "$R9" >/dev/null 2>&1
+   156	printf '{"t9":{"cmd":["bash","-c","exit 0"],"sev":"LOW"}}' > "$H9/stations.json"
+   157	printf '{"id":"GBK-1","sev":"HIGH","status":"OPEN","title":"x"}\n' >> "$H9/findings.jsonl" 2>/dev/null || echo '{"id":"GBK-1","sev":"HIGH","status":"OPEN","title":"x"}' >> "$H9/findings.jsonl"
+   158	python3 -c "open('$H9/findings.jsonl','ab').write(b'{\"id\":\"GBK-2\",\"sev\":\"HIGH\",\"status\":\"OPEN\",\"title\":\"\xd6\xd0\xce\xc4\"}\n')"
+   159	python3 "$WQ" --home "$H9" run t9 --path "$R9" >/dev/null 2>&1; ck "GBK 行共存下 run 可写" 0 $?
+   160	python3 "$WQ" --home "$H9" close GBK-1 --to CLOSED --note gbk >/dev/null 2>&1; ck "GBK 行共存下 close 可写" 0 $?
+   161	python3 "$WQ" --home "$H9" repair >/dev/null 2>&1; ck "repair 对 GBK 账本自愈可用" 0 $?
+   162	
+   163	echo "== N. fork8：U+2028 往返/伪造 kind/行序无关 =="
+   164	HN="$TD/f8home"; RN="$TD/f8repo"; mkdir -p "$RN"; echo "m=1" > "$RN/m.py"
+   165	python3 "$WQ" --home "$HN" init --path "$RN" >/dev/null 2>&1
+   166	python3 -c "import json; open('$TD/u.jsonl','w').write(json.dumps({'id':'U1','sev':'LOW','status':'OPEN','title':'A'+chr(0x2028)+'B'})+chr(10))"
+   167	python3 "$WQ" --home "$HN" ingest "$TD/u.jsonl" >/dev/null 2>&1; ck "U+2028 往返不锁死" 0 $?
+   168	python3 "$WQ" --home "$HN" findings --path "$RN" >/dev/null 2>&1; ck "U+2028 账本可查" 0 $?
+   169	echo '{"kind":"run","id":"F1","sev":"LOW","status":"OPEN","station":"x","exit":0}' > "$TD/forge.jsonl"
+   170	python3 "$WQ" --home "$HN" ingest "$TD/forge.jsonl" >/dev/null 2>&1; ck "伪造 run 行被拒" 2 $?
+   171	printf '{"kind":"transition","id":"M1","to":"FIXED"}\n{"id":"M1","sev":"LOW","status":"OPEN","title":"y"}\n' > "$TD/order.jsonl"
+   172	python3 "$WQ" --home "$HN" ingest "$TD/order.jsonl" >/dev/null 2>&1; ck "转移引用同批后行 finding=行序无关" 0 $?
+   173	
+   174	echo "== O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）=="
+   175	HO="$TD/f12home"; RO="$TD/f12repo"; mkdir -p "$RO"; echo "n=1" > "$RO/n.py"
+   176	python3 "$WQ" --home "$HO" init --path "$RO" >/dev/null 2>&1
+   177	cp "$ROOT/probes/stations.json" "$HO/stations.json"
+   178	echo '{"e2":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HO/stations.json"
+   179	BEFORE=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+   180	python3 "$WQ" --home "$HO" run e2 --path "$RO" --round 1 >/dev/null 2>&1; ck "rc≥2 die(2) 不落账" 2 $?
+   181	AFTER=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+   182	[ "$BEFORE" = "$AFTER" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 环境错误 run 行未落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 落了账（$BEFORE→$AFTER）"; }
+   183	python3 "$WQ" --home "$HO" verify --path "$RO" --convergence 3 >/dev/null 2>&1; ck "纯环境错误轮不铸 Converged" 1 $?
+   184	printf '#!/usr/bin/env bash\ndocker exec -e PGPASSWORD=l db sh\n' > "$RO/lock.sh" && chmod 000 "$RO/lock.sh"
+   185	cp "$ROOT/probes/stations.json" "$HO/stations.json"
+   186	if [ "$(id -u)" = "0" ]; then
+   187	  # root 可读 000 文件——权限拒前置不成立（探测器会真命中 exit 1），非缺陷：环境豁免
+   188	  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "root 权限豁免（真命中 1）" 1 $?
+   189	else
+   190	  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "权限拒泄露文件=环境错误 2" 2 $?
+   191	fi
+   192	chmod 644 "$RO/lock.sh"
+   193	
+   194	echo "== P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）=="
+   195	HP="$TD/f14home"; RP="$TD/f14repo"; mkdir -p "$RP"; echo "p=1" > "$RP/p.py"
+   196	python3 "$WQ" --home "$HP" init --path "$RP" >/dev/null 2>&1
+   197	cp "$ROOT/probes/stations.json" "$HP/stations.json"
+   198	printf '#!/usr/bin/env bash\n# \326\320\316\304 GBK note\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RP/gbk.sh"
+   199	python3 "$WQ" --home "$HP" run trap-double --path "$RP" >/dev/null 2>&1; ck "GBK .sh 真命中（LC_ALL=C）" 1 $?
+   200	LG=$(ls -t "$HP"/runs/*trap-double.log 2>/dev/null | head -1)
+   201	grep -q "gbk.sh" "$LG" 2>/dev/null && { PASS_N=$((PASS_N+1)); echo "  ✅ GBK 文件命中标记在日志"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ GBK 命中未落日志"; }
+   202	echo '{"f1x":{"cmd":["bash","-c","exit 1"],"sev":"LOW"}}' > "$HP/stations.json"
+   203	N1=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   204	if [ "$(id -u)" = "0" ]; then
+   205	  # root 可写 555 目录——降级前置不成立（日志正常写入），三重断言退化为 exit+增量
+   206	  F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
+   207	  N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   208	  if [ "$F1RC" = "1" ] && [ "$N2" = "$((N1+1))" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：FAIL 站 exit+增量"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ root 豁免段未过"; fi
+   209	else
+   210	chmod 555 "$HP/runs" 2>/dev/null || { mkdir -p "$HP/runs"; chmod 555 "$HP/runs"; }
+   211	F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
+   212	chmod 755 "$HP/runs"
+   213	N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   214	# fork15（S9-F2）：三重断言——exit=1 且 stderr/输出含「日志缺失」且 finding 增量 N2=N1+1
+   215	# （原只断言 exit=1：traceback 退出码同 1 不可区分=变异存活假绿）
+   216	if [ "$F1RC" = "1" ] && echo "$F1OUT" | grep -q "日志缺失" && [ "$N2" = "$((N1+1))" ]; then
+   217	  PASS_N=$((PASS_N+1)); echo "  ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）"
+   218	else
+   219	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:${N1}到${N2} out=${F1OUT:0:80}）"
+   220	fi
+   221	# fork16（S10-FB）：note 回填断言——降级后账本应含 LOG-MISSING note 行+repair 不隔离它
+   222	NOTEN=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTEN=${NOTEN:-0}
+   223	[ "$NOTEN" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ note 回填行在账本"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ note 回填缺失"; }
+   224	python3 "$WQ" --home "$HP" repair >/dev/null 2>&1
+   225	NOTE2=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTE2=${NOTE2:-0}
+   226	[ "$NOTE2" = "$NOTEN" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ repair 后 note 行存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ repair 隔离了 note（${NOTEN}到${NOTE2}）"; }
+   227	fi
+   228	# fork15：rc≥2+只读 runs=降级分支（证据转 stderr）
+   229	echo '{"e2x":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
+   230	chmod 555 "$HP/runs"
+   231	EOUT=$(python3 "$WQ" --home "$HP" run e2x --path "$RP" 2>&1); ERC=$?
+   232	chmod 755 "$HP/runs"
+   233	if [ "$(id -u)" = "0" ]; then
+   234	  [ "$ERC" = "2" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：rc≥2 die 正常"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 异常"; }
+   235	else
+   236	if [ "$ERC" = "2" ] && echo "$EOUT" | grep -q "日志写入失败"; then
+   237	  PASS_N=$((PASS_N+1)); echo "  ✅ rc≥2+只读 runs 降级分支触发"
+   238	else
+   239	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级分支未按预期（rc=$ERC）"
+   240	fi
+   241	fi
+   242	if [ "$(id -u)" != "0" ]; then
+   243	  echo '{"nopath":{"cmd":["/bin/sh","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
+   244	  python3 "$WQ" --home "$HP" run nopath --path "$RP" >/dev/null 2>&1; ck "环境错误站 die(2)" 2 $?
+   245	fi
+   246	
+   247	echo "== Q. fork16：symlink 排除与 CLI 对齐（S10-FA）=="
+   248	HQ="$TD/f16home"; RQ="$TD/f16repo"; mkdir -p "$RQ" "$TD/outside"
+   249	echo "h=1" > "$RQ/h.py"
+   250	printf '#!/usr/bin/env bash\ntrap "a" EXIT\ntrap "b" EXIT\n' > "$TD/outside/evil.sh"
+   251	ln -sf "$TD/outside/evil.sh" "$RQ/evil.sh"
+   252	python3 "$WQ" --home "$HQ" init --path "$RQ" >/dev/null 2>&1
+   253	cp "$ROOT/probes/stations.json" "$HQ/stations.json"
+   254	python3 "$WQ" --home "$HQ" run trap-double --path "$RQ" >/dev/null 2>&1; ck "symlink 指向仓外目标被排除" 0 $?
+   255	FILES=$(python3 -c "import json; print(json.load(open('$HQ/state.json'))['files'])")
+   256	[ "$FILES" = "1" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CLI 冻结范围排除 symlink（1 文件）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 冻结范围含 symlink（$FILES）"; }
+   257	
+   258	echo "== R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）=="
+   259	HR="$TD/f19home"; RR="$TD/f19repo"; RR2="$TD/f19repo2"
+   260	mkdir -p "$RR" "$RR2"; echo "r=1" > "$RR/r.py"; echo "s=1" > "$RR2/s.py"
+   261	python3 "$WQ" --home "$HR" init --path "$RR" >/dev/null 2>&1
+   262	echo '{"neg":{"cmd":["bash","-c","kill -TERM $$"],"sev":"LOW"}}' > "$HR/stations.json"
+   263	python3 "$WQ" --home "$HR" run neg --path "$RR" >/dev/null 2>&1; ck "CX3：信号终止(-15)归环境错误 exit 2" 2 $?
+   264	python3 "$WQ" --home "$HR" findings --path "$RR" --status OEPEN >/dev/null 2>&1; ck "CX4：拼错 --status OEPEN exit 2" 2 $?
+   265	# CX8：跨仓 sweep——对 RR init 的 home，再对 RR2 跑同名 PASS 站，sweep 不应关 RR 的 finding
+   266	echo '{"cx8":{"cmd":["bash","-c","exit 1"],"sev":"HIGH"}}' > "$HR/stations.json"
+   267	python3 "$WQ" --home "$HR" run cx8 --path "$RR" >/dev/null 2>&1
+   268	FID=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+   269	echo '{"cx8":{"cmd":["bash","-c","exit 0"],"sev":"HIGH"}}' > "$HR/stations.json"
+   270	python3 "$WQ" --home "$HR" run cx8 --path "$RR2" >/dev/null 2>&1
+   271	python3 "$WQ" --home "$HR" sweep cx8 --path "$RR2" >/dev/null 2>&1
+   272	ST=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -c "AUTO-")
+   273	[ "$ST" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CX8：跨仓 PASS 不洗白本仓 finding"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ CX8：跨仓 sweep 洗白漏洞"; }
+   274	
+   275	echo "== S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 =="
+   276	HS="$TD/f19bhome"; RS="$TD/f19brepo"; mkdir -p "$HS" "$RS/rs"; echo "t=1" > "$RS/t.py"
+   277	python3 "$WQ" --home "$HS" init --path "$RS" >/dev/null 2>&1
+   278	cp "$ROOT/probes/stations.json" "$HS/stations.json"
+   279	# CX15（Codex 三审#3 修）：先 init 成功再锁子目录——原 chmod 000 仓根导致 init 也挂，测试从未走到 CX12 分支
+   280	if [ "$(id -u)" != "0" ]; then
+   281	  printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/rs/h.sh"
+   282	  chmod 000 "$RS/rs" 2>/dev/null
+   283	  CXOUT=$(python3 "$WQ" --home "$HS" run trap-double --path "$RS" 2>&1); CXRC=$?
+   284	  # fork19-CX20（Codex R5#3）：真断言——CLI 包装语可伪造，读 run 日志验真 Permission denied
+   285	  CXLOG=$(ls -t "$HS"/runs/*trap-double*.log 2>/dev/null | head -1)
+   286	  CXLOGERR=""
+   287	  [ -n "$CXLOG" ] && CXLOGERR=$(grep -ci "denied\|permission" "$CXLOG" 2>/dev/null || echo 0)
+   288	  if [ "$CXRC" = "2" ] && [ "${CXLOGERR:-0}" -ge 1 ]; then
+   289	    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）"
+   290	  else
+   291	    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC logerr=$CXLOGERR"
+   292	  fi
+   293	  chmod 755 "$RS/rs" 2>/dev/null
+   294	else
+   295	  echo "  ⏭ root 豁免：CX12 权限面跳过"
+   296	fi
+   297	
+   298	echo "== H. pytest 契约套件（若 pytest 可用）=="
+   299	if python3 -c "import pytest" 2>/dev/null; then
+   300	  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+   301	else
+   302	  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+   303	fi
+   304	
+   305	echo "== T. P0 auto-merge containment =="
+   306	P0_MSG="auto-merge permanently disabled per P0 containment"
+   307	P0_STUB_LINE="printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1"
+   308	P0_HOME="$TD/p0-home"; mkdir -p "$P0_HOME/daemons" "$P0_HOME/state"
+   309	printf '%s\n' 'touch "$WENQU_HOME/writer-ran"; exit 0' > "$P0_HOME/daemons/auto-merge.sh"
+   310	P0_OUT=$(WENQU_HOME="$P0_HOME" WENQU_REPO="owner/repo" bash "$ROOT/system/bin/wenqu" start 2>&1); P0_RC=$?
+   311	ck "wenqu start 永久拒绝" 1 "$P0_RC"
+   312	if [ "$P0_OUT" = "$P0_MSG" ] && [ ! -e "$P0_HOME/writer-ran" ] && [ ! -e "$P0_HOME/state/auto-merge.pid" ]; then
+   313	  PASS_N=$((PASS_N+1)); echo "  ✅ start 精确报错且未执行 writer/写 PID"
+   314	else
+   315	  FAIL_N=$((FAIL_N+1)); echo "  ❌ start containment 断言失败"
+   316	fi
+   317	
+   318	P0_OUT=$(bash "$ROOT/system/daemons/auto-merge.sh" ignored 2>&1); P0_RC=$?
+   319	ck "源码 auto-merge stub 拒绝" 1 "$P0_RC"
+   320	if [ "$P0_OUT" = "$P0_MSG" ] && [ "$(cat "$ROOT/system/daemons/auto-merge.sh")" = "$P0_STUB_LINE" ] && [ "$(wc -l < "$ROOT/system/daemons/auto-merge.sh" | tr -d ' ')" = "1" ]; then
+   321	  PASS_N=$((PASS_N+1)); echo "  ✅ 源码 stub 唯一内容、单行且消息精确"
+   322	else
+   323	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 源码 stub 形态或消息错误"
+   324	fi
+   325	
+   326	P0_PREFIX="$TD/p0-prefix"; P0_FAKE_HOME="$TD/p0-fake-home"
+   327	mkdir -p "$P0_PREFIX/bin" "$P0_PREFIX/daemons" "$P0_FAKE_HOME"
+   328	printf '%s\n' 'echo unsafe-writer' > "$P0_PREFIX/daemons/auto-merge.sh"
+   329	HOME="$P0_FAKE_HOME" PATH="$P0_PREFIX/bin:$PATH" bash "$ROOT/system/install.sh" --prefix "$P0_PREFIX" >/dev/null 2>&1; ck "隔离安装" 0 $?
+   330	P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+   331	if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+   332	  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+   333	else
+   334	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
+   335	fi
+   336	
+   337	echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+   338	if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+   339	  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+   340	  CORE_RC=$?
+   341	  if [ $CORE_RC -eq 0 ]; then
+   342	    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+   343	  else
+   344	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+   345	  fi
+   346	else
+   347	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+   348	fi
+   349	
+   350	echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+   351	if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+   352	  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+   353	  PIPE_RC=$?
+   354	  if [ $PIPE_RC -eq 0 ]; then
+   355	    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+   356	  else
+   357	    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+   358	  fi
+   359	else
+   360	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+   361	fi
+   362	
+   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红）=="
+   364	if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+   365	  python3 "$ROOT/tools/ac_traceability.py" >/dev/null 2>&1
+   366	  AC_RC=$?
+   367	  if [ $AC_RC -eq 0 ]; then
+   368	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵生成 OK（evidence/traceability-matrix.json 刷新）"
+   369	  else
+   370	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵生成失败（exit=$AC_RC）——evidence 目录或工具损坏"
+   371	  fi
+   372	else
+   373	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   374	fi
+   375	
+   376	echo "================================"
+   377	echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+   378	[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+=== active workflow ===
+     1	name: acceptance
+     2	on: [push, pull_request, workflow_dispatch]
+     3	jobs:
+     4	  matrix:
+     5	    strategy:
+     6	      matrix:
+     7	        os: [macos-latest, ubuntu-latest]
+     8	    runs-on: ${{ matrix.os }}
+     9	    steps:
+    10	      - uses: actions/checkout@v4
+    11	      - uses: actions/setup-python@v5
+    12	        with: { python-version: "3.11" }
+    13	      - name: release-check（版本号残留机械闸·动态版本）
+    14	        run: |
+    15	          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+    16	          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+    17	          echo "Checking: v$DV $V"
+    18	          bash tests/release-check.sh v$DV $V
+    19	      - name: acceptance
+    20	        run: bash tests/acceptance.sh
+    21	      - name: pytest 契约
+    22	        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+    23	      - name: selftest
+    24	        run: python cli/wenqu selftest
+=== release check ===
+     1	#!/usr/bin/env bash
+     2	# 打包前置检查（S11 建议固化）：版本号残留机械全查——升版批的同族半改防线
+     3	# 用法：bash tests/release-check.sh <新版本号如 v1.0.17> <新fork号如 fork17>
+     4	set -u
+     5	V="${1:?用法: release-check.sh <v版本> <fork版本>}"; F="${2:?缺 fork 版本}"
+     6	FAIL=0
+     7	# 正源文件（CHANGELOG 的旧版本号=历史条目合法，排除）
+     8	for f in README.md cli/README.md docs/*.md; do
+     9	  while IFS=: read -r ln content; do
+    10	    echo "  残留: $f:$ln $content"
+    11	    FAIL=1
+    12	  # fork17-S12 加固：先剥本行的新版本引用再查旧（防同行新旧并存被整行豁免）；
+    13	  # forkN/vN.N.N 后加边界类（[^0-9]|$）防 fork170 前瞻豁免
+    14	  done < <(grep -nE "v0\.3\.0-fork[0-9]+-maccc|发行版-v1\.0\.[0-9]+\.md" "$f" \
+    15	    | sed -E "s/$F[^0-9]/CUR/g; s/${V//./\\.}[^0-9]/CUR/g" \
+    16	    | grep -E "v0\.3\.0-fork[0-9]+-maccc|发行版-v1\.0\.[0-9]+\.md" || true)
+    17	done
+    18	# CLI VERSION 常量对齐
+    19	GV=$(python3 cli/wenqu --version | awk '{print $2}')
+    20	[ "$GV" = "0.3.0-$F-maccc" ] || { echo "  ❌ cli VERSION=$GV 期望 0.3.0-$F-maccc"; FAIL=1; }
+    21	[ $FAIL -eq 0 ] && echo "release-check PASS（零旧版本残留+VERSION 对齐）" || echo "release-check FAIL"
+    22	exit $FAIL
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:30:08Z

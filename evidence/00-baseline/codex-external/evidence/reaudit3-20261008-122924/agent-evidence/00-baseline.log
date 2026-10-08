@@ -1,0 +1,25 @@
+TIMESTAMP_START=2026-10-08T04:29:51Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=pwd; git rev-parse --show-toplevel; git rev-parse HEAD; git status --short; git branch --show-current; git log --oneline -8; shasum -a 256 /private/tmp/codex-test/方案.md evidence/00-baseline/codex-external/方案.md /private/tmp/codex-test/验收报告.md; wc -l /private/tmp/codex-test/方案.md /private/tmp/codex-test/验收报告.md; find . -name AGENTS.md -print
+--- OUTPUT BEGIN ---
+/Users/maccc/Documents/wenqu-dist
+/Users/maccc/Documents/wenqu-dist
+ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+main
+ff050bb feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+e00de14 fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）
+1858a75 fix(p0-9): dashboard /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒）
+be50cb8 fix(p0-6+7): EventStore 幂等（内容哈希 event_id）+表名 pipeline_events 避冲突+部署 exec bit 保留+首败 current link 删除
+05b93db fix(ci): core wiring test CI-safe (skip jsonschema/subprocess if unavailable)
+fa72292 fix(p0-1): core wiring test into acceptance + install doctor tolerance
+9637859 fix(p0-1+7): 新核心接线 install.sh+wenqu CLI+核心接线测试 8/8+doctor 区分新装/损坏
+38adb4e fix(p0-3+4+5): Schema 业务不变量硬化+Gate 零分母真空 PASS 根修+Runner 进程组杀树+CAS 防目录逃逸/损坏假成功（Codex 验收 P0 整改批 1）
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593  /private/tmp/codex-test/验收报告.md
+    2003 /private/tmp/codex-test/方案.md
+     477 /private/tmp/codex-test/验收报告.md
+    2480 total
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:29:51Z

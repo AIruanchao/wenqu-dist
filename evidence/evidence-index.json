@@ -2,17 +2,18 @@
   "index_version": "1.0.0",
   "created_at": "2026-10-08T00:00:00+08:00",
   "created_by": "P0-10 证据包基础设施建档",
-  "plan_source": {
-    "path": "/private/tmp/codex-test/方案.md",
-    "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
-    "sha256_verified_at": "2026-10-08",
-    "note": "方案正源在临时目录，须尽快快照入 evidence/00-baseline/；本索引按 §24.2 建档"
-  },
-  "repo_head_at_filing": {
-    "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658",
-    "subject": "fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）",
-    "note": "建档期间由外部 writer 推入；该 commit 尚无 CI 通过记录"
-  },
+    "plan_source": {
+        "path": "evidence/00-baseline/codex-external/方案.md",
+        "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+        "sha256_verified_at": "2026-10-08",
+        "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
+    },
+    "repo_head_at_filing": {
+        "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+        "subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
+        "ci_conclusion": "run 37727549548 acceptance success (macOS+Ubuntu 双平台, 62 PASS/0 FAIL)",
+        "note": "本索引 2026-10-08 第四波整改中刷新；后续提交以 git log 为准"
+    },
   "entries": [
     {
       "entry_id": "EV-CI-001",
@@ -85,10 +86,10 @@
       "argv": ["bash tests/acceptance.sh"],
       "real_rc": "0 (53 PASS / 0 FAIL)",
       "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
-      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log",
       "fresh_until": "2026-10-14",
-      "verified_by": "Codex 独立复核（验收报告 §3.2）",
-      "caveat": "原始日志在 /private/tmp（临时目录），未快照入仓——过期即失效，P0-10 后续动作之一是固化"
+      "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
+      "caveat": "快照入仓前原始日志在 /private/tmp；本条为 53 项时点记录，当前 acceptance 已扩至 62+ 项"
     },
     {
       "entry_id": "EV-TEST-003",
@@ -104,10 +105,10 @@
       "argv": ["python3 -m wenqu_core.<mod> (selftest 入口)"],
       "real_rc": "0 ×5",
       "artifact_sha256": null,
-      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/selftest-*.log",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log",
       "fresh_until": "2026-10-14",
-      "verified_by": "Codex 独立复核（验收报告 §3.2）",
-      "caveat": "同 EV-TEST-002 外部临时目录问题；ledger_migrator/gate_aggregator 等其余模块不在该 5 模块清单内"
+      "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
+      "caveat": "同目录含 5 份 selftest-*.log；ledger_migrator/gate_aggregator 等其余模块不在该 5 模块清单内"
     },
     {
       "entry_id": "EV-ACCEPT-001",
@@ -122,10 +123,10 @@
       "time": "2026-10-07T15:27 (+08:00)",
       "argv": ["python3 validate_plan.py 方案.md"],
       "real_rc": "0 (29/29 PASS)",
-      "artifact_sha256": "plan-self-validation.json.sha256 在外部目录",
-      "evidence_path": "外部：/private/tmp/codex-test/evidence/reaudit-20261007/plan-self-validation.txt",
+      "artifact_sha256": "plan-self-validation.json.sha256 在快照目录",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
       "fresh_until": "2026-10-14",
-      "verified_by": "Codex 方案 §29 记录",
+      "verified_by": "Codex 方案 §29 记录；已快照入仓",
       "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论"
     },
     {
@@ -142,9 +143,9 @@
       "argv": [],
       "real_rc": "判定=BLOCKED",
       "artifact_sha256": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
-      "evidence_path": "外部：/private/tmp/codex-test/验收报告.md",
+      "evidence_path": "evidence/00-baseline/codex-external/验收报告.md",
       "fresh_until": "长期（作为整改基线判定，非时效性证据）",
-      "verified_by": "Codex 独立复核",
+      "verified_by": "Codex 独立复核；已快照入仓",
       "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移"
     },
     {
@@ -184,12 +185,90 @@
       "fresh_until": "随下次全量测试资产变更即须重跑",
       "verified_by": "P0-10 建档运行",
       "caveat": "矩阵为静态扫描（测试文件/函数引用检查），不执行测试"
+    },
+    {
+      "entry_id": "EV-CI-003",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 通过记录（run 37727549548，ff050bb 双平台）",
+      "what": "CI 通过记录：commit ff050bb（feat(p0-2+p0-10) 状态机+审批 Broker+追踪矩阵+证据包）在 main 分支 acceptance 工作流 success（macOS+Ubuntu 双 matrix job）；P1/P1b/P1c 三锚点实际执行",
+      "run_id": "37727549548",
+      "commit": "ff050bb",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow：release-check + tests/acceptance.sh（62 PASS/0 FAIL）+ pytest 20 用例",
+      "ruleset": ".github/workflows/acceptance.yml",
+      "time": "2026-10-08T04:27:13Z",
+      "argv": ["gh run view 37727549548 --json status,conclusion,displayTitle (repo AIruanchao/wenqu-dist)"],
+      "real_rc": "conclusion=success",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt",
+      "fresh_until": "2026-10-22",
+      "verified_by": "ZCode 第四波整改建档（gh run view 实查）+ Codex 第三轮验收独立复核（报告 §7）",
+      "caveat": "main 无 branch protection/ruleset——CI 绿不是不可绕过的 Required Gate（Codex 三轮 §7 实锤）"
+    },
+    {
+      "entry_id": "EV-R3-001",
+      "category": "00-baseline",
+      "title": "Codex 第三轮验收总判定：BLOCKED（38/100）——负面结论存档",
+      "what": "2026-10-08 Codex 第三轮独立复审：38/100（二轮 29→+9）；P0-8 关闭，P0-1~7/9/10 未关闭；12 项对抗探针 FAIL 在册（伪签名/跨类型 payload/false 字符串/非 resume CAS/TIMEOUT 洗白/事件直写/旁表正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/追踪假绿）；复验准入条件八条在册",
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bb (验收基线)",
+      "environment": "local (只读独立复审)",
+      "scope": "wenqu-dist 全仓 W0-W10 + P0 十项逐项",
+      "ruleset": "方案 §24.1 硬完成门",
+      "time": "2026-10-08 12:29–12:37 (+08:00)",
+      "argv": ["codex exec (gpt-5.6-sol, reasoning=ultra) 第三轮验收指令"],
+      "real_rc": "判定=BLOCKED 38/100",
+      "artifact_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
+      "evidence_path": "evidence/00-baseline/codex-external/验收报告-第三轮.md",
+      "fresh_until": "长期（整改基线判定）",
+      "verified_by": "Codex 独立复核（sha256 快照入仓验证 OK）",
+      "caveat": "负面结论按证据同等归档；本条为第四波整改的输入依据"
+    },
+    {
+      "entry_id": "EV-R3-002",
+      "category": "00-baseline",
+      "title": "Codex 第三轮验收证据包快照（141 文件）",
+      "what": "第三轮验收全部对抗探针证据：三移除锚点/Schema 篡改/核心-Schema-CAS-Runner-EventStore-Deploy 动态探针源码与输出/CI JSON 与 branch rules API/运行身份哈希/独立 131 集合与 §25.1 映射解析/子审计发现与分目录 MANIFEST.sha256",
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bb",
+      "environment": "local",
+      "scope": "141 个证据文件（00-baseline~06-final + agent-* 三子审计）",
+      "ruleset": "总索引 06-final/EVIDENCE-INDEX.md",
+      "time": "2026-10-08 12:29–12:37 (+08:00)",
+      "argv": [],
+      "real_rc": null,
+      "artifact_sha256": "MANIFEST.sha256 自身 sha256 088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256",
+      "fresh_until": "长期",
+      "verified_by": "ZCode 快照入仓（cp -Rp + find 计数 141）",
+      "caveat": "快照为验收时点状态；篡改检测依赖 MANIFEST.sha256 复算"
+    },
+    {
+      "entry_id": "EV-TRACE-002",
+      "category": "04-unit-property-mutation",
+      "title": "追踪 Gate 反假绿加固：§20/§25.1 双篡改负例必红（第四波）",
+      "what": "Codex 三轮实锤两处假绿已根治：①ac_traceability 新增真 §25.1 解析器（范围展开成 ID 集合+逐前缀四列元数据对账，全半角～归一）；②acceptance.sh P1c 改用 --check+临时输出（不再改受控矩阵文件弄脏工作树）。负例实证：篡改 §20（GATE-12→GATE-99）exit=2；篡改 §25.1（REQ-EVID-001→REQ-EVIL-999）exit=2；正常方案 exit=0（131=131 四列全对）",
+      "run_id": "wave4-p1c-hardening",
+      "commit": "ff050bb 之后工作树（本波提交）",
+      "environment": "local (macOS)",
+      "scope": "tools/ac_traceability.py + tests/acceptance.sh P1c",
+      "ruleset": "方案 §25.1 机器校验集合等式要求",
+      "time": "2026-10-08 13:0x (+08:00)",
+      "argv": ["python3 tools/ac_traceability.py --check --json /tmp/m{1,2,3}.json --plan {pristine,t20,t251}"],
+      "real_rc": "0 / 2 / 2（正常/篡改§20/篡改§25.1）",
+      "artifact_sha256": null,
+      "evidence_path": "tools/ac_traceability.py",
+      "fresh_until": "随工具或方案变更须重验",
+      "verified_by": "ZCode 第四波亲验（三命令实跑退出码在案）",
+      "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0"
     }
   ],
   "known_gaps": [
-    "§20 的 131 个验收 ID 无一拥有专属测试（详见 traceability-matrix.json 初始报告）",
-    "外部 /private/tmp/codex-test/ 证据（验收报告+两个 evidence 目录）未快照入仓，存在丢失风险",
-    "当前 HEAD e00de14 无 CI 结论（建档时刚推入）",
-    "branch ruleset / required checks 回读、签名 attestation、Playwright、launchd 真环境、备份/回滚演练、观察窗指标全部缺位"
+    "§20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐",
+    "Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中",
+    "main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置",
+    "active 7789 dashboard 仍运行旧未加固单文件（Codex 三轮 §3.9）——待部署新加固版",
+    "W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐",
+    "最终 release 制品（tar+签名 manifest+SBOM）未生成"
   ]
 }

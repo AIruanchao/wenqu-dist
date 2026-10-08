@@ -1,0 +1,22 @@
+COMMAND: bash -lc set\ +e\;\ echo\ \"SOURCE:\"\;\ ls\ -l\ /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh\;\ sha256sum\ /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh\;\ cat\ /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh\;\ echo\ \"INSTALLED:\"\;\ ls\ -l\ /Users/maccc/.wenqu/daemons/auto-merge.sh\;\ sha256sum\ /Users/maccc/.wenqu/daemons/auto-merge.sh\;\ sed\ -n\ \"1\,140p\"\ /Users/maccc/.wenqu/daemons/auto-merge.sh\;\ echo\ \"PROCESSES:\"\;\ pgrep\ -lf\ auto-merge\ \|\|\ true\;\ echo\ \"LAUNCHCTL:\"\;\ launchctl\ list\ 2\>/dev/null\ \|\ grep\ -i\ wenqu\ \|\|\ true\;\ echo\ \"CRONTAB:\"\;\ crontab\ -l\ 2\>/dev/null\ \|\ grep\ -i\ auto-merge\ \|\|\ true
+START: 2026-10-08T12:31:32+08:00
+SOURCE:
+-rwxr-xr-x@ 1 maccc  staff  79 Oct  8 00:24 /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh
+6da37e2ae7a0aabd31bdbf7ab72641a2d973f2d8a0b2f7e17b6405a4d06a2dcd  /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh
+printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1
+INSTALLED:
+ls: /Users/maccc/.wenqu/daemons/auto-merge.sh: No such file or directory
+sha256sum: /Users/maccc/.wenqu/daemons/auto-merge.sh: No such file or directory
+sed: /Users/maccc/.wenqu/daemons/auto-merge.sh: No such file or directory
+PROCESSES:
+LAUNCHCTL:
+47736	-15	com.wenqu.app-relay
+-	0	com.wenqu.spec-reconcile.monthly
+-	1	com.wenqu.sentinel-pulse
+-	0	com.wenqu.sweep
+81385	-15	com.wenqu.dashboard
+-	0	com.wenqu.observation-window
+CRONTAB:
+
+EXIT_CODE: 0
+END: 2026-10-08T12:31:32+08:00

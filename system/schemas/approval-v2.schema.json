@@ -1,71 +1,180 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/approval-v2.json",
-  "title": "Approval Event Schema v2（判别联合）",
-  "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
+  "title": "Approval Event Schema v2（判别联合·全封闭）",
+  "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5。P0-4 加固：envelope 绑定字段全部 required 且键集封闭（additionalProperties=false）；payload 按 approval_type 互斥封闭（各分支 additionalProperties=false，混入他类字段即拒）；signature 为 HMAC-SHA256 hex（64 位，key_id 指明签发密钥）",
   "type": "object",
-  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
+  "required": [
+    "schema_version", "approval_id", "approval_type", "key_id", "run_id",
+    "task_id", "stop_event_id", "stop_type", "stage", "environment",
+    "authorized_scope", "policy_hash", "ruleset_hash", "input_watermark",
+    "expected_state_version", "actor", "issued_at", "expires_at", "nonce",
+    "decision", "signature", "payload"
+  ],
   "properties": {
     "schema_version": {"const": "2.0"},
     "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
     "approval_type": {
       "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
     },
-    "run_id": {"type": "string"},
-    "task_id": {"type": "string"},
-    "stop_event_id": {"type": "string"},
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[a-zA-Z0-9_-]+$",
+      "description": "签发密钥登记 id——ApprovalBroker 经 keyring 查 secret 做 HMAC-SHA256 真实验签；未登记 key_id 一律拒绝"
+    },
+    "run_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "stop_event_id": {"type": "string", "minLength": 1},
     "stop_type": {
       "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
     },
-    "stage": {"type": "string"},
+    "stage": {
+      "enum": ["S1_REQUIREMENT", "S2_SOLUTION", "S3_EQS_PRE", "S4_IMPLEMENT", "S5_CONVERGENCE", "S6_EQS_FULL", "S7_GATE"]
+    },
     "environment": {"enum": ["local", "staging", "production"]},
-    "authorized_scope": {"type": "string"},
-    "policy_hash": {"type": "string"},
-    "ruleset_hash": {"type": "string"},
-    "input_watermark": {"type": "string"},
+    "authorized_scope": {"type": "string", "minLength": 1},
+    "policy_hash": {"type": "string", "minLength": 1},
+    "ruleset_hash": {"type": "string", "minLength": 1},
+    "input_watermark": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "git commit sha（40-hex）——非 40-hex 直接拒绝，绝不跳过与 run commit_sha 的比较"
+    },
     "actor": {"type": "string", "minLength": 1},
     "issued_at": {"type": "string", "format": "date-time"},
     "expires_at": {"type": "string", "format": "date-time"},
     "expected_state_version": {"type": "integer", "minimum": 1},
     "nonce": {"type": "string", "minLength": 16},
     "decision": {"enum": ["approve", "deny", "conditional"]},
-    "signature": {"type": "string", "minLength": 32},
+    "signature": {
+      "type": "string",
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "hex(hmac_sha256(secret, canonical_json(envelope_without_signature)))——形状约束仅为第一道闸，Broker 层真实验签"
+    },
     "payload": {"type": "object"}
   },
   "additionalProperties": false,
   "allOf": [
     {
-      "if": {"properties": {"approval_type": {"const": "resume"}}},
-      "then": {"properties": {"payload": {"required": ["stop_event_id", "stop_type", "objective_precondition_hash"]}}}
+      "if": {"properties": {"approval_type": {"const": "resume"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["stop_event_id", "stop_type", "objective_precondition_hash"],
+        "properties": {
+          "stop_event_id": {"type": "string", "minLength": 1},
+          "stop_type": {"enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]},
+          "objective_precondition_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "risk"}}},
-      "then": {"properties": {"payload": {"required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]}}}
+      "if": {"properties": {"approval_type": {"const": "risk"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"],
+        "properties": {
+          "finding_fingerprints": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "description": "必须与 run 登记面中可风险接受 finding（MEDIUM/LOW 且 P2/P3）的指纹精确匹配；HIGH/CRITICAL 一律机器拒绝"
+          },
+          "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
+          "reason": {"type": "string", "minLength": 1},
+          "compensating_controls": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "expiry": {"type": "string", "format": "date-time"}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "merge"}}},
-      "then": {"properties": {"payload": {"required": ["repo_id", "base_sha", "head_sha", "merge_method"]}}}
+      "if": {"properties": {"approval_type": {"const": "merge"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["repo_id", "base_sha", "head_sha", "merge_method"],
+        "properties": {
+          "repo_id": {"type": "string", "minLength": 1},
+          "base_sha": {"type": "string", "minLength": 1},
+          "head_sha": {"type": "string", "minLength": 1},
+          "merge_method": {"enum": ["merge", "squash", "rebase"]}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "release"}}},
-      "then": {"properties": {"payload": {"required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]}}}
+      "if": {"properties": {"approval_type": {"const": "release"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"],
+        "properties": {
+          "release_id": {"type": "string", "minLength": 1},
+          "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "environment": {"enum": ["local", "staging", "production"]},
+          "previous_release_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "ddl"}}},
-      "then": {"properties": {"payload": {"required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]}}}
+      "if": {"properties": {"approval_type": {"const": "ddl"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"],
+        "properties": {
+          "database_identity": {"type": "string", "minLength": 1},
+          "statement_digest": {"type": "string", "minLength": 1},
+          "before_schema_hash": {"type": "string", "minLength": 1},
+          "after_schema_hash": {"type": "string", "minLength": 1},
+          "backup_id": {"type": "string", "minLength": 1},
+          "rollback_plan_hash": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "prod_write"}}},
-      "then": {"properties": {"payload": {"required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]}}}
+      "if": {"properties": {"approval_type": {"const": "prod_write"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"],
+        "properties": {
+          "operation_digest": {"type": "string", "minLength": 1},
+          "data_scope_digest": {"type": "string", "minLength": 1},
+          "idempotency_key": {"type": "string", "minLength": 1},
+          "conservation_hash": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "fund_auth"}}},
-      "then": {"properties": {"payload": {"required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]}}}
+      "if": {"properties": {"approval_type": {"const": "fund_auth"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"],
+        "properties": {
+          "subject_role": {"type": "string", "minLength": 1},
+          "amount_scope_digest": {"type": "string", "minLength": 1},
+          "positive_negative_test_hash": {"type": "string", "minLength": 1},
+          "audit_target": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }}}
     },
     {
-      "if": {"properties": {"approval_type": {"const": "rollback"}}},
-      "then": {"properties": {"payload": {"required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]}}}
+      "if": {"properties": {"approval_type": {"const": "rollback"}}, "required": ["approval_type"]},
+      "then": {"properties": {"payload": {
+        "type": "object",
+        "required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"],
+        "properties": {
+          "failed_deployment_id": {"type": "string", "minLength": 1},
+          "exact_previous_release_id": {"type": "string", "minLength": 1},
+          "trigger": {"type": "string", "minLength": 1},
+          "schema_compatibility_hash": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }}}
     }
   ],
-  "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝"
+  "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝；envelope 与 payload 双层键集封闭，跨类型混字段即拒；signature 必须通过 keyring HMAC-SHA256 真实验签（Broker 层，schema 只能约束形状）"
 }

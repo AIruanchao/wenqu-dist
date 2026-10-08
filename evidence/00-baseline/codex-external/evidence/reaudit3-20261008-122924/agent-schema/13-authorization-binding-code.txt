@@ -1,0 +1,109 @@
+  1088	                "resume 审批必须经 consume() 与停等事件绑定消费")
+  1089	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1090	
+  1091	        def _binding(ap: Mapping[str, Any], state: RunState) -> None:
+  1092	            if ap["decision"] != "approve":
+  1093	                raise ApprovalRejected(
+  1094	                    f"decision {ap['decision']!r} 不足以授权（须 approve）")
+  1095	            issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+  1096	            expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+  1097	            if not (issued <= now < expires):
+  1098	                raise ApprovalRejected(
+  1099	                    "approval outside TTL window",
+  1100	                    {"now": now, "expires_at_epoch": expires})
+  1101	            if ap["run_id"] != state.run_id:
+  1102	                raise ApprovalRejected(
+  1103	                    "run_id mismatch",
+  1104	                    {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+  1105	            if "task_id" in ap and ap["task_id"] != state.task_id:
+  1106	                raise ApprovalRejected("task_id mismatch")
+  1107	            if state.terminal:
+  1108	                raise ApprovalRejected(
+  1109	                    "run is terminal; authorization has no target",
+  1110	                    {"run_state": state.state})
+  1111	            ident = state.identity
+  1112	            if "environment" in ap and ap["environment"] != ident["environment"]:
+  1113	                raise ApprovalRejected("environment mismatch（审批不得跨环境）")
+  1114	            if ("authorized_scope" in ap
+  1115	                    and ap["authorized_scope"] != ident["scope_hash"]):
+  1116	                raise ApprovalRejected(
+  1117	                    "authorized_scope != run scope_hash（审批不得扩范围）")
+  1118	            if ("input_watermark" in ap
+  1119	                    and _is_sha1_hex(ap["input_watermark"])
+  1120	                    and ap["input_watermark"] != ident["commit_sha"]):
+  1121	                raise ApprovalRejected("input_watermark(sha) != run commit_sha")
+  1122	            if "stage" in ap and ap["stage"] not in state.stages:
+  1123	                raise ApprovalRejected(f"unknown stage {ap['stage']!r}")
+  1124	
+  1125	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1126	            state = run_loader(conn)
+  1127	            # 重放检测优先（同 consume）
+  1128	            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+  1129	                            (ap["nonce"],)).fetchone() is not None:
+  1130	                raise ApprovalReuseError(
+  1131	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1132	                    f"不可复用——不变量 #5)")
+  1133	            _binding(ap, state)
+  1134	            try:
+  1135	                conn.execute(
+  1136	                    "INSERT INTO approval_consumptions "
+  1137	                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+  1138	                    " decision, expires_at, consumed_at, preconditions_hash, "
+  1139	                    " resume_event_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
+  1140	                    (ap["nonce"], ap["approval_id"], ap["approval_type"],
+  1141	                     state.run_id, ap["stop_type"], ap["decision"],
+  1142	                     ap["expires_at"], time.time()),
+  1143	                )
+  1144	            except sqlite3.IntegrityError as exc:
+  1145	                raise ApprovalReuseError(
+  1146	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1147	                    f"不可复用——不变量 #5): {exc}") from None
+  1148	            return {
+  1149	                "approval_id": ap["approval_id"],
+  1150	                "approval_type": ap["approval_type"],
+  1151	                "nonce_digest": _sha256_hex(ap["nonce"]),
+  1152	                "run_id": state.run_id,
+  1153	                "stop_type": ap["stop_type"],
+  1154	                "consumed": True,
+  1155	            }
+  1156	
+  1157	        return self._db.transact(_body)
+  1158	
+  1159	    # ------------------------------------------------------------------ #
+  1160	    def consumed_approvals(self, run_id: Optional[str] = None,
+  1161	                           approval_type: Optional[str] = None
+  1162	                           ) -> List[Dict[str, Any]]:
+  1163	        """查询消费台账（nonce 一次性占用的可审计正源）。"""
+  1164	        sql = ("SELECT nonce, approval_id, approval_type, run_id, stop_type, "
+  1165	               "decision, expires_at, consumed_at, preconditions_hash, "
+  1166	               "resume_event_hash FROM approval_consumptions")
+  1167	        conds, args = [], []
+  1168	        if run_id is not None:
+  1169	            conds.append("run_id = ?")
+  1170	            args.append(run_id)
+  1171	        if approval_type is not None:
+  1172	            conds.append("approval_type = ?")
+  1173	            args.append(approval_type)
+  1174	        if conds:
+  1175	            sql += " WHERE " + " AND ".join(conds)
+  1176	        sql += " ORDER BY consumed_at ASC"
+  1177	        rows = self._db._conn.execute(sql, args).fetchall()  # noqa: SLF001
+  1178	        keys = ("nonce", "approval_id", "approval_type", "run_id", "stop_type",
+  1179	                "decision", "expires_at", "consumed_at", "preconditions_hash",
+  1180	                "resume_event_hash")
+  1181	        return [dict(zip(keys, r)) for r in rows]
+  1182	
+  1183	    def has_unexpired_risk_authorization(self, run_id: str,
+  1184	                                         now_epoch: Optional[float] = None
+  1185	                                         ) -> Optional[Dict[str, Any]]:
+  1186	        """查找 run 已消费、未过期的 risk 授权（COMPLETED_CONDITIONAL 前置）。"""
+  1187	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1188	        for row in self.consumed_approvals(run_id=run_id,
+  1189	                                           approval_type="risk"):
+  1190	            try:
+  1191	                if _parse_iso_ts(row["expires_at"]).timestamp() > now:
+  1192	                    return row
+  1193	            except ValueError:
+  1194	                continue
+  1195	        return None
+[exit_code]0

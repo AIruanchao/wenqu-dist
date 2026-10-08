@@ -1,0 +1,30 @@
+COMMAND: bash -lc set\ +e\;\ cd\ /private/tmp/reaudit3-removal.eiXTHw/schema\;\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/tests/test_core_wiring.py\;\ a=\$\?\;\ echo\ TEST_CORE_WIRING_RC=\$a\;\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/tests/test_wenqu_pipeline.py\;\ b=\$\?\;\ echo\ TEST_WENQU_PIPELINE_RC=\$b\;\ test\ \$a\ -ne\ 0\ -a\ \$b\ -ne\ 0\;\ echo\ ASSERT_BOTH_NONZERO_RC=\$\?
+START: 2026-10-08T12:32:37+08:00
+  ✓ test_core_modules_importable
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✗ test_schemas_exist_and_valid: Schema 缺失: approval-v2.schema.json
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+TEST_CORE_WIRING_RC=1
+  ok  规则引擎（七段/转换/双轴/九类前置）
+  ok  全流程七段 PASS → SUCCEEDED + 重放一致
+  ok  FAIL 重试 → 新 attempt_id，旧 attempt 不可变
+  ok  九类停等 raise→resume（必要且充分）
+  ok  审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希）
+  ok  并发双消费：恰好一个成功
+  ok  COMPLETED_CONDITIONAL 终态 + risk 授权
+  ok  cancel/supersede/not_found/FAILED
+  ok  与 EventStore.append 交错链完整性
+  FAIL 与 approval-v2 schema 交叉验证: FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/reaudit3-removal.eiXTHw/schema/system/schemas/approval-v2.schema.json'
+
+P0-2 状态机+审批 Broker: 9 PASS / 1 FAIL
+TEST_WENQU_PIPELINE_RC=1
+ASSERT_BOTH_NONZERO_RC=0
+
+EXIT_CODE: 0
+END: 2026-10-08T12:32:37+08:00

@@ -1,0 +1,71 @@
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/approval-v2.json",
+     4	  "title": "Approval Event Schema v2（判别联合）",
+     5	  "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+    11	    "approval_type": {
+    12	      "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
+    13	    },
+    14	    "run_id": {"type": "string"},
+    15	    "task_id": {"type": "string"},
+    16	    "stop_event_id": {"type": "string"},
+    17	    "stop_type": {
+    18	      "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
+    19	    },
+    20	    "stage": {"type": "string"},
+    21	    "environment": {"enum": ["local", "staging", "production"]},
+    22	    "authorized_scope": {"type": "string"},
+    23	    "policy_hash": {"type": "string"},
+    24	    "ruleset_hash": {"type": "string"},
+    25	    "input_watermark": {"type": "string"},
+    26	    "actor": {"type": "string", "minLength": 1},
+    27	    "issued_at": {"type": "string", "format": "date-time"},
+    28	    "expires_at": {"type": "string", "format": "date-time"},
+    29	    "expected_state_version": {"type": "integer", "minimum": 1},
+    30	    "nonce": {"type": "string", "minLength": 16},
+    31	    "decision": {"enum": ["approve", "deny", "conditional"]},
+    32	    "signature": {"type": "string", "minLength": 32},
+    33	    "payload": {"type": "object"}
+    34	  },
+    35	  "additionalProperties": false,
+    36	  "allOf": [
+    37	    {
+    38	      "if": {"properties": {"approval_type": {"const": "resume"}}},
+    39	      "then": {"properties": {"payload": {"required": ["stop_event_id", "stop_type", "objective_precondition_hash"]}}}
+    40	    },
+    41	    {
+    42	      "if": {"properties": {"approval_type": {"const": "risk"}}},
+    43	      "then": {"properties": {"payload": {"required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]}}}
+    44	    },
+    45	    {
+    46	      "if": {"properties": {"approval_type": {"const": "merge"}}},
+    47	      "then": {"properties": {"payload": {"required": ["repo_id", "base_sha", "head_sha", "merge_method"]}}}
+    48	    },
+    49	    {
+    50	      "if": {"properties": {"approval_type": {"const": "release"}}},
+    51	      "then": {"properties": {"payload": {"required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]}}}
+    52	    },
+    53	    {
+    54	      "if": {"properties": {"approval_type": {"const": "ddl"}}},
+    55	      "then": {"properties": {"payload": {"required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]}}}
+    56	    },
+    57	    {
+    58	      "if": {"properties": {"approval_type": {"const": "prod_write"}}},
+    59	      "then": {"properties": {"payload": {"required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]}}}
+    60	    },
+    61	    {
+    62	      "if": {"properties": {"approval_type": {"const": "fund_auth"}}},
+    63	      "then": {"properties": {"payload": {"required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]}}}
+    64	    },
+    65	    {
+    66	      "if": {"properties": {"approval_type": {"const": "rollback"}}},
+    67	      "then": {"properties": {"payload": {"required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]}}}
+    68	    }
+    69	  ],
+    70	  "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝"
+    71	}

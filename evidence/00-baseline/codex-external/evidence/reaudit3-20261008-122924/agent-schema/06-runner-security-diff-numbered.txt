@@ -1,0 +1,860 @@
+$ nl -ba system/wenqu_core/runner.py | sed -n 1,320p
+     1	"""runner.py——Trusted Runner：不可伪造退出码的唯一来源（ADR-001/002）。
+     2	
+     3	安全构造（by construction，非依赖扫描器豁免）：
+     4	- 命令只接受显式 argv 列表，经 subprocess.run(list, shell=False) 执行；
+     5	  不存在任何字符串拼入 shell 的路径，也不调用 eval/exec。
+     6	- EvidenceStore 为 sha256 内容寻址（content-addressed）存储，写入统一走
+     7	  os.open() 且带 O_NOFOLLOW + O_EXCL：预置符号链接既不能重定向写入
+     8	  （O_NOFOLLOW），同名摘要只落盘一次（O_EXCL），读取时重新校验哈希。
+     9	- actual_exit_code 一律取自 subprocess 的 returncode，不推断、不美化。
+    10	"""
+    11	
+    12	from __future__ import annotations
+    13	
+    14	import hashlib
+    15	import json
+    16	import os
+    17	import shutil
+    18	import subprocess
+    19	import time
+    20	from dataclasses import asdict, dataclass
+    21	from pathlib import Path
+    22	from typing import Iterable, List, Optional, Tuple
+    23	
+    24	__all__ = ["TrustedRunner", "EvidenceStore", "Evidence", "IntegrityError"]
+    25	
+    26	DEFAULT_FRESHNESS_SECONDS = 300.0
+    27	
+    28	
+    29	class IntegrityError(RuntimeError):
+    30	    """内容寻址存储中检测到哈希不匹配或符号链接替换。"""
+    31	
+    32	
+    33	def _sha256_hex(data: bytes) -> str:
+    34	    return hashlib.sha256(data).hexdigest()
+    35	
+    36	
+    37	@dataclass(frozen=True)
+    38	class Evidence:
+    39	    """一次命令执行的不可变证据记录。"""
+    40	
+    41	    argv: Tuple[str, ...]
+    42	    cwd: str
+    43	    actual_exit_code: Optional[int]
+    44	    stdout_sha256: str
+    45	    stderr_sha256: str
+    46	    argv_digest: str
+    47	    timestamp: float
+    48	    fresh_until: float
+    49	    timed_out: bool = False
+    50	
+    51	    @property
+    52	    def is_fresh(self, now: Optional[float] = None) -> bool:
+    53	        return (now if now is not None else time.time()) <= self.fresh_until
+    54	
+    55	    def to_json(self) -> str:
+    56	        return json.dumps(
+    57	            asdict(self), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    58	        )
+    59	
+    60	
+    61	class TrustedRunner:
+    62	    """以受信方式执行 argv 列表并捕获真实证据。
+    63	
+    64	    命令始终通过 subprocess.run(list(argv), shell=False) 执行；
+    65	    记录的 actual_exit_code 即进程真实 returncode。
+    66	    """
+    67	
+    68	    def __init__(
+    69	        self,
+    70	        *,
+    71	        default_cwd: Optional[str] = None,
+    72	        timeout: Optional[float] = None,
+    73	        freshness_seconds: float = DEFAULT_FRESHNESS_SECONDS,
+    74	        allowed_executables: Optional[Iterable[str]] = None,
+    75	    ) -> None:
+    76	        if freshness_seconds <= 0:
+    77	            raise ValueError("freshness_seconds must be positive")
+    78	        self._default_cwd = default_cwd
+    79	        self._timeout = timeout
+    80	        self._freshness_seconds = freshness_seconds
+    81	        self._allowed = (
+    82	            frozenset(allowed_executables)
+    83	            if allowed_executables is not None
+    84	            else None
+    85	        )
+    86	
+    87	    # ------------------------------------------------------------------
+    88	    # 校验：只接受 argv 列表，拒绝整串 shell 命令
+    89	    # ------------------------------------------------------------------
+    90	    def _validate_argv(self, argv: List[str]) -> None:
+    91	        if isinstance(argv, (str, bytes)):
+    92	            raise TypeError(
+    93	                "argv must be a list/tuple of strings; a plain shell command "
+    94	                "string is rejected by design (shell=False)"
+    95	            )
+    96	        if not isinstance(argv, (list, tuple)):
+    97	            raise TypeError(f"argv must be list or tuple, got {type(argv).__name__}")
+    98	        if not argv:
+    99	            raise ValueError("argv must not be empty")
+   100	        for i, item in enumerate(argv):
+   101	            if not isinstance(item, str):
+   102	                raise TypeError(f"argv[{i}] must be str, got {type(item).__name__}")
+   103	        resolved = shutil.which(argv[0])
+   104	        if resolved is None:
+   105	            raise FileNotFoundError(f"executable not found on PATH: {argv[0]!r}")
+   106	        if self._allowed is not None and not (
+   107	            argv[0] in self._allowed or resolved in self._allowed
+   108	        ):
+   109	            raise PermissionError(f"executable not in allowlist: {argv[0]!r}")
+   110	
+   111	    @staticmethod
+   112	    def argv_digest(argv: List[str]) -> str:
+   113	        """argv 的稳定摘要：对规范化 JSON 序列做 sha256。"""
+   114	        canonical = json.dumps(list(argv), separators=(",", ":"), ensure_ascii=False)
+   115	        return _sha256_hex(canonical.encode("utf-8"))
+   116	
+   117	    # ------------------------------------------------------------------
+   118	    # 执行
+   119	    # ------------------------------------------------------------------
+   120	    def run(self, argv: List[str], cwd: Optional[str] = None) -> Evidence:
+   121	        self._validate_argv(argv)
+   122	        workdir = cwd or self._default_cwd or os.getcwd()
+   123	        timestamp = time.time()
+   124	        fresh_until = timestamp + self._freshness_seconds
+   125	        argv_digest = self.argv_digest(argv)
+   126	        try:
+   127	            # P0-5 修：使用 Popen + 进程组（start_new_session=True），超时时 killpg 杀整棵子树
+   128	            import signal as _signal
+   129	            proc = subprocess.Popen(
+   130	                list(argv),
+   131	                cwd=workdir,
+   132	                shell=False,
+   133	                stdout=subprocess.PIPE,
+   134	                stderr=subprocess.PIPE,
+   135	                start_new_session=True,  # 独立进程组——超时可 killpg 整组
+   136	            )
+   137	            try:
+   138	                stdout_bytes, stderr_bytes = proc.communicate(timeout=self._timeout)
+   139	                timed_out = False
+   140	                actual_exit = proc.returncode
+   141	            except subprocess.TimeoutExpired:
+   142	                # 杀整棵进程组（含所有子孙进程）
+   143	                try:
+   144	                    os.killpg(proc.pid, _signal.SIGKILL)
+   145	                except (ProcessLookupError, PermissionError):
+   146	                    pass
+   147	                stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
+   148	                timed_out = True
+   149	                actual_exit = 124
+   150	        except Exception as exc:
+   151	            return Evidence(
+   152	                argv=tuple(argv),
+   153	                cwd=workdir,
+   154	                actual_exit_code=2,
+   155	                stdout_sha256=_sha256_hex(b""),
+   156	                stderr_sha256=_sha256_hex(str(exc).encode()),
+   157	                argv_digest=argv_digest,
+   158	                timestamp=timestamp,
+   159	                fresh_until=fresh_until,
+   160	                timed_out=False,
+   161	            )
+   162	        if timed_out:
+   163	            return Evidence(
+   164	                argv=tuple(argv),
+   165	                cwd=workdir,
+   166	                actual_exit_code=None,
+   167	                stdout_sha256=_sha256_hex(stdout_bytes or b""),
+   168	                stderr_sha256=_sha256_hex(stderr_bytes or b""),
+   169	                argv_digest=argv_digest,
+   170	                timestamp=timestamp,
+   171	                fresh_until=fresh_until,
+   172	                timed_out=True,
+   173	            )
+   174	        return Evidence(
+   175	            argv=tuple(argv),
+   176	            cwd=workdir,
+   177	            actual_exit_code=actual_exit,
+   178	            stdout_sha256=_sha256_hex(stdout_bytes),
+   179	            stderr_sha256=_sha256_hex(stderr_bytes),
+   180	            argv_digest=argv_digest,
+   181	            timestamp=timestamp,
+   182	            fresh_until=fresh_until,
+   183	        )
+   184	
+   185	
+   186	class EvidenceStore:
+   187	    """sha256 内容寻址的证据存储。
+   188	
+   189	    - 寻址：digest = sha256(canonical_json(evidence))，按前 2 位分桶。
+   190	    - 写入：os.open() 带 O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW；
+   191	      同 digest 重复写入为幂等 no-op，符号链接占位直接拒绝。
+   192	    - 读取：重新计算 sha256 并与 digest 比对，不匹配即抛 IntegrityError。
+   193	    """
+   194	
+   195	    def __init__(self, root: str) -> None:
+   196	        self._root = Path(root)
+   197	        self._root.mkdir(parents=True, exist_ok=True)
+   198	
+   199	    # ------------------------------------------------------------------
+   200	    @staticmethod
+   201	    def digest_for(evidence: Evidence) -> str:
+   202	        return _sha256_hex(evidence.to_json().encode("utf-8"))
+   203	
+   204	    def _path_for(self, digest: str) -> Path:
+   205	        p = self._root / digest[:2] / f"{digest}.json"
+   206	        # P0-5 修：防父目录 symlink 逃逸——检查整个路径链不在 CAS root 外
+   207	        resolved = p.resolve(strict=False)
+   208	        root_resolved = self._root.resolve(strict=False)
+   209	        if not str(resolved).startswith(str(root_resolved)):
+   210	            raise IntegrityError(f"path escapes CAS root: {p} -> {resolved}")
+   211	        return p
+   212	
+   213	    def contains(self, digest: str) -> bool:
+   214	        p = self._path_for(digest)
+   215	        if p.is_symlink():
+   216	            return False  # P0-5: symlink 一律视为不存在
+   217	        return p.is_file()
+   218	
+   219	    # ------------------------------------------------------------------
+   220	    def put(self, evidence: Evidence) -> str:
+   221	        digest = self.digest_for(evidence)
+   222	        shard = self._root / digest[:2]
+   223	        # P0-5 修：检查父目录不是 symlink
+   224	        if shard.is_symlink():
+   225	            raise IntegrityError(f"shard parent is symlink: {shard}")
+   226	        shard.mkdir(parents=True, exist_ok=True)
+   227	        # P0-5 修：检查 mkdir 后父目录未被替换为 symlink
+   228	        if shard.is_symlink():
+   229	            raise IntegrityError(f"shard replaced by symlink after mkdir: {shard}")
+   230	        target = self._path_for(digest)
+   231	        data = evidence.to_json().encode("utf-8")
+   232	
+   233	        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+   234	        if hasattr(os, "O_NOFOLLOW"):
+   235	            flags |= os.O_NOFOLLOW
+   236	        try:
+   237	            fd = os.open(target, flags, 0o640)
+   238	        except FileExistsError:
+   239	            if target.is_symlink():
+   240	                raise IntegrityError(
+   241	                    f"symlink planted at content path {target}; refusing to write"
+   242	                )
+   243	            # P0-5 修：已存在文件须校验内容完整性（防预置损坏文件假成功）
+   244	            try:
+   245	                existing = target.read_bytes()
+   246	                if _sha256_hex(existing) != digest:
+   247	                    raise IntegrityError(
+   248	                        f"corrupted file at {target}: hash mismatch, refusing silent success"
+   249	                    )
+   250	            except OSError as exc:
+   251	                raise IntegrityError(f"cannot verify existing file {target}: {exc}")
+   252	            return digest  # 内容寻址：同 digest 已存在且完整，幂等成功
+   253	        try:
+   254	            view = memoryview(data)
+   255	            while view:
+   256	                written = os.write(fd, view)
+   257	                view = view[written:]
+   258	        finally:
+   259	            os.close(fd)
+   260	        return digest
+   261	
+   262	    def get(self, digest: str) -> Optional[Evidence]:
+   263	        target = self._path_for(digest)
+   264	        try:
+   265	            raw = target.read_bytes()
+   266	        except FileNotFoundError:
+   267	            return None
+   268	        if _sha256_hex(raw) != digest:
+   269	            raise IntegrityError(f"content hash mismatch for digest {digest}")
+   270	        payload = json.loads(raw.decode("utf-8"))
+   271	        payload["argv"] = tuple(payload.get("argv", ()))
+   272	        return Evidence(**payload)
+[exit_code]0
+$ git diff 4aeb1998..HEAD -- system/wenqu_core/runner.py system/schemas system/bin/wenqu-dashboard.py system/dashboard/server.py system/install.sh
+diff --git a/system/bin/wenqu-dashboard.py b/system/bin/wenqu-dashboard.py
+index 3e73962..e8a5c0b 100755
+--- a/system/bin/wenqu-dashboard.py
++++ b/system/bin/wenqu-dashboard.py
+@@ -4,6 +4,7 @@
+ 用法：wenqu dashboard [端口=7788]
+ 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
+ """
++import hmac
+ import json
+ from datetime import datetime, timedelta
+ import os
+@@ -410,7 +411,7 @@ async function loadBGL(){
+   const box=document.getElementById('bglstate');
+   if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
+   const st=d.total.by_status||{};
+-  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭']];
++  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭'],['ACCEPTED','有条件接受'],['OTHER','未归类']];
+   let h='<div class="frow">';
+   chain.forEach(([k,lab],ix)=>{
+     if(ix)h+='<div class="arrow">▸</div>';
+@@ -419,9 +420,7 @@ async function loadBGL(){
+     const hot=k==='OPEN'&&n>0?' hot':'';
+     h+=`<div class="bnode${hot}"${clickable}><b>${k}${n>0?' ▾':''}</b><span class="cnt">${n}</span><span class="hint">${lab}</span></div>`;
+   });
+-  h+='</div><div class="frow" style="margin-top:8px"><div class="arrow">↳</div>';
+-  h+=`<div class="bnode side"><b>ACCEPTED</b><span class="cnt">${st['ACCEPTED']||0}</span><span class="hint">有条件接受（批准人+理由+到期日；到期未续自动重开）</span></div>`;
+-  h+=`<div class="bnode side"><b>OTHER</b><span class="cnt">${st['OTHER']||0}</span><span class="hint">无状态字段/变体未归类</span></div></div>`;
++  h+='</div>';
+   const sv=d.total.by_sev||{};
+   h+=`<div style="margin-top:10px"><span class="chip h">HIGH ${sv.HIGH||0}</span><span class="chip m">MED ${sv.MED||0}</span><span class="chip l">LOW ${sv.LOW||0}</span><span class="chip">INFO ${sv.INFO||0}</span><span class="chip">其他 ${sv.OTHER||0}</span>${(d.stale_open||0)>0?`<span class="chip" style="background:#f0883e33;color:#f0883e;border:1px dashed #f0883e" title="OPEN 且 >14 天无活动——多半是修了没销账的陈账，跑 sweep 核销">⏳ 陈账 ${d.stale_open}</span>`:''}<span class="dim" style="font-size:11px;margin-left:6px">严重度归一口径 · findings 共 ${d.total.findings} 条 · ${d.projects.length} 项目 · 最近活动 ${esc(d.total.last_ts||'—')}</span></div>`;
+   box.innerHTML=h;
+@@ -455,8 +454,8 @@ async function loadTrend(){
+     const d=(await j('/api/bugscan-trend')).days;
+     if(!d||!d.length)return;
+     document.getElementById('bgltrend').style.display='';
+-    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN));
+-    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
++    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN+x.FIXING));
++    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['FIXING','#d29922'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
+     const pts=(k)=>d.map((x,i)=>`${pad+i*(W-2*pad)/Math.max(d.length-1,1)},${H-24-(x[k]||0)*(H-48)/mx}`).join(' ');
+     const area=(k)=>pts(k)+` ${W-pad},${H-24} ${pad},${H-24}`;
+     let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="max-width:${W}px">`;
+@@ -499,7 +498,7 @@ async function refresh(){
+   rbox.innerHTML='';
+   for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
+   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
+-  for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.innerHTML=t.split(String.fromCharCode(10)).map(l=>/ERROR|FAIL/i.test(l)?`<span style="color:#f85149">${l}</span>`:(/WARN/i.test(l)?`<span style="color:#f0883e">${l}</span>`:(/OK|PASS/i.test(l)?`<span style="color:#3fb950">${l}</span>`:l))).join(String.fromCharCode(10));}
++  for(const[n,t]of Object.entries(lg)){const h2=document.createElement('h2');h2.style.marginTop='8px';h2.textContent=n;lbox.appendChild(h2);const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p);}
+   const h=await j('/api/health');const hbox=document.getElementById('health');
+   window.__hist=window.__hist||[];
+   if(h.score!=null){
+@@ -545,20 +544,26 @@ async function refresh(){
+    window.__lastDec=dec.length;}
+   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+   else{dbox.innerHTML='';
++    const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     for(const d of dec){
+       const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
+       const overdue=days===0;
+-      dbox.appendChild(el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
+-        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${d.cat}${d.red?' 🔴':''}</span> ${d.q}</span>
++      const btn=document.createElement('button');btn.className='pbtn';btn.style.cssText='padding:1px 10px;font-size:11px';btn.textContent='✓ 采纳';
++      btn.onclick=()=>decide(d.id,'take');
++      const btn2=document.createElement('button');btn2.className='pbtn';btn2.style.cssText='padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)';btn2.textContent='✗ 驳回';
++      btn2.onclick=()=>decide(d.id,'reject');
++      const row=el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
++        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${escD(d.cat)}${d.red?' 🔴':''}</span> ${escD(d.q)}</span>
+         <span class="${overdue?'bad':'dim'}" style="font-size:11px;white-space:nowrap">${overdue?'⏰ 已逾期':(days!=null?`TTL ${days}d`:'')}</span></div>
+-        <div class="dim" style="font-size:12px">💡 ${d.opt||''}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
+-        <div style="display:flex;gap:6px;margin-top:3px"><button class="pbtn" style="padding:1px 10px;font-size:11px" onclick="decide('${d.id}','take')">✓ 采纳</button><button class="pbtn" style="padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)" onclick="decide('${d.id}','reject')">✗ 驳回</button></div>
+-      </div>`));
++        <div class="dim" style="font-size:12px">💡 ${escD(d.opt||'')}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
++      </div>`);
++      const bar=document.createElement('div');bar.style.cssText='display:flex;gap:6px;margin-top:3px';bar.append(btn,btn2);row.appendChild(bar);
++      dbox.appendChild(row);
+     }
+   }
+   {const all=await j('/api/decisions?all=1').catch(()=>null);
+    if(all&&all.length){const done=all.filter(x=>x.status!=='待拍').slice(-8).reverse();
+-     if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${x.id}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.q}</span><span class="${x.status==='已拍'?'ok':'dim'}">${x.status}</span></div>`).join('')}</details>`));}}}
++     if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${escD(x.id)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escD(x.q)}</span><span class="${x.status==='已拍'?'ok':'dim'}">${escD(x.status)}</span></div>`).join('')}</details>`));}}}
+   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
+ }
+ refresh();setInterval(refresh,5000);
+@@ -684,6 +689,8 @@ def _fold_project(f, by_day=None):
+ _LEDGER_CACHE = {"stamp": None, "data": None}
+ _LEDGER_LOCK = threading.Lock()
+ _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
++_SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
++_SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
+ 
+ 
+ def _ledger_files(root):
+@@ -800,10 +807,7 @@ def ledger_trend():
+     if not os.path.isdir(root):
+         return {"days": []}
+     day_st = {}  # {(day, state): count}
+-    for name in sorted(os.listdir(root)):
+-        f = os.path.join(root, name, "findings.jsonl")
+-        if name != os.path.basename(name) or ".." in name or not os.path.isfile(f):
+-            continue
++    for f in _ledger_files(root):  # 复用安全入口（realpath 根边界+basename 校验——勿自行 join 绕过）
+         for l in open(f, errors="ignore"):
+             l = l.strip()
+             if "record_type" not in l or "transition" not in l:
+@@ -830,7 +834,7 @@ def ledger_trend():
+     today = datetime.now().strftime("%Y-%m-%d")
+     for i in range(29, -1, -1):
+         d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+-        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
++        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+         out_days.append({"d": d[5:], **counts})
+     return {"days": out_days}
+ 
+@@ -839,6 +843,15 @@ class H(BaseHTTPRequestHandler):
+     def log_message(self, *a):
+         pass
+ 
++    @staticmethod
++    def _decide_write(out_lines):
++        """写回决策台账（原子：先写 tmp 再 replace）。"""
++        p = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
++        tmp = p + ".tmp-decide"
++        with open(tmp, "w", encoding="utf-8") as f:
++            f.write("\n".join(out_lines) + "\n")
++        os.replace(tmp, p)
++
+     def _send(self, code, body, ctype="application/json; charset=utf-8"):
+         data = body if isinstance(body, bytes) else body.encode()
+         self.send_response(code)
+@@ -849,6 +862,29 @@ class H(BaseHTTPRequestHandler):
+ 
+     def do_POST(self):
+         if self.path == "/api/decide":
++            port = self.server.server_address[1]
++            allowed_origins = {
++                "http://127.0.0.1:%d" % port,
++                "http://localhost:%d" % port,
++            }
++            origins = self.headers.get_all("Origin", [])
++            if len(origins) != 1 or origins[0] not in allowed_origins:
++                return self._send(403, '{"error":"forbidden"}')
++            allowed_hosts = {
++                "127.0.0.1", "localhost",
++                "127.0.0.1:%d" % port, "localhost:%d" % port,
++            }
++            hosts = self.headers.get_all("Host", [])
++            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
++                return self._send(403, '{"error":"forbidden"}')
++            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
++            supplied_keys = self.headers.get_all("X-Auth-Key", [])
++            if (not expected_key or len(supplied_keys) != 1
++                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
++                return self._send(403, '{"error":"forbidden"}')
++            requested_with = self.headers.get_all("X-Requested-With", [])
++            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
++                return self._send(403, '{"error":"forbidden"}')
+             try:
+                 n = int(self.headers.get("Content-Length") or 0)
+             except ValueError:
+@@ -866,28 +902,30 @@ class H(BaseHTTPRequestHandler):
+                 return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
+             path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+             try:
+-                _DECIDE_LOCK.acquire()  # 读改写整段互斥：并发清账不丢账（每出口恰好一次 release）
+-                lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
+-                out, hit = [], False
+-                for l in lines:
+-                    try:
+-                        d = json.loads(l)
+-                    except ValueError:
+-                        out.append(l); continue
+-                    if d.get("id") == dec_id and d.get("status") == "待拍":
+-                        d["status"] = "已拍"
+-                        d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+-                        d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
+-                        hit = True
+-                    out.append(json.dumps(d, ensure_ascii=False))
+-                if not hit:
++                _DECIDE_LOCK.acquire()  # 读改写整段互斥（finally 统一释放——行级异常不再泄漏锁）
++                try:
++                    lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
++                    out, hit = [], False
++                    for l in lines:
++                        try:
++                            d = json.loads(l)
++                        except ValueError:
++                            out.append(l); continue
++                        if not isinstance(d, dict):  # 合法 JSON 非对象（数组/null/数字）原样保留，防 AttributeError 泄漏锁
++                            out.append(l); continue
++                        if d.get("id") == dec_id and d.get("status") == "待拍":
++                            d["status"] = "已拍"
++                            d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
++                            d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
++                            hit = True
++                        out.append(json.dumps(d, ensure_ascii=False))
++                    if not hit:
++                        return self._send(404, '{"error":"id 不存在或非待拍"}')
++                    self._decide_write(out)
++                    return self._send(200, '{"ok":true}')
++                finally:
+                     _DECIDE_LOCK.release()
+-                    return self._send(404, '{"error":"id 不存在或非待拍"}')
+-                open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+-                _DECIDE_LOCK.release()
+-                return self._send(200, '{"ok":true}')
+             except OSError as e:
+-                _DECIDE_LOCK.release()
+                 return self._send(500, json.dumps({"error": str(e)}))
+         return self._send(404, '{"error":"not found"}')
+ 
+@@ -1049,7 +1087,7 @@ class H(BaseHTTPRequestHandler):
+             try:
+                 import io as _io
+                 with _io.open(os.path.expanduser("~/Documents/ERP）Zcode/决策台账.jsonl"), errors="ignore") as f:
+-                    pending = sum(1 for l in f if l.strip() and json.loads(l).get("status") == "待拍")
++                    pending = sum(1 for l in f if l.strip() and isinstance((json.loads(l) if l.strip().startswith(("{", "[")) else {}), dict) and json.loads(l).get("status") == "待拍")
+             except Exception:
+                 pass
+             r6 = 1.0 if pending == 0 else (0.6 if pending <= 3 else 0.2)
+@@ -1155,15 +1193,18 @@ class H(BaseHTTPRequestHandler):
+             b["data"], b["ts"] = out, time.time()
+             return self._send(200, out)
+         if self.path == "/api/bugscan-sse":
++            # SSE 连接数限制（单用户面 4 路足够；超出 503 防线程放大——dict 计数器免 global）
++            if not _SSE_SEM.acquire(blocking=False):  # BoundedSemaphore(4)：线程安全非阻塞获取
++                return self._send(503, '{"error":"sse connections full"}')
+             # SSE：账本 mtime 签名变化→推事件（前端 EventSource 替代盲轮询；30s 心跳保活）
+-            self.send_response(200)
+-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+-            self.send_header("Cache-Control", "no-cache")
+-            self.send_header("Connection", "keep-alive")
+-            self.end_headers()
+-            last_stamp = None
+-            t0 = time.time()
+             try:
++                self.send_response(200)
++                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
++                self.send_header("Cache-Control", "no-cache")
++                self.send_header("Connection", "keep-alive")
++                self.end_headers()
++                last_stamp = None
++                t0 = time.time()
+                 while time.time() - t0 < 300:  # 5 分钟断开，前端 EventSource 自动重连
+                     root = os.path.realpath(os.path.expanduser(
+                         os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
+@@ -1182,6 +1223,8 @@ class H(BaseHTTPRequestHandler):
+                     time.sleep(10)
+             except (BrokenPipeError, ConnectionResetError):
+                 pass  # 客户端断开
++            finally:
++                _SSE_SEM.release()
+             return
+         if self.path.startswith("/api/decisions"):
+             want_all = "all=1" in self.path
+@@ -1195,6 +1238,8 @@ class H(BaseHTTPRequestHandler):
+                         d = json.loads(l)
+                     except ValueError:
+                         continue
++                    if not isinstance(d, dict):  # 非对象行防 AttributeError
++                        continue
+                     if d.get("status") == "待拍" or want_all:
+                         row = {k: d.get(k) for k in ("id", "cat", "q", "opt", "ttl", "red", "ts", "intent")}
+                         if want_all:
+diff --git a/system/install.sh b/system/install.sh
+index 077b949..d8d017a 100755
+--- a/system/install.sh
++++ b/system/install.sh
+@@ -14,9 +14,39 @@ echo "目标：$PREFIX"
+ mkdir -p "$PREFIX"/{bin,sentinels,daemons,db,ci,templates,specs,config,logs,state}
+ 
+ # 2. 拷贝组件
++# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
++mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
++for f in "$SRC"/wenqu_core/*.py; do
++  [ -f "$f" ] && cp "$f" "$PREFIX/lib/wenqu_core/"
++done
++# 确保包可导入
++touch "$PREFIX/lib/wenqu_core/__init__.py"
++[ -f "$SRC"/wenqu_core/__init__.py ] && cp "$SRC"/wenqu_core/__init__.py "$PREFIX/lib/wenqu_core/"
++
++for f in "$SRC"/schemas/*.json; do
++  [ -f "$f" ] && cp "$f" "$PREFIX/schemas/"
++done
++
++for ext in html css js py; do
++  [ -f "$SRC/dashboard/index.$ext" ] && cp "$SRC/dashboard/index.$ext" "$PREFIX/dashboard/"
++done
++[ -f "$SRC/dashboard/app.$ext" ] || true
++for f in "$SRC"/dashboard/*.html "$SRC"/dashboard/*.css "$SRC"/dashboard/*.js "$SRC"/dashboard/*.py; do
++  [ -f "$f" ] && cp "$f" "$PREFIX/dashboard/"
++done
++
++# P0-1 验证：新核心安装后必须可导入，否则安装失败
++if ! PYTHONPATH="$PREFIX/lib" python3 -c "from wenqu_core.runner import TrustedRunner" 2>/dev/null; then
++  echo "✗ 安装自检失败：wenqu_core 不可导入——安装中止" >&2
++  exit 1
++fi
++echo "✓ wenqu_core 安装验证通过（TrustedRunner 可导入）"
++
+ cp -R "$SRC"/bin/. "$PREFIX/bin/"
+ cp -R "$SRC"/sentinels/. "$PREFIX/sentinels/" 2>/dev/null || true
+ cp -R "$SRC"/daemons/. "$PREFIX/daemons/" 2>/dev/null || true
++# P0 containment：安装面始终收敛为不可启动的审计 stub。
++printf '%s\n' 'printf '\''%s\n'\'' '\''auto-merge permanently disabled per P0 containment'\'' >&2; exit 1' > "$PREFIX/daemons/auto-merge.sh"
+ cp -R "$SRC"/db/. "$PREFIX/db/" 2>/dev/null || true
+ cp -R "$SRC"/ci/. "$PREFIX/ci/" 2>/dev/null || true
+ cp -R "$SRC"/templates/. "$PREFIX/templates/" 2>/dev/null || true
+@@ -46,9 +76,16 @@ python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需
+ [ -f "$PREFIX/bin/tla2tools.jar" ] && echo "✓ TLA+ 工具链" || echo "△ 无 tla2tools.jar（仅影响形式化验证组件）"
+ command -v z3 >/dev/null && echo "✓ Z3 定理证明器" || echo "△ 缺 z3（brew install z3，仅影响 SMT 组件）"
+ 
+-# 6. 自检
++# 6. 自检（P0-7 修：新装预期警告不中止；关键件损坏才中止）
+ echo "── 自检 ──"
+-WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor || true
++DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1 || true)
++if echo "$DOC_OUT" | grep -q "✗ 缺.*必需\|✗.*不可导入\|✗.*不存在"; then
++  echo "✗ 安装自检失败——关键件缺失，安装中止" >&2
++  echo "$DOC_OUT" | grep "✗" | tail -3 >&2
++  exit 1
++else
++  echo "✓ 安装自检通过（配置警告不影响安装——配置后 wenqu doctor 复检）"
++fi
+ 
+ echo "
+ 安装完成。三步上手：
+diff --git a/system/schemas/approval-v2.schema.json b/system/schemas/approval-v2.schema.json
+index d91765f..e0d20e5 100644
+--- a/system/schemas/approval-v2.schema.json
++++ b/system/schemas/approval-v2.schema.json
+@@ -4,7 +4,7 @@
+   "title": "Approval Event Schema v2（判别联合）",
+   "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
+   "type": "object",
+-  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature"],
++  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
+   "properties": {
+     "schema_version": {"const": "2.0"},
+     "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+@@ -30,45 +30,42 @@
+     "nonce": {"type": "string", "minLength": 16},
+     "decision": {"enum": ["approve", "deny", "conditional"]},
+     "signature": {"type": "string", "minLength": 32},
+-    "payload": {
+-      "type": "object",
+-      "description": "判别 payload——按 approval_type 必须含对应专属字段",
+-      "oneOf": [
+-        {
+-          "properties": {"approval_type": {"const": "resume"}},
+-          "required": ["stop_event_id", "stop_type", "objective_precondition_hash"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "risk"}},
+-          "required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "merge"}},
+-          "required": ["repo_id", "base_sha", "head_sha", "merge_method"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "release"}},
+-          "required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "ddl"}},
+-          "required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "prod_write"}},
+-          "required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "fund_auth"}},
+-          "required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]
+-        },
+-        {
+-          "properties": {"approval_type": {"const": "rollback"}},
+-          "required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]
+-        }
+-      ]
+-    }
++    "payload": {"type": "object"}
+   },
+   "additionalProperties": false,
++  "allOf": [
++    {
++      "if": {"properties": {"approval_type": {"const": "resume"}}},
++      "then": {"properties": {"payload": {"required": ["stop_event_id", "stop_type", "objective_precondition_hash"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "risk"}}},
++      "then": {"properties": {"payload": {"required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "merge"}}},
++      "then": {"properties": {"payload": {"required": ["repo_id", "base_sha", "head_sha", "merge_method"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "release"}}},
++      "then": {"properties": {"payload": {"required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "ddl"}}},
++      "then": {"properties": {"payload": {"required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "prod_write"}}},
++      "then": {"properties": {"payload": {"required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "fund_auth"}}},
++      "then": {"properties": {"payload": {"required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]}}}
++    },
++    {
++      "if": {"properties": {"approval_type": {"const": "rollback"}}},
++      "then": {"properties": {"payload": {"required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]}}}
++    }
++  ],
+   "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝"
+ }
+diff --git a/system/schemas/finding-event-v2.schema.json b/system/schemas/finding-event-v2.schema.json
+index a441e98..b720690 100644
+--- a/system/schemas/finding-event-v2.schema.json
++++ b/system/schemas/finding-event-v2.schema.json
+@@ -62,5 +62,30 @@
+     "actor": {"type": "string"}
+   },
+   "additionalProperties": false,
++  "allOf": [
++    {
++      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
++      "then": {
++        "properties": {"severity": {"enum": ["MEDIUM", "LOW"]}},
++        "required": ["risk_acceptance"]
++      }
++    },
++    {
++      "if": {"properties": {"event_type": {"const": "CLOSED"}}},
++      "then": {
++        "properties": {"state_from": {"enum": ["VERIFIED"]}},
++        "required": ["state_from"]
++      }
++    },
++    {
++      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
++      "then": {
++        "properties": {
++          "severity": {"enum": ["MEDIUM", "LOW"]},
++          "priority": {"enum": ["P2", "P3"]}
++        }
++      }
++    }
++  ],
+   "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
+ }
+diff --git a/system/wenqu_core/runner.py b/system/wenqu_core/runner.py
+index 03dddbb..206d731 100644
+--- a/system/wenqu_core/runner.py
++++ b/system/wenqu_core/runner.py
+@@ -124,23 +124,48 @@ class TrustedRunner:
+         fresh_until = timestamp + self._freshness_seconds
+         argv_digest = self.argv_digest(argv)
+         try:
+-            completed = subprocess.run(
++            # P0-5 修：使用 Popen + 进程组（start_new_session=True），超时时 killpg 杀整棵子树
++            import signal as _signal
++            proc = subprocess.Popen(
+                 list(argv),
+                 cwd=workdir,
+                 shell=False,
+-                capture_output=True,
+-                timeout=self._timeout,
+-                check=False,
++                stdout=subprocess.PIPE,
++                stderr=subprocess.PIPE,
++                start_new_session=True,  # 独立进程组——超时可 killpg 整组
+             )
+-        except subprocess.TimeoutExpired as exc:
+-            partial_out = bytes(exc.stdout or b"")
+-            partial_err = bytes(exc.stderr or b"")
++            try:
++                stdout_bytes, stderr_bytes = proc.communicate(timeout=self._timeout)
++                timed_out = False
++                actual_exit = proc.returncode
++            except subprocess.TimeoutExpired:
++                # 杀整棵进程组（含所有子孙进程）
++                try:
++                    os.killpg(proc.pid, _signal.SIGKILL)
++                except (ProcessLookupError, PermissionError):
++                    pass
++                stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
++                timed_out = True
++                actual_exit = 124
++        except Exception as exc:
++            return Evidence(
++                argv=tuple(argv),
++                cwd=workdir,
++                actual_exit_code=2,
++                stdout_sha256=_sha256_hex(b""),
++                stderr_sha256=_sha256_hex(str(exc).encode()),
++                argv_digest=argv_digest,
++                timestamp=timestamp,
++                fresh_until=fresh_until,
++                timed_out=False,
++            )
++        if timed_out:
+             return Evidence(
+                 argv=tuple(argv),
+                 cwd=workdir,
+                 actual_exit_code=None,
+-                stdout_sha256=_sha256_hex(partial_out),
+-                stderr_sha256=_sha256_hex(partial_err),
++                stdout_sha256=_sha256_hex(stdout_bytes or b""),
++                stderr_sha256=_sha256_hex(stderr_bytes or b""),
+                 argv_digest=argv_digest,
+                 timestamp=timestamp,
+                 fresh_until=fresh_until,
+@@ -149,9 +174,9 @@ class TrustedRunner:
+         return Evidence(
+             argv=tuple(argv),
+             cwd=workdir,
+-            actual_exit_code=completed.returncode,
+-            stdout_sha256=_sha256_hex(completed.stdout),
+-            stderr_sha256=_sha256_hex(completed.stderr),
++            actual_exit_code=actual_exit,
++            stdout_sha256=_sha256_hex(stdout_bytes),
++            stderr_sha256=_sha256_hex(stderr_bytes),
+             argv_digest=argv_digest,
+             timestamp=timestamp,
+             fresh_until=fresh_until,
+@@ -177,16 +202,31 @@ class EvidenceStore:
+         return _sha256_hex(evidence.to_json().encode("utf-8"))
+ 
+     def _path_for(self, digest: str) -> Path:
+-        return self._root / digest[:2] / f"{digest}.json"
++        p = self._root / digest[:2] / f"{digest}.json"
++        # P0-5 修：防父目录 symlink 逃逸——检查整个路径链不在 CAS root 外
++        resolved = p.resolve(strict=False)
++        root_resolved = self._root.resolve(strict=False)
++        if not str(resolved).startswith(str(root_resolved)):
++            raise IntegrityError(f"path escapes CAS root: {p} -> {resolved}")
++        return p
+ 
+     def contains(self, digest: str) -> bool:
+-        return self._path_for(digest).is_file()
++        p = self._path_for(digest)
++        if p.is_symlink():
++            return False  # P0-5: symlink 一律视为不存在
++        return p.is_file()
+ 
+     # ------------------------------------------------------------------
+     def put(self, evidence: Evidence) -> str:
+         digest = self.digest_for(evidence)
+         shard = self._root / digest[:2]
++        # P0-5 修：检查父目录不是 symlink
++        if shard.is_symlink():
++            raise IntegrityError(f"shard parent is symlink: {shard}")
+         shard.mkdir(parents=True, exist_ok=True)
++        # P0-5 修：检查 mkdir 后父目录未被替换为 symlink
++        if shard.is_symlink():
++            raise IntegrityError(f"shard replaced by symlink after mkdir: {shard}")
+         target = self._path_for(digest)
+         data = evidence.to_json().encode("utf-8")
+ 
+@@ -200,7 +240,16 @@ class EvidenceStore:
+                 raise IntegrityError(
+                     f"symlink planted at content path {target}; refusing to write"
+                 )
+-            return digest  # 内容寻址：同 digest 已存在，幂等成功
++            # P0-5 修：已存在文件须校验内容完整性（防预置损坏文件假成功）
++            try:
++                existing = target.read_bytes()
++                if _sha256_hex(existing) != digest:
++                    raise IntegrityError(
++                        f"corrupted file at {target}: hash mismatch, refusing silent success"
++                    )
++            except OSError as exc:
++                raise IntegrityError(f"cannot verify existing file {target}: {exc}")
++            return digest  # 内容寻址：同 digest 已存在且完整，幂等成功
+         try:
+             view = memoryview(data)
+             while view:
+[exit_code]0

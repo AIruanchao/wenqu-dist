@@ -2,9 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/evidence-v2.json",
   "title": "Trusted Evidence Schema v2",
-  "description": "不可伪造证据绑定——Codex 方案 §6.6 契约",
+  "description": "不可伪造证据绑定——Codex 方案 §6.6 契约。P0-4 加固：schema_version/verdict/artifact 全部必填，artifact 非空（sha256+size）",
   "type": "object",
-  "required": ["evidence_id", "run_id", "identity", "tool", "runner", "execution", "fresh_until"],
+  "required": ["schema_version", "evidence_id", "run_id", "identity", "tool", "runner", "execution", "verdict", "artifact", "fresh_until"],
   "properties": {
     "schema_version": {"const": "2.0"},
     "evidence_id": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_]+$"},
@@ -59,6 +59,7 @@
     },
     "artifact": {
       "type": "object",
+      "required": ["artifact_sha256", "artifact_size"],
       "properties": {
         "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "artifact_size": {"type": "integer", "minimum": 1}
@@ -74,5 +75,5 @@
     }
   },
   "additionalProperties": false,
-  "$comment": "evidence 不得是 symlink、外部路径、空文件或无哈希文件（不变量 #11）"
+  "$comment": "evidence 不得是 symlink、外部路径、空文件或无哈希文件（不变量 #11）；P0-4：verdict 与 artifact（sha256+size）必填——无工件/无判定的证据不具可信形态"
 }

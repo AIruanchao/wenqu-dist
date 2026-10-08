@@ -1,0 +1,11 @@
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit3-20261008-122924/03-adversarial/deploy_residual_probe.py
+START: 2026-10-08T12:32:08+08:00
+NO_EXTENSION_EXEC_MODE 0o444 EXECUTABLE False
+MANIFEST_KEYS ['content_digest', 'created_at', 'files', 'release_id', 'source_dir']
+DEPLOY_ERROR deploy failed at install self-check: SelfCheckError('install self-check returned falsy: False'); no previous release to roll back to
+CURRENT_LINK releases/20261008T043208Z-1d31f7ca7e54
+OLD_LINK_VALUE releases/20261008T043208Z-2e751f4b17dc
+ROLLED_BACK_TO_OLD False
+
+EXIT_CODE: 0
+END: 2026-10-08T12:32:08+08:00

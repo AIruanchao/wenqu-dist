@@ -1,0 +1,612 @@
+TIMESTAMP_START=2026-10-08T04:31:59Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=printf '%s\n' '=== plan W7 ==='; nl -ba /private/tmp/codex-test/方案.md | sed -n '1266,1332p'; printf '%s\n' '=== deploy framework ==='; nl -ba system/wenqu_core/deploy_framework.py; printf '%s\n' '=== install ==='; nl -ba system/install.sh; printf '%s\n' '=== diff ==='; git show be50cb8 -- system/wenqu_core/deploy_framework.py
+--- OUTPUT BEGIN ---
+=== plan W7 ===
+  1266	# 16. 工作包 W7：不可变制品、原子部署与运行身份
+  1267	
+  1268	W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+  1269	
+  1270	## 16.1 目标布局
+  1271	
+  1272	```text
+  1273	~/.local/share/wenqu/releases/<release-id>/
+  1274	~/.local/share/wenqu/current -> releases/<release-id>
+  1275	~/.config/wenqu/config.toml
+  1276	~/.local/state/wenqu/
+  1277	~/Library/Logs/Wenqu/
+  1278	```
+  1279	
+  1280	配置、秘密、状态和日志不得进入 release。
+  1281	
+  1282	## 16.2 Release manifest
+  1283	
+  1284	```text
+  1285	version, source_commit, quality_policy_commit, build_id,
+  1286	built_at, builder, schema_version, policy_hash,
+  1287	files[path,size,mode,sha256], artifact_sha256,
+  1288	python/node/runtime identity, dependency lock/SBOM hash,
+  1289	min_schema_version, max_schema_version,
+  1290	attestation/signature
+  1291	```
+  1292	
+  1293	缺件、多件、模式错误、额外未登记可执行文件或 hash 漂移均使安装失败。
+  1294	
+  1295	## 16.3 原子部署
+  1296	
+  1297	1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+  1298	2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+  1299	3. 使用独立临时 DB/state/config 做临时端口 smoke，禁止触发或接触生产 migration/DB/state；`/api/build` 对账；
+  1300	4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+  1301	5. 获取全局 deployment lease、唯一 writer fencing token 和 migration lock；任一锁不唯一或租约失效即 BLOCKED；
+  1302	6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+  1303	7. 仅执行已授权、可重入、向前向后兼容的 **expand migration**；保存逐语句 rc、前后 catalog diff、migration ledger 和 lock 身份；禁止夹带 destructive contract；
+  1304	8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+  1305	9. 原子 rename 成最终 release，再原子切换 `current` 并 restart；
+  1306	10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+  1307	11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+  1308	12. expand 后的字段/表至少保留完整观察与回滚窗口；只有所有 reader/writer 已迁移、旧版本回滚窗口被明确关闭、备份恢复再验证且另获生产 DDL 授权后，才能在独立变更中执行 contract migration。
+  1309	
+  1310	并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+  1311	
+  1312	安装器必须删除 `doctor || true`。doctor 非零、manifest 不符、linter 缺失均导致整次部署失败。禁止 `cp -R` 覆盖现役目录和保留幽灵文件。
+  1313	
+  1314	## 16.4 验收
+  1315	
+  1316	- manifest 缺/多文件、hash 错、版本错、额外脚本；
+  1317	- staging 中途 kill -9；
+  1318	- symlink 切换后启动失败；
+  1319	- 配置/状态被安装器覆盖；
+  1320	- DB schema 与二进制不兼容；
+  1321	- 回滚后 build API/PID/manifest 不一致；
+  1322	- 正源 dashboard 缺闭合标签或缺必需 linter。
+  1323	
+  1324	以上均必须拒绝部署或自动恢复。回滚演练后检查新事件未丢失。
+  1325	
+  1326	## 16.5 停等点
+  1327	
+  1328	正式部署、生产 expand/contract migration、restart、launchctl 修改和回滚均须用户授权；contract 必须晚于观察与回滚窗并再次独立授权。候选制品、离线 smoke 和回滚脚本可先完成。
+  1329	
+  1330	---
+  1331	
+  1332	# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+=== deploy framework ===
+     1	# -*- coding: utf-8 -*-
+     2	"""原子部署框架（Codex W7A）。
+     3	
+     4	约束（不可降级）：
+     5	    D1 禁止 cp -R 原地覆盖：每次发布在 staging 目录全新构建（逐文件流式复制），
+     6	       再经同目录 rename 原子发布为不可变 release 目录；绝不向既有 release
+     7	       目录写入或覆盖任何内容；
+     8	    D2 安装自检失败 = 部署失败（不吞错）：自检 callable 抛错或返回假值 ->
+     9	       自动回滚到上一版并抛 DeployError（携带原始异常链与回滚结果，回滚失败
+    10	       也如实上报，绝不静默）；
+    11	    D3 rename 原子性：release 目录发布（os.rename）与 current symlink 切换
+    12	       （os.replace）均在同一目录内完成，瞬时生效、无中间态；
+    13	    D4 manifest 对账：缺件 / 多件 / 哈希漂移任一非空即 verify 失败。
+    14	
+    15	manifest 契约（manifest.json，随 release 一起发布）::
+    16	
+    17	    {
+    18	      "release_id":     "<UTC 时间戳>-<内容摘要前 12 位>",
+    19	      "created_at":     "<ISO8601 UTC>",
+    20	      "source_dir":     "<构建源绝对路径>",
+    21	      "content_digest": "<按排序路径+文件 SHA256 摘要>",
+    22	      "files":          [{"path": 相对路径, "sha256": ..., "size": ...}, ...]
+    23	    }
+    24	
+    25	不可变性：release 常规文件发布后置为 0444；目录级不可变由构建协议保证
+    26	（release 命名空间只增不改，绝不复用已存在且 divergent 的 release_id；
+    27	内容完全一致的重复构建按幂等复用处理，reused=True）。
+    28	
+    29	install_self_check 契约：``callable(release_dir) -> truthy`` 表示安装自检
+    30	通过；返回假值或抛出异常均判定为自检失败。
+    31	"""
+    32	
+    33	from __future__ import annotations
+    34	
+    35	import hashlib
+    36	import json
+    37	import os
+    38	import shutil
+    39	import tempfile
+    40	import time
+    41	from typing import Any, Callable, Dict, List, Optional
+    42	
+    43	__all__ = [
+    44	    "DeployManager", "DeployError", "BuildError", "VerifyError", "SwitchError",
+    45	    "SelfCheckError", "MANIFEST_NAME",
+    46	]
+    47	
+    48	MANIFEST_NAME = "manifest.json"
+    49	_CHUNK = 1024 * 1024
+    50	
+    51	
+    52	class DeployError(Exception):
+    53	    """部署框架基础错误。"""
+    54	
+    55	
+    56	class BuildError(DeployError):
+    57	    """release 构建失败。"""
+    58	
+    59	
+    60	class VerifyError(DeployError):
+    61	    """manifest 对账失败（缺件/多件/哈希漂移）。"""
+    62	
+    63	    def __init__(self, report: Dict[str, Any]):
+    64	        super().__init__("manifest verification failed: " + json.dumps(
+    65	            {k: report.get(k) for k in ("missing", "extra", "drifted")},
+    66	            ensure_ascii=False, sort_keys=True))
+    67	        self.report = report
+    68	
+    69	
+    70	class SwitchError(DeployError):
+    71	    """symlink 原子切换失败。"""
+    72	
+    73	
+    74	class SelfCheckError(DeployError):
+    75	    """安装自检失败。"""
+    76	
+    77	
+    78	def _sha256_file(path: str) -> str:
+    79	    digest = hashlib.sha256()
+    80	    with open(path, "rb") as fh:
+    81	        for chunk in iter(lambda: fh.read(_CHUNK), b""):
+    82	            digest.update(chunk)
+    83	    return digest.hexdigest()
+    84	
+    85	
+    86	def _collect_files(root: str) -> List[str]:
+    87	    """收集 root 下全部常规文件的相对路径（排序，确定性遍历）。"""
+    88	    found: List[str] = []
+    89	    for dirpath, dirnames, filenames in os.walk(root):
+    90	        dirnames.sort()
+    91	        for name in sorted(filenames):
+    92	            found.append(os.path.relpath(os.path.join(dirpath, name), root))
+    93	    return found
+    94	
+    95	
+    96	class DeployManager:
+    97	    """原子部署管理器：build -> verify -> switch（-> 安装自检）-> rollback。"""
+    98	
+    99	    def __init__(self, releases_root: str, current_link: str,
+   100	                 install_self_check: Optional[Callable[[str], bool]] = None) -> None:
+   101	        self.releases_root = os.path.abspath(releases_root)
+   102	        self.current_link = os.path.abspath(current_link)
+   103	        self.install_self_check = install_self_check
+   104	
+   105	    # ------------------------------------------------------------------ #
+   106	    # 构建：不可变 release 目录 + manifest
+   107	    # ------------------------------------------------------------------ #
+   108	    def build(self, source_dir: str) -> Dict[str, Any]:
+   109	        """将 source_dir 构建为不可变 release 目录（全文件 SHA256 manifest）。
+   110	
+   111	        D1：staging 全新构建 + rename 原子发布；绝不向既有 release 写入/覆盖。
+   112	        同秒同内容重复构建 -> 幂等复用已存在且完好的 release（reused=True）；
+   113	        release_id 冲突但内容 divergent/损坏 -> BuildError。
+   114	        """
+   115	        source = os.path.abspath(source_dir)
+   116	        if not os.path.isdir(source):
+   117	            raise BuildError(f"source_dir not found: {source}")
+   118	        os.makedirs(self.releases_root, exist_ok=True)
+   119	
+   120	        rel_files = _collect_files(source)
+   121	        staging = tempfile.mkdtemp(prefix=".staging-", dir=self.releases_root)
+   122	        try:
+   123	            entries: List[Dict[str, Any]] = []
+   124	            digest = hashlib.sha256()
+   125	            for rel in rel_files:
+   126	                src = os.path.join(source, rel)
+   127	                dst = os.path.join(staging, rel)
+   128	                os.makedirs(os.path.dirname(dst), exist_ok=True)
+   129	                file_hash = self._copy_stream_hash(src, dst)  # 逐文件流式复制，非 cp -R
+   130	                entries.append({"path": rel, "sha256": file_hash, "size": os.path.getsize(dst)})
+   131	                digest.update(rel.encode("utf-8") + b"\0" + file_hash.encode("ascii") + b"\0")
+   132	            content_digest = digest.hexdigest()
+   133	
+   134	            release_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{content_digest[:12]}"
+   135	            final_dir = os.path.join(self.releases_root, release_id)
+   136	
+   137	            manifest = {
+   138	                "release_id": release_id,
+   139	                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+   140	                "source_dir": source,
+   141	                "content_digest": content_digest,
+   142	                "files": sorted(entries, key=lambda e: e["path"]),
+   143	            }
+   144	            manifest_path = os.path.join(staging, MANIFEST_NAME)
+   145	            with open(manifest_path, "w", encoding="utf-8") as fh:
+   146	                json.dump(manifest, fh, ensure_ascii=False, indent=2, sort_keys=True)
+   147	                fh.write("\n")
+   148	
+   149	            # P0-7 修：保留执行位——脚本/shebang 类 0555，其他 0444
+   150	            for e in manifest["files"]:
+   151	                fpath = os.path.join(staging, e["path"])
+   152	                _is_exec = e["path"].endswith(".sh") or (
+   153	                    e["path"].endswith(".py")
+   154	                    and os.path.getsize(fpath) > 2
+   155	                    and open(fpath, "rb").read(2) == b"#!"
+   156	                )
+   157	                os.chmod(fpath, 0o555 if _is_exec else 0o444)
+   158	            os.chmod(manifest_path, 0o444)
+   159	
+   160	            if os.path.exists(final_dir):
+   161	                # 幂等复用：仅当既有 release 完好且内容摘要一致
+   162	                if self._reusable(final_dir, content_digest):
+   163	                    shutil.rmtree(staging, ignore_errors=True)
+   164	                    with open(os.path.join(final_dir, MANIFEST_NAME), encoding="utf-8") as fh:
+   165	                        existing = json.load(fh)
+   166	                    return {
+   167	                        "release_dir": final_dir,
+   168	                        "manifest_path": os.path.join(final_dir, MANIFEST_NAME),
+   169	                        "release_id": release_id,
+   170	                        "content_digest": content_digest,
+   171	                        "files": len(existing.get("files", [])),
+   172	                        "reused": True,
+   173	                    }
+   174	                raise BuildError(
+   175	                    f"release_id collision with divergent/broken existing release: {final_dir}")
+   176	
+   177	            os.rename(staging, final_dir)  # D3：同目录 rename，原子发布
+   178	        except BaseException:
+   179	            shutil.rmtree(staging, ignore_errors=True)
+   180	            raise
+   181	
+   182	        return {
+   183	            "release_dir": final_dir,
+   184	            "manifest_path": os.path.join(final_dir, MANIFEST_NAME),
+   185	            "release_id": release_id,
+   186	            "content_digest": content_digest,
+   187	            "files": len(entries),
+   188	            "reused": False,
+   189	        }
+   190	
+   191	    @staticmethod
+   192	    def _copy_stream_hash(src: str, dst: str) -> str:
+   193	        """流式复制并计算 SHA256（边写边哈希，单次读盘）。"""
+   194	        digest = hashlib.sha256()
+   195	        with open(src, "rb") as fsrc, open(dst, "wb") as fdst:
+   196	            for chunk in iter(lambda: fsrc.read(_CHUNK), b""):
+   197	                digest.update(chunk)
+   198	                fdst.write(chunk)
+   199	        return digest.hexdigest()
+   200	
+   201	    def _reusable(self, final_dir: str, content_digest: str) -> bool:
+   202	        try:
+   203	            with open(os.path.join(final_dir, MANIFEST_NAME), encoding="utf-8") as fh:
+   204	                existing = json.load(fh)
+   205	            if existing.get("content_digest") != content_digest:
+   206	                return False
+   207	            return self.verify(final_dir, strict=False).get("ok") is True
+   208	        except (OSError, ValueError):
+   209	            return False
+   210	
+   211	    # ------------------------------------------------------------------ #
+   212	    # 对账：manifest 校验
+   213	    # ------------------------------------------------------------------ #
+   214	    def verify(self, release_dir: str, strict: bool = True) -> Dict[str, Any]:
+   215	        """manifest 对账：缺件/多件/哈希漂移任一非空即失败（D4）。
+   216	
+   217	        strict=True（默认）失败抛 VerifyError（携带完整报告）；
+   218	        strict=False 返回含 ``ok`` 布尔的报告，供调用方自行裁决。
+   219	        """
+   220	        release = os.path.abspath(release_dir)
+   221	        manifest_path = os.path.join(release, MANIFEST_NAME)
+   222	        if not os.path.isfile(manifest_path):
+   223	            report = {
+   224	                "ok": False, "release_dir": release, "release_id": None,
+   225	                "missing": [MANIFEST_NAME], "extra": [], "drifted": [], "checked": 0,
+   226	            }
+   227	            if strict:
+   228	                raise VerifyError(report)
+   229	            return report
+   230	
+   231	        with open(manifest_path, encoding="utf-8") as fh:
+   232	            manifest = json.load(fh)
+   233	        expected = {e["path"]: e["sha256"] for e in manifest.get("files", [])}
+   234	        actual = set(_collect_files(release)) - {MANIFEST_NAME}  # manifest 自身不在清单内
+   235	        expected_set = set(expected)
+   236	
+   237	        missing = sorted(expected_set - actual)
+   238	        extra = sorted(actual - expected_set)
+   239	        drifted = sorted(
+   240	            p for p in expected_set & actual
+   241	            if _sha256_file(os.path.join(release, p)) != expected[p]
+   242	        )
+   243	        ok = not (missing or extra or drifted)
+   244	        report = {
+   245	            "ok": ok,
+   246	            "release_dir": release,
+   247	            "release_id": manifest.get("release_id"),
+   248	            "missing": missing,
+   249	            "extra": extra,
+   250	            "drifted": drifted,
+   251	            "checked": len(expected_set & actual),
+   252	        }
+   253	        if strict and not ok:
+   254	            raise VerifyError(report)
+   255	        return report
+   256	
+   257	    # ------------------------------------------------------------------ #
+   258	    # 切换：原子 symlink
+   259	    # ------------------------------------------------------------------ #
+   260	    def switch(self, current_symlink: str, target: str) -> Dict[str, Any]:
+   261	        """原子切换 current symlink -> target（D3：临时链接 + os.replace）。"""
+   262	        link = os.path.abspath(current_symlink)
+   263	        target_abs = os.path.abspath(target)
+   264	        if not os.path.isdir(target_abs):
+   265	            raise SwitchError(f"switch target not found: {target_abs}")
+   266	
+   267	        link_dir = os.path.dirname(link) or "."
+   268	        os.makedirs(link_dir, exist_ok=True)
+   269	        if os.path.lexists(link) and not os.path.islink(link):
+   270	            raise SwitchError(f"refuse to replace non-symlink path: {link}")
+   271	
+   272	        previous = os.readlink(link) if os.path.islink(link) else None
+   273	        link_value = os.path.relpath(target_abs, link_dir)  # 相对链接，目录整体迁移不失效
+   274	        tmp_link = os.path.join(
+   275	            link_dir, f".{os.path.basename(link)}.switch-{os.getpid()}")
+   276	        if os.path.lexists(tmp_link):
+   277	            os.remove(tmp_link)
+   278	        os.symlink(link_value, tmp_link)
+   279	        try:
+   280	            os.replace(tmp_link, link)  # D3：rename 原子性，瞬时生效
+   281	        except OSError as exc:
+   282	            if os.path.lexists(tmp_link):
+   283	                os.remove(tmp_link)
+   284	            raise SwitchError(f"atomic symlink switch failed: {link} -> {target_abs}: {exc}") from exc
+   285	
+   286	        return {
+   287	            "current_symlink": link,
+   288	            "previous": previous,
+   289	            "previous_abs": (
+   290	                os.path.normpath(os.path.join(link_dir, previous)) if previous else None),
+   291	            "target": target_abs,
+   292	            "link_value": link_value,
+   293	        }
+   294	
+   295	    def rollback(self, current: str, previous: str) -> Dict[str, Any]:
+   296	        """切回兼容版：先对 previous release 做 manifest 完好性对账，再原子切回。
+   297	
+   298	        previous 已损坏（缺件/漂移）时拒绝回切并抛错——绝不把流量切到坏包上。
+   299	        """
+   300	        prev = os.path.abspath(previous)
+   301	        if not os.path.isdir(prev):
+   302	            raise SwitchError(f"rollback target missing: {prev}")
+   303	        verify_report = self.verify(prev)
+   304	        result = self.switch(current, prev)
+   305	        result.update({"rolled_back": True, "verify": verify_report})
+   306	        return result
+   307	
+   308	    # ------------------------------------------------------------------ #
+   309	    # 编排：build -> verify -> switch -> 安装自检
+   310	    # ------------------------------------------------------------------ #
+   311	    def deploy(self, source_dir: str) -> Dict[str, Any]:
+   312	        """完整部署：构建 -> 对账 -> 原子切换 -> 安装自检。
+   313	
+   314	        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError。
+   315	        P0-7 修：首次部署无上一版可回滚时，切回空/删除 current link（不留在失败版上）。
+   316	        """
+   317	        build_result = self.build(source_dir)
+   318	        verify_report = self.verify(build_result["release_dir"])  # 切换前对账
+   319	
+   320	        # P0-7 修：切换前记录是否存在 current link（首次部署判定）
+   321	        _had_current = os.path.islink(self.current_link) or os.path.exists(self.current_link)
+   322	        _prev_target = None
+   323	        if _had_current and os.path.islink(self.current_link):
+   324	            _prev_target = os.readlink(self.current_link)
+   325	
+   326	        switch_report = self.switch(self.current_link, build_result["release_dir"])
+   327	
+   328	        try:
+   329	            if self.install_self_check is not None:
+   330	                check = self.install_self_check(build_result["release_dir"])
+   331	                if not check:
+   332	                    raise SelfCheckError(f"install self-check returned falsy: {check!r}")
+   333	        except Exception as exc:
+   334	            rollback_note = "no previous release to roll back to"
+   335	            if _prev_target and os.path.isdir(_prev_target):
+   336	                try:
+   337	                    self.rollback(self.current_link, _prev_target)
+   338	                    rollback_note = f"rolled back to {_prev_target}"
+   339	                except DeployError as rb_exc:
+   340	                    rollback_note = (f"ROLLBACK FAILED ({rb_exc}); "
+   341	                                     f"current link remains on failed release "
+   342	                                     f"{build_result['release_dir']}")
+   343	            elif not _had_current:
+   344	                # P0-7 修：首次部署失败——删除 current link（不留在失败版上）
+   345	                try:
+   346	                    os.unlink(self.current_link)
+   347	                    rollback_note = "first deploy: current link removed (no failed release active)"
+   348	                except OSError:
+   349	                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
+   350	            raise DeployError(
+   351	                f"deploy failed at install self-check: {exc!r}; {rollback_note}"
+   352	            ) from exc
+   353	
+   354	        return {
+   355	            "deployed": True,
+   356	            "release_id": build_result["release_id"],
+   357	            "release_dir": build_result["release_dir"],
+   358	            "build": build_result,
+   359	            "verify": verify_report,
+   360	            "switch": switch_report,
+   361	            "self_check": "passed",
+   362	        }
+=== install ===
+     1	#!/usr/bin/env bash
+     2	# wenqu v3.0 一键安装（macOS / Linux 通用）
+     3	# 用法：./install.sh [--prefix ~/.wenqu]
+     4	set -euo pipefail
+     5	PREFIX="${1:---prefix}"; [ "$PREFIX" = "--prefix" ] && PREFIX="${2:-$HOME/.wenqu}"
+     6	SRC="$(cd "$(dirname "$0")" && pwd)"
+     7	
+     8	echo "╔══════════════════════════════════════╗
+     9	║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+    10	╚══════════════════════════════════════╝"
+    11	echo "目标：$PREFIX"
+    12	
+    13	# 1. 目录
+    14	mkdir -p "$PREFIX"/{bin,sentinels,daemons,db,ci,templates,specs,config,logs,state}
+    15	
+    16	# 2. 拷贝组件
+    17	# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
+    18	mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
+    19	for f in "$SRC"/wenqu_core/*.py; do
+    20	  [ -f "$f" ] && cp "$f" "$PREFIX/lib/wenqu_core/"
+    21	done
+    22	# 确保包可导入
+    23	touch "$PREFIX/lib/wenqu_core/__init__.py"
+    24	[ -f "$SRC"/wenqu_core/__init__.py ] && cp "$SRC"/wenqu_core/__init__.py "$PREFIX/lib/wenqu_core/"
+    25	
+    26	for f in "$SRC"/schemas/*.json; do
+    27	  [ -f "$f" ] && cp "$f" "$PREFIX/schemas/"
+    28	done
+    29	
+    30	for ext in html css js py; do
+    31	  [ -f "$SRC/dashboard/index.$ext" ] && cp "$SRC/dashboard/index.$ext" "$PREFIX/dashboard/"
+    32	done
+    33	[ -f "$SRC/dashboard/app.$ext" ] || true
+    34	for f in "$SRC"/dashboard/*.html "$SRC"/dashboard/*.css "$SRC"/dashboard/*.js "$SRC"/dashboard/*.py; do
+    35	  [ -f "$f" ] && cp "$f" "$PREFIX/dashboard/"
+    36	done
+    37	
+    38	# P0-1 验证：新核心安装后必须可导入，否则安装失败
+    39	if ! PYTHONPATH="$PREFIX/lib" python3 -c "from wenqu_core.runner import TrustedRunner" 2>/dev/null; then
+    40	  echo "✗ 安装自检失败：wenqu_core 不可导入——安装中止" >&2
+    41	  exit 1
+    42	fi
+    43	echo "✓ wenqu_core 安装验证通过（TrustedRunner 可导入）"
+    44	
+    45	cp -R "$SRC"/bin/. "$PREFIX/bin/"
+    46	cp -R "$SRC"/sentinels/. "$PREFIX/sentinels/" 2>/dev/null || true
+    47	cp -R "$SRC"/daemons/. "$PREFIX/daemons/" 2>/dev/null || true
+    48	# P0 containment：安装面始终收敛为不可启动的审计 stub。
+    49	printf '%s\n' 'printf '\''%s\n'\'' '\''auto-merge permanently disabled per P0 containment'\'' >&2; exit 1' > "$PREFIX/daemons/auto-merge.sh"
+    50	cp -R "$SRC"/db/. "$PREFIX/db/" 2>/dev/null || true
+    51	cp -R "$SRC"/ci/. "$PREFIX/ci/" 2>/dev/null || true
+    52	cp -R "$SRC"/templates/. "$PREFIX/templates/" 2>/dev/null || true
+    53	cp -R "$SRC"/specs/. "$PREFIX/specs/" 2>/dev/null || true
+    54	[ -f "$SRC/config/wenqu.env.example" ] && cp "$SRC/config/wenqu.env.example" "$PREFIX/env.example"
+    55	chmod +x "$PREFIX"/bin/* "$PREFIX"/sentinels/* "$PREFIX"/daemons/* 2>/dev/null || true
+    56	
+    57	# 3. PATH 注入（幂等）
+    58	case ":$PATH:" in
+    59	  *":$PREFIX/bin:"*) : ;;
+    60	  *) SHELL_RC="$HOME/.zshrc"; [ -n "${BASH_VERSION:-}" ] && SHELL_RC="$HOME/.bashrc"
+    61	     echo "export PATH=\"$PREFIX/bin:\$PATH\"" >> "$SHELL_RC"
+    62	     echo "✓ PATH 已写入 ${SHELL_RC}（新开终端生效）" ;;
+    63	esac
+    64	
+    65	# 4. 首个配置（幂等）
+    66	if [ ! -f "$PREFIX/env" ] && [ -f "$PREFIX/env.example" ]; then
+    67	  cp "$PREFIX/env.example" "$PREFIX/env"
+    68	fi
+    69	echo "✓ 配置：$PREFIX/env（编辑后 wenqu doctor 校验）"
+    70	
+    71	# 5. 依赖探测（只提示不强装）
+    72	echo "── 依赖探测 ──"
+    73	for c in git python3 node; do command -v $c >/dev/null && echo "✓ $c $($c --version 2>&1 | head -1)" || echo "✗ 缺 $c（必需）"; done
+    74	command -v psql >/dev/null && echo "✓ psql（哨兵/守护需要）" || echo "△ 缺 psql（仅影响 DB 类组件）"
+    75	python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需要）" || echo "△ 缺 psycopg2：pip3 install psycopg2-binary"
+    76	[ -f "$PREFIX/bin/tla2tools.jar" ] && echo "✓ TLA+ 工具链" || echo "△ 无 tla2tools.jar（仅影响形式化验证组件）"
+    77	command -v z3 >/dev/null && echo "✓ Z3 定理证明器" || echo "△ 缺 z3（brew install z3，仅影响 SMT 组件）"
+    78	
+    79	# 6. 自检（P0-7 修：新装预期警告不中止；关键件损坏才中止）
+    80	echo "── 自检 ──"
+    81	DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1 || true)
+    82	if echo "$DOC_OUT" | grep -q "✗ 缺.*必需\|✗.*不可导入\|✗.*不存在"; then
+    83	  echo "✗ 安装自检失败——关键件缺失，安装中止" >&2
+    84	  echo "$DOC_OUT" | grep "✗" | tail -3 >&2
+    85	  exit 1
+    86	else
+    87	  echo "✓ 安装自检通过（配置警告不影响安装——配置后 wenqu doctor 复检）"
+    88	fi
+    89	
+    90	echo "
+    91	安装完成。三步上手：
+    92	  1. 编辑 $PREFIX/env —— 填你的仓库/DB/告警参数
+    93	  2. cd 你的项目 && wenqu init      —— 初始化项目级质量体系
+    94	  3. wenqu status                   —— 查看全组件状态
+    95	"
+=== diff ===
+commit be50cb820c0f1bd4fbcc563273d467f7e0c93e73
+Author: AIruanchao <AIruanchao@users.noreply.github.com>
+Date:   Thu Oct 8 01:34:32 2026 +0800
+
+    fix(p0-6+7): EventStore 幂等（内容哈希 event_id）+表名 pipeline_events 避冲突+部署 exec bit 保留+首败 current link 删除
+
+diff --git a/system/wenqu_core/deploy_framework.py b/system/wenqu_core/deploy_framework.py
+index 6a945bf..850cd53 100644
+--- a/system/wenqu_core/deploy_framework.py
++++ b/system/wenqu_core/deploy_framework.py
+@@ -146,9 +146,15 @@ class DeployManager:
+                 json.dump(manifest, fh, ensure_ascii=False, indent=2, sort_keys=True)
+                 fh.write("\n")
+ 
+-            # 发布后只读（常规文件 0444；目录不可变由“只增不改”协议保证）
++            # P0-7 修：保留执行位——脚本/shebang 类 0555，其他 0444
+             for e in manifest["files"]:
+-                os.chmod(os.path.join(staging, e["path"]), 0o444)
++                fpath = os.path.join(staging, e["path"])
++                _is_exec = e["path"].endswith(".sh") or (
++                    e["path"].endswith(".py")
++                    and os.path.getsize(fpath) > 2
++                    and open(fpath, "rb").read(2) == b"#!"
++                )
++                os.chmod(fpath, 0o555 if _is_exec else 0o444)
+             os.chmod(manifest_path, 0o444)
+ 
+             if os.path.exists(final_dir):
+@@ -305,11 +311,18 @@ class DeployManager:
+     def deploy(self, source_dir: str) -> Dict[str, Any]:
+         """完整部署：构建 -> 对账 -> 原子切换 -> 安装自检。
+ 
+-        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError（原始异常链
+-        保留，回滚失败亦如实写入错误消息，绝不吞错）。
++        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError。
++        P0-7 修：首次部署无上一版可回滚时，切回空/删除 current link（不留在失败版上）。
+         """
+         build_result = self.build(source_dir)
+         verify_report = self.verify(build_result["release_dir"])  # 切换前对账
++
++        # P0-7 修：切换前记录是否存在 current link（首次部署判定）
++        _had_current = os.path.islink(self.current_link) or os.path.exists(self.current_link)
++        _prev_target = None
++        if _had_current and os.path.islink(self.current_link):
++            _prev_target = os.readlink(self.current_link)
++
+         switch_report = self.switch(self.current_link, build_result["release_dir"])
+ 
+         try:
+@@ -318,16 +331,22 @@ class DeployManager:
+                 if not check:
+                     raise SelfCheckError(f"install self-check returned falsy: {check!r}")
+         except Exception as exc:
+-            previous_abs = switch_report.get("previous_abs")
+-            rollback_note = "no previous release to roll back to; current link stays on failed release"
+-            if previous_abs and os.path.isdir(previous_abs):
++            rollback_note = "no previous release to roll back to"
++            if _prev_target and os.path.isdir(_prev_target):
+                 try:
+-                    self.rollback(self.current_link, previous_abs)
+-                    rollback_note = f"rolled back to {previous_abs}"
++                    self.rollback(self.current_link, _prev_target)
++                    rollback_note = f"rolled back to {_prev_target}"
+                 except DeployError as rb_exc:
+                     rollback_note = (f"ROLLBACK FAILED ({rb_exc}); "
+                                      f"current link remains on failed release "
+                                      f"{build_result['release_dir']}")
++            elif not _had_current:
++                # P0-7 修：首次部署失败——删除 current link（不留在失败版上）
++                try:
++                    os.unlink(self.current_link)
++                    rollback_note = "first deploy: current link removed (no failed release active)"
++                except OSError:
++                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
+             raise DeployError(
+                 f"deploy failed at install self-check: {exc!r}; {rollback_note}"
+             ) from exc
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:31:59Z

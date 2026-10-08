@@ -2,13 +2,19 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/run-event-v2.json",
   "title": "Run/Station Event Schema v2",
-  "description": "统一结果双轴：execution_status × policy_verdict——Codex 方案 §6.1 契约冻结",
+  "description": "统一结果双轴：execution_status × policy_verdict——Codex 方案 §6.1 契约冻结。P0-4 加固：停等元数据/审批消费/action saga 观察事件与 seal 封印字段全部正式声明（自产事件全过本 schema）；ERROR+PASS 禁止、PASS 带 findings 禁止",
   "type": "object",
   "required": ["schema_version", "event_type", "run_id", "execution_status", "policy_verdict", "identity"],
   "properties": {
     "schema_version": {"const": "2.0"},
     "event_type": {
-      "enum": ["RUN_CREATED", "STAGE_STARTED", "STAGE_COMPLETED", "RUN_COMPLETED", "WAITING_RAISED", "WAITING_RESUMED", "SUPERSEDED"]
+      "enum": [
+        "RUN_CREATED", "STAGE_STARTED", "STAGE_COMPLETED", "RUN_COMPLETED",
+        "WAITING_RAISED", "WAITING_RESUMED", "SUPERSEDED",
+        "APPROVAL_CONSUMED", "FINDING_REGISTERED",
+        "ACTION_AUTH_RESERVED", "ACTION_STARTED", "ACTION_COMMITTED",
+        "ACTION_FAILED_UNKNOWN"
+      ]
     },
     "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
     "task_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
@@ -32,6 +38,7 @@
         "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "environment": {"enum": ["local", "staging", "production"]},
         "scope_hash": {"type": "string"},
+        "policy_hash": {"type": "string", "minLength": 1},
         "ruleset_hash": {"type": "string"},
         "data_config_hash": {"type": "string"},
         "lockfile_hash": {"type": "string"}
@@ -48,9 +55,52 @@
     "state_version": {"type": "integer", "minimum": 1},
     "ts": {"type": "string", "format": "date-time"},
     "actor": {"type": "string"},
+    "seal": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "P0-4：内部控制事件封印 hex(hmac_sha256(seal_secret, canonical(payload_without_seal)))——RunManager._emit 注入，重放逐条验封；公共 EventStore.append 对控制事件类型一律拒绝"
+    },
+    "stop_type": {
+      "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
+    },
+    "stop_reason": {"type": "string"},
+    "stop_event_id": {"type": "string", "minLength": 1},
+    "required_preconditions": {"type": "array", "items": {"type": "string"}},
+    "preconditions_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+    "approval_type": {
+      "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
+    },
+    "nonce_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "finding_fingerprints": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    "fingerprint": {"type": "string", "minLength": 1},
+    "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
+    "priority": {"enum": ["P0", "P1", "P2", "P3"]},
+    "finding_detail": {"type": "string"},
+    "action_id": {"type": "string", "pattern": "^act_[a-zA-Z0-9_-]+$"},
+    "action_type": {"type": "string", "minLength": 1},
+    "action_target": {"type": "string"},
+    "action_detail": {"type": "string"},
+    "receipt": {"type": "string"},
+    "terminal_reason": {"type": "string"},
+    "supersede_reason": {"type": "string"},
     "prev_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
   "additionalProperties": false,
-  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）"
+  "allOf": [
+    {
+      "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
+      "then": {
+        "properties": {
+          "execution_status": {"const": "COMPLETED"},
+          "findings": {"maxItems": 0}
+        },
+        "required": ["execution_status"]
+      }
+    }
+  ],
+  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）；P0-4 双轴根修：execution 非 COMPLETED 不得产出任何完成态（含 CONDITIONAL）——RUN_COMPLETED 层由重放强制，attempt 层由 outcome 映射强制；观察类事件（APPROVAL_CONSUMED/FINDING_REGISTERED/ACTION_*）不递增 state_version，须锚定当前版本"
 }

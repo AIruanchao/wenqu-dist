@@ -1,0 +1,8 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\;\ V=\$\(python\ cli/wenqu\ --version\ \|\ awk\ \'\{print\ \$2\}\'\ \|\ sed\ \'s/\^0\\.3\\.0-//\;s/-maccc\$//\'\)\;\ DV=\$\(ls\ docs/\*v\*.md\ \|\ sed\ \'s/.\*v/v/\'\ \|\ sed\ \'s/\\.md//\'\ \|\ head\ -1\)\;\ echo\ \"Checking:\ v\$DV\ \$V\"\;\ bash\ tests/release-check.sh\ v\$DV\ \$V
+START: 2026-10-08T12:30:38+08:00
+bash: python: command not found
+Checking: vv1.0.18 
+tests/release-check.sh: line 5: 2: 缺 fork 版本
+
+EXIT_CODE: 1
+END: 2026-10-08T12:30:38+08:00

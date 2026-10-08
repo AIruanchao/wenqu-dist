@@ -1,0 +1,208 @@
+$ ls -la
+total 320
+drwxr-xr-x@ 44 maccc  staff   1408 Oct  8 12:05 .
+drwx------+ 71 maccc  staff   2272 Oct  8 00:28 ..
+drwxr-xr-x@ 14 maccc  staff    448 Oct  8 12:29 .git
+drwxr-xr-x@  3 maccc  staff     96 Oct  3 23:48 .github
+-rw-r--r--@  1 maccc  staff     42 Oct  2 20:32 .gitignore
+-rw-r--r--@  1 maccc  staff     19 Oct  7 18:59 .mimosa-ignore
+drwxr-xr-x@  6 maccc  staff    192 Oct  2 21:55 .pytest_cache
+-rw-r--r--@  1 maccc  staff  34972 Oct  7 23:23 CHANGELOG.md
+-rw-r--r--@  1 maccc  staff   3099 Oct  4 02:33 README.md
+-rw-r--r--@  1 maccc  staff     92 Oct  3 15:03 SHA256-v1.0.18.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 20:31 SHA256-v1.0.6.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 20:43 SHA256-v1.0.7.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 21:11 SHA256-v1.0.8.txt
+-rw-r--r--@  1 maccc  staff     89 Oct  4 02:33 SHA256-v2.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 18:22 SHA256-v3.0.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 20:44 SHA256-v3.1.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 22:06 SHA256-v3.2.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 23:05 SHA256-v3.3.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:17 SHA256-v3.4.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:30 SHA256-v3.4.1.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:34 SHA256-v3.4.2.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:49 SHA256-v3.4.3.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:59 SHA256-v3.4.4.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 02:29 SHA256-v3.4.5.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 02:41 SHA256-v3.5.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:05 SHA256-v3.5.1.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:44 SHA256-v3.5.2.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:54 SHA256-v3.5.3.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:14 SHA256-v3.5.4.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:21 SHA256-v3.5.5.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:31 SHA256-v3.5.6.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:37 SHA256-v3.5.7.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 19:06 SHA256-v3.5.8.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 22:12 SHA256-v3.6.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 22:27 SHA256-v3.6.1.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 23:23 SHA256-v3.6.2.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  8 00:28 SHA256-v3.6.3.txt
+drwxr-xr-x@  7 maccc  staff    224 Oct  4 02:25 cli
+drwxr-xr-x@  5 maccc  staff    160 Oct  4 02:33 docs
+drwxr-xr-x@ 19 maccc  staff    608 Oct  8 12:10 evidence
+drwxr-xr-x@  3 maccc  staff     96 Oct  2 19:37 probes
+drwxr-xr-x@ 18 maccc  staff    576 Oct  8 01:08 system
+drwxr-xr-x@  4 maccc  staff    128 Oct  8 12:21 tests
+drwxr-xr-x@  3 maccc  staff     96 Oct  8 12:22 tools
+[exit=0]
+$ find . -maxdepth 3 -type f
+./.git/COMMIT_EDITMSG
+./.git/FETCH_HEAD
+./.git/HEAD
+./.git/config
+./.git/description
+./.git/hooks/applypatch-msg.sample
+./.git/hooks/commit-msg.sample
+./.git/hooks/fsmonitor-watchman.sample
+./.git/hooks/post-update.sample
+./.git/hooks/pre-applypatch.sample
+./.git/hooks/pre-commit.sample
+./.git/hooks/pre-merge-commit.sample
+./.git/hooks/pre-push.sample
+./.git/hooks/pre-rebase.sample
+./.git/hooks/pre-receive.sample
+./.git/hooks/prepare-commit-msg.sample
+./.git/hooks/push-to-checkout.sample
+./.git/hooks/update.sample
+./.git/index
+./.git/info/exclude
+./.git/info/refs
+./.git/logs/HEAD
+./.git/packed-refs
+./.github/workflows/acceptance.yml
+./.gitignore
+./.mimosa-ignore
+./.pytest_cache/.gitignore
+./.pytest_cache/CACHEDIR.TAG
+./.pytest_cache/README.md
+./CHANGELOG.md
+./README.md
+./SHA256-v1.0.18.txt
+./SHA256-v1.0.6.txt
+./SHA256-v1.0.7.txt
+./SHA256-v1.0.8.txt
+./SHA256-v2.0.txt
+./SHA256-v3.0.0.txt
+./SHA256-v3.1.0.txt
+./SHA256-v3.2.0.txt
+./SHA256-v3.3.0.txt
+./SHA256-v3.4.0.txt
+./SHA256-v3.4.1.txt
+./SHA256-v3.4.2.txt
+./SHA256-v3.4.3.txt
+./SHA256-v3.4.4.txt
+./SHA256-v3.4.5.txt
+./SHA256-v3.5.0.txt
+./SHA256-v3.5.1.txt
+./SHA256-v3.5.2.txt
+./SHA256-v3.5.3.txt
+./SHA256-v3.5.4.txt
+./SHA256-v3.5.5.txt
+./SHA256-v3.5.6.txt
+./SHA256-v3.5.7.txt
+./SHA256-v3.5.8.txt
+./SHA256-v3.6.0.txt
+./SHA256-v3.6.1.txt
+./SHA256-v3.6.2.txt
+./SHA256-v3.6.3.txt
+./cli/.pytest_cache/.gitignore
+./cli/.pytest_cache/CACHEDIR.TAG
+./cli/.pytest_cache/README.md
+./cli/README.md
+./cli/__pycache__/test_wenqu.cpython-313-pytest-9.1.1.pyc
+./cli/__pycache__/test_wenqu.cpython-313.pyc
+./cli/__pycache__/test_wenqu.cpython-314-pytest-9.1.1.pyc
+./cli/__pycache__/wenqucpython-313.pyc
+./cli/__pycache__/wenqucpython-314.pyc
+./cli/test_wenqu.py
+./cli/wenqu
+./docs/条件放行声明-v1.0.18.md
+./docs/问渠轨道规范-发行版-v2.0.md
+./docs/首跑报告-market-monitor-20261003.md
+./evidence/00-baseline/README.md
+./evidence/01-threat-model-and-contracts/README.md
+./evidence/02-schemas-and-tla/README.md
+./evidence/03-red-probes-before/README.md
+./evidence/04-unit-property-mutation/README.md
+./evidence/05-concurrency-crash-chaos/README.md
+./evidence/06-scanner-goldens/README.md
+./evidence/07-migration-reconcile/README.md
+./evidence/08-ci-and-branch-rules/README.md
+./evidence/09-release-manifest-attestation/README.md
+./evidence/10-ui-launchd-alert-backup/README.md
+./evidence/11-shadow-canary/README.md
+./evidence/12-rollback-drill/README.md
+./evidence/13-observation-window/README.md
+./evidence/README.md
+./evidence/evidence-index.json
+./evidence/traceability-matrix.json
+./probes/stations.json
+./system/README.md
+./system/VERSION
+./system/bin/blast-radius.py
+./system/bin/check-openapi-compat.py
+./system/bin/coverage-ratchet.py
+./system/bin/cursor-auto-verify.sh
+./system/bin/deploy-preflight.sh
+./system/bin/gate-learner.py
+./system/bin/hardening-doctor.sh
+./system/bin/iron-gate.sh
+./system/bin/relay-push.sh
+./system/bin/risk-scorer.py
+./system/bin/same-name-census.py
+./system/bin/spec-reconcile.py
+./system/bin/tla2tools.jar
+./system/bin/ts-to-tla.py
+./system/bin/wenqu
+./system/bin/wenqu-dashboard.py
+./system/bin/wenqu-env.sh
+./system/bin/workorder-precheck.sh
+./system/bin/zero-rework.sh
+./system/ci/ci-fast.yml
+./system/ci/nightly.yml
+./system/config/wenqu.env.example
+./system/daemons/auto-merge.sh
+./system/daemons/cdc-conservation-stream.py
+./system/daemons/conservation-daemon.py
+./system/dashboard/app.css
+./system/dashboard/app.js
+./system/dashboard/index.html
+./system/dashboard/server.py
+./system/db/conservation-triggers.sql
+./system/db/self-heal.sql
+./system/docs/constitution-template.md
+./system/install.sh
+./system/schemas/approval-v2.schema.json
+./system/schemas/evidence-v2.schema.json
+./system/schemas/finding-event-v2.schema.json
+./system/schemas/run-event-v2.schema.json
+./system/schemas/station-result-v2.schema.json
+./system/sentinels/ci-event-sentinel.sh
+./system/sentinels/conservation-sentinel.sh
+./system/sentinels/ssl-cert-sentinel.sh
+./system/sentinels/weekly-watchdog.sh
+./system/specs/PaymentConservation.cfg
+./system/specs/PaymentConservation.tla
+./system/templates/adversarial.spec.ts
+./system/templates/user-guide-template.md
+./system/templates/work-order-template.md
+./system/tests/test_core_wiring.py
+./system/tests/test_wenqu_pipeline.py
+./system/wenqu_core/__init__.py
+./system/wenqu_core/bugscan_orchestrator.py
+./system/wenqu_core/deploy_framework.py
+./system/wenqu_core/gate_aggregator.py
+./system/wenqu_core/ledger_migrator.py
+./system/wenqu_core/runner.py
+./system/wenqu_core/scheduler.py
+./system/wenqu_core/source_gate.py
+./system/wenqu_core/station2_static.py
+./system/wenqu_core/station3_contract.py
+./system/wenqu_core/station4_behavior.py
+./system/wenqu_core/station7_runtime.py
+./system/wenqu_core/store.py
+./system/wenqu_core/wenqu_pipeline.py
+./tests/acceptance.sh
+./tests/release-check.sh
+./tools/ac_traceability.py
+[exit=0]

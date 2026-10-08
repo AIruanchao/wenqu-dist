@@ -1,0 +1,7 @@
+TIMESTAMP_START=2026-10-08T04:33:38Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=gh api -H 'Accept: application/vnd.github+json' repos/AIruanchao/wenqu-dist/rulesets
+--- OUTPUT BEGIN ---
+[]--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:33:39Z

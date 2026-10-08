@@ -1,0 +1,18 @@
+$ python3 cas_runner_adversarial.py
+CAS_final_symlink_get_should_reject: EXCEPTION=IntegrityError: path escapes CAS root: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-cas-basic-fx7ccjvr/cas/8c/8cd43fb60f5031e9064144f51aef574db1de0d031e3e4d9700c282bb78135cd1.json -> /private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-cas-basic-fx7ccjvr/outside.json
+CAS_corrupt_preexisting_put_should_reject: EXCEPTION=IntegrityError: corrupted file at /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-cas-corrupt-rxsiqte8/cas/8c/8cd43fb60f5031e9064144f51aef574db1de0d031e3e4d9700c282bb78135cd1.json: hash mismatch, refusing silent success
+CAS_prefix_escape_resolved_path: RESULT='/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-cas-prefix-8ut4v1x_/cas/aa/aa/../../../casevil/probe.json'
+CAS_prefix_escape_contains_outside: RESULT=False
+CAS_hardlink_nlink_before: RESULT=(2, 2)
+CAS_hardlink_put_should_reject: RESULT='8cd43fb60f5031e9064144f51aef574db1de0d031e3e4d9700c282bb78135cd1'
+CAS_parent_swap_put_result: RESULT='8cd43fb60f5031e9064144f51aef574db1de0d031e3e4d9700c282bb78135cd1'
+CAS_parent_swap_outside_file_exists: RESULT=True
+CAS_parent_swap_get_reads_outside: RESULT=Evidence(argv=('echo', 'x'), cwd='/tmp', actual_exit_code=0, stdout_sha256='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', stderr_sha256='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', argv_digest='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', timestamp=1.0, fresh_until=2.0, timed_out=False)
+CAS_partial_first_put: EXCEPTION=OSError: injected disk failure after partial write
+CAS_partial_file_size: RESULT=5
+CAS_partial_retry_poisoned: EXCEPTION=IntegrityError: corrupted file at /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-cas-partial-c4fi9ceu/cas/8c/8cd43fb60f5031e9064144f51aef574db1de0d031e3e4d9700c282bb78135cd1.json: hash mismatch, refusing silent success
+RUNNER_ordinary_descendant: timed_out=True marker_exists=False
+RUNNER_setsid_descendant: timed_out=True marker_exists=True marker='alive'
+RUNNER_env_inheritance: rc=0 value='sentinel-value'
+RUNNER_default_allowlist_disabled_shell: rc=0 marker='shell-ran'
+[exit_code]=0

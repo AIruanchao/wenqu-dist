@@ -1,0 +1,8 @@
+COMMAND: bash -lc set\ +e\;\ gh\ api\ repos/AIruanchao/wenqu-dist/branches/main/protection\;\ a=\$\?\;\ echo\ BRANCH_PROTECTION_RC=\$a\;\ gh\ api\ repos/AIruanchao/wenqu-dist/rulesets\;\ b=\$\?\;\ echo\ RULESETS_RC=\$b
+START: 2026-10-08T12:33:25+08:00
+{"message":"Branch not protected","documentation_url":"https://docs.github.com/rest/branches/branch-protection#get-branch-protection","status":"404"}gh: Branch not protected (HTTP 404)
+BRANCH_PROTECTION_RC=1
+[]RULESETS_RC=0
+
+EXIT_CODE: 0
+END: 2026-10-08T12:33:27+08:00

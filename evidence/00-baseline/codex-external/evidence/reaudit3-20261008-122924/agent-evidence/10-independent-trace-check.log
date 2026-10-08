@@ -1,0 +1,371 @@
+TIMESTAMP_START=2026-10-08T04:30:33Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/independent_trace_check.py'
+--- OUTPUT BEGIN ---
+{
+  "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "sec20_count": 131,
+  "sec251_expanded_count": 131,
+  "tool_count": 131,
+  "sec20_equals_sec251": true,
+  "sec20_equals_tool": true,
+  "sec251_equals_tool": true,
+  "sec20_only_vs_251": [],
+  "sec251_only_vs_20": [],
+  "tool_only_vs_251": [],
+  "sec251_only_vs_tool": [],
+  "mapping_rows": [
+    {
+      "range": "GATE-01～12",
+      "count": 12,
+      "req_ac": "REQ-EVID-001 / AC-EVID-FAIL-CLOSED",
+      "work_packages": "W2/W3A/W3B",
+      "evidence_class": "raw rc、CAS、before/after"
+    },
+    {
+      "range": "AUTH-01～06",
+      "count": 6,
+      "req_ac": "REQ-AUTH-001 / AC-AUTH-ONE-TIME",
+      "work_packages": "W1/W2",
+      "evidence_class": "signed payload、replay log"
+    },
+    {
+      "range": "ACT-01～06",
+      "count": 6,
+      "req_ac": "REQ-ACT-001 / AC-ACT-SAGA",
+      "work_packages": "W2/W3B/W7B",
+      "evidence_class": "outbox、external receipt、reconcile"
+    },
+    {
+      "range": "MRG-01～07",
+      "count": 7,
+      "req_ac": "REQ-MERGE-001 / AC-MERGE-EXACT-SHA",
+      "work_packages": "W3B",
+      "evidence_class": "ruleset、check、merge audit"
+    },
+    {
+      "range": "STATE-01～11",
+      "count": 11,
+      "req_ac": "REQ-STATE-001 / AC-STATE-APPEND-ONLY",
+      "work_packages": "W1/W2",
+      "evidence_class": "event log、property/crash run"
+    },
+    {
+      "range": "MIG-01～05",
+      "count": 5,
+      "req_ac": "REQ-MIG-001 / AC-MIG-RECONCILE",
+      "work_packages": "W5",
+      "evidence_class": "row mapping、decision、quarantine"
+    },
+    {
+      "range": "DB-01～06",
+      "count": 6,
+      "req_ac": "REQ-DB-001 / AC-DB-FOUR-TRACK",
+      "work_packages": "W6C",
+      "evidence_class": "catalog diff、DB identity"
+    },
+    {
+      "range": "SC-01～05",
+      "count": 5,
+      "req_ac": "REQ-SC-001 / AC-SC-FAIL-CLOSED",
+      "work_packages": "W6B",
+      "evidence_class": "audit JSON、SBOM、signature"
+    },
+    {
+      "range": "ADV-01～02",
+      "count": 2,
+      "req_ac": "REQ-ADV-001 / AC-ADV-COMPLETE",
+      "work_packages": "W6B",
+      "evidence_class": "pages/ranges fixture"
+    },
+    {
+      "range": "TEN-01～08",
+      "count": 8,
+      "req_ac": "REQ-TENANT-001 / AC-TENANT-DENOMINATOR",
+      "work_packages": "W6C",
+      "evidence_class": "DMMF/AST/runtime probes"
+    },
+    {
+      "range": "PERF-01～06",
+      "count": 6,
+      "req_ac": "REQ-PERF-001 / AC-PERF-VALID",
+      "work_packages": "W6D",
+      "evidence_class": "raw samples/profile/baseline auth"
+    },
+    {
+      "range": "SCH-01～07",
+      "count": 7,
+      "req_ac": "REQ-SCHED-001 / AC-SCHED-RESULT",
+      "work_packages": "W4",
+      "evidence_class": "launchd/job result/freshness"
+    },
+    {
+      "range": "ALT-01～02",
+      "count": 2,
+      "req_ac": "REQ-ALERT-001 / AC-ALERT-DELIVERED",
+      "work_packages": "W4",
+      "evidence_class": "outbox/attempt/receipt/dead-letter"
+    },
+    {
+      "range": "BAK-01",
+      "count": 1,
+      "req_ac": "REQ-BACKUP-001 / AC-BACKUP-RESTORABLE",
+      "work_packages": "W4/W7A",
+      "evidence_class": "checkpoint/restore drill"
+    },
+    {
+      "range": "REL-01～03",
+      "count": 3,
+      "req_ac": "REQ-RELEASE-001 / AC-RELEASE-MANIFEST",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "manifest/build identity"
+    },
+    {
+      "range": "STOP-01～03",
+      "count": 3,
+      "req_ac": "REQ-STOP-001 / AC-STOP-AUTH-AND-FACT",
+      "work_packages": "W1/W2",
+      "evidence_class": "nine-type matrix/events"
+    },
+    {
+      "range": "RUN-01～03",
+      "count": 3,
+      "req_ac": "REQ-RUNNER-001 / AC-RUNNER-ISOLATED",
+      "work_packages": "W2",
+      "evidence_class": "sandbox/quota/process-tree logs"
+    },
+    {
+      "range": "CI-05～09",
+      "count": 5,
+      "req_ac": "REQ-CI-001 / AC-CI-TERMINAL",
+      "work_packages": "W3B",
+      "evidence_class": "check runs/ruleset/DAG validation"
+    },
+    {
+      "range": "COND-01～06",
+      "count": 6,
+      "req_ac": "REQ-COND-001 / AC-COND-NOT-PASS",
+      "work_packages": "W1/W2/W3B",
+      "evidence_class": "risk/action auth、attestation、context"
+    },
+    {
+      "range": "RISK-01",
+      "count": 1,
+      "req_ac": "REQ-RISK-001 / AC-RISK-INVALIDATE",
+      "work_packages": "W2/W5",
+      "evidence_class": "revoke/invalidate/reopen events"
+    },
+    {
+      "range": "STA-01～02",
+      "count": 2,
+      "req_ac": "REQ-STATION-001 / AC-STATION-COVERAGE",
+      "work_packages": "W6A～W6D/W3B",
+      "evidence_class": "station results/aggregate"
+    },
+    {
+      "range": "DEP-01～09",
+      "count": 9,
+      "req_ac": "REQ-DEPLOY-001 / AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    {
+      "range": "RB-01",
+      "count": 1,
+      "req_ac": "REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT",
+      "work_packages": "W7B",
+      "evidence_class": "preauthorization/compatibility/drill"
+    },
+    {
+      "range": "UI-01～07",
+      "count": 7,
+      "req_ac": "REQ-UI-001 / AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    {
+      "range": "HLT-01",
+      "count": 1,
+      "req_ac": "REQ-HEALTH-001 / AC-HEALTH-ATOMIC",
+      "work_packages": "W8",
+      "evidence_class": "input watermark/snapshot retry"
+    },
+    {
+      "range": "DOC-01～04",
+      "count": 4,
+      "req_ac": "REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT",
+      "work_packages": "W1/W10",
+      "evidence_class": "generated consistency report"
+    },
+    {
+      "range": "CAP-01",
+      "count": 1,
+      "req_ac": "REQ-CAP-001 / AC-CAP-SAFE-MARGIN",
+      "work_packages": "W0/W7A",
+      "evidence_class": "peak budget/disk-full injection"
+    },
+    {
+      "range": "DR-01",
+      "count": 1,
+      "req_ac": "REQ-DR-001 / AC-DR-RPO-RTO",
+      "work_packages": "W4/W7B/W10",
+      "evidence_class": "restored state/RPO/RTO timing"
+    }
+  ],
+  "metadata_mismatch_count": 0,
+  "metadata_mismatches": [],
+  "tool_stats": {
+    "total_ids": 131,
+    "dedicated_implemented": 0,
+    "proxy_partial": 3,
+    "missing": 128,
+    "dedicated_coverage_pct": 0.0,
+    "dedicated_plus_proxy_pct": 2.29,
+    "by_prefix": {
+      "ACT": {
+        "total": 6,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "ADV": {
+        "total": 2,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "ALT": {
+        "total": 2,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "AUTH": {
+        "total": 6,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "BAK": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "CAP": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "CI": {
+        "total": 5,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "COND": {
+        "total": 6,
+        "dedicated": 0,
+        "proxy": 1
+      },
+      "DB": {
+        "total": 6,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "DEP": {
+        "total": 9,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "DOC": {
+        "total": 4,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "DR": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "GATE": {
+        "total": 12,
+        "dedicated": 0,
+        "proxy": 1
+      },
+      "HLT": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "MIG": {
+        "total": 5,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "MRG": {
+        "total": 7,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "PERF": {
+        "total": 6,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "RB": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "REL": {
+        "total": 3,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "RISK": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "RUN": {
+        "total": 3,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "SC": {
+        "total": 5,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "SCH": {
+        "total": 7,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "STA": {
+        "total": 2,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "STATE": {
+        "total": 11,
+        "dedicated": 0,
+        "proxy": 1
+      },
+      "STOP": {
+        "total": 3,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "TEN": {
+        "total": 8,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "UI": {
+        "total": 7,
+        "dedicated": 0,
+        "proxy": 0
+      }
+    }
+  },
+  "observation": "工具自身 cross_check_plan 仅解析 §20 并与内置冻结 catalog 比较，不解析 §25.1；本独立检查补做 §25.1 范围展开与四列元数据逐 ID 对账。"
+}
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:30:33Z

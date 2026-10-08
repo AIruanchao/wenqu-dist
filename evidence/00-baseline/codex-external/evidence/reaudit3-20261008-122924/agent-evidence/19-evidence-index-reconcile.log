@@ -1,0 +1,265 @@
+TIMESTAMP_START=2026-10-08T04:32:26Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/evidence_reconcile.py'
+--- OUTPUT BEGIN ---
+{
+  "current_head": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+  "index_repo_head_at_filing": {
+    "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658",
+    "subject": "fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）",
+    "note": "建档期间由外部 writer 推入；该 commit 尚无 CI 通过记录"
+  },
+  "entry_count": 9,
+  "entries": [
+    {
+      "entry_id": "EV-CI-001",
+      "commit": "1858a75",
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "path_exists": true,
+      "path_kind": "dir",
+      "missing_hard_fields": [
+        "artifact_sha256"
+      ],
+      "artifact_sha256": null
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "commit": "be50cb8",
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "path_exists": true,
+      "path_kind": "dir",
+      "missing_hard_fields": [
+        "artifact_sha256"
+      ],
+      "artifact_sha256": null
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "commit": "1858a75",
+      "evidence_path": "evidence/04-unit-property-mutation/",
+      "path_exists": true,
+      "path_kind": "dir",
+      "missing_hard_fields": [],
+      "artifact_sha256": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823"
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "commit": "1858a75",
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+      "path_exists": true,
+      "path_kind": "file",
+      "missing_hard_fields": [],
+      "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161"
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "commit": "1858a75",
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/selftest-*.log",
+      "path_exists": false,
+      "path_kind": "missing",
+      "missing_hard_fields": [
+        "artifact_sha256"
+      ],
+      "artifact_sha256": null
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "commit": null,
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/reaudit-20261007/plan-self-validation.txt",
+      "path_exists": true,
+      "path_kind": "file",
+      "missing_hard_fields": [
+        "commit"
+      ],
+      "artifact_sha256": "plan-self-validation.json.sha256 在外部目录"
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "commit": "1858a75 (验收基线 main@4aeb199 起算)",
+      "evidence_path": "外部：/private/tmp/codex-test/验收报告.md",
+      "path_exists": true,
+      "path_kind": "file",
+      "missing_hard_fields": [
+        "argv"
+      ],
+      "artifact_sha256": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593"
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "commit": "随各版本提交",
+      "evidence_path": "evidence/09-release-manifest-attestation/",
+      "path_exists": true,
+      "path_kind": "dir",
+      "missing_hard_fields": [
+        "run_id",
+        "argv",
+        "real_rc"
+      ],
+      "artifact_sha256": "SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c"
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)",
+      "evidence_path": "evidence/traceability-matrix.json",
+      "path_exists": true,
+      "path_kind": "file",
+      "missing_hard_fields": [
+        "artifact_sha256"
+      ],
+      "artifact_sha256": null
+    }
+  ],
+  "entries_missing_any_hard_field": 7,
+  "entries_pointing_to_directory_not_artifact": 4,
+  "section_inventory": {
+    "00-baseline": {
+      "all_files_recursive": 90,
+      "substantive_recursive": 89,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": "00-baseline 的递归工件主要是旧轮外部证据快照；其他目录只有 README"
+    },
+    "01-threat-model-and-contracts": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "02-schemas-and-tla": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "03-red-probes-before": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "04-unit-property-mutation": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "05-concurrency-crash-chaos": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "06-scanner-goldens": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "07-migration-reconcile": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "08-ci-and-branch-rules": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "09-release-manifest-attestation": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "10-ui-launchd-alert-backup": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "11-shadow-canary": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "12-rollback-drill": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    },
+    "13-observation-window": {
+      "all_files_recursive": 1,
+      "substantive_recursive": 0,
+      "substantive_direct": 0,
+      "direct_files": [],
+      "note": ""
+    }
+  },
+  "sha_checks": [
+    {
+      "sha_file": "evidence/00-baseline/codex-external/方案.md.sha256",
+      "target": "/Users/maccc/Documents/wenqu-dist/evidence/00-baseline/codex-external/方案.md",
+      "exists": true,
+      "expected": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+      "actual": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+      "ok": true
+    },
+    {
+      "sha_file": "evidence/00-baseline/codex-external/验收报告.md.sha256",
+      "target": "/private/tmp/codex-test/验收报告.md",
+      "exists": true,
+      "expected": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "actual": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "ok": true
+    },
+    {
+      "sha_file": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/MANIFEST.sha256",
+      "parse": false,
+      "raw": "fdccddbd42ecc66249a814f2b2d63d6bac352db85719d1b3fa5353ed59172574  ./adversarial-probes.json\n7e1cd69fab85528649b3c67810caed1f9db026f90623c7d226ea1477c93b6a46  ./adversarial-probes.rc\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./adversarial-probes.stderr\n48b0308c76927689ed4f0ec3d243ced0042f632315e48ab4921ddb170f6921a9  ./adversarial_probes.py\n38148b92a24d897ac236fe53f82c77a39ca0614724ecbbca22852719dbfaf000  ./agent-default-ci-blindness.log\n641e8e44b99703728025a81c3a35229c6ab10bd5b888057d86beea9e86dfbf28  ./artifact-inventory.txt\n149fb0b394755441e6b9794180123f1a7cca507071abeb07cbd4a8ba32c05ca0  ./baseline.txt\naffc44ca7a44a681038098c5a4ca5f91991ee420f97a4290ebc673605896efce  ./cli-version.txt\ne3bb8eb9b763da426b38f4195f8ebd94d9b05e249f3801d91c4f5e3ff0974969  ./compile.log\nb336556d3389d83cb284440dce9c1be60dce340d3b5f18655d3e27601566e92a  ./dashboard-security-readonly.txt\n6157ffad4fe0b2f0369a84f24bf399a4536b806c277b584b05fddd38c86bdb45  ./dod-evidence-presence.txt\n3920242a7cc080d33a11b7185898af45c78b4fc1eb5f5705e7f4969c8e748b11  ./final-repo-status.txt\n6e814d336807089bb3e0768a1e038da805a9ebef9cc45d6642fb05fe796e7445  ./http-api_health.body\nf6c2abfc0ecdcac86c8b2bfaa53dfc7bb93367c5e0d303793929204723efe8f7  ./http-api_health.headers\nc4944da1c327803a9a373c72888416b2469b575a9258be79ce815a80ee45cca6  ./http-root.body\n0045c0643f2ff909033023baeea92a7cba09144fe5dd99e5cdd5ddb0729c18cd  ./http-root.headers\n1840beb50aeee8a2b2afe903c030e1581fcd64beda8de0395f6e4332931426e0  ./integration-markers.txt\n60dcc26d73828b5cda00493c850945445a0902352a1e81fe48ac4e9fb33ee08d  ./legacy-acceptance.log\n375a5139af9999031ffb67175e225338d6c6087fc23b4ec1ae7a4f51293b8ce3  ./mid-acceptance-source-drift.txt\n44de29469d4b1aa920766aa33612a1d1f0d35cd615029e573929064f1f4c5ecd  ./observation-exact-self-match-probe.txt\n5df50f20582745c6a0cf4b5d0a30db988b99e141924d72d5e679ad11fc5c9151  ./observation-log-readonly.txt\nef123d93843adc8a8ef1d0417eba853cfc1b173968dec7d0010f7ca925a7497d  ./observation-self-match-probe.txt\nf8d5cb96e37ebe4e50b77c2d7d60bd66d47902bfd762e44c254caa65a6c1cef0  ./release-artifacts.txt\n3afc6d1760ace02bacb246606f16abc182dca03bbf1b1589f32cee4249eb8994  ./release-check.log\ne9b28aaea4bd7e5deaf94bc266b99c19c5f63febfd06b39703940ec1d196f94b  ./runner-cas-probes.json\ne82af3cffab2358bbff80cd5e4944afc34d9f71e76a2613829c50ae893706567  ./runner_cas_probes.py\n189b6d5681e7703c2562713fc361d54152c2055d8202e6025ccb23884456b009  ./runtime-dashboard-identity.txt\n4079c7f5df34fc3163e7883e001852e7b5dd9ebb175108a14862776595a47a12  ./runtime-readonly.txt\n99ed0d82201fd4e2caf638a545d3075f705963be5f8ff40950c8dbe6260faf02  ./runtime-source-identity.txt\n81fc9e3a3a62bed16e8c24fd59ac11ca8ba4ba6d4f55f99e7816304fff39413f  ./runtime-targeted-readonly.txt\nf77e52d1b681ea449c9564c75be06c6ad715cac77c96ff67e07291643d502108  ./selftest-bugscan_orchestrator.log\nf119f47ca98eb86d05b7f511301b6f2fa5aa66b67f591d3c093c6a297e41549d  ./selftest-station2_static.log\nf5425af641241e00c24f11ad21892c7764d4f7f2f2e796164dabcea8d235319e  ./selftest-station3_contract.log\ncfee0327ec85699daa104fde4bf4a140f49c46297579af0101f8d533cc02929f  ./selftest-station4_behavior.log\n8452635b0b0877b42ac55f334fbe25d8a498405e507735b9baaccfce0d80a05e  ./selftest-station7_runtime.log\n53d2b65b5ef32e64f6452d9c438aed5d4ea6a68ea29e6da92f0571c2d59c079a  ./source-drift-followup-1.txt\n10f4a4d4023ac249476761867199b419d7e046a6fd04ee3e90e9635c477514b2  ./store-migrator-probes.json\nd07e4112306f621f1211507a37cb3ad0ff128778ec824b26d819c30a9f85b061  ./store_migrator_probes.py\n14eabc8aa83d744051d8a08b6c1db3185db80e38c6462c0a6ee08d7e1b9e2afb  ./workflow-release-check-reproduction.txt"
+    },
+    {
+      "sha_file": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/manifest.sha256",
+      "parse": false,
+      "raw": "46f63b61520f36fd929fa42918f4f64ef8fb42516b82db6725679efbca90f8e8  ./branch-required-checks.json\na69b54a873bf19955a77c5c4e8a61216afe0c95bdf0897dce68d4ccaa18cfefe  ./bugscan-summary.json\n796f4d666b4ab80c8fc973d3017576732361edb60d1aedea5d98b2849b6b68ab  ./captured_at.txt\n3bf8e878a1977712176d0a1d825017b8b57ceb69ab4c79a7bec2707a148d3287  ./dashboard-health.json\n5b4b404560011b709fe4082f687ecd38e8fda04b52c3ef59c736230185fe23c8  ./dashboard-runtime-diff.patch\nd58669ddda0f161c580ec847f989423c128a26fc9c5fda361e44bf20a94de56f  ./gatedoctor.log\n4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865  ./gatedoctor.rc\ne39efaf647fddb2a25deae9576ea84b1ca05ca5c9dac507454855064df3bd12f  ./git-identities.txt\nadf6abf1ea24960b2e14fa65cca531956c83654dd52b5f796c6a5fcbe1928abd  ./launchctl-selected.txt\n767da0f665ab0a2d6d8aa18a880f5842aee3865bdfc659f168e61fe48829a1a2  ./red-probes/outside.txt\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./red-probes/state-arbitrary.out\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/state-arbitrary.rc\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./red-probes/state-clear.out\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/state-clear.rc\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./red-probes/state-traversal.out\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/state-traversal.rc\n9bd47d6f2381d7529df86b2cb7b5267bd3a9d008a58afc7543166185470ddd73  ./red-probes/state/escaped.json\n1892d5ee1ef6c2df20922323e95bf3e2bfb051e8ca38343daf5446dcabb21e3a  ./red-probes/state/pipeline-ledger.jsonl\nbe27b4b1a48555a5f088eca5cfabd102e94c8a4a537103f36301b7584837a26f  ./red-probes/summary.txt\n623e0c8edd8bef4be9da977709c040941622b11a08eaa1872166f45c70f932f2  ./red-probes/v-exit/r1.txt\nb0e07c0b68797917c2cf11d9a8f6db0a510761b9eae665c968b14cc627bcc251  ./red-probes/v-exit/rounds.jsonl\n7b16b0239727a511d0b2e46273cb1f31274f79757560295a9652e7f40c31a3c2  ./red-probes/v-link/rounds.jsonl\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./red-probes/v-neg/rounds.jsonl\n16ed144b6dd18fc576f469970a408c4059913c2e5af1def33afe99c7bf289f6c  ./red-probes/verify-negative-n.json\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/verify-negative-n.rc\nb20f3f670abee5059fbd1b05e7158d6a839d30b2259aacdf814b6f6f7f58a7d5  ./red-probes/verify-nonzero-exit.json\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/verify-nonzero-exit.rc\nb20f3f670abee5059fbd1b05e7158d6a839d30b2259aacdf814b6f6f7f58a7d5  ./red-probes/verify-symlink.json\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/verify-symlink.rc\n4595a2de3ef32b89402da64426952a52d46ecfc081bfead23984bba34142cdcc  ./red-probes/wenqu-acceptance.log\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/wenqu-acceptance.rc\n91b4237c811d56b3305eafb555540163879856454581aa7c00a7165829357228  ./red-probes/wenqu-pytest.log\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/wenqu-pytest.rc\ncd9c096e784f81a1f20632be59498b4fcfc453ddef2ac539046d30cd59fb18e8  ./red-probes/wenqu-release-check.log\n9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  ./red-probes/wenqu-release-check.rc\nfa886b8edc70acb573851c71734416ac19513fb35d670e46e4ef19a62aacd981  ./runtime-source-hashes.txt\n3755de47299ef8cca197bca581497a9d51f7e1b5e6e6fc53c7c168048bc8b80d  ./skill-hashes.txt\n6298238b4b5d8d89eaef2922e777baf84f1947ba5c15b2adf70ac54fc8220acd  ./validate_plan.py\n5e225331ee54bdb592539f2ba0237c42a96983324004e494e5b58d9239086e60  ./waiting-states.json"
+    },
+    {
+      "sha_file": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json.sha256",
+      "target": "/Users/maccc/Documents/wenqu-dist/evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json",
+      "exists": true,
+      "expected": "b748c2e6ff14c446911542e3cf0a1af6063434b7aecc87762fed747565980605",
+      "actual": "b748c2e6ff14c446911542e3cf0a1af6063434b7aecc87762fed747565980605",
+      "ok": true
+    }
+  ],
+  "index_known_gaps": [
+    "§20 的 131 个验收 ID 无一拥有专属测试（详见 traceability-matrix.json 初始报告）",
+    "外部 /private/tmp/codex-test/ 证据（验收报告+两个 evidence 目录）未快照入仓，存在丢失风险",
+    "当前 HEAD e00de14 无 CI 结论（建档时刚推入）",
+    "branch ruleset / required checks 回读、签名 attestation、Playwright、launchd 真环境、备份/回滚演练、观察窗指标全部缺位"
+  ],
+  "staleness_observations": [
+    "索引 repo_head_at_filing=e00de14，不是本轮 ff050bb；索引无 ff050bb CI run 37727549548 条目",
+    "known_gaps 仍称外部证据未快照，但 ff050bb 已把旧轮 evidence 快照嵌入 00-baseline/codex-external/evidence，索引未同步",
+    "01~13 各工作包目录均只有 README，无 §24.2 所需原始证据工件",
+    "目录路径不能替代逐工件 artifact sha256；11 个 index entries 均缺至少一个 §24.2 硬字段"
+  ]
+}
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:32:26Z

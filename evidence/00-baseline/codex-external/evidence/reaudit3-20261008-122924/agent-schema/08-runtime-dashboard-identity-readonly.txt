@@ -1,0 +1,461 @@
+$ date -Ins
+2026-10-08T12:30:29,212274000+08:00
+[exit_code]=0
+$ ps axww -o pid=,ppid=,user=,command= | grep -E "wenqu-dashboard|system/dashboard/server.py|[ :]7789"
+ 3151 99773 maccc            /bin/zsh -c set +e\012E=/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-schema\012{\012 echo '$ date -Ins'; date -Ins; echo "[exit_code]=$?"\012 echo '$ ps axww -o pid=,ppid=,user=,command= | grep -E "wenqu-dashboard|system/dashboard/server.py|[ :]7789"'; ps axww -o pid=,ppid=,user=,command= | grep -E "wenqu-dashboard|system/dashboard/server.py|[ :]7789"; echo "[exit_code]=$?"\012 echo '$ lsof -nP -iTCP:7789 -sTCP:LISTEN'; lsof -nP -iTCP:7789 -sTCP:LISTEN; echo "[exit_code]=$?"\012 echo '$ launchctl list | grep -i wenqu'; launchctl list | grep -i wenqu; echo "[exit_code]=$?"\012 echo '$ find ~/Library/LaunchAgents ~/.wenqu -maxdepth 3 ...'; find "$HOME/Library/LaunchAgents" "$HOME/.wenqu" -maxdepth 3 \( -iname '*wenqu*' -o -iname '*dashboard*' -o -name '*.plist' \) -print 2>&1; echo "[exit_code]=$?"\012 echo '$ ls -l ~/.wenqu/bin/wenqu-dashboard.py ~/.wenqu/dashboard/server.py ~/.wenqu/bin/wenqu 2>&1'; ls -l "$HOME/.wenqu/bin/wenqu-dashboard.py" "$HOME/.wenqu/dashboard/server.py" "$HOME/.wenqu/bin/wenqu" 2>&1; echo "[exit_code]=$?"\012 echo '$ shasum -a 256 runtime and repo dashboard'; shasum -a 256 "$HOME/.wenqu/bin/wenqu-dashboard.py" "$HOME/.wenqu/dashboard/server.py" "$HOME/.wenqu/bin/wenqu" system/bin/wenqu-dashboard.py system/dashboard/server.py system/bin/wenqu 2>&1; echo "[exit_code]=$?"\012 echo '$ for p in ~/Library/LaunchAgents/*wenqu* ...; plutil -p'; for p in "$HOME"/Library/LaunchAgents/*wenqu* "$HOME"/Library/LaunchAgents/*dashboard*; do [ -e "$p" ] || continue; echo "---$p"; plutil -p "$p"; done; echo "[exit_code]=$?"\012 echo '$ curl -sS -D - --max-time 3 http://127.0.0.1:7789/api/v1/ping -o /tmp/reaudit3_ping_body'; curl -sS -D - --max-time 3 http://127.0.0.1:7789/api/v1/ping -o /tmp/reaudit3_ping_body; rc=$?; echo "[exit_code]=$rc"; echo BODY; cat /tmp/reaudit3_ping_body 2>/dev/null\012 echo '$ curl GET invalid Host (read-only)'; curl -sS -D - --max-time 3 -H 'Host: attacker.example' http://127.0.0.1:7789/api/v1/ping -o /tmp/reaudit3_badhost_body; rc=$?; echo "[exit_code]=$rc"; echo BODY; cat /tmp/reaudit3_badhost_body 2>/dev/null\012} > "$E/08-runtime-dashboard-identity-readonly.txt" 2>&1\012cat "$E/08-runtime-dashboard-identity-readonly.txt"
+ 3154  3151 maccc            grep -E wenqu-dashboard|system/dashboard/server.py|[ :]7789
+81385     1 maccc            /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+[exit_code]=0
+$ lsof -nP -iTCP:7789 -sTCP:LISTEN
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  81385 maccc    3u  IPv4 0x12e69d706a0997d4      0t0  TCP 127.0.0.1:7789 (LISTEN)
+[exit_code]=0
+$ launchctl list | grep -i wenqu
+47736	-15	com.wenqu.app-relay
+-	0	com.wenqu.spec-reconcile.monthly
+-	1	com.wenqu.sentinel-pulse
+-	0	com.wenqu.sweep
+81385	-15	com.wenqu.dashboard
+-	0	com.wenqu.observation-window
+[exit_code]=0
+$ find ~/Library/LaunchAgents ~/.wenqu -maxdepth 3 ...
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.hardening-doctor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.cc-http1-proxy.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.disk-stale-janitor.plist
+/Users/maccc/Library/LaunchAgents/com.ht.socks-cloud4.plist
+/Users/maccc/Library/LaunchAgents/ai.hermes.gateway-cc.plist
+/Users/maccc/Library/LaunchAgents/com.memhammer.heartbeat-watch.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mutation-nightly.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.perf-baseline-runner.plist
+/Users/maccc/Library/LaunchAgents/retired-r28/com.erp.firstorder.plist
+/Users/maccc/Library/LaunchAgents/retired-r28/com.erp.freezewatch.plist
+/Users/maccc/Library/LaunchAgents/com.google.keystone.xpcservice.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.heartbeat-anchor.plist
+/Users/maccc/Library/LaunchAgents/com.memhammer.daily-verify.plist
+/Users/maccc/Library/LaunchAgents/com.mihomo.proxy.plist
+/Users/maccc/Library/LaunchAgents/ai.hermes.gateway-dachui80.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mm-invariants.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.advisory-watch.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.master-green-validator.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.db-drift-weekly.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.prod-probe.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.unpushed-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.web-search-gateway.plist
+/Users/maccc/Library/LaunchAgents/com.tokscale.dashboard.plist.disabled
+/Users/maccc/Library/LaunchAgents/com.maccc.constraint-drift-weekly.plist
+/Users/maccc/Library/LaunchAgents/com.yoooclaw.daemon.plist
+/Users/maccc/Library/LaunchAgents/com.nye.market-monitor-p80.plist
+/Users/maccc/Library/LaunchAgents/com.erp.antipat2.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.gate-studio-pool-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.google.keystone.agent.plist
+/Users/maccc/Library/LaunchAgents/com.erp.redteam.plist
+/Users/maccc/Library/LaunchAgents/com.argus.bugscan.bugbot-bridge.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.zz-evening.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.console.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.morning-accept.plist
+/Users/maccc/Library/LaunchAgents/com.agents.alert-drill.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.ci-hardening.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.codesign-clone-janitor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.master-drift-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.ci-event-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.pjt-evening.plist
+/Users/maccc/Library/LaunchAgents/com.diy.skuguard.plist
+/Users/maccc/Library/LaunchAgents/com.erp.schedule.plist
+/Users/maccc/Library/LaunchAgents/com.erp.prodprobe.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.cam-key-rotate.plist
+/Users/maccc/Library/LaunchAgents/com.local.archive-hub-chain-reconcile.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.supabase-mcp-gateway.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.fangxia-mem0-supervisor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.argus-dashboard.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.drill-monthly.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.nightly-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.weekly-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.supply-chain-audit.plist
+/Users/maccc/Library/LaunchAgents/com.erp.localsnap.plist
+/Users/maccc/Library/LaunchAgents/com.nye.market-offsite-pull.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.consistency.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.zz-daily.plist
+/Users/maccc/Library/LaunchAgents/com.diy.archiver.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.asset-mirror.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.doubao-search-gateway.plist
+/Users/maccc/Library/LaunchAgents/com.nousresearch.hermes.env.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.watchdog-dashboard.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.dupscan-weekly.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+/Users/maccc/Library/LaunchAgents/com.tunnel.dashboard-portal.plist
+/Users/maccc/Library/LaunchAgents/com.erp.guard.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.zzrecycle-daily.plist
+/Users/maccc/Library/LaunchAgents/com.erp.hermesaiwatch.plist
+/Users/maccc/Library/LaunchAgents/com.erp.uisuite.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.chxapp-evening.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+/Users/maccc/Library/LaunchAgents/com.dachui80.token-cost-sync.plist
+/Users/maccc/Library/LaunchAgents/com.erp.d0morning.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.mirroranchorseeder.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.war-lessons-sync.plist
+/Users/maccc/Library/LaunchAgents/com.market.backup-offsite.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.p5-mirror.plist
+/Users/maccc/Library/LaunchAgents/com.local.agentops-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.skill-pulse.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.watchdog-offsite-backup.plist
+/Users/maccc/Library/LaunchAgents/com.dachui80.staging-tunnel.plist
+/Users/maccc/Library/LaunchAgents/com.local.agentops-backup.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.ledger-api.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.erp-offsite-probe.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.specguard.plist
+/Users/maccc/Library/LaunchAgents/com.aiops.portal.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.daily-digest.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.sentinel-monitor-v2.plist
+/Users/maccc/Library/LaunchAgents/com.memhammer.archive-offsite.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.sentinel-heartbeat.plist
+/Users/maccc/Library/LaunchAgents/com.diy.awake-keeper.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.rbac-isolation.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.ops-dashboard.plist
+/Users/maccc/Library/LaunchAgents/com.erp.alertbridge.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.evidence-coldbackup.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.agent-memory-scan.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+/Users/maccc/Library/LaunchAgents/com.nye.market-monitor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.alert-channel-probe.plist
+/Users/maccc/Library/LaunchAgents/com.deskharness.offsite-backup.plist
+/Users/maccc/Library/LaunchAgents/com.erp.prnotifier.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.external-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.runner-probe-local.plist
+/Users/maccc/Library/LaunchAgents/com.local.archive-hub-external-monitor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.ssl-cert-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.archive-backup-inc.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.cloud-mirror.plist
+/Users/maccc/Library/LaunchAgents/com.user.docker.autostart.plist
+/Users/maccc/Library/LaunchAgents/com.local.business-docs.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.tmp-rescue.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.b-mirror-sync.plist
+/Users/maccc/Library/LaunchAgents/com.local.agentops-hub.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.qa4-cookie-refresh.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.storefront-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.market.alert-bridge.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mm-container-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.erp.enforcewatch.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.diy-collect-fallback.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.g10-remind.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.integration-mutation.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.ci-power-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.aiops.self-heal-engine.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mm-collector-alive.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.pjt-daily.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.chxapp-daily.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.p5-report.plist
+/Users/maccc/Library/LaunchAgents/com.tz.nenie.invest-daily-brief.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.quality-sync.plist
+/Users/maccc/Library/LaunchAgents/com.nye.diy-cloud-sync.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.channel-heartbeat-check.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.phone-run-alert.plist
+/Users/maccc/Library/LaunchAgents/com.trycua.driver.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.coveragesentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.conservation-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.archive-health.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.perf-baseline.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.searxng-tunnel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.route-scan.plist
+/Users/maccc/Library/LaunchAgents/com.nenie.ops-tunnel.plist
+/Users/maccc/Library/LaunchAgents/com.github.runner.mac.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.fd-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.backup.plist
+/Users/maccc/Library/LaunchAgents/com.local.archive-hub-api.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.gui-proxy-env.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.spool-rotate.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.p5-drift.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.model-fail-alert-bridge.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.disk-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.export-tenant-audit.plist
+/Users/maccc/Library/LaunchAgents/com.google.GoogleUpdater.wake.plist
+/Users/maccc/Library/LaunchAgents/com.erp.argustriage.plist
+/Users/maccc/Library/LaunchAgents/com.erp.pendingwatch.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.keyring.plist
+/Users/maccc/Library/LaunchAgents/com.nye.ip18-remote-seat.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mm-heartbeat-writer.plist
+/Users/maccc/Library/LaunchAgents/com.microsoft.EdgeUpdater.wake.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.gateway-ws-health-check.plist
+/Users/maccc/Library/LaunchAgents/ai.hermes.gateway-fangxia.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.dispatch-api-v2.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.memory-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.dh-enterprise-factory.reverse-tunnel.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.tccprobe.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.dachui80-mem0-supervisor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.cc-http1-proxy-healthcheck.plist
+/Users/maccc/Library/LaunchAgents/com.market-monitor.captcha-watch.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.archive-hub.dora-collector.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.expiry-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.mirror-sync.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.claude-relay-env.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.ghostruncleaner.plist
+/Users/maccc/Library/LaunchAgents/com.zcode.sentinel-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.codex-vpn-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.hermes.archive-backup.plist
+/Users/maccc/.wenqu
+/Users/maccc/.wenqu/bin/wenqu
+/Users/maccc/.wenqu/bin/wenqu-env.sh
+/Users/maccc/.wenqu/bin/__pycache__/wenqu-dashboard.cpython-313.pyc
+/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+/Users/maccc/.wenqu/logs/dashboard-launchd.log
+/Users/maccc/.wenqu/logs/dashboard-7788.log
+/Users/maccc/.wenqu/logs/dashboard-7789.log
+[exit_code]=0
+$ ls -l ~/.wenqu/bin/wenqu-dashboard.py ~/.wenqu/dashboard/server.py ~/.wenqu/bin/wenqu 2>&1
+ls: /Users/maccc/.wenqu/dashboard/server.py: No such file or directory
+-rwxr-xr-x@ 1 maccc  staff   5801 Oct  8 00:27 /Users/maccc/.wenqu/bin/wenqu
+-rwxr-xr-x@ 1 maccc  staff  90095 Oct  8 00:26 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+[exit_code]=1
+$ shasum -a 256 runtime and repo dashboard
+52aba1b580c809ada269060db9028e781214b8b772f300a1ebb6a5182cdda331  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+shasum: /Users/maccc/.wenqu/dashboard/server.py: No such file or directory
+98bc72b308cfeda77d238de34c3a92b70b27affadfbbdbcd218db84a1425eb9d  /Users/maccc/.wenqu/bin/wenqu
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  system/bin/wenqu-dashboard.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  system/dashboard/server.py
+2948f3b15cff997e194d16cb68a0c06cf4c41c6b348518c2364ed68f627d501f  system/bin/wenqu
+[exit_code]=1
+$ for p in ~/Library/LaunchAgents/*wenqu* ...; plutil -p
+---/Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.wenqu.app-relay"
+  "ProgramArguments" => [
+    0 => "/usr/bin/python3"
+    1 => "/opt/wenqu-app-relay/relay.py"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/relay.err"
+  "WorkingDirectory" => "/opt/wenqu-app-relay"
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+{
+  "EnvironmentVariables" => {
+    "WENQU_REPO_DIR" => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  }
+  "KeepAlive" => true
+  "Label" => "com.wenqu.dashboard"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/wenqu-dashboard.py"
+    2 => "7789"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+{
+  "Label" => "com.wenqu.observation-window"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "-c"
+    2 => "
+import json, subprocess, os
+from datetime import datetime, timezone
+# 检查 auto-merge PID 文件未复活 + Gate CI 状态 + 健康分
+checks = {}
+checks["auto_merge_dead"] = not os.path.exists(os.path.expanduser("~/.wenqu/state/auto-merge.pid"))
+try:
+    r = subprocess.run(["curl","-s","http://127.0.0.1:7789/api/health"],capture_output=True,text=True,timeout=10)
+    h = json.loads(r.stdout)
+    checks["health_score"] = h.get("score")
+    checks["gate_status"] = [p.get("详情","") for p in h.get("parts",[]) if "Gate" in p.get("项","")]
+except: checks["health_score"] = "UNREACHABLE"
+# 写日志
+log = os.path.expanduser("~/Documents/ERP）Zcode/观察窗日志.jsonl")
+with open(log,"a") as f:
+    f.write(json.dumps({"ts":datetime.now(timezone.utc).isoformat(),**checks})+"\n")
+    "
+  ]
+  "StandardOutPath" => "/tmp/wenqu-obs.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 0
+  }
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+{
+  "Label" => "com.wenqu.sentinel-pulse"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/opt/wenqu-app-relay/watchdog.sh"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/watchdog.err"
+  "StartInterval" => 1800
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+{
+  "Label" => "com.wenqu.spec-reconcile.monthly"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "/Users/maccc/qisemi-research/qisemi-erp-fresh/scripts/gates/spec-reconcile.py"
+    2 => "--repo-root"
+    3 => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  ]
+  "StandardErrorPath" => "/tmp/spec-reconcile.err"
+  "StandardOutPath" => "/tmp/spec-reconcile.log"
+  "StartCalendarInterval" => {
+    "Day" => 1
+    "Hour" => 5
+    "Minute" => 0
+  }
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+{
+  "Label" => "com.wenqu.sweep"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/sweep.py"
+    2 => "--days"
+    3 => "14"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StartInterval" => 3600
+}
+---/Users/maccc/Library/LaunchAgents/com.maccc.argus-dashboard.plist
+{
+  "EnvironmentVariables" => {
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/sbin"
+  }
+  "Label" => "com.maccc.argus-dashboard"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus3-runtime/scripts/argus/argus-dashboard.sh"
+  ]
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 40
+  }
+}
+---/Users/maccc/Library/LaunchAgents/com.maccc.watchdog-dashboard.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.maccc.watchdog-dashboard"
+  "ProgramArguments" => [
+    0 => "/Users/maccc/.hermes/venv/bin/python3"
+    1 => "/Users/maccc/.hermes/profiles/dachui80/scripts/watchdog_dashboard.py"
+  ]
+  "StandardErrorPath" => "/tmp/watchdog_dashboard.log"
+  "StandardOutPath" => "/tmp/watchdog_dashboard.log"
+}
+---/Users/maccc/Library/LaunchAgents/com.nenie.ops-dashboard.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.nenie.ops-dashboard"
+  "ProgramArguments" => [
+    0 => "/opt/hermes/agents/dachui80/venv/bin/python3"
+    1 => "/Users/maccc/.hermes/profiles/dachui80/scripts/ops-dashboard/server.py"
+    2 => "--port"
+    3 => "8199"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/tmp/ops-dashboard.err"
+  "StandardOutPath" => "/tmp/ops-dashboard.log"
+  "WorkingDirectory" => "/Users/maccc/.hermes/profiles/dachui80/scripts/ops-dashboard"
+}
+---/Users/maccc/Library/LaunchAgents/com.tokscale.dashboard.plist.disabled
+{
+  "EnvironmentVariables" => {
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    "PYTHONPATH" => "/Users/maccc/tokscale-dashboard"
+  }
+  "ExitTimeOut" => 30
+  "KeepAlive" => {
+    "Crashed" => true
+    "SuccessfulExit" => false
+  }
+  "Label" => "com.tokscale.dashboard"
+  "ProgramArguments" => [
+    0 => "/Library/Developer/CommandLineTools/usr/bin/python3"
+    1 => "-m"
+    2 => "uvicorn"
+    3 => "server:app"
+    4 => "--host"
+    5 => "127.0.0.1"
+    6 => "--port"
+    7 => "8089"
+    8 => "--workers"
+    9 => "1"
+    10 => "--timeout-graceful-shutdown"
+    11 => "5"
+    12 => "--log-level"
+    13 => "info"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/tokscale-dashboard/logs/stderr.log"
+  "StandardOutPath" => "/Users/maccc/tokscale-dashboard/logs/stdout.log"
+  "ThrottleInterval" => 10
+  "Umask" => 7
+  "WorkingDirectory" => "/Users/maccc/tokscale-dashboard"
+}
+---/Users/maccc/Library/LaunchAgents/com.tunnel.dashboard-portal.plist
+{
+  "ExitTimeOut" => 15
+  "KeepAlive" => {
+    "Crashed" => true
+    "SuccessfulExit" => false
+  }
+  "Label" => "com.tunnel.dashboard-portal"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/autossh"
+    1 => "-M"
+    2 => "0"
+    3 => "-N"
+    4 => "-o"
+    5 => "ServerAliveInterval=30"
+    6 => "-o"
+    7 => "ServerAliveCountMax=3"
+    8 => "-o"
+    9 => "ExitOnForwardFailure=yes"
+    10 => "-o"
+    11 => "ConnectTimeout=10"
+    12 => "-R"
+    13 => "8090:127.0.0.1:8090"
+    14 => "cloud3"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/tmp/dashboard-portal-tunnel.err"
+  "StandardOutPath" => "/tmp/dashboard-portal-tunnel.log"
+  "ThrottleInterval" => 10
+}
+---/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+{
+  "EnvironmentVariables" => {
+    "WENQU_REPO_DIR" => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  }
+  "KeepAlive" => true
+  "Label" => "com.wenqu.dashboard"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/wenqu-dashboard.py"
+    2 => "7789"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+}
+[exit_code]=0
+$ curl -sS -D - --max-time 3 http://127.0.0.1:7789/api/v1/ping -o /tmp/reaudit3_ping_body
+HTTP/1.0 404 Not Found
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 04:30:29 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 21
+
+[exit_code]=0
+BODY
+{"error":"not found"}$ curl GET invalid Host (read-only)
+HTTP/1.0 404 Not Found
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 04:30:29 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 21
+
+[exit_code]=0
+BODY
+{"error":"not found"}

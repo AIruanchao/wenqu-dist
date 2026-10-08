@@ -1,0 +1,109 @@
+TIMESTAMP_START=2026-10-08T04:31:18Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=rg -n --glob '!evidence/**' 'GateAggregator|gate_aggregator|gate-aggregate\.json|station-result-v2|add\(' .; printf '%s\n' '=== import graph ==='; python3 - <<'PY'
+import ast, pathlib
+for p in pathlib.Path('.').rglob('*.py'):
+    if '.git' in p.parts or 'evidence' in p.parts: continue
+    try: t=ast.parse(p.read_text(errors='ignore'))
+    except: continue
+    for n in ast.walk(t):
+        if isinstance(n,(ast.Import,ast.ImportFrom)):
+            s=ast.unparse(n)
+            if 'gate_aggregator' in s or 'GateAggregator' in s:
+                print(f'{p}:{getattr(n,lineno,0)}:{s}')
+PY
+--- OUTPUT BEGIN ---
+./system/templates/adversarial.spec.ts:24:          const totalIncome = results.reduce((sum, r) => sum.add(r.saleIncomeDelta), D(0));
+./system/templates/adversarial.spec.ts:67:          const recombined = parts.reduce((a, b) => a.add(b), D(0));
+./system/wenqu_core/station7_runtime.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规。
+./system/wenqu_core/station7_runtime.py:11:三条腿（每腿独立产出一份 station_id=7 的 station-result-v2，可单独留证；
+./system/wenqu_core/station7_runtime.py:794:# 整站合并——三条腿 → 单一 station-result-v2
+./system/wenqu_core/station7_runtime.py:799:    """把站7 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+./system/wenqu_core/station7_runtime.py:876:                seen_digests.add(digest)
+./system/wenqu_core/station7_runtime.py:915:    """站7 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。"""
+./system/wenqu_core/gate_aggregator.py:6:station-result 输入契约（add() 的每个元素）::
+./system/wenqu_core/gate_aggregator.py:41:__all__ = ["GateAggregator", "PASS", "CONDITIONAL", "BLOCKED"]
+./system/wenqu_core/gate_aggregator.py:60:class GateAggregator:
+./system/wenqu_core/gate_aggregator.py:65:        agg = GateAggregator(required_stations={"lint", "test"},
+./system/wenqu_core/gate_aggregator.py:67:        agg.add(station_result_1).add(station_result_2)
+./system/wenqu_core/gate_aggregator.py:106:    def add(self, station_result: dict) -> "GateAggregator":
+./system/wenqu_core/source_gate.py:110:            seen.add(key)
+./system/wenqu_core/bugscan_orchestrator.py:7:- 每站输出严格遵循 schemas/station-result-v2.schema.json（本文件内置结构校验器，
+./system/wenqu_core/bugscan_orchestrator.py:198:    """station-result-v2 结构/不变量校验失败（聚合全部问题一次性抛出）。"""
+./system/wenqu_core/bugscan_orchestrator.py:453:    同步 schemas/station-result-v2.schema.json 与规范文档、并重新冻结
+./system/wenqu_core/bugscan_orchestrator.py:797:    - to_station_result() 产出站0 的 station-result-v2 结果。
+./system/wenqu_core/bugscan_orchestrator.py:963:        """把冻结成功映射为站0 的 station-result-v2 结果。
+./system/wenqu_core/bugscan_orchestrator.py:1161:# station-result-v2 构造与校验
+./system/wenqu_core/bugscan_orchestrator.py:1178:    """按 schema 白名单构造 station-result-v2，并强制安全不变量：
+./system/wenqu_core/bugscan_orchestrator.py:1228:    可用时额外用 jsonschema 对 schemas/station-result-v2.schema.json
+./system/wenqu_core/bugscan_orchestrator.py:1389:            "station-result-v2 validation failed: " + "; ".join(issues)
+./system/wenqu_core/bugscan_orchestrator.py:1398:        Path(__file__).resolve().parent.parent / "schemas" / "station-result-v2.schema.json"
+./system/wenqu_core/bugscan_orchestrator.py:1508:        """消费源闸结果 → 站1 station-result-v2（严格 schema 合规）。"""
+./system/tests/test_core_wiring.py:33:        "scheduler", "gate_aggregator", "ledger_migrator", "deploy_framework",
+./system/tests/test_core_wiring.py:46:        "run-event-v2.schema.json", "station-result-v2.schema.json",
+./system/tests/test_core_wiring.py:82:def test_gate_aggregator_blocks_empty():
+./system/tests/test_core_wiring.py:85:    from wenqu_core.gate_aggregator import GateAggregator
+./system/tests/test_core_wiring.py:86:    g = GateAggregator(required_stations=set(), target_sha="0"*40, environment="test")
+./system/wenqu_core/__init__.py:16:  WebGuiScanner → station-result-v2，分母自 tests/ 动态计算）
+./system/wenqu_core/__init__.py:18:  station-result-v2；不计收敛轮但可阻断发布；含站5/站6 占位接口）
+./cli/wenqu:466:        existing.add(d["id"])
+./cli/wenqu:504:                fold_ids.add(d["id"])
+./cli/wenqu:735:                    seen.add(d["id"])
+./system/schemas/station-result-v2.schema.json:3:  "$id": "wenqu:schemas/station-result-v2.json",
+./system/wenqu_core/station2_static.py:11:- 每站输出严格遵循 schemas/station-result-v2.schema.json（复用 W6A 的
+./system/wenqu_core/station2_static.py:58:    report["station_result"]        # 站2 聚合 station-result-v2（schema 合规）
+./system/wenqu_core/station2_static.py:1495:    """站2（静态与供应链）聚合适配器：四执行件 → 站级 station-result-v2。
+./system/wenqu_core/station2_static.py:1624:                    seen_ids.add(finding.finding_id)
+./system/bin/gate-learner.py:153:                existing_ids.add(d.get("rule_id"))
+./tools/ac_traceability.py:241:        "test_function": "test_gate_aggregator_blocks_empty",
+./system/bin/ts-to-tla.py:91:            all_vars.add(p["name"])
+./system/dashboard/app.js:96:      document.querySelectorAll('.tbtn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+./system/dashboard/app.js:117:      cards.forEach(c=>c.classList.remove('now'));if(ring)ring.classList.add('now');
+./system/dashboard/app.js:123:    const c=cards[i];c.classList.add('now');c.scrollIntoView({block:'nearest',behavior:'smooth'});
+./system/dashboard/app.js:247:    cards[i].classList.add('now');cards[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+./system/dashboard/app.js:397:  if(prevR!=null&&n>prevR){rbox.classList.remove('flash');void rbox.offsetWidth;rbox.classList.add('flash')}
+./system/dashboard/app.js:476:    scEl.classList.remove('popnum');void scEl.offsetWidth;scEl.classList.add('popnum');
+./system/dashboard/app.js:501:  if(pc&&prevD!=null&&prevD!==dec.length){pc.classList.remove('flash');void pc.offsetWidth;pc.classList.add('flash')}
+./system/wenqu_core/station3_contract.py:10:- 输出严格遵循 schemas/station-result-v2.schema.json：复用
+./system/wenqu_core/station3_contract.py:123:#: 站3 固定编号（schemas/station-result-v2.station_id ∈ [0,7]）。
+./system/wenqu_core/station3_contract.py:555:        """映射为站3 单件 station-result-v2（经 build/validate 双保险）。"""
+./system/wenqu_core/station3_contract.py:693:            seen.add(key)
+./system/wenqu_core/station3_contract.py:852:            probed.add(key)
+./system/wenqu_core/station3_contract.py:1340:    """站3「契约与数据」总适配：四个子适配器的工厂 + 聚合为单一 station-result-v2。
+./system/wenqu_core/station3_contract.py:1431:        """消费四份底层载荷 → 聚合为站3 单一 station-result-v2。
+./system/wenqu_core/station3_contract.py:1502:                    seen_digests.add(art["cas_digest"])
+./system/bin/wenqu-dashboard.py:273:      document.querySelectorAll('.tbtn').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+./system/bin/wenqu-dashboard.py:292:      cards.forEach(c=>c.classList.remove('now'));ring.classList.add('now');
+./system/bin/wenqu-dashboard.py:298:    const c=cards[i];c.classList.add('now');c.scrollIntoView({block:'nearest',behavior:'smooth'});
+./system/bin/wenqu-dashboard.py:402:    cards[i].classList.add('now');cards[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+./system/bin/wenqu-dashboard.py:496:   if(prevR!=null&&n>prevR){rbox.classList.remove('flash');void rbox.offsetWidth;rbox.classList.add('flash');}
+./system/bin/wenqu-dashboard.py:531:   if(sc&&window.__scorePrev!=null&&window.__scorePrev!==h.score){sc.classList.remove('popnum');void sc.offsetWidth;sc.classList.add('popnum');
+./system/bin/wenqu-dashboard.py:543:   if(prevD!=null&&prevD!==dec.length){pc.classList.remove('flash');void pc.offsetWidth;pc.classList.add('flash');}
+./system/wenqu_core/station4_behavior.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规
+./system/wenqu_core/station4_behavior.py:13:三条腿（每腿独立产出一份 station_id=4 的 station-result-v2，可单独留证；
+./system/wenqu_core/station4_behavior.py:14:整站结果由 combine_station4_results 合并为单一条目——GateAggregator 同站
+./system/wenqu_core/station4_behavior.py:307:                    found.add(path.relative_to(self._tests_root).as_posix())
+./system/wenqu_core/station4_behavior.py:906:# 整站合并——三条腿 → 单一 station-result-v2
+./system/wenqu_core/station4_behavior.py:911:    """把站4 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+./system/wenqu_core/station4_behavior.py:996:                seen_digests.add(digest)
+./system/wenqu_core/station4_behavior.py:1036:    """站4 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。"""
+./system/bin/blast-radius.py:63:            forward_deps[f].add(resolved)
+./system/bin/blast-radius.py:64:            reverse_deps[resolved].add(f)
+./system/bin/blast-radius.py:74:        affected.add(current)
+./system/bin/blast-radius.py:87:        test_files.add(f)
+./system/bin/blast-radius.py:94:                    test_files.add(candidate)
+./system/bin/blast-radius.py:99:                    test_files.add(tf)
+./system/bin/blast-radius.py:105:        prop_tests.add(tf)
+./system/bin/blast-radius.py:111:        prop_tests.add(str(p))
+./system/dashboard/server.py:8:  - 不变量 10：dashboard 只能等于或比权威聚合器更保守——/api/v1/health 只读 gate_aggregator
+./system/dashboard/server.py:106:    path = os.environ.get("WENQU_GATE_AGGREGATE") or os.path.join(WQ, "state", "gate-aggregate.json")
+./system/dashboard/server.py:109:                "detail": "权威聚合器快照不存在：%s（gate_aggregator 产出后自动出现）" % path}
+./system/dashboard/server.py:848:        ck("/api/v1/health 读 gate_aggregator（200 判定透传 或 503 结构化 ERROR，绝不 200+空集）",
+./system/dashboard/server.py:915:    print(f"  health 正源 = gate_aggregator 快照（{os.environ.get('WENQU_GATE_AGGREGATE') or os.path.join(WQ, 'state', 'gate-aggregate.json')}）")
+=== import graph ===
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+NameError: name 'lineno' is not defined
+--- OUTPUT END ---
+EXIT_CODE=1
+TIMESTAMP_END=2026-10-08T04:31:18Z

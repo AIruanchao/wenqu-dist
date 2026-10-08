@@ -1,0 +1,737 @@
+TIMESTAMP_START=2026-10-08T04:30:05Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=printf '%s\n' '=== evidence README ==='; cat evidence/README.md; printf '%s\n' '=== evidence-index ==='; cat evidence/evidence-index.json; printf '%s\n' '=== section READMEs ==='; for f in evidence/[0-9][0-9]-*/README.md; do echo ====$f====; cat "$f"; done; printf '%s\n' '=== actual files no legacy ==='; find evidence -type f ! -path 'evidence/00-baseline/codex-external/evidence/*' -print0 | xargs -0 stat -f '%N|%z|%m' | sort
+--- OUTPUT BEGIN ---
+=== evidence README ===
+# evidence/ — P0-10 证据包基础设施
+
+依据 Codex 重构方案 §24.2（方案正源 `/private/tmp/codex-test/方案.md`，SHA256
+`96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306`）建立的证据包目录。
+2026-10-08 由 P0-10 建档（初始状态：多数目录 EMPTY/PARTIAL，逐目录状态见各自 README）。
+
+## 目录总览
+
+| 目录 | 证据域 | 工作包 | 建档时状态 |
+|---|---|---|---|
+| 00-baseline | W0 基线快照 | W0 | EMPTY |
+| 01-threat-model-and-contracts | 威胁模型/冻结契约 | W1 | PARTIAL |
+| 02-schemas-and-tla | Schema 与形式化 | W1/W2 | PARTIAL |
+| 03-red-probes-before | 红探针 BEFORE（假绿复现） | §20 全局 | EMPTY |
+| 04-unit-property-mutation | 单元/属性/变异 | W2/W3/W6 | PARTIAL |
+| 05-concurrency-crash-chaos | 并发/崩溃/混沌 | W2/W4/W7 | PARTIAL |
+| 06-scanner-goldens | 扫描器金样夹具 | W6A~D | PARTIAL |
+| 07-migration-reconcile | 481 条旧账对账 | W5 | NOT STARTED |
+| 08-ci-and-branch-rules | CI 与分支规则 | W3 | PARTIAL |
+| 09-release-manifest-attestation | 发布清单/签名 | W7A/W7B | PARTIAL |
+| 10-ui-launchd-alert-backup | UI/launchd/告警/备份 | W4/W8 | PARTIAL |
+| 11-shadow-canary | Shadow/Canary | W9 | EMPTY |
+| 12-rollback-drill | 回滚演练 | W7B/W10 | EMPTY |
+| 13-observation-window | 14 天观察窗 | W10 | NOT STARTED |
+
+## 硬约束（§24.2 原文）
+
+每项证据必须绑定：`run_id`、`commit`、`environment`、`scope`、`ruleset`、`时间`、`argv`、
+`真实 rc`、`artifact SHA256`、`fresh_until`。缺任一字段的「证据」不得用于任何放行判定。
+
+## 索引
+
+- 总索引：`evidence/evidence-index.json`
+- 131 个验收 ID（§20）追踪矩阵：`evidence/traceability-matrix.json`
+  （由 `tools/ac_traceability.py` 生成，重跑命令：`python3 tools/ac_traceability.py`）
+
+## 诚实边界
+
+本目录建档本身**不构成任何验收完成**：Codex 验收报告（2026-10-07）总判定仍为
+**BLOCKED（29/100）**；本结构只是让后续证据有唯一归位处，防止「测试通过=完成」的口径漂移。
+=== evidence-index ===
+{
+  "index_version": "1.0.0",
+  "created_at": "2026-10-08T00:00:00+08:00",
+  "created_by": "P0-10 证据包基础设施建档",
+  "plan_source": {
+    "path": "/private/tmp/codex-test/方案.md",
+    "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "sha256_verified_at": "2026-10-08",
+    "note": "方案正源在临时目录，须尽快快照入 evidence/00-baseline/；本索引按 §24.2 建档"
+  },
+  "repo_head_at_filing": {
+    "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658",
+    "subject": "fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）",
+    "note": "建档期间由外部 writer 推入；该 commit 尚无 CI 通过记录"
+  },
+  "entries": [
+    {
+      "entry_id": "EV-CI-001",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 工作流通过记录（run 37660552501）",
+      "what": "CI 通过记录：commit 1858a75（fix(p0-9) dashboard /api/decide 安全加固）在 main 分支 acceptance 工作流全绿",
+      "run_id": "37660552501",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow 4 步：release-check + tests/acceptance.sh + pytest 契约 + selftest",
+      "ruleset": ".github/workflows/acceptance.yml (sha256 df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592)",
+      "time": "2026-10-07T17:37:51Z",
+      "argv": ["gh run list --limit 5 (repo AIruanchao/wenqu-dist)"],
+      "real_rc": "conclusion=success (27s)",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+      "caveat": "记录为 API 摘要，run 原始日志未导出落档"
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 工作流通过记录（run 37660144865）",
+      "what": "CI 通过记录：commit be50cb8（fix(p0-6+7) EventStore 幂等+表名避冲突+部署 exec bit 保留）main 分支全绿",
+      "run_id": "37660144865",
+      "commit": "be50cb8",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow 同上",
+      "ruleset": ".github/workflows/acceptance.yml",
+      "time": "2026-10-07T17:34:41Z",
+      "argv": ["gh run list --limit 5 (repo AIruanchao/wenqu-dist)"],
+      "real_rc": "conclusion=success (27s)",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+      "caveat": "同 EV-CI-001"
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "category": "04-unit-property-mutation",
+      "title": "P0-1 核心接线测试 8/8 通过（CI 内执行）",
+      "what": "system/tests/test_core_wiring.py 全部 8 用例通过：wenqu_core 存在(≥8模块)/可导入/5 schema 可解析/dashboard 四文件/TrustedRunner 证据产出/GateAggregator 空分母 BLOCKED/schema 拒 CRITICAL ACCEPTED_RISK/install.sh 含核心安装",
+      "run_id": "37660552501 (随 CI acceptance 步骤)",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "system/tests/test_core_wiring.py；经 tests/acceptance.sh P1 节接线（缺失时 acceptance 必红）",
+      "ruleset": "同 CI acceptance.yml",
+      "time": "2026-10-07T17:37:51Z",
+      "argv": ["python3 system/tests/test_core_wiring.py"],
+      "real_rc": "0 (8 PASS / 0 FAIL)",
+      "artifact_sha256": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823",
+      "evidence_path": "evidence/04-unit-property-mutation/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档（文件 sha256 实算 + CI 结论实查；步骤级日志未导出）",
+      "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言"
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "category": "04-unit-property-mutation",
+      "title": "tests/acceptance.sh 发行版回归 53 PASS / 0 FAIL（Codex 复核时点）",
+      "what": "发行版验收脚本全绿：selftest 契约/预埋缺陷探测器真命中(标记行验证)/干净仓不误报/convergence 空转拒绝/超时不落账/参数值域/并发 8 进程账本零损坏/repair 不伤审计行/sweep 精确匹配/四高防线/P0 安装收敛/P1 核心接线",
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)",
+      "scope": "tests/acceptance.sh 全 53 检查",
+      "ruleset": "脚本 sha256 912347f2d2acc4723915c8d086bd186df4e66062bceede6bb717e42aab5c3e35",
+      "time": "2026-10-07T23:13–23:21 (+08:00)",
+      "argv": ["bash tests/acceptance.sh"],
+      "real_rc": "0 (53 PASS / 0 FAIL)",
+      "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 独立复核（验收报告 §3.2）",
+      "caveat": "原始日志在 /private/tmp（临时目录），未快照入仓——过期即失效，P0-10 后续动作之一是固化"
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "category": "04-unit-property-mutation",
+      "title": "wenqu_core 5 模块内嵌 selftest rc=0",
+      "what": "bugscan_orchestrator / station2_static / station3_contract / station4_behavior / station7_runtime 五模块 self-test 通过",
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)",
+      "scope": "5 个 wenqu_core 模块 _self_test()",
+      "ruleset": "compileall 亦 rc=0",
+      "time": "2026-10-07T23:14 (+08:00)",
+      "argv": ["python3 -m wenqu_core.<mod> (selftest 入口)"],
+      "real_rc": "0 ×5",
+      "artifact_sha256": null,
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/acceptance-20261007-231333/selftest-*.log",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 独立复核（验收报告 §3.2）",
+      "caveat": "同 EV-TEST-002 外部临时目录问题；ledger_migrator/gate_aggregator 等其余模块不在该 5 模块清单内"
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "category": "00-baseline",
+      "title": "Codex 方案自验证 29/29 PASS",
+      "what": "方案文件一致性/追踪性/可执行性检查全过：131 个 §20 测试 ID 与 §25.1 展开集合完全相等零重复零悬空、21 个 FND 连续唯一、DAG 无环、15 个快照靶点存在",
+      "run_id": "reaudit-20261007",
+      "commit": null,
+      "environment": "local (只读验证器)",
+      "scope": "/private/tmp/codex-test/方案.md 自身（非代码整改验收）",
+      "ruleset": "validate_plan.py",
+      "time": "2026-10-07T15:27 (+08:00)",
+      "argv": ["python3 validate_plan.py 方案.md"],
+      "real_rc": "0 (29/29 PASS)",
+      "artifact_sha256": "plan-self-validation.json.sha256 在外部目录",
+      "evidence_path": "外部：/private/tmp/codex-test/evidence/reaudit-20261007/plan-self-validation.txt",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 方案 §29 记录",
+      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论"
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "category": "00-baseline",
+      "title": "Codex 整改产物验收总判定：BLOCKED（29/100）——负面结论存档",
+      "what": "2026-10-07 Codex 验收结论：候选实现/CI 准入/受控部署/发布后闭环全部不通过；W0-W10 加权 29 分；八项硬缺口（七段状态机闭环/八站统一入口/双授权/完整链/事件正源/原子安装/红探针矩阵/shadow-canary-观察-回滚证据）在册",
+      "run_id": "acceptance-20261007-231333",
+      "commit": "1858a75 (验收基线 main@4aeb199 起算)",
+      "environment": "local (只读复核)",
+      "scope": "wenqu-dist 全仓 W0-W10",
+      "ruleset": "方案 §24.1 硬完成门",
+      "time": "2026-10-07T23:13–23:21 (+08:00)",
+      "argv": [],
+      "real_rc": "判定=BLOCKED",
+      "artifact_sha256": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "evidence_path": "外部：/private/tmp/codex-test/验收报告.md",
+      "fresh_until": "长期（作为整改基线判定，非时效性证据）",
+      "verified_by": "Codex 独立复核",
+      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移"
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "category": "09-release-manifest-attestation",
+      "title": "发行版哈希清单链 v1.0.6～v3.6.3（25 份 SHA256-v*.txt）",
+      "what": "仓根连续 25 份发布哈希清单文件（v1.0.6/07/08/18、v2.0、v3.0.0～v3.6.3），最近一份 v3.6.3（2026-10-08 00:28）",
+      "run_id": null,
+      "commit": "随各版本提交",
+      "environment": "repo artifact",
+      "scope": "发行打包完整性清单（弱版本：无 manifest 结构/签名/build identity）",
+      "ruleset": "tests/release-check.sh 校验版本号一致性",
+      "time": "2026-10-02 ～ 2026-10-08",
+      "argv": [],
+      "real_rc": null,
+      "artifact_sha256": "SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
+      "evidence_path": "evidence/09-release-manifest-attestation/",
+      "fresh_until": "长期",
+      "verified_by": "ZCode P0-10 建档（文件存在性+哈希实算）",
+      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）"
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "category": "04-unit-property-mutation",
+      "title": "131 个 §20 验收 ID 初始追踪矩阵（P0-10 生成）",
+      "what": "tools/ac_traceability.py 首次运行产物：131 个测试 ID 的 implemented/test_file/evidence_path 矩阵与覆盖率统计（作为整改前基线）",
+      "run_id": "p0-10-initial",
+      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)",
+      "environment": "local",
+      "scope": "§20 全部 131 ID × 仓内测试资产扫描",
+      "ruleset": "工具冻结目录=方案 §20/§25.1 转录；方案 sha256 96b8646f…",
+      "time": "2026-10-08",
+      "argv": ["python3 tools/ac_traceability.py"],
+      "real_rc": "见运行输出",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/traceability-matrix.json",
+      "fresh_until": "随下次全量测试资产变更即须重跑",
+      "verified_by": "P0-10 建档运行",
+      "caveat": "矩阵为静态扫描（测试文件/函数引用检查），不执行测试"
+    }
+  ],
+  "known_gaps": [
+    "§20 的 131 个验收 ID 无一拥有专属测试（详见 traceability-matrix.json 初始报告）",
+    "外部 /private/tmp/codex-test/ 证据（验收报告+两个 evidence 目录）未快照入仓，存在丢失风险",
+    "当前 HEAD e00de14 无 CI 结论（建档时刚推入）",
+    "branch ruleset / required checks 回读、签名 attestation、Playwright、launchd 真环境、备份/回滚演练、观察窗指标全部缺位"
+  ]
+}
+=== section READMEs ===
+====evidence/00-baseline/README.md====
+# 00-baseline — W0 基线快照证据
+
+## 证据类型
+
+W0（快照与危险面隔离）产出的时点基线：仓库 HEAD/SHA、现役运行体身份对账（runtime vs source hash）、
+磁盘容量水位、auto-merge/launchd/crontab 现役状态、dashboard 健康分时点投影、branch ruleset 现状。
+对应 Codex 方案 §9（W0）与 FND-008（runtime/source 热补漂移）、FND-021（磁盘 90%）。
+
+每项证据必须绑定（§24.2 硬约束）：`run_id`、`commit`、`environment`、`scope`、`ruleset`、`时间`、
+`argv`（采集命令原文）、`真实 rc`、`artifact SHA256`、`fresh_until`（时效边界，过期即不得用于放行）。
+
+## 关联测试 ID
+
+- CAP-01（峰值空间/磁盘满 → 切换 BLOCKED）——容量基线是它的 before 输入。
+
+## 当前状态（2026-10-08 建档时点）
+
+**EMPTY（仓内零工件）**——W0 尚未在本仓内执行落档。
+
+外部相邻证据（临时目录，随时可能消失，须尽快快照入本目录）：
+
+- `/private/tmp/codex-test/evidence/reaudit-20261007/`（Codex 复审基线，captured_at=2026-10-07 15:15 CST）：
+  `branch-required-checks.json`、`dashboard-health.json`、`dashboard-runtime-diff.patch`、
+  `runtime-source-hashes.txt`、`skill-hashes.txt`、`launchctl-selected.txt`、`waiting-states.json`、`manifest.sha256`。
+- 该目录已验证存在且含 manifest，但其内容**尚未复制入本目录**，不计为已固化证据。
+
+## 填写规则
+
+1. 只接受只读采集命令的原始输出 + manifest 哈希清单，不接受转述。
+2. 每次 W0 重跑生成独立 `run_id` 子目录或文件前缀，禁止覆盖旧基线。
+3. `fresh_until` 默认 ≤7 天；过期基线只能作历史对照，不得作放行依据。
+====evidence/01-threat-model-and-contracts/README.md====
+# 01-threat-model-and-contracts — W1 威胁模型与冻结契约证据
+
+## 证据类型
+
+W1（契约、Schema、威胁模型、红探针定义）的产物：
+
+- 威胁模型（STRIDE/攻击面/TCB）及其与测试 ID 的映射表；
+- 冻结的契约文档（七段状态机、Bug 八站统一结果、审批/授权语义）；
+- 契约与实现的一致性核验记录（DOC-01～04 的生成式 consistency report 底稿）。
+
+## 关联测试 ID
+
+- DOC-01～04（文档/契约漂移 → CI 阻断）
+- 威胁模型条目 T-01～T-13 已在册（`system/docs/security/threat-model.md`），映射到 MRG-03/05、
+  STATE-04/05、GATE-04～06、AUTH-02 等。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——契约工件在仓内存在，但均未按 §24.2 绑定 run_id/SHA/fresh_until 落档为证据**：
+
+| 工件 | 路径 | 状态 |
+|---|---|---|
+| 威胁模型 v1 | `system/docs/security/threat-model.md` | 存在，含 T-01～T-13 与测试 ID 映射 |
+| vNext 契约 | `system/docs/specs/wenqu-vNext-contract.md` | 存在，未冻结版本号 |
+| ADR-001/002/003 | `system/docs/adr/` | 存在（事件正源/审批安全/可信 runner） |
+| 宪法/工单模板 | `system/templates/` | 存在 |
+
+缺口：threat model 尚未覆盖 §20 全部注入面（如 COND/DEP/STOP 族）；契约未做机器校验版本冻结。
+
+## 填写规则
+
+1. 契约文档冻结时须附 SHA256 并登记入 `evidence-index.json`。
+2. consistency report 必须是生成器输出（可重跑复现），不接受手工编辑结论。
+====evidence/02-schemas-and-tla/README.md====
+# 02-schemas-and-tla — Schema 与 TLA+ 形式化证据
+
+## 证据类型
+
+- JSON Schema（Draft-07）正本及其校验记录（正例/反例执行日志）；
+- TLA+ / 形式化规格（状态机不变量、死锁/活性检查输出，TLC 模型检查日志）；
+- schema 演进与迁移的兼容性证据。
+
+对应 Codex 方案 §10（W1 契约冻结）、§11.3 验收矩阵。
+
+## 关联测试 ID
+
+- STATE-01（任意 stage/status → schema 拒绝）、STATE-11、ACT-06、COND-04（schema 层硬化的直接验收面）
+- MIG-01（坏 JSON/未知状态 → quarantine）
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——5 个 Schema 在仓内存在并通过 CI 接线测试；TLA+ 只有 ERP 支付域历史件，问渠状态机
+未建 TLA+ 模型**：
+
+| 工件 | 路径 | 状态 |
+|---|---|---|
+| run-event-v2.schema.json | `system/schemas/` | 存在；P0-4 批加固（commit e00de14） |
+| station-result-v2.schema.json | `system/schemas/` | 存在 |
+| evidence-v2.schema.json | `system/schemas/` | 存在 |
+| finding-event-v2.schema.json | `system/schemas/` | 存在；P0/P1 拒 ACCEPTED 硬化 |
+| approval-v2.schema.json | `system/schemas/` | 存在；顶层 if/then 判别式硬化 |
+| PaymentConservation.tla | `system/specs/` | ERP 支付守恒域历史件，**非**问渠七段状态机 |
+| ts-to-tla.py | `system/bin/` | 转换工具存在，未产出问渠模型 |
+
+注意（诚实边界）：`system/tests/test_core_wiring.py` 只验证 schema 存在且可解析 + 2 个业务不变量
+负例（CRITICAL 拒 ACCEPTED_RISK），**不等于** §20 全部 schema 面验收通过。
+
+## 填写规则
+
+1. 每次Schema 变更须附 before/after 正反例执行记录（jsonschema 校验日志，真实 rc）。
+2. TLA+ 模型检查须保存 TLC 原始输出与配置（何常量、何不变量、状态空间规模）。
+====evidence/03-red-probes-before/README.md====
+# 03-red-probes-before — 红探针 BEFORE（旧实现假绿/漏拦复现）证据
+
+## 证据类型
+
+Codex 方案 §20 的硬前提：**所有用例必须保存 before/after**。本目录存放 BEFORE 侧——
+在旧实现上证明注入确实能产生假绿/漏拦（攻击先成功），作为修复后正确阻断（AFTER，落
+`04`～`07` 对应目录）的对照组。
+
+重放边界（§20 强制）：旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；
+自动合流、生产写、DDL、真实外部告警和回滚类缺陷禁止在真实系统重放——此类只能用已有生产日志/
+审计证据作 before。
+
+## 关联测试 ID
+
+§20 全部 131 个 ID 的 before 侧；特别是 FND-001～017 对应的 MRG/GATE/STATE/SC/DB/TEN/PERF 族。
+
+## 当前状态（2026-10-08 建档时点）
+
+**EMPTY / NOT STARTED**：
+
+- `system/tests/red_probes/` 目录已建但为空（0 文件）；
+- Codex 验收报告（2026-10-07）明确判定「active CI 中的独立红探针与完整验收矩阵」缺失（BLOCKED 项 7）；
+- 外部相邻：`/private/tmp/codex-test/evidence/acceptance-20261007-231333/` 含
+  `adversarial-probes.json`、`runner-cas-probes.json`、`store-migrator-probes.json`（Codex 方向的
+  独立对抗探针，rc/输出在档），同样未固化入本仓。
+
+## 填写规则
+
+1. 每个探针一个工件组：注入脚本 + 原始输出 + 真实 rc + SHA256 + 环境说明（副本/隔离）。
+2. 必须能证明「旧实现确实拦不住」——只有注入没有漏拦证据的不算 before。
+3. 生产日志类 before 须注明来源时间与脱敏处理，禁止回显凭据原文。
+====evidence/04-unit-property-mutation/README.md====
+# 04-unit-property-mutation — 单元/属性/变异测试证据
+
+## 证据类型
+
+- 单元测试执行记录（pytest/junit 原始输出）；
+- 属性测试（property-based，如 hypothesis）对状态机转换、CAS、幂等的性质检查记录；
+- 变异测试（mutation）得分报告——证明测试真的能杀变异体，不是恒真断言；
+- AFTER 侧红探针（修复后正确阻断）也按测试族归档到本目录对应子项。
+
+对应 §12.3（收敛验证器 v3）、§15（W6 各站）。
+
+## 关联测试 ID
+
+GATE-04/09/10/11、STATE-01/02、AUTH-01～06、COND-01～06、MIG-02～05、SC-04、TEN-01～03、
+DOC-01～04 等以断言为核心的族。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——接线级与遗留回归在绿，但 §20 ID 专属测试为 0，属性/变异测试为 0**：
+
+| 已有资产 | 规模 | 最近绿证据 |
+|---|---|---|
+| `system/tests/test_core_wiring.py`（P0-1 接线） | 8 用例 | CI run 37660552501 @ 1858a75，2026-10-07 |
+| `tests/acceptance.sh`（发行版回归） | 53 检查全过 | Codex 复核 2026-10-07 23:13–23:21（外部证据） |
+| `cli/test_wenqu.py`（CLI 契约） | 20 pytest 用例 | 同上 CI acceptance 工作流 |
+| `wenqu_core` 5 模块内嵌 selftest | rc=0 ×5 | Codex 复核 2026-10-07（外部证据） |
+
+诚实边界：以上均**不含** §20 的 131 个 ID 专属用例（详见 `evidence/traceability-matrix.json`，
+初始覆盖率见运行 `tools/ac_traceability.py` 输出）；无 property-based、无 mutation 报告。
+
+## 填写规则
+
+1. 归档 junit/pytest `-v` 原始输出 + rc + 用例清单哈希；跳过条件（skip）必须显式列出。
+2. property/mutation 工具的种子（seed）必须记录以便复现。
+====evidence/05-concurrency-crash-chaos/README.md====
+# 05-concurrency-crash-chaos — 并发/崩溃/混沌证据
+
+## 证据类型
+
+- 并发写压测（如 100×100 并发）零丢失/零重复的原始日志；
+- 事务各点 kill -9 / 断电模拟（WAL 恢复）的恢复记录；
+- 双 writer epoch / lease 争抢的 fencing 证据；
+- 混沌注入（scheduler 整体故障、外部 provider 500/超时）下的系统行为记录。
+
+对应 §6.4（SQLite 事件正源）、§12、§16.3（原子部署）、§13（调度）。
+
+## 关联测试 ID
+
+STATE-03/04/05、AUTH-05、COND-06、DEP-01/02、SCH-04/05、ALT-01、ACT-03/04、REL-02、BAK-01、CAP-01。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——遗留 CLI 账本有并发回归；wenqu_core EventStore/部署面的并发与崩溃证据为 0**：
+
+| 已有资产 | 覆盖对象 | 证据 |
+|---|---|---|
+| `tests/acceptance.sh` I 节（8 进程撞锁写账本零损坏） | 遗留 cli findings.jsonl 账本 | acceptance.sh 53 PASS 内（2026-10-07） |
+| `tests/acceptance.sh` L 节（并发 ingest 后账本可用、同 id 不双入账） | 遗留账本 | 同上 |
+| wenqu_core EventStore（STATE-03/04/05） | 新核心 | **无任何并发/崩溃证据** |
+| deploy_framework（REL-02 kill -9、DEP-01 lease） | 部署面 | **无证据** |
+
+注：P0-6+7（commit be50cb8）给 EventStore 加了幂等（内容哈希 event_id）并过 CI，但无独立
+kill -9/双 writer 证据落档。
+
+## 填写规则
+
+1. 崩溃注入必须记录注入时点（事务哪个点）、恢复后状态校验命令与输出。
+2. 并发压测必须记录并发度矩阵、种子、是否出现孤儿写盘。
+3. 混沌类证据必须区分「注入成功」与「系统正确反应」两个独立证明。
+====evidence/06-scanner-goldens/README.md====
+# 06-scanner-goldens — 扫描器金样与夹具证据
+
+## 证据类型
+
+Bug 八站扫描器（W6A～W6D）的金样（golden）测试证据：
+
+- DB 漂移识别金样：`[+]`/`[-]`/`[*]` 各形态、catalog 顺序/默认表达式/extension 的规范化输出对照；
+- 供应链/advisory 夹具：离线快照（含签名/分页）、registry 超时、多页多 range 遍历记录；
+- 租户扫描分母探针：Prisma DMMF/AST/runtime 三源对账（193 模型全量，非 27 硬编码）；
+- 性能基线：raw 样本、p95/p99 计算、baseline 晋升与 policy hash 绑定记录。
+
+对应 §15.2～§15.6。
+
+## 关联测试 ID
+
+DB-01～06、SC-01～05、ADV-01～02、TEN-01～08、PERF-01～06、STA-01～02。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——W6B/C/D 站点实现与内嵌 selftest 在仓（rc=0×5，2026-10-07 Codex 复核），但金样/
+夹具文件为 0，分母漏洞（FND-013，漏 172 模型）与 DB 漂移误判（FND-010）尚未根治**：
+
+| 工件 | 状态 |
+|---|---|
+| `system/wenqu_core/station2_static.py`（+selftest） | 存在，rc=0 |
+| `system/wenqu_core/station3_contract.py`（+selftest） | 存在，rc=0 |
+| `system/wenqu_core/station4_behavior.py`（+selftest） | 存在，rc=0 |
+| `system/wenqu_core/station7_runtime.py`（+selftest） | 存在，rc=0 |
+| `system/wenqu_core/bugscan_orchestrator.py`（+selftest） | 存在，rc=0 |
+| DB 漂移金样（DB-01～06） | **无** |
+| 供应链离线快照夹具（SC-05） | **无** |
+| 租户 DMMF 分母对账（TEN-01～08） | **无**（旧 export-tenant-audit.mjs 仍在 argus-assemble 侧） |
+| 性能基线 raw 样本（PERF-01～06） | **无** |
+
+## 填写规则
+
+1. 每个金样必须同时存输入夹具与期望输出（ golden 文件），变更需双 PR 对照。
+2. 站点 selftest 升级为 §20 ID 标注后，执行输出直接引用到本目录。
+3. 分母类证据必须给出「全量对象清单来源」（DMMF/AST/runtime 哪个源、何时快照）。
+====evidence/07-migration-reconcile/README.md====
+# 07-migration-reconcile — W5 旧账迁移对账证据
+
+## 证据类型
+
+481 条遗留 finding 记录 → 新事件正源的逐项迁移 reconciliation：
+
+- `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 全量索引（481 条，
+  若 W0 快照后分母变化须以新快照为准并解释差异）；
+- 坏 JSON/未知状态 → quarantine 清单；
+- 缺审批要素的 43 条 ACCEPTED → invalid/reopen 决策记录；
+- 两次迁移幂等性、源行数守恒校验输出。
+
+对应 §14（W5 迁移）。
+
+## 关联测试 ID
+
+MIG-01～05、STATE-06、RISK-01。
+
+## 当前状态（2026-10-08 建档时点）
+
+**NOT STARTED（证据面）——迁移器代码存在但 W5 对账证据为 0**：
+
+| 工件 | 状态 |
+|---|---|
+| `system/wenqu_core/ledger_migrator.py` | 存在（未纳入 5 模块 selftest 复核清单，无独立执行证据） |
+| 481 条逐项 reconciliation 索引 | **无** |
+| 43 条 ACCEPTED 缺要素处置记录 | **无** |
+| Codex 验收 W5 评分 | 1/8 FAIL（2026-10-07） |
+
+诚实边界：外部探针 `/private/tmp/codex-test/evidence/acceptance-20261007-231333/store-migrator-probes.json`
+含 Codex 方向的迁移器对抗探针结果，未固化入本仓。
+
+## 填写规则
+
+1. reconciliation 索引必须机器生成且可重跑；行数守恒校验失败即迁移失败，不得带病收尾。
+2. quarantine/invalid/reopen 每条决策须可追溯到源记录原文（脱敏后）。
+====evidence/08-ci-and-branch-rules/README.md====
+# 08-ci-and-branch-rules — CI 与分支规则证据
+
+## 证据类型
+
+- CI 工作流定义（acceptance / ci-fast / nightly）及其在真实远端的运行记录（check run ID、SHA、
+  结论、时长）；
+- 分支保护/required checks/ruleset 配置回读（API 原始 JSON）；
+- Gate 触发条件、required check 集合与 DAG 校验（CI-05～09）证据；
+- auto-merge 改造后（exact-SHA、无子串匹配、无 --admin）的合流审计记录。
+
+对应 §12（Gate/CI/合流）。
+
+## 关联测试 ID
+
+CI-05～09、GATE-01～03、MRG-01～07、DOC-01～04（CI 阻断类）。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——CI 在真实远端在跑且最近两推全绿；但 required-check 硬门与 ruleset 证据缺失，
+FND-001/003（auto-merge 子串/假绿）未根治**：
+
+| 项 | 状态 |
+|---|---|
+| `.github/workflows/acceptance.yml`（push/PR 触发，4 步） | 在役；SHA256 df6d6ef1…（2026-10-08 计算） |
+| `system/ci/ci-fast.yml`、`nightly.yml` | 仓内存在，未证实已在远端启用 |
+| CI 通过记录 | run 37660552501 @ 1858a75 success（2026-10-07T17:37:51Z，27s）；run 37660144865 @ be50cb8 success（2026-10-07T17:34:41Z）——`gh run list` 实查 |
+| required checks / branch ruleset 回读 | **无**（外部 `/private/tmp/codex-test/evidence/reaudit-20261007/branch-required-checks.json` 有 2026-10-07 15:15 时点回读，未固化） |
+| 当前 HEAD e00de14 的 CI 结论 | 建档时**未查得**（外部 writer 刚推，观察窗未过） |
+
+## 填写规则
+
+1. CI 记录须含 run id、head SHA、结论、原始 API 输出（`gh run view --json`），不接受截图转述。
+2. ruleset 回读须注明 API 版本与时间；ruleset 变更前后各留一份对照。
+3. 合流审计记录须含 exact-SHA 匹配证据与拒绝案例。
+====evidence/09-release-manifest-attestation/README.md====
+# 09-release-manifest-attestation — 发布清单与签名证据
+
+## 证据类型
+
+- Release manifest（§16.2）：制品清单、逐项 SHA256、build identity（在哪个 commit/环境构建）；
+- 签名/attestation（§21.4）：签名公钥指纹、验签记录、key 轮换台账；
+- runtime/source 身份对账：部署后运行体 hash 与 manifest 逐项一致（消灭 FND-008 热补漂移）；
+- 安装器行为证据：不再原地覆盖、doctor 失败即失败（FND-009）。
+
+对应 §16（W7A/W7B 制品与原子部署）。
+
+## 关联测试 ID
+
+REL-01～03、DEP-03～05、RB-01（兼容性证据侧）、CAP-01。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——有哈希清单链（v1.0.6 → v3.6.3 共 25 份 SHA256 文件），但无 manifest 结构、无签名、
+无 build identity 绑定**：
+
+| 工件 | 状态 |
+|---|---|
+| `SHA256-v*.txt`（v1.0.6～v3.6.3，25 份） | 存在于仓根；v3.6.3 清单自身 SHA256 2e7a2b35…（2026-10-08 计算） |
+| `system/wenqu_core/deploy_framework.py`（原子部署骨架） | 存在；P0-6+7 修复 exec bit/首败 current link（be50cb8） |
+| `system/install.sh` 安装行为证据 | acceptance.sh P0 节覆盖「升级覆盖旧 writer 为安全 stub」（绿），但 doctor 吞错修复的完整正反例未落档 |
+| 签名/attestation | **无**（DEP-04 全空） |
+| build identity / runtime 对账 | **无**（外部 reaudit 的 runtime-source-hashes/diff 未固化） |
+
+## 填写规则
+
+1. manifest 必须机器生成，含生成 argv、commit、环境；人工编辑即作废。
+2. 每次发布后追加 runtime 对账记录（部署体 hash vs manifest），任何漂移即事件。
+3. 密钥类证据只存公钥指纹与验签输出，严禁入档私钥。
+====evidence/10-ui-launchd-alert-backup/README.md====
+# 10-ui-launchd-alert-backup — UI/launchd/告警/备份证据
+
+## 证据类型
+
+- **UI（W8）**：Playwright trace/DOM 断言/截图（UI-01～07）、安全探针（XSS/CSRF/DNS rebinding）
+  原始输出、Gate 红时总体必须 BLOCKED 的对照记录（UI-04）、健康分原子性证据（HLT-01）；
+- **launchd/调度（W4/W7B）**：真实 launchd 环境的 job 清单回读、权限（Documents/TCC）探针、
+  心跳与 last_success 语义证据（SCH-01～03/06/07）；
+- **告警 Outbox（W4）**：send attempt/receipt/dead-letter 记录（ALT-01/02）；
+- **备份（W4/W7A）**：checkpoint/restore 演练记录（BAK-01）。
+
+## 关联测试 ID
+
+UI-01～07、HLT-01、SCH-01～03/06/07、ALT-01～02、BAK-01。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——dashboard 面与 /api/decide 加固有 CI 绿证据；Playwright 真实浏览器证据、
+launchd 真环境证据、告警回执、备份演练全部为 0**：
+
+| 项 | 状态 |
+|---|---|
+| `system/dashboard/` 四文件（index/app.css/app.js/server.py） | 存在；接线测试断言存在性（CI 绿） |
+| /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒） | commit 1858a75，CI run 37660552501 绿（2026-10-07）；但为代码+单元级，无独立安全探针落档 |
+| UI XSS escD/七态钻取等 Codex 三审修复 | v3.6.1～v3.6.3 提交在册；无 Playwright trace |
+| com.wenqu.observation-window launchd | 外部 reaudit 证实已装载（每日 08:00），回读未固化 |
+| Playwright / 真实浏览器门（§17.5） | **无** |
+| 告警 outbox 回执（ALT-01/02） | **无** |
+| 备份 checkpoint/restore（BAK-01） | **无** |
+
+## 填写规则
+
+1. UI 证据必须是 Playwright trace/视频级工件；DOM 存在或 HTTP 200 不构成完成证据。
+2. launchd 类证据须来自真机 `launchctl print`/`launchctl list` 原始输出。
+3. 告警类须含 attempt→receipt 全链；只有 watchdog exit 0 不算送达。
+====evidence/11-shadow-canary/README.md====
+# 11-shadow-canary — W9 Shadow/Canary 切换证据
+
+## 证据类型
+
+- Shadow 阶段（§18.1/§18.2）：新管线与旧管线并行运行的对账输出、判定指标（分歧率、
+  假阳/假阴计数）、shadow 判定期满记录；
+- Canary 阶段（§18.3）：灰度范围、停止条件触发（或未触发）的原始指标、
+  每日 canary 报告；
+- 切换证据（§18.4）：切换决策记录、切换前后对照、回退预案激活状态。
+
+## 关联测试 ID
+
+本目录主要承接 §18 门槛证据；STA-01/02（站点分母/逐站故障聚合语义）的运行态版本也归此。
+
+## 当前状态（2026-10-08 建档时点）
+
+**EMPTY / NOT STARTED——Codex 验收 W9 评分 0/2（2026-10-07）**：
+
+- 无 shadow 运行、无 canary 灰度、无切换演练；
+- 新管线（wenqu_core）尚未有任何运行态部署（仅离线 selftest）。
+
+## 填写规则
+
+1. shadow 对账必须双管线同输入，输出逐条 diff，不许抽样代替全量。
+2. canary 停止条件必须量化（阈值+实际值+触发时间），人工「看起来正常」无效。
+====evidence/12-rollback-drill/README.md====
+# 12-rollback-drill — 回滚演练证据
+
+## 证据类型
+
+- RB-01 演练：无预授权自动回滚被拒、错误旧版本被拒的探针记录；
+- 回滚兼容性：新事件后回滚到旧二进制，事件零丢失（DEP-03）；
+- ROLLBACK_FAILED 熔断（DEP-08）与 FAILED_BLOCKED 停等（DEP-07）的演练；
+- 回滚级别声明（R1 记录 / R2 演练 / R3 执行）——未达级别不得在汇报中使用「可回滚」。
+
+对应 §16.5、§19.2、§23.2（回滚原则）。
+
+## 关联测试 ID
+
+RB-01、DEP-03/05/07/08、REL-02（kill -9 保持旧 current 侧证）、CAP-01（磁盘满时旧 current 完整）。
+
+## 当前状态（2026-10-08 建档时点）
+
+**EMPTY / NOT STARTED——零回滚演练证据，回滚级别最多 R1（仅记录）**：
+
+- `deploy_framework.py` 有原子 current-link 逻辑与首败删除修复（be50cb8 CI 绿），但属实现级；
+- 相邻：acceptance.sh P0 节验证「升级安装将旧 auto-merge writer 覆盖为安全 stub」，是安装收敛
+  不是回滚演练，不计入。
+
+## 填写规则
+
+1. 演练必须在隔离环境（副本/测试仓），禁止生产重放；生产 R3 执行须单独授权并留事件审计。
+2. 每次演练记录：演练前状态快照、注入、实际回滚路径、恢复后一致性校验、耗时（RTO）与数据点（RPO）。
+====evidence/13-observation-window/README.md====
+# 13-observation-window — W10 观察窗证据
+
+## 证据类型
+
+- 14 天观察窗（§19.1）硬指标逐日记录：CI 通过率、假绿/假红计数、告警送达率、
+  磁盘水位、调度心跳、dashboard 与 Gate 同水位对照（FND-007 消灭证明）；
+- 观察窗内变更纪律证据：contract/down migration 被拒记录（DEP-09）；
+- 战训回流（§19.3）与最终出口评审（§19.4）记录。
+
+## 关联测试 ID
+
+DEP-09、CAP-01（持续水位）、DOC-04（文档宣称与 registry/Gate 一致性）、DR-01（若窗内含灾备演练）。
+
+## 当前状态（2026-10-08 建档时点）
+
+**NOT STARTED——launchd 观察窗 job 已装载但零指标收集**：
+
+| 项 | 状态 |
+|---|---|
+| com.wenqu.observation-window（每日 08:00） | 外部 Codex 复审证实已装载 launchd（2026-10-07 §3.3）；回读未固化入本目录 |
+| 观察窗指标收集 | **无**（装载 ≠ 窗口运行；无任何日指标落档） |
+| 14 天窗起点 | 未宣布；上游 shadow/canary（W9）未开始，观察窗依序未生效 |
+
+## 填写规则
+
+1. 每日一个指标文件（JSON，机器生成），缺日即窗口中断重计。
+2. 窗口结束评审必须含「未覆盖威胁与生产边界」清单，不得以全绿话术收尾。
+=== actual files no legacy ===
+evidence/00-baseline/README.md|1755|1791432323
+evidence/00-baseline/codex-external/方案.md.sha256|76|1791358039
+evidence/00-baseline/codex-external/方案.md|109072|1791358029
+evidence/00-baseline/codex-external/验收报告.md.sha256|106|1791386632
+evidence/00-baseline/codex-external/验收报告.md|21193|1791386632
+evidence/01-threat-model-and-contracts/README.md|1543|1791432343
+evidence/02-schemas-and-tla/README.md|1851|1791432343
+evidence/03-red-probes-before/README.md|1670|1791432365
+evidence/04-unit-property-mutation/README.md|1749|1791432365
+evidence/05-concurrency-crash-chaos/README.md|1715|1791432384
+evidence/06-scanner-goldens/README.md|2001|1791432384
+evidence/07-migration-reconcile/README.md|1467|1791432401
+evidence/08-ci-and-branch-rules/README.md|1826|1791432401
+evidence/09-release-manifest-attestation/README.md|1764|1791432420
+evidence/10-ui-launchd-alert-backup/README.md|1974|1791432420
+evidence/11-shadow-canary/README.md|1101|1791432434
+evidence/12-rollback-drill/README.md|1342|1791432434
+evidence/13-observation-window/README.md|1275|1791432449
+evidence/README.md|2115|1791432449
+evidence/evidence-index.json|11474|1791432499
+evidence/traceability-matrix.json|68257|1791433800
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:30:05Z

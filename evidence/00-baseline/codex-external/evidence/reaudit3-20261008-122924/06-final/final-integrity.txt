@@ -1,0 +1,19 @@
+COMMAND: bash -lc $'set +e; cd /Users/maccc/Documents/wenqu-dist; echo LOCAL_TIME=$(date -Iseconds); echo UTC_TIME=$(TZ=UTC date -Iseconds); echo HEAD=$(git rev-parse HEAD); echo BRANCH=$(git branch --show-current); echo ORIGIN_MAIN=$(git rev-parse origin/main); echo WORKTREE_BEGIN; git status --porcelain=v1; echo WORKTREE_END; git diff --exit-code; echo GIT_DIFF_RC=$?; git diff --cached --exit-code; echo GIT_DIFF_CACHED_RC=$?; sha256sum /private/tmp/codex-test/éª\214æ\224¶æ\212¥å\221\212-ç¬¬ä¸\211è½®.md /private/tmp/codex-test/æ\226¹æ¡\210.md evidence/00-baseline/codex-external/æ\226¹æ¡\210.md /private/tmp/codex-test/éª\214æ\224¶æ\212¥å\221\212.md evidence/00-baseline/codex-external/éª\214æ\224¶æ\212¥å\221\212.md'
+START: 2026-10-08T12:38:06+08:00
+LOCAL_TIME=2026-10-08T12:38:06+08:00
+UTC_TIME=2026-10-08T04:38:06+00:00
+HEAD=ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+BRANCH=main
+ORIGIN_MAIN=ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+WORKTREE_BEGIN
+WORKTREE_END
+GIT_DIFF_RC=0
+GIT_DIFF_CACHED_RC=0
+b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee  /private/tmp/codex-test/éªŒæ”¶æŠ¥å‘Š-ç¬¬ä¸‰è½®.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/æ–¹æ¡ˆ.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/æ–¹æ¡ˆ.md
+5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593  /private/tmp/codex-test/éªŒæ”¶æŠ¥å‘Š.md
+5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593  evidence/00-baseline/codex-external/éªŒæ”¶æŠ¥å‘Š.md
+
+EXIT_CODE: 0
+END: 2026-10-08T12:38:06+08:00
