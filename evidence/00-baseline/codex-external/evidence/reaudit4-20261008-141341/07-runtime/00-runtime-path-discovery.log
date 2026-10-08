@@ -1,0 +1,47 @@
+$ git remote -v
+origin	git@github.com:AIruanchao/wenqu-dist.git (fetch)
+origin	git@github.com:AIruanchao/wenqu-dist.git (push)
+EXIT=0
+$ find system -maxdepth 4 -type f ...dashboard...
+system/bin/__pycache__/wenqu-dashboard.cpython-313.pyc
+system/bin/__pycache__/wenqu-dashboard.cpython-314.pyc
+system/bin/wenqu-dashboard.py
+system/dashboard/__pycache__/server.cpython-313.pyc
+system/dashboard/app.css
+system/dashboard/app.js
+system/dashboard/index.html
+system/dashboard/server.py
+EXIT=0
+$ rg -n "7789|wenqu-dashboard|com.wenqu.dashboard"
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json:4:  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json:8:  "restart": "launchctl unload+load com.wenqu.dashboard",
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json:14:  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+system/bin/wenqu-dashboard.py:25:            "deploy-preflight.sh", "hardening-doctor.sh", "wenqu-dashboard.py"],
+system/bin/wenqu:106:  elif [ -f "$WQ/bin/wenqu-dashboard.py" ]; then
+system/bin/wenqu:108:    exec python3 "$WQ/bin/wenqu-dashboard.py" "${1:-7788}"
+system/bin/wenqu:110:    bad "dashboard 不可用（$WQ/dashboard/server.py 与 $WQ/bin/wenqu-dashboard.py 均不存在）"
+system/dashboard/app.js:2:/* wenqu dashboard W8 前端（自单文件版 wenqu-dashboard.py v3.1 提取改造）
+system/dashboard/app.css:1:/* wenqu dashboard W8 —— 暗色主题（自单文件版 wenqu-dashboard.py v3.1 提取，外观保持一致）
+system/dashboard/server.py:4:自单文件 wenqu-dashboard.py v3.1 拆分：index.html + app.css + app.js + server.py。
+system/dashboard/server.py:13:  python3 server.py [--port 7789] [--log]
+system/dashboard/server.py:14:  python3 server.py --port 7789 --self-check   # 自检输出 PASS 并退出
+system/dashboard/server.py:29:SERVER_VERSION = "wenqu-dashboard-w8/1.0"
+system/dashboard/server.py:32:PORT_DEFAULT = 7789
+system/dashboard/server.py:53:            "deploy-preflight.sh", "hardening-doctor.sh", "wenqu-dashboard.py"],
+EXIT=
+$ cat deployment evidence
+{
+  "entry": "P0-9 runtime deploy",
+  "time": "2026-10-08T13:32:22+08:00",
+  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+  "active_sha256_prefix": "72ba1db7",
+  "repo_candidate_sha256_prefix": "72ba1db7",
+  "match": true,
+  "restart": "launchctl unload+load com.wenqu.dashboard",
+  "new_pid": 64211,
+  "probes": {
+    "GET /api/health": 200,
+    "POST /api/decide (no auth)": "403 forbidden"
+  },
+  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+}EXIT=0

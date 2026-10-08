@@ -1,0 +1,7 @@
+timestamp=2026-10-08T14:15:18+08:00
+cwd=/tmp/wenqu-reaudit4-root.KV735X
+command=python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.py /tmp/wenqu-reaudit4-root.KV735X 
+--- stdout+stderr ---
+{'timed_out': True, 'actual_exit_code': None, 'marker_exists': True, 'escaped_pid': 9861, 'escaped_alive': False}
+--- end ---
+exit_code=1

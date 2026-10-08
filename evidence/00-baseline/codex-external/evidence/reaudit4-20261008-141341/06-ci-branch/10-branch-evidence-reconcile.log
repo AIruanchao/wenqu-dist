@@ -1,0 +1,20 @@
+$ cat evidence branch protection readback
+{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection","required_status_checks":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks","strict":true,"contexts":["matrix (ubuntu-latest)","matrix (macos-latest)"],"contexts_url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts","checks":[{"context":"matrix (ubuntu-latest)","app_id":15368},{"context":"matrix (macos-latest)","app_id":15368}]},"required_signatures":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_signatures","enabled":false},"enforce_admins":{"url":"https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins","enabled":true},"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}EXIT=0
+$ cat rulesets count
+0
+EXIT=0
+$ sha256 current evidence/readbacks/live
+7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6  evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6  /private/tmp/codex-test/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.json
+4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945  /private/tmp/codex-test/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.json
+EXIT=0
+$ compare normalized committed vs live protection
+required_status_checks EQUAL committed= {'url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks', 'strict': True, 'contexts': ['matrix (ubuntu-latest)', 'matrix (macos-latest)'], 'contexts_url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts', 'checks': [{'context': 'matrix (ubuntu-latest)', 'app_id': 15368}, {'context': 'matrix (macos-latest)', 'app_id': 15368}]} live= {'url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks', 'strict': True, 'contexts': ['matrix (ubuntu-latest)', 'matrix (macos-latest)'], 'contexts_url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks/contexts', 'checks': [{'context': 'matrix (ubuntu-latest)', 'app_id': 15368}, {'context': 'matrix (macos-latest)', 'app_id': 15368}]}
+enforce_admins EQUAL committed= {'url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins', 'enabled': True} live= {'url': 'https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection/enforce_admins', 'enabled': True}
+required_pull_request_reviews EQUAL committed= None live= None
+restrictions EQUAL committed= None live= None
+allow_force_pushes EQUAL committed= {'enabled': False} live= {'enabled': False}
+allow_deletions EQUAL committed= {'enabled': False} live= {'enabled': False}
+required_conversation_resolution EQUAL committed= {'enabled': False} live= {'enabled': False}
+EXIT=0

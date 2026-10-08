@@ -1,0 +1,58 @@
+$ for f in logs/probe-*.log; do ... grep PROBE_RESULT/exit_code ...; done
+
+=== probe-01-forged-signature-missing-bindings.log ===
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "01", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "伪签名+缺绑定：跨信封签名替换与已签缺字段均拒绝"}
+[exit_code=0]
+
+=== probe-02-risk-masquerade-resume.log ===
+PROBE_RESULT={"checks": 6, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "02", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "risk 冒充 resume：API 路由与 payload 判别联合双层拒绝"}
+[exit_code=0]
+
+=== probe-03-false-preconditions.log ===
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "03", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "未恢复资源：另一停等类型的大小写/空白字符串假布尔被拒"}
+[exit_code=0]
+
+=== probe-04-nonresume-cas.log ===
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "04", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "非 resume CAS：风险授权的历史版本拒绝且不消费"}
+[exit_code=0]
+
+=== probe-05-timeout-p1-launder.log ===
+PROBE_RESULT={"checks": 7, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "05", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "TIMEOUT/P1 洗白：执行轴与优先级终态两层都 fail-closed"}
+[exit_code=0]
+
+=== probe-06-control-event-direct-write.log ===
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "06", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "控制事件直写：公共入口拒绝，绕过入口的偷 seal 事件重放拒绝"}
+[exit_code=0]
+
+=== probe-07-events-only-replay.log ===
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "07", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "仅事件重放：risk nonce 在旁表为空的新库仍保持已消费"}
+[exit_code=0]
+
+=== probe-08-station-v2-chain.log ===
+PROBE_RESULT={"checks": 4, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "08", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "station v2 链：手工合法 v2 三站到 aggregator/dashboard"}
+[exit_code=0]
+
+=== probe-09-eventstore-retry.log ===
+PROBE_RESULT={"checks": 6, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "09", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "EventStore 重试：跨 reopen、三条干扰后重试首事件"}
+[exit_code=0]
+
+=== probe-10-cas-parent-race.log ===
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "10", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "CAS 父目录竞态：mkdir 返回瞬间换 shard 为 symlink"}
+[exit_code=0]
+
+=== probe-11-runner-escape-initial.log ===
+PROBE_RESULT={"detail": "setsid+double-fork 后代在 timeout 后不得落 marker: {'marker_exists': True, 'daemon_pid': 17388, 'note': '若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon'}", "exception": "AuditFailure", "probe": "11", "result": "FAIL"}
+[exit_code=1]
+
+=== probe-11-runner-escape-repeat.log ===
+PROBE_RESULT={"detail": "setsid+double-fork 后代在 timeout 后不得落 marker: {'marker_exists': True, 'daemon_pid': 18959, 'note': '若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon'}", "exception": "AuditFailure", "probe": "11", "result": "FAIL"}
+[exit_code=1]
+
+=== probe-11-runner-escape.log ===
+PROBE_RESULT={"detail": "setsid+double-fork 后代在 timeout 后不得落 marker: {'marker_exists': True, 'daemon_pid': 18366, 'note': '若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon'}", "exception": "AuditFailure", "probe": "11", "result": "FAIL"}
+[exit_code=1]
+
+=== probe-12-upgrade-rollback.log ===
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "12", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "升级回滚：release 与深层 current 分离拓扑的相对链接回切"}
+[exit_code=0]
+[exit_code=0]

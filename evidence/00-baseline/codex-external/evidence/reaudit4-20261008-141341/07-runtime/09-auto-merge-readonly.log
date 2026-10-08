@@ -1,0 +1,16 @@
+$ source auto-merge stub
+     1	printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1
+EXIT=0
+$ source stub execution
+auto-merge permanently disabled per P0 containment
+EXIT=1
+$ installed auto-merge path
+MISSING
+EXIT=0
+$ process search
+20897
+EXIT=0 (无输出=未发现)
+$ launchctl label search
+EXIT=1 (1=未发现)
+$ crontab search
+EXIT=1 (1=未发现)

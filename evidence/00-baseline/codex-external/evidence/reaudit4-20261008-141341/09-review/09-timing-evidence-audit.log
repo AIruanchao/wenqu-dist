@@ -1,0 +1,25 @@
+$ designated W5/W9/W10 directories
+--- evidence/07-migration-reconcile
+evidence/07-migration-reconcile/README.md
+79c8cc21b660ac8bf958f80c11d568c0980477fd8d8bf1ad717408c16c824b0d  evidence/07-migration-reconcile/README.md
+--- evidence/11-shadow-canary
+evidence/11-shadow-canary/README.md
+9a2dd7d737aefd8bb3c37299af6acec430956a55859788bd8802e5a78f060d60  evidence/11-shadow-canary/README.md
+--- evidence/12-rollback-drill
+evidence/12-rollback-drill/README.md
+a29b3c3b5a6d312df059a0c1717fb59033f2f2e9fdbc5b75847c1545b681de2c  evidence/12-rollback-drill/README.md
+--- evidence/13-observation-window
+evidence/13-observation-window/README.md
+1ec1c2ebf42e5cd3fe99993f0e43d2b5ac5d595fd0d3e94dde143b3c2171edc5  evidence/13-observation-window/README.md
+EXIT=0
+$ index entries in timing categories
+[]
+EXIT=0
+$ known gap exact text
+W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐
+最终 release 制品（tar+签名 manifest+SBOM）未生成
+EXIT=0
+$ repo release archives inventory
+EXIT=0
+$ git tracked release archives inventory
+EXIT=0

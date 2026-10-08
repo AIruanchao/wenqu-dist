@@ -1,0 +1,12 @@
+timestamp=2026-10-08T14:16:04+08:00
+cwd=/tmp/wenqu-reaudit4-root.KV735X
+command=python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.py /tmp/wenqu-reaudit4-root.KV735X 
+--- stdout+stderr ---
+evidence_PASS_exit9 ACCEPTED []
+station_PASS_shrunk_1_of_9 ACCEPTED []
+finding_CLOSED_state_to_OPEN ACCEPTED []
+finding_RISK_INVALIDATED_no_from ACCEPTED []
+run_TIMEOUT_CONDITIONAL ACCEPTED []
+accepted_residuals= ['evidence_PASS_exit9', 'station_PASS_shrunk_1_of_9', 'finding_CLOSED_state_to_OPEN', 'finding_RISK_INVALIDATED_no_from', 'run_TIMEOUT_CONDITIONAL']
+--- end ---
+exit_code=1

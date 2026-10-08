@@ -1,0 +1,256 @@
+{
+  "counts": {
+    "live_matrix_rows": 131,
+    "section20_rows": 131,
+    "section20_unique": 131,
+    "section251_expanded": 131,
+    "section251_unique": 131,
+    "tool_catalog_unique": 131
+  },
+  "coverage_independent": {
+    "dedicated_count": 0,
+    "missing_count": 128,
+    "proxy_ids": [
+      "COND-04",
+      "GATE-02",
+      "STATE-03"
+    ],
+    "proxy_reference_checks": {
+      "COND-04": {
+        "file_exists": true,
+        "reference_text_present": true
+      },
+      "GATE-02": {
+        "file_exists": true,
+        "reference_text_present": true
+      },
+      "STATE-03": {
+        "file_exists": true,
+        "reference_text_present": true
+      }
+    },
+    "raw_exact_id_hits": {},
+    "scanned_files": 23,
+    "test_context_exact_id_hits": {}
+  },
+  "duplicates": {
+    "section20": [],
+    "section251": [],
+    "tool_catalog_ast": []
+  },
+  "failures": [],
+  "live_mapping_errors": [],
+  "live_stats": {
+    "by_prefix": {
+      "ACT": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 6
+      },
+      "ADV": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 2
+      },
+      "ALT": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 2
+      },
+      "AUTH": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 6
+      },
+      "BAK": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "CAP": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "CI": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 5
+      },
+      "COND": {
+        "dedicated": 0,
+        "proxy": 1,
+        "total": 6
+      },
+      "DB": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 6
+      },
+      "DEP": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 9
+      },
+      "DOC": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 4
+      },
+      "DR": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "GATE": {
+        "dedicated": 0,
+        "proxy": 1,
+        "total": 12
+      },
+      "HLT": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "MIG": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 5
+      },
+      "MRG": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 7
+      },
+      "PERF": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 6
+      },
+      "RB": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "REL": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 3
+      },
+      "RISK": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 1
+      },
+      "RUN": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 3
+      },
+      "SC": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 5
+      },
+      "SCH": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 7
+      },
+      "STA": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 2
+      },
+      "STATE": {
+        "dedicated": 0,
+        "proxy": 1,
+        "total": 11
+      },
+      "STOP": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 3
+      },
+      "TEN": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 8
+      },
+      "UI": {
+        "dedicated": 0,
+        "proxy": 0,
+        "total": 7
+      }
+    },
+    "dedicated_coverage_pct": 0.0,
+    "dedicated_implemented": 0,
+    "dedicated_plus_proxy_pct": 2.29,
+    "missing": 128,
+    "proxy_partial": 3,
+    "total_ids": 131
+  },
+  "ok": true,
+  "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "range_errors": [],
+  "repo_head": "e4aba84c1dabe1342ea234321eea3d300bea24a5",
+  "section20_semantic_errors": [],
+  "section251_metadata_errors": [],
+  "set_differences": {
+    "20_only_vs_251": [],
+    "20_only_vs_tool": [],
+    "251_only_vs_20": [],
+    "251_only_vs_tool": [],
+    "matrix_only_vs_tool": [],
+    "tool_only_vs_20": [],
+    "tool_only_vs_251": [],
+    "tool_only_vs_matrix": []
+  },
+  "tracked_matrix_head_matches_current": false,
+  "tracked_matrix_meta": {
+    "catalog_integrity": "OK",
+    "catalog_problems": [],
+    "generated_at": "2026-10-08T12:22:29+08:00",
+    "plan_cross_check": {
+      "frozen_count": 131,
+      "frozen_only": [],
+      "ok": true,
+      "plan_ids_count": 131,
+      "plan_only": []
+    },
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "plan_source": "/private/tmp/codex-test/方案.md",
+    "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true",
+    "repo_head": "e00de1449b30bc5f7f7137155fd864c323cbd658",
+    "repo_root": "/Users/maccc/Documents/wenqu-dist",
+    "scan_roots": [
+      "tests",
+      "system/tests",
+      "cli",
+      "system/wenqu_core",
+      "probes"
+    ],
+    "scanned_files": [
+      "tests/release-check.sh",
+      "tests/acceptance.sh",
+      "system/tests/test_wenqu_pipeline.py",
+      "system/tests/test_core_wiring.py",
+      "cli/test_wenqu.py",
+      "system/wenqu_core/station3_contract.py",
+      "system/wenqu_core/store.py",
+      "system/wenqu_core/wenqu_pipeline.py",
+      "system/wenqu_core/runner.py",
+      "system/wenqu_core/station4_behavior.py",
+      "system/wenqu_core/deploy_framework.py",
+      "system/wenqu_core/__init__.py",
+      "system/wenqu_core/bugscan_orchestrator.py",
+      "system/wenqu_core/ledger_migrator.py",
+      "system/wenqu_core/source_gate.py",
+      "system/wenqu_core/station2_static.py",
+      "system/wenqu_core/scheduler.py",
+      "system/wenqu_core/gate_aggregator.py",
+      "system/wenqu_core/station7_runtime.py"
+    ],
+    "tool": "tools/ac_traceability.py"
+  }
+}

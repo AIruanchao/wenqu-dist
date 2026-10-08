@@ -1,0 +1,2 @@
+credential_pattern_scan_exit=1 (1=未发现)
+personal_email_scan_exit=1 (1=未发现)

@@ -1,0 +1,79 @@
+$ pwd
+/Users/maccc/Documents/wenqu-dist
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ git status --porcelain=v1
+EXIT=0
+$ git log --oneline --decorate -20
+e4aba84 (HEAD -> main, origin/main) Merge pull request #2 from AIruanchao/wave4/evidence-deploy
+c345b7b (origin/wave4/evidence-deploy, wave4/evidence-deploy) evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）
+5403220 Merge pull request #1 from AIruanchao/wave4/p0-full-hardening
+14600f8 (origin/wave4/p0-full-hardening, wave4/p0-full-hardening) fix(wave4): Codex 三轮 12 对抗 FAIL 全量根修——授权/Schema/基建三簇
+ff050bb feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+e00de14 fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）
+1858a75 fix(p0-9): dashboard /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒）
+be50cb8 fix(p0-6+7): EventStore 幂等（内容哈希 event_id）+表名 pipeline_events 避冲突+部署 exec bit 保留+首败 current link 删除
+05b93db fix(ci): core wiring test CI-safe (skip jsonschema/subprocess if unavailable)
+fa72292 fix(p0-1): core wiring test into acceptance + install doctor tolerance
+9637859 fix(p0-1+7): 新核心接线 install.sh+wenqu CLI+核心接线测试 8/8+doctor 区分新装/损坏
+38adb4e fix(p0-3+4+5): Schema 业务不变量硬化+Gate 零分母真空 PASS 根修+Runner 进程组杀树+CAS 防目录逃逸/损坏假成功（Codex 验收 P0 整改批 1）
+8eb4afe release(system): v3.6.3——Codex 三审 6 条全修：已拍XSS escD+SSE BoundedSemaphore+趋势复用安全入口+sweep 时区统一+日志pre修复+九节点去重
+ccf584f release(system): v3.6.2——Codex 6 条代码发现全修：锁finally+XSS escD+七态钻取+FIXING趋势+SSE限流+sweep边界
+4aeb199 release(system): v3.6.1——Codex 终审首轮修复：时区后缀剥离防 naive/aware 混算 TypeError+流转行更新 ts_of（陈账计时含流转）；余 6 条在册待下批（锁 finally/ACCEPTED 合规治理/XSS textContent/钻取补全/FIXING 趋势/SSE watcher）
+9919bcf feat(w6b+c+d): 站2静态供应链+站3契约数据+站4行为+站7运行时+站5/6占位——Codex W6B-D 全量落地（三子代理并行，8+11+11+22 自测全绿）
+77e837e release(system): v3.6.0——「能做的都做了」：自动 sweep（launchd 每小时）+流转趋势（SVG 五色面积）+SSE 实时推送
+21d639d feat(w3b+w5+w7a+w8): Gate聚合器+账本迁移+原子部署+Dashboard重构 四模块全量落地（全子代理并行，含 32 项安全自检全绿）
+7e4ce92 feat(w3b+w5+w7a): Gate聚合器+账本迁移+原子部署框架
+34181e9 feat(w3a+w4+w6a): 源闸+调度+八站 Planner 三模块全量落地（三子代理并行，14+85+12 用例全绿，含 2 真实 bug 修复）
+EXIT=0
+$ find evidence -maxdepth 3 -type f | sort
+evidence/00-baseline/README.md
+evidence/00-baseline/codex-external/方案.md
+evidence/00-baseline/codex-external/方案.md.sha256
+evidence/00-baseline/codex-external/验收报告-第三轮.md
+evidence/00-baseline/codex-external/验收报告-第三轮.md.sha256
+evidence/00-baseline/codex-external/验收报告.md
+evidence/00-baseline/codex-external/验收报告.md.sha256
+evidence/01-threat-model-and-contracts/README.md
+evidence/02-schemas-and-tla/README.md
+evidence/03-red-probes-before/README.md
+evidence/04-unit-property-mutation/README.md
+evidence/05-concurrency-crash-chaos/README.md
+evidence/06-scanner-goldens/README.md
+evidence/07-migration-reconcile/README.md
+evidence/08-ci-and-branch-rules/README.md
+evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+evidence/09-release-manifest-attestation/README.md
+evidence/10-ui-launchd-alert-backup/README.md
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+evidence/11-shadow-canary/README.md
+evidence/12-rollback-drill/README.md
+evidence/13-observation-window/README.md
+evidence/README.md
+evidence/evidence-index.json
+evidence/traceability-matrix.json
+EXIT=0
+$ ls -la /private/tmp/codex-test
+total 4448
+drwxr-xr-x@   18 maccc  wheel      576 Oct  8 14:13 .
+drwxrwxrwt  6021 root   wheel   192672 Oct  8 14:14 ..
+-rw-r--r--@    1 maccc  wheel     8196 Oct  7 15:41 .DS_Store
+-rw-r--r--@    1 maccc  wheel       60 Oct  7 23:13 .current_acceptance_evidence
+-rw-r--r--@    1 maccc  wheel       58 Oct  8 12:29 .reaudit3-current
+-rw-r--r--@    1 maccc  wheel       58 Oct  8 14:13 .reaudit4-current
+drwxr-xr-x@    8 maccc  wheel      256 Oct  8 14:13 evidence
+-rw-r--r--@    1 maccc  wheel  1329711 Oct  8 12:38 round3-exec.log
+-rw-r--r--@    1 maccc  wheel     3963 Oct  8 12:29 round3-prompt.md
+-rw-r--r--@    1 maccc  wheel   130977 Oct  8 14:14 round4-exec-2.log
+-rw-r--r--@    1 maccc  wheel   542856 Oct  8 14:11 round4-exec.log
+-rw-r--r--@    1 maccc  wheel     3809 Oct  8 14:13 round4-prompt.md
+-rw-r--r--@    1 maccc  wheel   109072 Oct  7 15:27 方案.md
+-rw-r--r--@    1 maccc  wheel       76 Oct  7 15:27 方案.md.sha256
+-rw-r--r--@    1 maccc  wheel    30467 Oct  8 12:37 验收报告-第三轮.md
+-rw-r--r--@    1 maccc  wheel      116 Oct  8 12:38 验收报告-第三轮.md.sha256
+-rw-r--r--@    1 maccc  wheel    21193 Oct  7 23:23 验收报告.md
+-rw-r--r--@    1 maccc  wheel      106 Oct  7 23:23 验收报告.md.sha256
+EXIT=0

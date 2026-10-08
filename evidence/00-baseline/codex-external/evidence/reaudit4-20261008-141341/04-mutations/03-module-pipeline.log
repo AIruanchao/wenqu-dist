@@ -1,0 +1,8 @@
+$ python3 system/tests/test_wenqu_pipeline.py
+Traceback (most recent call last):
+  File "/private/tmp/wenqu-reaudit4-module.apOk33/repo/system/tests/test_wenqu_pipeline.py", line 30, in <module>
+    from wenqu_core.wenqu_pipeline import (
+    ...<5 lines>...
+    )
+ModuleNotFoundError: No module named 'wenqu_core.wenqu_pipeline'
+EXIT=1

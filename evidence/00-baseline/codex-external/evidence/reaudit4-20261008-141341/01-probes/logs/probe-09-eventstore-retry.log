@@ -1,0 +1,13 @@
+[started_utc=2026-10-08T06:17:53Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 09
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "09", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "四个唯一事件均插入", "ok": true}
+{"check": "跨 reopen 重试 alpha 被识别为 duplicate", "ok": true}
+{"check": "duplicate 返回数据库中原 alpha 的真实 hash", "ok": true, "original": "928295288e00c00929daa3cadc84f0adbe1455aadb9122ddd1a65f36745688be", "retry": "928295288e00c00929daa3cadc84f0adbe1455aadb9122ddd1a65f36745688be"}
+{"check": "重试未增加行", "ok": true, "rows": 4, "total": 4}
+{"check": "head 指向最后唯一事件 delta 而非首事件", "expected": "f820e6d0049c4308adeebcd98332bdfbad2bf6b325e0bd079bc2088ca01b343f", "head": "f820e6d0049c4308adeebcd98332bdfbad2bf6b325e0bd079bc2088ca01b343f", "ok": true}
+{"check": "四事件哈希链验证通过", "ok": true}
+PROBE_RESULT={"checks": 6, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "09", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "EventStore 重试：跨 reopen、三条干扰后重试首事件"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:53Z]

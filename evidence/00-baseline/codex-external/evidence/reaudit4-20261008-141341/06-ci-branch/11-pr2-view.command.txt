@@ -1,0 +1,1 @@
+gh pr view 2 --repo AIruanchao/wenqu-dist --json number,state,mergedAt,mergeCommit,headRefName,headRefOid,baseRefName,commits,statusCheckRollup,url

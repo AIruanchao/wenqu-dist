@@ -1,0 +1,4 @@
+$ note: prior pgrep -af self-matched the shell command; inspect transient PID
+EXIT=1 (1=transient PID already gone)
+$ independent process inventory filter excluding audit commands
+EXIT=1 (1=未发现真实匹配)

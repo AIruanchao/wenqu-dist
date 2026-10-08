@@ -1,0 +1,64 @@
+$ python3 read-only control path checks
+decide_fetch_found= True
+decide_fetch_has_X_Auth_Key= False
+decide_fetch_has_X_Requested_With= False
+server_requires_nonempty_WENQU_DASHBOARD_KEY= True
+server_binds_loopback= True
+plist_exists= True
+plist_environment_key_names= ['WENQU_REPO_DIR']
+plist_has_WENQU_DASHBOARD_KEY= False
+launchctl_print_exit= 0
+effective_launchctl_mentions_WENQU_DASHBOARD_KEY= False
+EXIT=0
+$ numbered relevant source excerpts
+   532	     const old=sc.parentElement.querySelector('.up,.down');if(old)old.remove();
+   533	     sc.insertAdjacentHTML('afterend',`<span class="${h.score>window.__scorePrev?'up':'down'}">${h.score>window.__scorePrev?'▲':'▼'}</span>`);}
+   534	   window.__scorePrev=h.score;}
+   535	  window.decide=async function(id,act){
+   536	    const item=dec.find(x=>x.id===id);
+   537	    if(item&&item.red&&!confirm(`该决策属红旗类（资金/库存/权限）：\n${item.q}\n确认${act==='take'?'采纳':'驳回'}默认建议？`))return;
+   538	    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+   539	    if(r.ok){refresh();}else{alert('清账失败：'+(await r.text()));}
+   540	  };
+   541	  const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
+   542	  {const pc=document.getElementById('deccard');const prevD=window.__lastDec;
+   543	   if(prevD!=null&&prevD!==dec.length){pc.classList.remove('flash');void pc.offsetWidth;pc.classList.add('flash');}
+   544	   window.__lastDec=dec.length;}
+   863	    def do_POST(self):
+   864	        if self.path == "/api/decide":
+   865	            port = self.server.server_address[1]
+   866	            allowed_origins = {
+   867	                "http://127.0.0.1:%d" % port,
+   868	                "http://localhost:%d" % port,
+   869	            }
+   870	            origins = self.headers.get_all("Origin", [])
+   871	            if len(origins) != 1 or origins[0] not in allowed_origins:
+   872	                return self._send(403, '{"error":"forbidden"}')
+   873	            allowed_hosts = {
+   874	                "127.0.0.1", "localhost",
+   875	                "127.0.0.1:%d" % port, "localhost:%d" % port,
+   876	            }
+   877	            hosts = self.headers.get_all("Host", [])
+   878	            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
+   879	                return self._send(403, '{"error":"forbidden"}')
+   880	            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
+   881	            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+   882	            if (not expected_key or len(supplied_keys) != 1
+   883	                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
+   884	                return self._send(403, '{"error":"forbidden"}')
+   885	            requested_with = self.headers.get_all("X-Requested-With", [])
+   886	            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
+   887	                return self._send(403, '{"error":"forbidden"}')
+   888	            try:
+   889	                n = int(self.headers.get("Content-Length") or 0)
+   890	            except ValueError:
+   891	                return self._send(400, '{"error":"bad length"}')
+  1278	                     capture_output=True, text=True).returncode
+  1279	        if rc != 0:
+  1280	            print("::error::dashboard HTML 平衡自检 FAIL——拒绝启动（修复 div 嵌套后重试）", file=sys.stderr)
+  1281	            sys.exit(2)
+  1282	    srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+  1283	    print(f"wenqu dashboard → http://127.0.0.1:{PORT}  (Ctrl-C 停)")
+  1284	    signal.signal(signal.SIGINT, lambda *a: sys.exit(0))
+  1285	    srv.serve_forever()
+EXIT=0

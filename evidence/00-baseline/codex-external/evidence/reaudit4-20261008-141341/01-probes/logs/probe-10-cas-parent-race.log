@@ -1,0 +1,12 @@
+[started_utc=2026-10-08T06:17:55Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 10
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "10", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "mkdir/open 间 shard symlink 替换被 O_NOFOLLOW 拒绝", "expected_exception": "IntegrityError", "observed": "IntegrityError: shard 'b7' opened as symlink/replaced after mkdir: [Errno 20] Not a directory: 'b7'", "ok": true}
+{"check": "竞态注入点确已命中", "ok": true}
+{"check": "竞态攻击未向 CAS 根外写入", "leaked": [], "ok": true}
+{"check": "CAS 根路径被 symlink 替换后仍无根外写入", "ok": true}
+{"check": "持久 root dirfd 将内容写入原始目录对象", "expected": "/tmp/reaudit4-p10-root-be8rumbr/cas-held/ea/ea0c10d0e1be4f6dd3ca9a6525bf453519a6f94468e0aabc6bba19f250768bf6.json", "ok": true}
+PROBE_RESULT={"checks": 5, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "10", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "CAS 父目录竞态：mkdir 返回瞬间换 shard 为 symlink"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:55Z]

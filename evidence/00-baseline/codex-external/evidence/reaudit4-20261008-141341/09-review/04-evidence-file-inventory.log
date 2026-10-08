@@ -1,0 +1,47 @@
+$ date -Ins
+2026-10-08T14:16:22,934250000+08:00
+EXIT=0
+$ find evidence -type f | wc -l
+     251
+EXIT=0
+$ git ls-files evidence | wc -l
+     250
+EXIT=0
+$ per top-level evidence directory file counts
+evidence/00-baseline	total=232	non_README=231
+evidence/01-threat-model-and-contracts	total=1	non_README=0
+evidence/02-schemas-and-tla	total=1	non_README=0
+evidence/03-red-probes-before	total=1	non_README=0
+evidence/04-unit-property-mutation	total=1	non_README=0
+evidence/05-concurrency-crash-chaos	total=1	non_README=0
+evidence/06-scanner-goldens	total=1	non_README=0
+evidence/07-migration-reconcile	total=1	non_README=0
+evidence/08-ci-and-branch-rules	total=3	non_README=2
+evidence/09-release-manifest-attestation	total=1	non_README=0
+evidence/10-ui-launchd-alert-backup	total=2	non_README=1
+evidence/11-shadow-canary	total=1	non_README=0
+evidence/12-rollback-drill	total=1	non_README=0
+evidence/13-observation-window	total=1	non_README=0
+EXIT=0
+$ direct files under evidence
+evidence/evidence-index.json
+a977e872fef0883c3def9d4ec23ce29d218026a14cb2d3e544558e59e62f1705  evidence/evidence-index.json
+evidence/README.md
+b6253e7260728fc794abd20529305eebfc7e0d67b55dde3b4d077107e7e2703c  evidence/README.md
+evidence/traceability-matrix.json
+0081439c8d25dd375079795ba3e2c3359b4d05a234d0ebf3ab88812b870dcd20  evidence/traceability-matrix.json
+EXIT=0
+$ files outside 00-baseline excluding README
+evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+evidence/evidence-index.json
+evidence/traceability-matrix.json
+EXIT=0
+$ all top-level 08 and 10 hashes
+9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627  evidence/08-ci-and-branch-rules/README.md
+7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6  evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+b3f23c43a01782750d063ce8ed0459c828273a4eeb797c4b815ad9cb558aa729  evidence/10-ui-launchd-alert-backup/README.md
+0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a  evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+EXIT=0

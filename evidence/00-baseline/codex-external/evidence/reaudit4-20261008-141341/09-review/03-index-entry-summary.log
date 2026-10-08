@@ -1,0 +1,28 @@
+$ jq -r entries summary evidence/evidence-index.json
+EV-CI-001	08-ci-and-branch-rules	1858a75	37660552501	evidence/08-ci-and-branch-rules/	null	conclusion=success (27s)	2026-10-21
+EV-CI-002	08-ci-and-branch-rules	be50cb8	37660144865	evidence/08-ci-and-branch-rules/	null	conclusion=success (27s)	2026-10-21
+EV-TEST-001	04-unit-property-mutation	1858a75	37660552501 (随 CI acceptance 步骤)	evidence/04-unit-property-mutation/	31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823	0 (8 PASS / 0 FAIL)	2026-10-21
+EV-TEST-002	04-unit-property-mutation	1858a75	acceptance-20261007-231333 (Codex 验收会话)	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log	外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161	0 (53 PASS / 0 FAIL)	2026-10-14
+EV-TEST-003	04-unit-property-mutation	1858a75	acceptance-20261007-231333 (Codex 验收会话)	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log	null	0 ×5	2026-10-14
+EV-ACCEPT-001	00-baseline		reaudit-20261007	evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt	plan-self-validation.json.sha256 在快照目录	0 (29/29 PASS)	2026-10-14
+EV-ACCEPT-002	00-baseline	1858a75 (验收基线 main@4aeb199 起算)	acceptance-20261007-231333	evidence/00-baseline/codex-external/验收报告.md	验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593	判定=BLOCKED	长期（作为整改基线判定，非时效性证据）
+EV-REL-001	09-release-manifest-attestation	随各版本提交		evidence/09-release-manifest-attestation/	SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c	null	长期
+EV-TRACE-001	04-unit-property-mutation	e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)	p0-10-initial	evidence/traceability-matrix.json	null	见运行输出	随下次全量测试资产变更即须重跑
+EV-CI-003	08-ci-and-branch-rules	ff050bb	37727549548	evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt	null	conclusion=success	2026-10-22
+EV-R3-001	00-baseline	ff050bb (验收基线)	reaudit3-20261008-122924	evidence/00-baseline/codex-external/验收报告-第三轮.md	b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee	判定=BLOCKED 38/100	长期（整改基线判定）
+EV-R3-002	00-baseline	ff050bb	reaudit3-20261008-122924	evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256	MANIFEST.sha256 自身 sha256 088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc	null	长期
+EV-TRACE-002	04-unit-property-mutation	ff050bb 之后工作树（本波提交）	wave4-p1c-hardening	tools/ac_traceability.py	null	0 / 2 / 2（正常/篡改§20/篡改§25.1）	随工具或方案变更须重验
+EV-DEP-001	10-ui-launchd-alert-backup	5403220 (部署基线)	wave4-p09-deploy	evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json	null	health=200 / decide=403	随下次 dashboard 变更须重验
+EXIT=0
+$ jq length
+14
+EXIT=0
+$ jq known_gaps
+[
+  "§20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐",
+  "Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中",
+  "main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置",
+  "W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐",
+  "最终 release 制品（tar+签名 manifest+SBOM）未生成"
+]
+EXIT=0

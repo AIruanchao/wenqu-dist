@@ -1,0 +1,86 @@
+$ frozen plan W8 first-phase control requirement
+  1375	- 七段问渠、八站 Bug、九类停等分开展示；
+  1376	- 所有 finding 状态含 ACCEPTED_RISK、quarantine 均可钻取；
+  1377	- 日志正文可见并明确来源/时点；
+  1378	- 自动巡游如保留，必须标注“演示动画，不代表执行”；
+  1379	- 页面显示当前 build/release/source/runtime attestation；
+  1380	- 数据源缺失返回结构化 ERROR/503，不得 HTTP 200+空集缩小问题数量。
+  1381	
+  1382	## 17.4 安全
+  1383	
+  1384	- 服务继续仅绑定 `127.0.0.1` 或权限受控 UDS，禁止 wildcard；严格 Host 校验防 DNS rebinding，CORS 默认拒绝；
+  1385	- `/api/build` 等最小非敏感端点可匿名，日志、决策、finding 明细需要本地 session/read authorization；
+  1386	- 动态文本统一 `textContent`/安全模板；禁止未转义 `innerHTML`；
+  1387	- CSP、`nosniff`、`frame-ancestors 'none'`、`no-store`、`no-referrer`；
+  1388	- Host/Origin allowlist、body size limit、Content-Type 精确校验；
+  1389	- 第一阶段 `/api/decide` 返回 405；
+  1390	- 恢复写操作前必须有：UDS 0600 控制服务或等效隔离、本地 session bootstrap、HttpOnly/SameSite cookie、CSRF、真实 actor、idempotency key、CAS、append-only event；
+  1391	- 禁止硬编码“超哥点击”和整文件重写；
+  1392	- request audit 日志脱敏且可轮转；
+  1393	- 请求超时、最大并发、速率限制、日志响应行数/字节上限和 secret/PII 二次脱敏必须机器化。
+  1394	
+  1395	健康聚合由独立 aggregator 原子生成带 input watermark 的一致性快照；采集中任一输入版本变化则整份 snapshot 作废重算。Dashboard 不得串行拼接不同时间点 API 后自行得结论。
+  1396	
+  1397	## 17.5 Playwright/真实浏览器门
+  1398	
+  1399	- 总览在 fresh/cache/导航后均可见；
+  1400	- 七段、八站命名与节点正确；
+  1401	- ACCEPTED/OTHER/quarantine 均可钻取；
+  1402	- 六个日志正文实际出现；
+  1403	- XSS payload 不执行；
+  1404	- CSRF/伪 Origin/text/plain 写入被拒；
+  1405	- Cache-Control 生效，版本更新不保留坏页面；
+  1406	- 键盘/ARIA、reduced-motion、375px 无横溢；
+  1407	- 任一 required blocker 时页面不可能显示“良好”。
+EXIT=0
+$ active launchd args (sanitized relevant only)
+	state = running
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+		7789
+	pid = 64211
+		state = active
+		state = active
+EXIT=0
+$ modular candidate POST behavior
+8:  - 不变量 10：dashboard 只能等于或比权威聚合器更保守——/api/v1/health 只读 gate_aggregator
+10:第一阶段（写接口关闭）：POST /api/decide → 405。
+101:# ───────────────────── gate aggregator 快照（只读） ─────────────────────
+141:    """独立定时任务：周期性把 aggregator 快照落一行走势（GET 路径零写——严格只读）。
+178:# ───────────────────────────── 数据读取（全部只读） ─────────────────────────────
+635:    # ── GET：严格只读（零写路径；health 只读 aggregator 快照） ──
+707:    # ── POST：第一阶段写接口全关（/api/decide → 405）；其余路径做体量/类型校验后 404 ──
+708:    def do_POST(self):
+714:            return self._err(405, "WRITE_DISABLED",
+715:                             "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘", allow="GET, HEAD")
+743:        self._err(405, "METHOD_NOT_ALLOWED", "方法不被允许", allow="GET, HEAD")
+792:    ck("server.py 关键控制存在（版本化/限速/405/Host/回环绑定）",
+793:       all(t in src for t in ("/api/v1/", "RateLimiter", "405", "_host_ok", "127.0.0.1", "ThreadingHTTPServer")))
+854:        ck("POST /api/decide → 405（第一阶段写接口关闭）",
+855:           s == 405 and isinstance(j, dict) and j.get("error", {}).get("code") == "WRITE_DISABLED")
+857:        ck("POST /api/v1/decide → 405", s == 405)
+875:        ck("OPTIONS（CORS 预检）→ 405 且无 ACAO", s == 405)
+899:    ap = argparse.ArgumentParser(description="wenqu dashboard W8（只读安全版）")
+EXIT=0
+$ active legacy POST behavior
+21:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+538:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+847:    def _decide_write(out_lines):
+863:    def do_POST(self):
+864:        if self.path == "/api/decide":
+880:            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
+881:            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+885:            requested_with = self.headers.get_all("X-Requested-With", [])
+924:                    self._decide_write(out)
+EXIT=0
+$ installed modular dashboard inventory (read-only)
+/Users/maccc/.wenqu/dashboard MISSING
+EXIT=0
+$ source candidate hashes
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  system/bin/wenqu-dashboard.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  system/dashboard/server.py
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  system/dashboard/index.html
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  system/dashboard/app.js
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  system/dashboard/app.css
+EXIT=0

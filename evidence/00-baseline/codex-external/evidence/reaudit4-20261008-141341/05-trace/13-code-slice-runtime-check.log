@@ -1,0 +1,102 @@
+$ nl -ba tools/ac_traceability.py | sed -n 312,395p
+   312	def cross_check_plan(plan_path, catalog):
+   313	    """可选：解析方案 §20 表格提取 ID 集合，与冻结目录做集合等式校验（§25.1 要求）。"""
+   314	    try:
+   315	        with open(plan_path, encoding="utf-8") as f:
+   316	            text = f.read()
+   317	    except OSError as e:
+   318	        return {"ok": False, "error": f"读取方案失败: {e}", "plan_ids": None}
+   319	    body = text
+   320	    # 只取 §20～§21 之间的正文，避免 §25 表格里的范围写法（GATE-01～12）污染集合
+   321	    m20 = re.search(r"^# 20\.", body, re.M)
+   322	    m21 = re.search(r"^# 21\.", body, re.M)
+   323	    if m20 and m21:
+   324	        body = body[m20.start():m21.start()]
+   325	    ids = set(re.findall(r"\b([A-Z]{2,5}-\d{2})\b", body))
+   326	    plan_ids = {i for i in ids if not re.match(r"^(FND|W\d)", i)}
+   327	    frozen = set(catalog)
+   328	    return {
+   329	        "ok": plan_ids == frozen,
+   330	        "plan_only": sorted(plan_ids - frozen),
+   331	        "frozen_only": sorted(frozen - plan_ids),
+   332	        "plan_ids_count": len(plan_ids),
+   333	        "frozen_count": len(frozen),
+   334	    }
+   335	
+   336	
+   337	def _norm_meta(s):
+   338	    """§25.1 表格与冻结元数据的归一化：全角～→半角~、去首尾空白。"""
+   339	    return s.replace("～", "~").strip()
+   340	
+   341	
+   342	def cross_check_plan_251(plan_path, catalog):
+   343	    """真解析方案 §25.1 映射表：范围展开成 ID 集合 + 逐前缀四列元数据对账。
+   344	
+   345	    防的是第三轮验收实锤的假绿：篡改 §25.1 映射（换 REQ/AC/工作包/证据类）
+   346	    时旧版工具根本不解析该表却声称"§25.1 集合等式"。
+   347	    """
+   348	    try:
+   349	        with open(plan_path, encoding="utf-8") as f:
+   350	            text = f.read()
+   351	    except OSError as e:
+   352	        return {"ok": False, "error": f"读取方案失败: {e}"}
+   353	    m = re.search(r"^## 25\.1\b", text, re.M)
+   354	    if not m:
+   355	        return {"ok": False, "error": "方案中未找到 §25.1 小节"}
+   356	    rest = text[m.start():]
+   357	    m_end = re.search(r"^# 2[6-9]\.|^---\s*$", rest[m.end() - m.start():], re.M)
+   358	    section = rest if not m_end else rest[: m.end() - m.start() + m_end.start()]
+   359	    row_re = re.compile(
+   360	        r"^\|\s*([A-Z]{2,5})-(\d{2})(?:～(\d{2}))?\s*\|([^|]+)\|([^|]+)\|([^|]+)\|")
+   361	    expanded, meta, problems = set(), {}, []
+   362	    for line in section.splitlines():
+   363	        mm = row_re.match(line)
+   364	        if not mm:
+   365	            continue
+   366	        prefix, lo = mm.group(1), int(mm.group(2))
+   367	        hi = int(mm.group(3)) if mm.group(3) else lo
+   368	        req_ac, work_packages, evidence_class = mm.group(4), mm.group(5), mm.group(6)
+   369	        parts = [p.strip() for p in req_ac.split("/", 1)]
+   370	        if len(parts) != 2 or not parts[0].startswith("REQ-") or not parts[1].startswith("AC-"):
+   371	            problems.append(f"§25.1 行 {prefix}-{lo:02d}～{hi:02d} 需求/AC 列格式非法: {req_ac.strip()!r}")
+   372	            continue
+   373	        for n in range(lo, hi + 1):
+   374	            tid = f"{prefix}-{n:02d}"
+   375	            if tid in expanded:
+   376	                problems.append(f"§25.1 重复展开 ID: {tid}")
+   377	            expanded.add(tid)
+   378	        meta[prefix] = (_norm_meta(req_ac.replace(" / ", "/", 1)),
+   379	                        _norm_meta(work_packages), _norm_meta(evidence_class))
+   380	    if not expanded:
+   381	        return {"ok": False, "error": "§25.1 表格解析出 0 行（格式漂移？）"}
+   382	    frozen = set(catalog)
+   383	    if expanded != frozen:
+   384	        problems.append(f"§25.1 展开集合≠冻结目录: 仅方案={sorted(expanded - frozen)} 仅冻结={sorted(frozen - expanded)}")
+   385	    for prefix, plan_meta in sorted(meta.items()):
+   386	        frozen_meta = PREFIX_META.get(prefix)
+   387	        if frozen_meta is None:
+   388	            problems.append(f"§25.1 前缀 {prefix} 不在冻结元数据中")
+   389	            continue
+   390	        norm_frozen = (_norm_meta(frozen_meta[0] + "/" + frozen_meta[1]),
+   391	                       _norm_meta(frozen_meta[2]), _norm_meta(frozen_meta[3]))
+   392	        if plan_meta != norm_frozen:
+   393	            problems.append(f"§25.1 前缀 {prefix} 四列元数据与冻结值不符: 方案={plan_meta} 冻结={norm_frozen}")
+   394	    return {"ok": not problems, "problems": problems,
+   395	            "expanded_count": len(expanded), "frozen_count": len(frozen)}
+EXIT=0
+$ nl -ba tests/acceptance.sh | sed -n 363,376p
+   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+   364	if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+   365	  AC_TMP_JSON="$(mktemp -t wq_matrix).json"
+   366	  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+   367	  AC_RC=$?
+   368	  rm -f "$AC_TMP_JSON"
+   369	  if [ $AC_RC -eq 0 ]; then
+   370	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+   371	  else
+   372	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+   373	  fi
+   374	else
+   375	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   376	fi
+EXIT=0

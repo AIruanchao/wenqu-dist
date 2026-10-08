@@ -1,0 +1,24 @@
+timestamp=2026-10-08T14:17:44+08:00
+cwd=/tmp/wenqu-reaudit4-root.KV735X
+command=bash system/bin/wenquctl --help 
+--- stdout+stderr ---
+usage: wenquctl [-h]
+                {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding} ...
+
+wenqu 七段管线控制 CLI（P0-1/P0-2 接线——直通 RunManager）
+
+positional arguments:
+  {create,advance,status,raise-waiting,resume,authorize-risk,complete,register-finding}
+    create              创建七段 run
+    advance             推进当前段（启动/完成 attempt）
+    status              run 只读快照
+    raise-waiting       触发停等
+    resume              消费一次性 resume 审批恢复 WAITING
+    authorize-risk      消费一次性 risk 授权
+    complete            终态判定
+    register-finding    登记面追加 finding
+
+options:
+  -h, --help            show this help message and exit
+--- end ---
+exit_code=0

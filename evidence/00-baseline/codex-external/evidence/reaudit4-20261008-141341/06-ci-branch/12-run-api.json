@@ -1,0 +1,21 @@
+{
+  "id": 37733159993,
+  "name": "acceptance",
+  "path": ".github/workflows/acceptance.yml",
+  "event": "push",
+  "status": "completed",
+  "conclusion": "success",
+  "head_branch": "main",
+  "head_sha": "e4aba84c1dabe1342ea234321eea3d300bea24a5",
+  "run_attempt": 1,
+  "created_at": "2026-10-08T05:35:40Z",
+  "updated_at": "2026-10-08T05:36:13Z",
+  "run_started_at": "2026-10-08T05:35:40Z",
+  "html_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37733159993",
+  "head_commit": {
+    "id": "e4aba84c1dabe1342ea234321eea3d300bea24a5",
+    "message": "Merge pull request #2 from AIruanchao/wave4/evidence-deploy\n\nevidence(wave4): 7789 部署存证+索引 14 条",
+    "timestamp": "2026-10-08T05:35:37Z"
+  },
+  "repository": "AIruanchao/wenqu-dist"
+}

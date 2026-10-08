@@ -1,0 +1,87 @@
+$ date -Ins
+2026-10-08T14:16:07,479904000+08:00
+EXIT=0
+$ launchctl print gui/502/com.wenqu.dashboard
+gui/502/com.wenqu.dashboard = {
+	active count = 1
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	type = LaunchAgent
+	state = running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+		7789
+	}
+
+	stdout path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	stderr path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => [REDACTED]
+		HTTPS_PROXY => [REDACTED]
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => [REDACTED]
+		ANTHROPIC_API_KEY => [REDACTED]
+		ANTHROPIC_BASE_URL => [REDACTED]
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => [REDACTED]
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_REPO_DIR => /Users/maccc/qisemi-research/qisemi-erp-fresh
+		XPC_SERVICE_NAME => com.wenqu.dashboard
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 1
+	pid = 64211
+	immediate reason = speculative
+	forks = 3756
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last exit code = (never exited)
+
+	resource coalition = {
+		ID = 524984
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	jetsam coalition = {
+		ID = 524985
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	submitted job. ignore execute allowed
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}
+EXIT=0

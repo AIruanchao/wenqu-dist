@@ -1,0 +1,17 @@
+$ shasum active/worktree/git-HEAD candidate
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  system/bin/wenqu-dashboard.py
+EXIT=0
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  -
+PIPESTATUS_UNAVAILABLE_AFTER_PIPE_NOTE; pipeline_exit=0
+$ git blob exported and hash
+git_show_EXIT=0
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  /private/tmp/codex-test/evidence/reaudit4-20261008-141341/07-runtime/head-wenqu-dashboard.py
+shasum_EXIT=0
+$ cmp active worktree/head export
+active_vs_worktree_cmp_EXIT=0
+active_vs_HEAD_cmp_EXIT=0
+$ stat files
+/Users/maccc/.wenqu/bin/wenqu-dashboard.py|size=91405|mode=-rwxr-xr-x|uid=502|gid=20|mtime_epoch=1791394092|mtime=2026-10-08T01:28:12+0800|birth=2026-10-08T00:26:16+0800
+system/bin/wenqu-dashboard.py|size=91405|mode=-rwxr-xr-x|uid=502|gid=20|mtime_epoch=1791394092|mtime=2026-10-08T01:28:12+0800|birth=2026-10-08T00:26:16+0800
+EXIT=0

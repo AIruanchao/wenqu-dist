@@ -1,0 +1,283 @@
+== approval_keys outline ==
+46:class KeyNotFoundError(KeyError):
+50:def generate_secret(nbytes: int = 32) -> str:
+57:def _canonical_json(obj: Any) -> str:
+63:def sign_envelope(secret: str, envelope: Mapping[str, Any]) -> str:
+73:def verify_envelope(secret: str, envelope: Mapping[str, Any],
+85:class ApprovalKeyring:
+88:    def __init__(self, keys: Optional[Mapping[str, str]] = None) -> None:
+95:    def _validate_key_id(key_id: str) -> None:
+103:    def _register(self, key_id: str, secret: str) -> None:
+112:    def from_path(cls, path: str) -> "ApprovalKeyring":
+144:    def generate(cls, key_id: str, *, secret: Optional[str] = None,
+150:    def save_json(self, path: str) -> None:
+159:    def has(self, key_id: str) -> bool:
+162:    def get(self, key_id: str) -> str:
+170:    def key_ids(self) -> List[str]:
+173:    def __len__(self) -> int:
+177:    def verify(self, approval: Mapping[str, Any]) -> bool:
+== pipeline outline ==
+203:class NineStopTypes(str, Enum):
+216:    def __str__(self) -> str:  # str 枚举直接以值参与 JSON 序列化
+374:def _run_seal_secret(run_id: str) -> str:
+380:def _seal_event(run_id: str, event: Mapping[str, Any]) -> Dict[str, Any]:
+390:def _verify_seal(run_id: Any, event: Mapping[str, Any]) -> bool:
+405:def default_keyring() -> ApprovalKeyring:
+453:class PipelineError(RuntimeError):
+457:class InvalidTransitionError(PipelineError):
+460:    def __init__(self, kind: str, current: str, new: str) -> None:
+468:class StageOrderError(PipelineError):
+472:class AttemptImmutabilityError(PipelineError):
+476:class RunNotFoundError(PipelineError):
+480:class TerminalRunError(PipelineError):
+484:class InvalidOutcomeError(PipelineError):
+488:class InvalidIdentityError(PipelineError):
+492:class PipelineCorruptionError(PipelineError):
+496:class ApprovalError(PipelineError):
+500:class ApprovalRejected(ApprovalError):
+503:    def __init__(self, reason: str, detail: Optional[Dict[str, Any]] = None) -> None:
+509:class ApprovalReuseError(ApprovalError):
+513:class ApprovalPreconditionError(ApprovalError):
+517:class ActionError(PipelineError):
+526:def _utc_now_iso() -> str:
+530:def _utc_now_epoch() -> float:
+534:def _parse_iso_ts(value: str) -> datetime:
+547:def _canonical_json(obj: Any) -> str:
+552:def _sha256_hex(data: str) -> str:
+556:def _truthy(value: Any) -> bool:
+569:def _is_sha1_hex(value: Any) -> bool:
+574:def _is_sha256_hex(value: Any) -> bool:
+585:class StageAttempt:
+600:class StageState:
+607:    def current_attempt(self) -> Optional[StageAttempt]:
+611:    def status(self) -> str:
+619:    def passed(self) -> bool:
+624:class WaitingInfo:
+636:class RunState:
+662:    def terminal(self) -> bool:
+666:    def current_stage(self) -> Optional[str]:
+673:    def stage_statuses(self) -> Dict[str, str]:
+682:class SevenStageStateMachine:
+693:    def stages(cls) -> Tuple[str, ...]:
+697:    def stage_index(cls, stage: str) -> int:
+706:    def next_stage(cls, stage: str) -> Optional[str]:
+711:    def first_stage(cls) -> str:
+715:    def last_stage(cls) -> str:
+720:    def validate_run_transition(current: str, new: str) -> None:
+727:    def validate_attempt_transition(current: str, new: str) -> None:
+735:    def ensure_prior_stages_passed(
+749:    def stop_types() -> Tuple[str, ...]:
+753:    def precondition_spec(stop_type: str) -> Dict[str, Any]:
+762:    def validate_preconditions(
+813:    def objective_precondition_hash(supplied: Mapping[str, Any]) -> str:
+819:    def validate_outcome(execution_status: str, policy_verdict: str,
+842:    def verdict_to_attempt_status(policy_verdict: str) -> str:
+858:    def outcome_to_attempt_status(execution_status: str,
+876:class _PipelineDb:
+889:    def __init__(self, db_path: str) -> None:
+905:    def from_store(store: EventStore) -> "_PipelineDb":
+913:    def transact(self, body: Callable[[sqlite3.Connection], Any]) -> Any:
+926:    def append_event(conn: sqlite3.Connection,
+946:    def read_events(
+955:    def close(self) -> None:
+964:class ApprovalBroker:
+1015:    def __init__(self, store: EventStore,
+1029:    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+1193:    def _verify_signature(self, ap: Mapping[str, Any]) -> None:
+1209:    def _validate_resume_binding(ap: Mapping[str, Any], state: RunState,
+1292:    def _nonce_consumed_from_events(conn: sqlite3.Connection,
+1302:    def _approval_consumed_event(
+1335:    def consume(
+1443:    def consume_authorization(
+1592:    def consumed_approvals(self, run_id: Optional[str] = None,
+1617:    def risk_authorizations_from_events(
+1648:    def has_unexpired_risk_authorization(self, run_id: str,
+1664:class RunManager:
+1672:    def __init__(self, store: EventStore,
+1686:    def _validate_identity(identity: Mapping[str, Any]) -> Dict[str, Any]:
+1709:    def _base_event(event_type: str, state: RunState,
+1739:    def _replay_fold(self, state: Optional[RunState], event_hash: str,
+1957:    def _replay_fold_action(state: RunState, etype: str,
+1994:    def _load_state(self, run_id: str,
+2006:    def _require_mutable(self, state: RunState) -> None:
+2012:    def _emit(self, conn: sqlite3.Connection, state: RunState,
+2030:    def _new_attempt_id(stage: str, seq: int) -> str:
+2036:    def create_run(self, task_id: str, identity: Mapping[str, Any],
+2066:    def get_run(self, run_id: str) -> RunState:
+2070:    def advance_stage(
+2192:    def raise_waiting(self, run_id: str, stop_type: str, reason: str,
+2236:    def resume_waiting(
+2285:    def authorize_risk(self, run_id: str,
+2291:    def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
+2379:    def cancel_run(self, run_id: str, reason: str = "",
+2396:    def supersede_run(self, run_id: str, reason: str,
+2419:    def register_finding(self, run_id: str, finding_id: str, fingerprint: str,
+2466:    def reserve_action(self, run_id: str, action_type: str, target: str,
+2488:    def _advance_action(self, run_id: str, action_id: str, new_state: str,
+2510:    def start_action(self, run_id: str, action_id: str,
+2516:    def commit_action(self, run_id: str, action_id: str, receipt: str,
+2525:    def fail_action(self, run_id: str, action_id: str, detail: str = "",
+2534:    def reconcile_receipt(self, run_id: str, action_id: str,
+2563:    def close(self) -> None:
+2572:class ActionSaga:
+2586:    def validate_transition(current: str, new: str) -> None:
+2594:    def validate_descriptor(action_type: str, target: str) -> None:
+== cli outline ==
+41:def _load_keyring(path: Optional[str]) -> Optional[ApprovalKeyring]:
+52:def _open_manager(db_path: str,
+58:def _read_json_file(path: str, what: str) -> Any:
+69:def cmd_create(args: argparse.Namespace) -> int:
+91:def cmd_advance(args: argparse.Namespace) -> int:
+114:def cmd_status(args: argparse.Namespace) -> int:
+147:def cmd_raise_waiting(args: argparse.Namespace) -> int:
+159:def cmd_resume(args: argparse.Namespace) -> int:
+173:def cmd_authorize_risk(args: argparse.Namespace) -> int:
+185:def cmd_complete(args: argparse.Namespace) -> int:
+197:def cmd_register_finding(args: argparse.Namespace) -> int:
+212:def build_parser() -> argparse.ArgumentParser:
+218:    def common(p: argparse.ArgumentParser, need_run: bool = True) -> None:
+296:def main(argv: Optional[List[str]] = None) -> int:
+== store outline ==
+43:def is_control_event(event: Any) -> bool:
+54:class ChainIntegrityError(RuntimeError):
+83:class EventStore:
+86:    def __init__(self, db_path: str) -> None:
+95:    def _canonical_payload(event: Dict[str, Any]) -> str:
+101:    def _compute_hash(prev_event_hash: str, canonical_payload: str) -> str:
+108:    def append(self, event: Dict[str, Any]) -> Tuple[str, bool]:
+165:    def head(self) -> Tuple[Optional[str], int]:
+181:    def verify_chain(self) -> Dict[str, Any]:
+215:    def close(self) -> None:
+218:    def __enter__(self) -> "EventStore":
+221:    def __exit__(self, exc_type, exc, tb) -> None:
+== runner outline ==
+44:class IntegrityError(RuntimeError):
+48:def _sha256_hex(data: bytes) -> str:
+53:class Evidence:
+67:    def is_fresh(self, now: Optional[float] = None) -> bool:
+70:    def to_json(self) -> str:
+76:class TrustedRunner:
+92:    def __init__(
+118:    def _validate_argv(self, argv: List[str]) -> None:
+140:    def argv_digest(argv: List[str]) -> str:
+149:    def _descendants(root_pid: int) -> Set[int]:
+177:    def _kill_tree(self, proc: subprocess.Popen) -> None:
+201:    def _build_env(self) -> Optional[dict]:
+214:    def run(self, argv: List[str], cwd: Optional[str] = None) -> Evidence:
+280:class EvidenceStore:
+296:    def __init__(self, root: str) -> None:
+305:    def digest_for(evidence: Evidence) -> str:
+308:    def _path_for(self, digest: str) -> Path:
+313:    def _validate_digest(digest: str) -> str:
+319:    def _shard_dirfd(self, shard: str, *, create: bool = False) -> int:
+363:    def _read_all(fd: int) -> bytes:
+372:    def _open_file(self, dir_fd: int, name: str, flags: int) -> int:
+383:    def _atomic_write(self, dir_fd: int, fname: str, data: bytes) -> None:
+416:    def _existing_state(self, dir_fd: int, fname: str) -> Optional[os.stat_result]:
+423:    def contains(self, digest: str) -> bool:
+436:    def put(self, evidence: Evidence) -> str:
+470:    def get(self, digest: str) -> Optional[Evidence]:
+501:    def close(self) -> None:
+509:    def __enter__(self) -> "EvidenceStore":
+512:    def __exit__(self, exc_type, exc, tb) -> None:
+== deploy outline ==
+56:class DeployError(Exception):
+60:class BuildError(DeployError):
+64:class VerifyError(DeployError):
+67:    def __init__(self, report: Dict[str, Any]):
+74:class SwitchError(DeployError):
+78:class SelfCheckError(DeployError):
+82:def _sha256_file(path: str) -> str:
+90:def _stat_mode(path: str) -> int:
+95:def _collect_files(root: str) -> List[str]:
+105:class DeployManager:
+108:    def __init__(self, releases_root: str, current_link: str,
+117:    def build(self, source_dir: str) -> Dict[str, Any]:
+205:    def _copy_stream_hash(src: str, dst: str) -> str:
+214:    def _reusable(self, final_dir: str, content_digest: str) -> bool:
+228:    def _resolve_link_value(link_dir: str, value: str) -> str:
+238:    def verify(self, release_dir: str, strict: bool = True) -> Dict[str, Any]:
+295:    def switch(self, current_symlink: str, target: str) -> Dict[str, Any]:
+330:    def rollback(self, current: str, previous: str) -> Dict[str, Any]:
+350:    def deploy(self, source_dir: str) -> Dict[str, Any]:
+== aggregator outline ==
+109:class GateAggregator:
+123:    def __init__(self, required_stations: Set[str], target_sha: str, environment: str) -> None:
+149:    def _normalize_outcome(raw: Any) -> str:
+159:    def _is_v2(station_result: Mapping) -> bool:
+167:    def _parse_v2(self, station_result: Mapping) -> Dict[str, Any]:
+234:    def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
+266:    def add(self, station_result: dict) -> "GateAggregator":
+322:    def aggregate(self) -> Dict[str, Any]:
+417:    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+== install key ==
+17:# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
+18:mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
+19:for f in "$SRC"/wenqu_core/*.py; do
+20:  [ -f "$f" ] && cp "$f" "$PREFIX/lib/wenqu_core/"
+23:touch "$PREFIX/lib/wenqu_core/__init__.py"
+24:[ -f "$SRC/wenqu_core/__init__.py" ] && cp "$SRC/wenqu_core/__init__.py" "$PREFIX/lib/wenqu_core/"
+37:# P0-7/F 修：wenqu_core 全模块导入验证（不是只验 TrustedRunner）。
+40:if ! PYTHONPATH="$PREFIX/lib" python3 - "$SRC/wenqu_core" <<'PYEOF'
+41:import importlib, os, sys
+59:        importlib.import_module("wenqu_core." + m)
+63:    print("wenqu_core 模块导入失败: " + "; ".join(failed), file=sys.stderr)
+65:print(f"wenqu_core 全模块导入验证通过（{len(mods)} 模块）", file=sys.stderr)
+68:  echo "✗ 安装自检失败：wenqu_core 存在缺失/不可导入模块——安装中止" >&2
+71:echo "✓ wenqu_core 安装验证通过（全模块可导入，含 wenqu_pipeline）"
+73:# P0-7/F 修：cp -R 改 tar 管道（保 mode/symlink；cp -R 会拍平权限与链接语义）
+74:tar_copy() { # tar_copy <源目录> <目标目录>
+76:  tar -C "$1" -cf - . | tar -C "$2" -xf -
+78:tar_copy "$SRC/bin" "$PREFIX/bin"
+79:tar_copy "$SRC/sentinels" "$PREFIX/sentinels"
+80:tar_copy "$SRC/daemons" "$PREFIX/daemons"
+83:tar_copy "$SRC/db" "$PREFIX/db"
+84:tar_copy "$SRC/ci" "$PREFIX/ci"
+85:tar_copy "$SRC/templates" "$PREFIX/templates"
+86:tar_copy "$SRC/specs" "$PREFIX/specs"
+102:echo "✓ 配置：$PREFIX/env（编辑后 wenqu doctor 校验）"
+110:python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需要）" || echo "△ 缺 psycopg2：pip3 install psycopg2-binary"
+114:# 6. 自检（P0-7/F 修：doctor 真实执行、不吞退出码；组件损坏中止，全新未配置容忍）
+115:#    区分口径：doctor 输出「缺 <组件>」= 安装面损坏（中止，rc=1）；
+116:#    仅「配置」类失败（无配置/占位符未填）= 全新安装未配置（容忍——配置后 wenqu doctor 复检）。
+119:DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1) || DOC_RC=$?
+121:  echo "✗ 安装自检失败——组件缺失/损坏，安装中止（doctor rc=${DOC_RC}）" >&2
+125:  echo "△ doctor rc=${DOC_RC}：全新安装未配置（容忍）——编辑 $PREFIX/env 后 wenqu doctor 复检"
+127:  echo "✓ 安装自检通过（wenqu doctor rc=0）"
+== trace outline ==
+7:  §20（20.1～20.5）定义全部测试 ID 的注入/期望；§25.1 给出 ID 范围→需求/AC/工作包/证据类映射。
+8:本工具把 §20/§25.1 全量转录为冻结目录（PLAN_TEST_CATALOG），运行时扫描仓内测试资产，
+15:  python3 tools/ac_traceability.py --check         # 目录完整性失败时 exit 2（CI 用）
+37:# ---------------------------------------------------------------- 冻结目录：§25.1 前缀元数据
+265:def build_catalog():
+273:            "section": SECTION_OF.get((prefix, num), "20.5"),
+284:    # 前缀分母核对（§25.1 范围展开）
+312:def cross_check_plan(plan_path, catalog):
+313:    """可选：解析方案 §20 表格提取 ID 集合，与冻结目录做集合等式校验（§25.1 要求）。"""
+337:def _norm_meta(s):
+338:    """§25.1 表格与冻结元数据的归一化：全角～→半角~、去首尾空白。"""
+342:def cross_check_plan_251(plan_path, catalog):
+343:    """真解析方案 §25.1 映射表：范围展开成 ID 集合 + 逐前缀四列元数据对账。
+345:    防的是第三轮验收实锤的假绿：篡改 §25.1 映射（换 REQ/AC/工作包/证据类）
+346:    时旧版工具根本不解析该表却声称"§25.1 集合等式"。
+355:        return {"ok": False, "error": "方案中未找到 §25.1 小节"}
+358:    section = rest if not m_end else rest[: m.end() - m.start() + m_end.start()]
+362:    for line in section.splitlines():
+371:            problems.append(f"§25.1 行 {prefix}-{lo:02d}～{hi:02d} 需求/AC 列格式非法: {req_ac.strip()!r}")
+376:                problems.append(f"§25.1 重复展开 ID: {tid}")
+381:        return {"ok": False, "error": "§25.1 表格解析出 0 行（格式漂移？）"}
+384:        problems.append(f"§25.1 展开集合≠冻结目录: 仅方案={sorted(expanded - frozen)} 仅冻结={sorted(frozen - expanded)}")
+388:            problems.append(f"§25.1 前缀 {prefix} 不在冻结元数据中")
+393:            problems.append(f"§25.1 前缀 {prefix} 四列元数据与冻结值不符: 方案={plan_meta} 冻结={norm_frozen}")
+401:def iter_test_files():
+416:def scan_python(path, wanted_forms):
+443:def scan_shell(path, wanted_forms):
+457:def collect_test_matches(catalog):
+497:def collect_evidence_matches(catalog):
+521:def git_head():
+532:def main():
+540:    ap.add_argument("--check", action="store_true",
+554:            problems.append("§25.1 映射交叉校验不一致: " + "; ".join(
+570:            "section": meta["section"],
+652:        print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
+656:            print(f"  §25.1 问题: {p}")

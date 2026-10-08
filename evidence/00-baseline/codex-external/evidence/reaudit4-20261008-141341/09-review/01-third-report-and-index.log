@@ -1,0 +1,695 @@
+$ sed -n 1,260p /private/tmp/codex-test/验收报告-第三轮.md
+# 问渠 / Bug 管线整改产物验收报告（第三轮独立复审）
+
+- 验收对象：`/Users/maccc/Documents/wenqu-dist`
+- 验收基线：`main@ff050bbb9c95c04ecb975900f5440f9bfcd1a447`
+- 对照基线：第二轮 `main@4aeb1998`，第二轮结论 `29/100 BLOCKED`
+- 方案正源 SHA256：`96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306`
+- 验收日期：2026-10-08（Asia/Shanghai）
+- 证据根：`/private/tmp/codex-test/evidence/reaudit3-20261008-122924/`
+- 验收性质：只读独立复审；删件、篡改、竞态和部署失败探针均在隔离副本或临时目录运行
+
+---
+
+## 1. 最终判定
+
+# **BLOCKED — 38/100**
+
+本轮不能获得以下任何完成状态：
+
+| 完成层 | 判定 |
+|---|---|
+| 候选实现完成 | **不通过** |
+| CI 准入完成 | **不通过** |
+| 受控部署完成 | **不通过** |
+| 发布后验证完成 | **不通过** |
+| 生产可用 / production-ready | **禁止声明** |
+
+第二轮 10 个 P0 中，仅 **P0-8 旧 auto-merge 危险 writer 遏制**达到本轮可复核的关闭条件；P0-1～P0-7、P0-9、P0-10 均未关闭，其中多项虽有窄修复，但仍存在可运行的反例。
+
+本轮确认以下声称是真实的：
+
+1. 本地 `tests/acceptance.sh` 确实得到 **62 PASS / 0 FAIL / rc=0**；
+2. `tests/test_wenqu_pipeline.py` 确实得到 **10/10 / rc=0**；
+3. 模块、Schema、追踪工具三个移除锚点均会变红；
+4. approval-v2 被篡改后，Schema/实现交叉验证会变红；
+5. CI run `37727549548` 确为 `ff050bb` 的 macOS/Ubuntu 双平台 success；
+6. 当前方案 §20、§25.1 与工具目录三套 ID 的原始集合均为 131 且相等；
+7. 追踪工具如实报告专属覆盖 **0/131（0.0%）**。
+
+但这些事实不足以放行，因为本轮同时实锤了授权可伪造、跨类型 payload 可恢复、非 resume 授权无 CAS、TIMEOUT/P1 可被洗成条件完成、事件可直写伪造 SUCCEEDED、事件重放丢失 nonce 消费语义、v2 契约链断裂、CAS TOCTOU、部署升级回滚失败、active 7789 未部署加固、追踪 Gate 可假绿、branch rules 缺失等硬阻断。
+
+---
+
+## 2. 验收边界与仓库完整性
+
+### 2.1 身份冻结
+
+- 初始与收尾 HEAD 均为 `ff050bbb9c95c04ecb975900f5440f9bfcd1a447`；
+- 初始与收尾工作树均 clean，`main...origin/main`；
+- 两份方案文件 SHA256 一致，均为冻结值；
+- 仓内第二轮报告快照与原报告 SHA256 一致。
+
+### 2.2 唯一发生的工作树写入及处置
+
+直接运行 `tests/acceptance.sh` 会改写受版本控制的 `evidence/traceability-matrix.json` 中 `generated_at` 与 `repo_head`。这是验收脚本的副作用，不符合“验收默认只读”的期望。本轮立即保存 diff，并用 `git restore` 恢复到 HEAD；没有保留对产物仓的任何修改。
+
+证据：
+
+- `00-baseline/git-status-head.txt`
+- `00-baseline/source-hashes.txt`
+- `00-baseline/acceptance-mutated-worktree.txt`
+- `00-baseline/post-restore-status.txt`
+- `06-final/final-integrity.txt`
+
+### 2.3 未执行的动作
+
+未部署、未 restart、未改 launchd、未改 branch rules、未执行生产写、未调用 `/api/decide`、未做真实合流或 DDL。对 active runtime 仅做 `launchctl/lsof/ps/hash/curl GET` 只读核验。
+
+---
+
+## 3. 第二轮 P0 十项逐项复核
+
+| P0 | 三轮状态 | 本轮确认的修复 | 仍阻断的事实 |
+|---|---|---|---|
+| P0-1 核心接线 | **FAIL / 未关闭** | 删 `wenqu_pipeline.py` 后两个指定测试均 rc=1；CI 已运行 P1/P1b | 同一删件副本安装仍 rc=0；无正式 CLI/controller/scheduler 调用 RunManager/ApprovalBroker |
+| P0-2 七段状态机与审批 | **FAIL / BLOCKED** | 10/10 自测；七段、九停枚举、resume 事务/CAS、指定三类对抗样例通过 | 伪签名/缺绑定、跨类型 payload、字符串 false、非 resume 无 CAS、TIMEOUT+P1 洗白、事件直写伪终态、第二正源、Schema 自冲突、无 action saga |
+| P0-3 契约链 | **FAIL / 未关闭** | 空 required stations 不再真空 PASS | 合法 v2 station 被旧聚合器判 malformed；旧聚合输出又被 Dashboard 拒；聚合器仅测试调用 |
+| P0-4 Schema 不变量 | **FAIL / 部分修复** | approval 顶层判别字段、finding P0/P1 风险接受拒绝、CLOSED-from-VERIFIED 窄规则已加 | payload 未封闭/未定型、exact bindings 非必填、finding 转换不完整、evidence/station/run 跨字段不变量缺失 |
+| P0-5 Runner/CAS | **FAIL / 未关闭** | final symlink、预置损坏文件被拒；普通同进程组后代可杀 | 父目录替换 TOCTOU 可越界读写、hardlink 接受、部分写留毒文件、setsid 子孙逃逸、默认继承环境且未启用 allowlist |
+| P0-6 EventStore | **FAIL / 部分修复** | 同 payload 不再插第二行；`pipeline_events` 避开 DDL 列冲突 | duplicate 返回 DB 中不存在的伪 hash；`head()` 返回首条而非链头；迁移器与核心仍为两表两正源 |
+| P0-7 部署 | **FAIL / 部分修复** | `.sh` 执行位窄修；首版 self-check 失败删除 current | 无扩展可执行位丢失、mode 不入 manifest；升级失败相对 previous 解析错误且 current 留在失败版；安装仍 `cp -R`、`doctor || true` |
+| P0-8 auto-merge | **PASS / 本轮关闭** | 源脚本是单行 fail-closed stub；`wenqu start` 拒绝；安装体、进程、launchd、cron 均未发现 writer | 仅关闭二轮具体危险 writer；不代表 W0/W3/W9 已完成 |
+| P0-9 7789 控制面 | **FAIL / BLOCKED** | 仓内旧单文件路由增加 Origin/Host/Auth-Key/CSRF 四检查；新模块化 server 对 POST 返回 405 | active 7789 仍运行 `~/.wenqu/bin/wenqu-dashboard.py` 旧哈希，缺四检查且保留写入口；新 server 未安装 |
+| P0-10 证据/追踪/制品 | **FAIL / 部分修复** | 14 目录、方案/报告快照、生成器、131 集合已入仓；0% 专属覆盖诚实呈现 | 01～13 只有 README，索引 stale 且无严格逐工件条目；Gate 可假绿；0 专属用例；无最终 tar/zip 制品、回滚/迁移/观察窗证据 |
+
+### 3.1 P0-1：移除锚点成立，但业务运行接线不存在
+
+指定隔离移除法结果：
+
+- 删除 `system/wenqu_core/wenqu_pipeline.py`：
+  - `python3 system/tests/test_core_wiring.py` → rc=1；
+  - `python3 system/tests/test_wenqu_pipeline.py` → rc=1。
+- 删除 `approval-v2.schema.json`：上述两个测试分别 rc=1、rc=1。
+- 删除 `tools/ac_traceability.py`：全量 acceptance 为 61 PASS / 1 FAIL，rc=1。
+
+然而在同一缺失 `wenqu_pipeline.py` 的隔离副本中，`system/install.sh --prefix ...` 仍 rc=0，并输出“wenqu_core 安装验证通过”；安装后的核心确实没有该模块。仓内排除测试、注释和证据后，无 RunManager/ApprovalBroker 的生产调用方，也无方案要求的 `wenquctl`/`bugscanctl` 等价唯一控制入口。
+
+结论：**测试存在性锚点已接，安装和业务运行链未接；P0-1 不关闭。**
+
+证据：`03-adversarial/removal-module.txt`、`removal-schema.txt`、`removal-tool.txt`、`agent-core/10-core-wiring-callsites.log`、`agent-core/16-removal-installer-still-green.log`。
+
+### 3.2 P0-2：七段骨架真实存在，但关键安全不变量可被打穿
+
+通过项：
+
+- 七段与基本转换表存在；
+- 九种 stop type 枚举存在；
+- 正常 retry 创建新 attempt，旧 attempt 在正常 API 路径保留；
+- resume nonce 与事件在 `BEGIN IMMEDIATE` 中一次性消费；
+- 跨 run 复用 nonce 被拒；
+- 批准后 run 已 cancel 时 resume 被拒且 nonce 未消费；
+- resume 的旧 `expected_state_version` 被拒；
+- 正常 happy path 从事件重放得到一致投影。
+
+阻断项：
+
+1. **审批不可信：** signature 只验长度，不验签；公共 envelope 的 task/stage/env/scope/policy/ruleset/watermark/state_version 多数字段不是 required，删除后用任意 actor 和伪签名仍可恢复。
+2. **判别联合未封闭：** risk payload 混入 resume 字段可通过 Schema 和 Broker，并实际执行 WAITING→RUNNING；`consume()` 不强制 approval_type=resume。
+3. **九停客观前置可自报：** `probe_recovered="false"`、`safety_margin_met="false"` 作为非空字符串仍被当真。
+4. **绑定可绕过：** 非 40 位 `input_watermark` 会跳过 SHA 比较；错 policy/ruleset 也可在授权路径中被忽略。
+5. **CAS 不完整：** 非 resume 的 risk/action authorization 不比较 `expected_state_version`。
+6. **双轴错误：** `TIMEOUT + CONDITIONAL` 可映射为 `COMPLETED_CONDITIONAL`；完全不匹配的 HIGH/P1 finding 风险包可被消费并完成 run，违反 P0/P1 不得风险接受。
+7. **控制事件可伪造：** 直接调用公共 `EventStore.append` 注入 `RUN_COMPLETED/PASS`，在 S1 仍 RUNNING 时重放即可得到 SUCCEEDED，hash chain 仍显示有效。
+8. **attempt 投影不一致：** cancel 活跃 run 后，run=CANCELLED，但当前 attempt 仍 RUNNING。
+9. **存在第二正源：** nonce/risk 权威状态在可变 `approval_consumptions` 旁表；仅重放 `pipeline_events` 后，同一 nonce 可再次消费。
+10. **自产事件不符合正式 Schema：** WAITING 事件包含 Schema 未声明字段，因 `additionalProperties=false` 被正式 run schema 拒绝。
+11. **动作 Saga 缺失：** 未发现 ACTION_AUTH_RESERVED/STARTED/COMMITTED/FAILED_UNKNOWN、control_outbox、外部 receipt/reconcile 等方案 §6.1 链路。
+
+结论：实现不是“仅缺更多测试”，而是当前对抗输入可改变授权、终态和唯一正源语义，属于硬阻断。
+
+证据：`agent-core/08-test-wenqu-pipeline.log`、`11-adversarial-pipeline.log`、`14-approval-schema-cross-type.log`、`17-nonresume-cas-bypass.log`。
+
+### 3.3 P0-3：station→aggregator→dashboard 仍断链
+
+- 经 Draft-07 验证通过的正式 `station-result-v2` 使用 `station_id/execution_status/policy_verdict/identity`；
+- `GateAggregator.add()` 仍消费旧字段 `station/outcome/sha/environment`，把合法 v2 结果记为 `missing_field:station`；
+- 聚合器对旧私有输入可给结果，但输出缺 Dashboard 强制要求的时间与 verdict 字段，Dashboard 判 `AGGREGATOR_MALFORMED`；
+- 除测试外没有生产调用方，也没有仓内聚合快照生产者。
+
+空站集合不再真空 PASS 是有效窄修，但无法关闭端到端契约 P0。
+
+证据：`03-adversarial/p0-3-contract-chain.txt`、`agent-evidence/14c-p0-3-import-callgraph.log`、`15-p0-3-contract-probe.log`。
+
+### 3.4 P0-4：Schema 窄加固有效，跨类型和跨字段残余仍广泛存在
+
+已验证修复：
+
+- resume/risk/merge 等 discriminator 顶层分支开始要求各自 payload 字段；
+- finding 的 CRITICAL/HIGH 或 P0/P1 `ACCEPTED_RISK` 被拒；
+- `CLOSED` 要求 `state_from=VERIFIED`；
+- `ACCEPTED_RISK` 要求 `risk_acceptance`。
+
+独立反例仍被接受：
+
+- merge payload 混入 risk 字段；
+- payload 任意额外字段、字段类型错误；
+- 缺 task/stage/env/scope/policy/ruleset/watermark/state_version exact bindings；
+- 无效日期，包括显式 FormatChecker 情况；
+- ACCEPTED_RISK 缺 compensating controls；
+- CLOSED→ACCEPTED_RISK、CLOSED→OPEN 等非法 finding 转换；
+- evidence 缺 schema_version/verdict/artifact、空 artifact；
+- station PASS 无 coverage/artifact、零分母、coverage 缩水、nonzero rc；
+- run `ERROR+PASS`、`COMPLETED+PASS` 且仍带 findings。
+
+结论：P0/P1 风险接受和 CLOSED 的两个点修了，但 Schema 尚未编码完整状态机、判别联合封闭性及双轴/coverage/exit/artifact 不变量。
+
+证据：`agent-schema/15-schema-adversarial-results.txt`、`16-approval-broker-adversarial-results.txt`。
+
+### 3.5 P0-5：同级前缀窄样例未形成读取，但真实 TOCTOU 已越界
+
+正向结果：
+
+- final symlink 读取被拒；
+- 预置损坏文件的幂等 put 被拒；
+- 普通同进程组后代在 timeout 后未留下 marker；
+- 本轮构造的同级 `casevil` 前缀样例 `contains()` 返回 False，没有据此声称动态读取成功。
+
+仍失败：
+
+- 根边界判断仍是字符串 `startswith`，不是 `commonpath/dirfd` 型安全打开；
+- 在检查后、`os.open` 前替换 shard 父目录为 symlink，put 成功写到 CAS 根外；
+- read 的父目录在 resolve 后替换，get 成功读取根外文件；
+- hardlink 预置被当作合法幂等内容接受；
+- 首次写入中途失败留下 5 字节毒文件，重试永久报损坏；没有私有临时文件+fsync+rename；
+- 子进程自行 `setsid` 后逃离 killpg，timeout 后仍写出 marker；
+- 默认 runner 继承环境，且未配置 allowlist 时允许执行 `/bin/sh -c`。
+
+结论：第二轮的直接 symlink/普通后代窄问题改善，但方案要求的抗 TOCTOU、hardlink、崩溃原子写和真正隔离仍未满足。
+
+证据：`agent-schema/17-cas-runner-adversarial-results.txt`、`cas_runner_adversarial.py`。
+
+### 3.6 P0-6：幂等插入和建表冲突窄修，事件语义仍错误
+
+- 相同 payload 二次 append 不再增加行数，这是有效修复；
+- EventStore 与 LedgerMigrator 两种初始化顺序均不再发生列冲突；
+- 但在插入 A、插入 B、重试 A 时，重试返回按当前 head 新算出的 event hash，而该 hash 不存在于 DB；
+- 两条事件后，`head()` 返回第一条 hash，`verify_chain()` 仍报告 ok 且返回错误 head；
+- 核心写 `pipeline_events`，迁移器写 `events`，只是避开了表名冲突，并未统一事件正源；
+- Approval 消费旁表又构成第三个无法由事件全量重放恢复的权威状态面。
+
+证据：`03-adversarial/eventstore-residual.txt`、`agent-evidence/16-p0-6-store-probe.log`。
+
+### 3.7 P0-7：首次失败修了，升级失败回滚仍会把 current 留在坏版
+
+- 源 `.sh` 0755 构建后保持可执行，首次部署 self-check 失败时会删除 `current`；
+- 但 0755 无扩展可执行文件被改为 0444，0644 带 shebang 的 `.py` 被改成 0555；
+- manifest 不记录 mode，篡改 0555→0444 后 verify 仍为 ok；
+- 成功首版后的 `previous` 是相对链接；升级 self-check 失败时用进程 cwd 判断相对目标，错误地认为 previous 不存在，跳过回滚，并让 `current` 留在失败新版本；
+- manifest 缺 source commit、policy/ruleset、builder、schema compatibility、签名/SBOM 等 §16.2 字段；
+- 正式安装路径仍是 `cp -R`，且 `doctor 2>&1 || true` 吞真实退出码，没有调用 DeployManager；
+- 仓内仅有历史 SHA 文本，无任何 tar/tgz/zip 最终候选制品。
+
+证据：`03-adversarial/deploy-residual.txt`、`agent-evidence/18-p0-7-deploy-probe.log`、`06-final/release-and-workpack-inventory.txt`。
+
+### 3.8 P0-8：危险 auto-merge writer 本轮关闭
+
+只读复核得到：
+
+- 源 `system/daemons/auto-merge.sh` 为唯一一行 fail-closed stub，执行退出 1；
+- `wenqu start` 永久拒绝；
+- `~/.wenqu/daemons/auto-merge.sh` 不存在；
+- 未发现 auto-merge 进程、launchd 项或 crontab 项。
+
+本项只关闭第二轮 P0-8 的具体危险 writer，不代表 GitHub Required Gate、merge queue、writer inventory、凭据撤销或 W9 切换完成。
+
+证据：`02-runtime/auto-merge-readonly.txt`、`01-regression/acceptance-full.txt`。
+
+### 3.9 P0-9：候选源码加固未进入 active 7789
+
+- active launchd 运行 `/Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789`；
+- active 文件 SHA256 为 `52aba1...`，仓内旧单文件候选为 `72ba1d...`，新模块化 server 为 `fb4c6c...`；三者不一致，新 server 未安装；
+- active 旧文件与候选 diff 显示 active 缺失 Origin、Host、Auth-Key、X-Requested-With 四项检查；
+- active 仍保留 `/api/decide` 写处理器；
+- 实际 GET `/api/health` 为 HTTP 200，但内容是 **40 / 告警 / Gate=failure**；
+- 新模块化 server 的自检 POST 返回 405，这是候选层正向结果，不是现役部署证据。
+
+结论：P0-9 是运行身份与安全修复未部署问题，不能用源码存在或新 server self-check 代替。
+
+证据：`02-runtime/dashboard-identity-readonly.txt`、`dashboard-installed-source-diff.txt`、`01-regression/dashboard-new-self-check.txt`。
+
+### 3.10 P0-10：目录与矩阵存在，但证据链和最终制品不成立
+
+1. `evidence/00-baseline`～`13-observation-window` 14 个目录存在，但 01～13 每个只有 README；00 的实质内容主要是旧轮外部证据快照。
+2. `evidence-index.json` 只有 9 条，建档 HEAD 为 `e00de14`，没有 `ff050bb` 或 CI run 37727549548 条目。
+3. 9 条中 7 条缺 §24.2 硬字段，4 条指向目录；同时要求“路径为具体文件且 artifact_sha256 为 64 hex”的条目为 0。
+4. known_gaps 仍称外部证据未快照、当前 HEAD 无 CI，与 ff050bb 实态漂移。
+5. 仓内追踪矩阵仍绑定 e00de14；直接 acceptance 会原地刷新该受控文件并弄脏工作树。
+6. P1c 调用工具时没有 `--check`：隔离篡改方案 §20 后，工具打印集合 FAIL 但返回 0，完整 acceptance 仍 62/0 ALL GREEN。
+7. 只篡改 §25.1 映射元数据，即使手工 `--check` 也返回 0；工具实际没有解析 §25.1 映射，却把标签写成“§25.1 集合等式”。
+8. 131 个 ID 专属实现为 0，代理 3，缺失 128；没有 before 红探针、属性/变异、chaos、迁移对账、scanner golden、Playwright、shadow/canary、rollback、14 天观察工件。
+9. 无最终 release archive；只有指向历史 tarball 名称的 SHA 文本。
+
+结论：P0-10 由“完全没有框架”提升为“有目录、快照与诚实的 0% 矩阵”，但仍不构成方案 §24 完成证据。
+
+证据：`04-evidence/ac-traceability-live.txt`、`independent-id-set-check.txt`、`agent-evidence/19b-evidence-index-reconcile.log`、`22-*`～`25-*`、`06-final/release-and-workpack-inventory.txt`。
+
+---
+
+## 4. W0–W10 同口径评分
+
+> 评分只对比第二轮后新增、且本轮可独立复核的证据。硬门优先于总分。
+EXIT=0
+$ cat evidence/evidence-index.json
+{
+  "index_version": "1.0.0",
+  "created_at": "2026-10-08T00:00:00+08:00",
+  "created_by": "P0-10 证据包基础设施建档",
+  "plan_source": {
+    "path": "evidence/00-baseline/codex-external/方案.md",
+    "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "sha256_verified_at": "2026-10-08",
+    "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
+  },
+  "repo_head_at_filing": {
+    "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+    "subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
+    "ci_conclusion": "run 37727549548 acceptance success (macOS+Ubuntu 双平台, 62 PASS/0 FAIL)",
+    "note": "本索引 2026-10-08 第四波整改中刷新；后续提交以 git log 为准"
+  },
+  "entries": [
+    {
+      "entry_id": "EV-CI-001",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 工作流通过记录（run 37660552501）",
+      "what": "CI 通过记录：commit 1858a75（fix(p0-9) dashboard /api/decide 安全加固）在 main 分支 acceptance 工作流全绿",
+      "run_id": "37660552501",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow 4 步：release-check + tests/acceptance.sh + pytest 契约 + selftest",
+      "ruleset": ".github/workflows/acceptance.yml (sha256 df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592)",
+      "time": "2026-10-07T17:37:51Z",
+      "argv": [
+        "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+      ],
+      "real_rc": "conclusion=success (27s)",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+      "caveat": "记录为 API 摘要，run 原始日志未导出落档"
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 工作流通过记录（run 37660144865）",
+      "what": "CI 通过记录：commit be50cb8（fix(p0-6+7) EventStore 幂等+表名避冲突+部署 exec bit 保留）main 分支全绿",
+      "run_id": "37660144865",
+      "commit": "be50cb8",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow 同上",
+      "ruleset": ".github/workflows/acceptance.yml",
+      "time": "2026-10-07T17:34:41Z",
+      "argv": [
+        "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+      ],
+      "real_rc": "conclusion=success (27s)",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/08-ci-and-branch-rules/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+      "caveat": "同 EV-CI-001"
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "category": "04-unit-property-mutation",
+      "title": "P0-1 核心接线测试 8/8 通过（CI 内执行）",
+      "what": "system/tests/test_core_wiring.py 全部 8 用例通过：wenqu_core 存在(≥8模块)/可导入/5 schema 可解析/dashboard 四文件/TrustedRunner 证据产出/GateAggregator 空分母 BLOCKED/schema 拒 CRITICAL ACCEPTED_RISK/install.sh 含核心安装",
+      "run_id": "37660552501 (随 CI acceptance 步骤)",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "system/tests/test_core_wiring.py；经 tests/acceptance.sh P1 节接线（缺失时 acceptance 必红）",
+      "ruleset": "同 CI acceptance.yml",
+      "time": "2026-10-07T17:37:51Z",
+      "argv": [
+        "python3 system/tests/test_core_wiring.py"
+      ],
+      "real_rc": "0 (8 PASS / 0 FAIL)",
+      "artifact_sha256": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823",
+      "evidence_path": "evidence/04-unit-property-mutation/",
+      "fresh_until": "2026-10-21",
+      "verified_by": "ZCode P0-10 建档（文件 sha256 实算 + CI 结论实查；步骤级日志未导出）",
+      "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言"
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "category": "04-unit-property-mutation",
+      "title": "tests/acceptance.sh 发行版回归 53 PASS / 0 FAIL（Codex 复核时点）",
+      "what": "发行版验收脚本全绿：selftest 契约/预埋缺陷探测器真命中(标记行验证)/干净仓不误报/convergence 空转拒绝/超时不落账/参数值域/并发 8 进程账本零损坏/repair 不伤审计行/sweep 精确匹配/四高防线/P0 安装收敛/P1 核心接线",
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)",
+      "scope": "tests/acceptance.sh 全 53 检查",
+      "ruleset": "脚本 sha256 912347f2d2acc4723915c8d086bd186df4e66062bceede6bb717e42aab5c3e35",
+      "time": "2026-10-07T23:13–23:21 (+08:00)",
+      "argv": [
+        "bash tests/acceptance.sh"
+      ],
+      "real_rc": "0 (53 PASS / 0 FAIL)",
+      "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
+      "caveat": "快照入仓前原始日志在 /private/tmp；本条为 53 项时点记录，当前 acceptance 已扩至 62+ 项"
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "category": "04-unit-property-mutation",
+      "title": "wenqu_core 5 模块内嵌 selftest rc=0",
+      "what": "bugscan_orchestrator / station2_static / station3_contract / station4_behavior / station7_runtime 五模块 self-test 通过",
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)",
+      "scope": "5 个 wenqu_core 模块 _self_test()",
+      "ruleset": "compileall 亦 rc=0",
+      "time": "2026-10-07T23:14 (+08:00)",
+      "argv": [
+        "python3 -m wenqu_core.<mod> (selftest 入口)"
+      ],
+      "real_rc": "0 ×5",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
+      "caveat": "同目录含 5 份 selftest-*.log；ledger_migrator/gate_aggregator 等其余模块不在该 5 模块清单内"
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "category": "00-baseline",
+      "title": "Codex 方案自验证 29/29 PASS",
+      "what": "方案文件一致性/追踪性/可执行性检查全过：131 个 §20 测试 ID 与 §25.1 展开集合完全相等零重复零悬空、21 个 FND 连续唯一、DAG 无环、15 个快照靶点存在",
+      "run_id": "reaudit-20261007",
+      "commit": null,
+      "environment": "local (只读验证器)",
+      "scope": "/private/tmp/codex-test/方案.md 自身（非代码整改验收）",
+      "ruleset": "validate_plan.py",
+      "time": "2026-10-07T15:27 (+08:00)",
+      "argv": [
+        "python3 validate_plan.py 方案.md"
+      ],
+      "real_rc": "0 (29/29 PASS)",
+      "artifact_sha256": "plan-self-validation.json.sha256 在快照目录",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
+      "fresh_until": "2026-10-14",
+      "verified_by": "Codex 方案 §29 记录；已快照入仓",
+      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论"
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "category": "00-baseline",
+      "title": "Codex 整改产物验收总判定：BLOCKED（29/100）——负面结论存档",
+      "what": "2026-10-07 Codex 验收结论：候选实现/CI 准入/受控部署/发布后闭环全部不通过；W0-W10 加权 29 分；八项硬缺口（七段状态机闭环/八站统一入口/双授权/完整链/事件正源/原子安装/红探针矩阵/shadow-canary-观察-回滚证据）在册",
+      "run_id": "acceptance-20261007-231333",
+      "commit": "1858a75 (验收基线 main@4aeb199 起算)",
+      "environment": "local (只读复核)",
+      "scope": "wenqu-dist 全仓 W0-W10",
+      "ruleset": "方案 §24.1 硬完成门",
+      "time": "2026-10-07T23:13–23:21 (+08:00)",
+      "argv": [],
+      "real_rc": "判定=BLOCKED",
+      "artifact_sha256": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "evidence_path": "evidence/00-baseline/codex-external/验收报告.md",
+      "fresh_until": "长期（作为整改基线判定，非时效性证据）",
+      "verified_by": "Codex 独立复核；已快照入仓",
+      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移"
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "category": "09-release-manifest-attestation",
+      "title": "发行版哈希清单链 v1.0.6～v3.6.3（25 份 SHA256-v*.txt）",
+      "what": "仓根连续 25 份发布哈希清单文件（v1.0.6/07/08/18、v2.0、v3.0.0～v3.6.3），最近一份 v3.6.3（2026-10-08 00:28）",
+      "run_id": null,
+      "commit": "随各版本提交",
+      "environment": "repo artifact",
+      "scope": "发行打包完整性清单（弱版本：无 manifest 结构/签名/build identity）",
+      "ruleset": "tests/release-check.sh 校验版本号一致性",
+      "time": "2026-10-02 ～ 2026-10-08",
+      "argv": [],
+      "real_rc": null,
+      "artifact_sha256": "SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
+      "evidence_path": "evidence/09-release-manifest-attestation/",
+      "fresh_until": "长期",
+      "verified_by": "ZCode P0-10 建档（文件存在性+哈希实算）",
+      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）"
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "category": "04-unit-property-mutation",
+      "title": "131 个 §20 验收 ID 初始追踪矩阵（P0-10 生成）",
+      "what": "tools/ac_traceability.py 首次运行产物：131 个测试 ID 的 implemented/test_file/evidence_path 矩阵与覆盖率统计（作为整改前基线）",
+      "run_id": "p0-10-initial",
+      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)",
+      "environment": "local",
+      "scope": "§20 全部 131 ID × 仓内测试资产扫描",
+      "ruleset": "工具冻结目录=方案 §20/§25.1 转录；方案 sha256 96b8646f…",
+      "time": "2026-10-08",
+      "argv": [
+        "python3 tools/ac_traceability.py"
+      ],
+      "real_rc": "见运行输出",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/traceability-matrix.json",
+      "fresh_until": "随下次全量测试资产变更即须重跑",
+      "verified_by": "P0-10 建档运行",
+      "caveat": "矩阵为静态扫描（测试文件/函数引用检查），不执行测试"
+    },
+    {
+      "entry_id": "EV-CI-003",
+      "category": "08-ci-and-branch-rules",
+      "title": "GitHub Actions acceptance 通过记录（run 37727549548，ff050bb 双平台）",
+      "what": "CI 通过记录：commit ff050bb（feat(p0-2+p0-10) 状态机+审批 Broker+追踪矩阵+证据包）在 main 分支 acceptance 工作流 success（macOS+Ubuntu 双 matrix job）；P1/P1b/P1c 三锚点实际执行",
+      "run_id": "37727549548",
+      "commit": "ff050bb",
+      "environment": "candidate (GitHub Actions, remote)",
+      "scope": "acceptance workflow：release-check + tests/acceptance.sh（62 PASS/0 FAIL）+ pytest 20 用例",
+      "ruleset": ".github/workflows/acceptance.yml",
+      "time": "2026-10-08T04:27:13Z",
+      "argv": [
+        "gh run view 37727549548 --json status,conclusion,displayTitle (repo AIruanchao/wenqu-dist)"
+      ],
+      "real_rc": "conclusion=success",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt",
+      "fresh_until": "2026-10-22",
+      "verified_by": "ZCode 第四波整改建档（gh run view 实查）+ Codex 第三轮验收独立复核（报告 §7）",
+      "caveat": "main 无 branch protection/ruleset——CI 绿不是不可绕过的 Required Gate（Codex 三轮 §7 实锤）"
+    },
+    {
+      "entry_id": "EV-R3-001",
+      "category": "00-baseline",
+      "title": "Codex 第三轮验收总判定：BLOCKED（38/100）——负面结论存档",
+      "what": "2026-10-08 Codex 第三轮独立复审：38/100（二轮 29→+9）；P0-8 关闭，P0-1~7/9/10 未关闭；12 项对抗探针 FAIL 在册（伪签名/跨类型 payload/false 字符串/非 resume CAS/TIMEOUT 洗白/事件直写/旁表正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/追踪假绿）；复验准入条件八条在册",
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bb (验收基线)",
+      "environment": "local (只读独立复审)",
+      "scope": "wenqu-dist 全仓 W0-W10 + P0 十项逐项",
+      "ruleset": "方案 §24.1 硬完成门",
+      "time": "2026-10-08 12:29–12:37 (+08:00)",
+      "argv": [
+        "codex exec (gpt-5.6-sol, reasoning=ultra) 第三轮验收指令"
+      ],
+      "real_rc": "判定=BLOCKED 38/100",
+      "artifact_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
+      "evidence_path": "evidence/00-baseline/codex-external/验收报告-第三轮.md",
+      "fresh_until": "长期（整改基线判定）",
+      "verified_by": "Codex 独立复核（sha256 快照入仓验证 OK）",
+      "caveat": "负面结论按证据同等归档；本条为第四波整改的输入依据"
+    },
+    {
+      "entry_id": "EV-R3-002",
+      "category": "00-baseline",
+      "title": "Codex 第三轮验收证据包快照（141 文件）",
+      "what": "第三轮验收全部对抗探针证据：三移除锚点/Schema 篡改/核心-Schema-CAS-Runner-EventStore-Deploy 动态探针源码与输出/CI JSON 与 branch rules API/运行身份哈希/独立 131 集合与 §25.1 映射解析/子审计发现与分目录 MANIFEST.sha256",
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bb",
+      "environment": "local",
+      "scope": "141 个证据文件（00-baseline~06-final + agent-* 三子审计）",
+      "ruleset": "总索引 06-final/EVIDENCE-INDEX.md",
+      "time": "2026-10-08 12:29–12:37 (+08:00)",
+      "argv": [],
+      "real_rc": null,
+      "artifact_sha256": "MANIFEST.sha256 自身 sha256 088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+      "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256",
+      "fresh_until": "长期",
+      "verified_by": "ZCode 快照入仓（cp -Rp + find 计数 141）",
+      "caveat": "快照为验收时点状态；篡改检测依赖 MANIFEST.sha256 复算"
+    },
+    {
+      "entry_id": "EV-TRACE-002",
+      "category": "04-unit-property-mutation",
+      "title": "追踪 Gate 反假绿加固：§20/§25.1 双篡改负例必红（第四波）",
+      "what": "Codex 三轮实锤两处假绿已根治：①ac_traceability 新增真 §25.1 解析器（范围展开成 ID 集合+逐前缀四列元数据对账，全半角～归一）；②acceptance.sh P1c 改用 --check+临时输出（不再改受控矩阵文件弄脏工作树）。负例实证：篡改 §20（GATE-12→GATE-99）exit=2；篡改 §25.1（REQ-EVID-001→REQ-EVIL-999）exit=2；正常方案 exit=0（131=131 四列全对）",
+      "run_id": "wave4-p1c-hardening",
+      "commit": "ff050bb 之后工作树（本波提交）",
+      "environment": "local (macOS)",
+      "scope": "tools/ac_traceability.py + tests/acceptance.sh P1c",
+      "ruleset": "方案 §25.1 机器校验集合等式要求",
+      "time": "2026-10-08 13:0x (+08:00)",
+      "argv": [
+        "python3 tools/ac_traceability.py --check --json /tmp/m{1,2,3}.json --plan {pristine,t20,t251}"
+      ],
+      "real_rc": "0 / 2 / 2（正常/篡改§20/篡改§25.1）",
+      "artifact_sha256": null,
+      "evidence_path": "tools/ac_traceability.py",
+      "fresh_until": "随工具或方案变更须重验",
+      "verified_by": "ZCode 第四波亲验（三命令实跑退出码在案）",
+      "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0"
+    },
+    {
+      "entry_id": "EV-DEP-001",
+      "category": "10-ui-launchd-alert-backup",
+      "title": "P0-9 收口：7789 加固 dashboard 运行时部署（active hash=候选）",
+      "what": "launchctl 重启后 active ~/.wenqu/bin/wenqu-dashboard.py sha256 前缀 72ba1db7 与仓内候选完全一致（旧 52aba1b5 已备份）；GET /api/health=200、无鉴权 POST /api/decide=403 forbidden（四检查默认拒生效）",
+      "run_id": "wave4-p09-deploy",
+      "commit": "5403220 (部署基线)",
+      "environment": "local (macOS launchd com.wenqu.dashboard)",
+      "scope": "运行时替换+重启+双探针验证",
+      "ruleset": "Codex 三轮 §3.9 复验准入条件 5（active runtime hash 与候选一致）",
+      "time": "2026-10-08T13:3x (+08:00)",
+      "argv": [
+        "launchctl unload/load",
+        "curl GET /api/health",
+        "curl POST /api/decide"
+      ],
+      "real_rc": "health=200 / decide=403",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json",
+      "fresh_until": "随下次 dashboard 变更须重验",
+      "verified_by": "ZCode 亲验（hash 双侧实算+探针实跑）",
+      "caveat": "回滚备份在 ~/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+    }
+  ],
+  "known_gaps": [
+    "§20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐",
+    "Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中",
+    "main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置",
+    "W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐",
+    "最终 release 制品（tar+签名 manifest+SBOM）未生成"
+  ]
+}
+EXIT=0
+$ cat evidence/README.md
+# evidence/ — P0-10 证据包基础设施
+
+依据 Codex 重构方案 §24.2（方案正源 `/private/tmp/codex-test/方案.md`，SHA256
+`96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306`）建立的证据包目录。
+2026-10-08 由 P0-10 建档（初始状态：多数目录 EMPTY/PARTIAL，逐目录状态见各自 README）。
+
+## 目录总览
+
+| 目录 | 证据域 | 工作包 | 建档时状态 |
+|---|---|---|---|
+| 00-baseline | W0 基线快照 | W0 | EMPTY |
+| 01-threat-model-and-contracts | 威胁模型/冻结契约 | W1 | PARTIAL |
+| 02-schemas-and-tla | Schema 与形式化 | W1/W2 | PARTIAL |
+| 03-red-probes-before | 红探针 BEFORE（假绿复现） | §20 全局 | EMPTY |
+| 04-unit-property-mutation | 单元/属性/变异 | W2/W3/W6 | PARTIAL |
+| 05-concurrency-crash-chaos | 并发/崩溃/混沌 | W2/W4/W7 | PARTIAL |
+| 06-scanner-goldens | 扫描器金样夹具 | W6A~D | PARTIAL |
+| 07-migration-reconcile | 481 条旧账对账 | W5 | NOT STARTED |
+| 08-ci-and-branch-rules | CI 与分支规则 | W3 | PARTIAL |
+| 09-release-manifest-attestation | 发布清单/签名 | W7A/W7B | PARTIAL |
+| 10-ui-launchd-alert-backup | UI/launchd/告警/备份 | W4/W8 | PARTIAL |
+| 11-shadow-canary | Shadow/Canary | W9 | EMPTY |
+| 12-rollback-drill | 回滚演练 | W7B/W10 | EMPTY |
+| 13-observation-window | 14 天观察窗 | W10 | NOT STARTED |
+
+## 硬约束（§24.2 原文）
+
+每项证据必须绑定：`run_id`、`commit`、`environment`、`scope`、`ruleset`、`时间`、`argv`、
+`真实 rc`、`artifact SHA256`、`fresh_until`。缺任一字段的「证据」不得用于任何放行判定。
+
+## 索引
+
+- 总索引：`evidence/evidence-index.json`
+- 131 个验收 ID（§20）追踪矩阵：`evidence/traceability-matrix.json`
+  （由 `tools/ac_traceability.py` 生成，重跑命令：`python3 tools/ac_traceability.py`）
+
+## 诚实边界
+
+本目录建档本身**不构成任何验收完成**：Codex 验收报告（2026-10-07）总判定仍为
+**BLOCKED（29/100）**；本结构只是让后续证据有唯一归位处，防止「测试通过=完成」的口径漂移。
+EXIT=0
+$ cat evidence/08-ci-and-branch-rules/README.md
+# 08-ci-and-branch-rules — CI 与分支规则证据
+
+## 证据类型
+
+- CI 工作流定义（acceptance / ci-fast / nightly）及其在真实远端的运行记录（check run ID、SHA、
+  结论、时长）；
+- 分支保护/required checks/ruleset 配置回读（API 原始 JSON）；
+- Gate 触发条件、required check 集合与 DAG 校验（CI-05～09）证据；
+- auto-merge 改造后（exact-SHA、无子串匹配、无 --admin）的合流审计记录。
+
+对应 §12（Gate/CI/合流）。
+
+## 关联测试 ID
+
+CI-05～09、GATE-01～03、MRG-01～07、DOC-01～04（CI 阻断类）。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——CI 在真实远端在跑且最近两推全绿；但 required-check 硬门与 ruleset 证据缺失，
+FND-001/003（auto-merge 子串/假绿）未根治**：
+
+| 项 | 状态 |
+|---|---|
+| `.github/workflows/acceptance.yml`（push/PR 触发，4 步） | 在役；SHA256 df6d6ef1…（2026-10-08 计算） |
+| `system/ci/ci-fast.yml`、`nightly.yml` | 仓内存在，未证实已在远端启用 |
+| CI 通过记录 | run 37660552501 @ 1858a75 success（2026-10-07T17:37:51Z，27s）；run 37660144865 @ be50cb8 success（2026-10-07T17:34:41Z）——`gh run list` 实查 |
+| required checks / branch ruleset 回读 | **无**（外部 `/private/tmp/codex-test/evidence/reaudit-20261007/branch-required-checks.json` 有 2026-10-07 15:15 时点回读，未固化） |
+| 当前 HEAD e00de14 的 CI 结论 | 建档时**未查得**（外部 writer 刚推，观察窗未过） |
+
+## 填写规则
+
+1. CI 记录须含 run id、head SHA、结论、原始 API 输出（`gh run view --json`），不接受截图转述。
+2. ruleset 回读须注明 API 版本与时间；ruleset 变更前后各留一份对照。
+3. 合流审计记录须含 exact-SHA 匹配证据与拒绝案例。
+EXIT=0
+$ cat evidence/10-ui-launchd-alert-backup/README.md
+# 10-ui-launchd-alert-backup — UI/launchd/告警/备份证据
+
+## 证据类型
+
+- **UI（W8）**：Playwright trace/DOM 断言/截图（UI-01～07）、安全探针（XSS/CSRF/DNS rebinding）
+  原始输出、Gate 红时总体必须 BLOCKED 的对照记录（UI-04）、健康分原子性证据（HLT-01）；
+- **launchd/调度（W4/W7B）**：真实 launchd 环境的 job 清单回读、权限（Documents/TCC）探针、
+  心跳与 last_success 语义证据（SCH-01～03/06/07）；
+- **告警 Outbox（W4）**：send attempt/receipt/dead-letter 记录（ALT-01/02）；
+- **备份（W4/W7A）**：checkpoint/restore 演练记录（BAK-01）。
+
+## 关联测试 ID
+
+UI-01～07、HLT-01、SCH-01～03/06/07、ALT-01～02、BAK-01。
+
+## 当前状态（2026-10-08 建档时点）
+
+**PARTIAL——dashboard 面与 /api/decide 加固有 CI 绿证据；Playwright 真实浏览器证据、
+launchd 真环境证据、告警回执、备份演练全部为 0**：
+
+| 项 | 状态 |
+|---|---|
+| `system/dashboard/` 四文件（index/app.css/app.js/server.py） | 存在；接线测试断言存在性（CI 绿） |
+| /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒） | commit 1858a75，CI run 37660552501 绿（2026-10-07）；但为代码+单元级，无独立安全探针落档 |
+| UI XSS escD/七态钻取等 Codex 三审修复 | v3.6.1～v3.6.3 提交在册；无 Playwright trace |
+| com.wenqu.observation-window launchd | 外部 reaudit 证实已装载（每日 08:00），回读未固化 |
+| Playwright / 真实浏览器门（§17.5） | **无** |
+| 告警 outbox 回执（ALT-01/02） | **无** |
+| 备份 checkpoint/restore（BAK-01） | **无** |
+
+## 填写规则
+
+1. UI 证据必须是 Playwright trace/视频级工件；DOM 存在或 HTTP 200 不构成完成证据。
+2. launchd 类证据须来自真机 `launchctl print`/`launchctl list` 原始输出。
+3. 告警类须含 attempt→receipt 全链；只有 watchdog exit 0 不算送达。
+EXIT=0

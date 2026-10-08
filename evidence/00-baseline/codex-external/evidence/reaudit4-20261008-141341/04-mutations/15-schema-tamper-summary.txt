@@ -1,0 +1,3 @@
+13-schema-independent-crosscheck.log: EXIT=7
+14-schema-pipeline-crosscheck.log: EXIT=1
+15-schema-tamper-acceptance.log: EXIT=1

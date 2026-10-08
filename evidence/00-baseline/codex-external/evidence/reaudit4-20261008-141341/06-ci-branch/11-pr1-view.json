@@ -1,0 +1,62 @@
+{
+  "baseRefName": "main",
+  "headRefName": "wave4/p0-full-hardening",
+  "headRefOid": "14600f829b6049775c6381cd1e7e7f52ec9fb460",
+  "mergeCommit": {
+    "oid": "54032208b5486d4cbfa4e6bb480714b456588620"
+  },
+  "mergedAt": "2026-10-08T05:30:20Z",
+  "number": 1,
+  "state": "MERGED",
+  "url": "https://github.com/AIruanchao/wenqu-dist/pull/1",
+  "commits": [
+    {
+      "oid": "14600f829b6049775c6381cd1e7e7f52ec9fb460",
+      "messageHeadline": "fix(wave4): Codex 三轮 12 对抗 FAIL 全量根修——授权/Schema/基建三簇",
+      "authoredDate": "2026-10-08T05:27:09Z",
+      "committedDate": "2026-10-08T05:27:09Z"
+    }
+  ],
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (macos-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:29:35Z",
+      "completedAt": "2026-10-08T05:29:53Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37732630449/job/113165008450",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (macos-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:29:31Z",
+      "completedAt": "2026-10-08T05:29:50Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37732624290/job/113164988963",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (ubuntu-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:29:32Z",
+      "completedAt": "2026-10-08T05:29:53Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37732630449/job/113165008751",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (ubuntu-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:29:27Z",
+      "completedAt": "2026-10-08T05:29:48Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37732624290/job/113164988845",
+      "workflowName": "acceptance"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+== repo single-file hash ==
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  system/bin/wenqu-dashboard.py
+== active hash ==
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+== active command lines ==
+13766 /bin/zsh -c E=$(cat /private/tmp/codex-test/.reaudit4-current)\012{\012 echo '== repo single-file hash =='; shasum -a 256 system/bin/wenqu-dashboard.py;\012 echo '== active hash =='; shasum -a 256 /Users/maccc/.wenqu/bin/wenqu-dashboard.py 2>&1;\012 echo '== active command lines =='; ps -ax -o pid=,command= | grep '[w]enqu-dashboard.py' || true;\012 echo '== repo write handler anchors =='; rg -n "do_POST|/api/decide|X-Wenqu|Auth|decision|close|accepted" system/bin/wenqu-dashboard.py | sed -n '1,220p';\012 echo '== active write handler anchors =='; rg -n "do_POST|/api/decide|X-Wenqu|Auth|decision|close|accepted" /Users/maccc/.wenqu/bin/wenqu-dashboard.py | sed -n '1,220p';\012 echo '== module server POST =='; rg -n "do_POST|/api/decide|405" system/dashboard/server.py | sed -n '1,120p';\012} | tee "$E/09-review/dashboard-active-static.txt"
+13768 /bin/zsh -c E=$(cat /private/tmp/codex-test/.reaudit4-current)\012{\012 echo '== repo single-file hash =='; shasum -a 256 system/bin/wenqu-dashboard.py;\012 echo '== active hash =='; shasum -a 256 /Users/maccc/.wenqu/bin/wenqu-dashboard.py 2>&1;\012 echo '== active command lines =='; ps -ax -o pid=,command= | grep '[w]enqu-dashboard.py' || true;\012 echo '== repo write handler anchors =='; rg -n "do_POST|/api/decide|X-Wenqu|Auth|decision|close|accepted" system/bin/wenqu-dashboard.py | sed -n '1,220p';\012 echo '== active write handler anchors =='; rg -n "do_POST|/api/decide|X-Wenqu|Auth|decision|close|accepted" /Users/maccc/.wenqu/bin/wenqu-dashboard.py | sed -n '1,220p';\012 echo '== module server POST =='; rg -n "do_POST|/api/decide|405" system/dashboard/server.py | sed -n '1,120p';\012} | tee "$E/09-review/dashboard-active-static.txt"
+64211 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+== repo write handler anchors ==
+21:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+538:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+541:  const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
+564:  {const all=await j('/api/decisions?all=1').catch(()=>null);
+607:    if tl.startswith("closed") or tl.startswith("rejected"):
+609:    if tl.startswith("accepted"):
+863:    def do_POST(self):
+864:        if self.path == "/api/decide":
+881:            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+1229:        if self.path.startswith("/api/decisions"):
+== active write handler anchors ==
+21:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+538:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+541:  const dec=await j('/api/decisions');const dbox=document.getElementById('dec');
+564:  {const all=await j('/api/decisions?all=1').catch(()=>null);
+607:    if tl.startswith("closed") or tl.startswith("rejected"):
+609:    if tl.startswith("accepted"):
+863:    def do_POST(self):
+864:        if self.path == "/api/decide":
+881:            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+1229:        if self.path.startswith("/api/decisions"):
+== module server POST ==
+10:第一阶段（写接口关闭）：POST /api/decide → 405。
+707:    # ── POST：第一阶段写接口全关（/api/decide → 405）；其余路径做体量/类型校验后 404 ──
+708:    def do_POST(self):
+712:        if path in ("/api/decide", "/api/v1/decide"):
+714:            return self._err(405, "WRITE_DISABLED",
+743:        self._err(405, "METHOD_NOT_ALLOWED", "方法不被允许", allow="GET, HEAD")
+792:    ck("server.py 关键控制存在（版本化/限速/405/Host/回环绑定）",
+793:       all(t in src for t in ("/api/v1/", "RateLimiter", "405", "_host_ok", "127.0.0.1", "ThreadingHTTPServer")))
+852:        s, _, _, j = req("POST", "/api/decide", headers={"Content-Type": "application/json"},
+854:        ck("POST /api/decide → 405（第一阶段写接口关闭）",
+855:           s == 405 and isinstance(j, dict) and j.get("error", {}).get("code") == "WRITE_DISABLED")
+857:        ck("POST /api/v1/decide → 405", s == 405)
+875:        ck("OPTIONS（CORS 预检）→ 405 且无 ACAO", s == 405)

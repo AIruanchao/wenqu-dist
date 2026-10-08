@@ -1,0 +1,5 @@
+总清单生成方法：
+1. 完成所有子目录证据、第四轮报告及 sidecar SHA256。
+2. 各子目录 MANIFEST.sha256 排除自身生成并用 `shasum -a 256 -c` 复算。
+3. 证据根 MANIFEST.sha256 使用 `find . -type f ! -path './MANIFEST.sha256' -print0 | sort -z | xargs -0 shasum -a 256` 生成，排除自身避免自引用。
+4. 被验仓库不承载本轮证据写入。

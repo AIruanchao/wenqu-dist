@@ -1,0 +1,22 @@
+$ git clone --no-hardlinks --branch main /Users/maccc/Documents/wenqu-dist /tmp/wenqu-reaudit4-trace251meta.aehOBi/repo
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ mutate §25.1 GATE range requirement REQ-EVID-001 -> REQ-EVID-TAMPER
+EXIT=0
+$ git diff -- evidence/00-baseline/codex-external/方案.md
+diff --git "a/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md" "b/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+index 4ab71d8..c9d2316 100644
+--- "a/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
++++ "b/evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+@@ -1882,7 +1882,7 @@ evidence/<program-run-id>/
+ 
+ | 测试 ID 范围 | 冻结需求 / AC | 工作包 | 必需证据类 |
+ |---|---|---|---|
+-| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
++| GATE-01～12 | REQ-EVID-TAMPER / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+ | AUTH-01～06 | REQ-AUTH-001 / AC-AUTH-ONE-TIME | W1/W2 | signed payload、replay log |
+ | ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+ | MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+EXIT=0

@@ -1,0 +1,30 @@
+[started_utc=2026-10-08T06:18:30Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 11
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "11", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"check": "对照组 attached-setsid 根进程触发 timeout", "ok": true}
+{"check": "仍保留 PPID 关系的 setsid 子进程已被补杀", "child_pid": 18254, "marker_exists": false, "ok": true}
+{"actual_exit_code": null, "check": "攻击根进程触发 runner timeout", "ok": true, "timed_out": true}
+{"check": "setsid+double-fork 后代在 timeout 后不得落 marker", "daemon_pid": 18366, "marker_exists": true, "note": "若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon", "ok": false}
+PROBE_RESULT={"detail": "setsid+double-fork 后代在 timeout 后不得落 marker: {'marker_exists': True, 'daemon_pid': 18366, 'note': '若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon'}", "exception": "AuditFailure", "probe": "11", "result": "FAIL"}
+Traceback (most recent call last):
+  File "/private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py", line 821, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py", line 808, in main
+    PROBES[args.probe]()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py", line 727, in probe11
+    r.require(not escaped,
+    ~~~~~~~~~^^^^^^^^^^^^^
+              "setsid+double-fork 后代在 timeout 后不得落 marker",
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              marker_exists=escaped, daemon_pid=daemon_pid,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              note="若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py", line 77, in require
+    raise AuditFailure(f"{check}: {detail}")
+AuditFailure: setsid+double-fork 后代在 timeout 后不得落 marker: {'marker_exists': True, 'daemon_pid': 18366, 'note': '若此项失败，说明 PPID 枚举无法处理超时前已 reparent 的 daemon'}
+[exit_code=1]
+[finished_utc=2026-10-08T06:18:38Z]

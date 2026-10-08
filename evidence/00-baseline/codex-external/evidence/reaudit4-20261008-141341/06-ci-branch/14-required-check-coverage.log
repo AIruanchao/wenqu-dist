@@ -1,0 +1,50 @@
+$ rg new suites in workflow and acceptance
+tests/acceptance.sh:338:if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+tests/acceptance.sh:339:  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+tests/acceptance.sh:347:  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+tests/acceptance.sh:351:if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+tests/acceptance.sh:352:  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+tests/acceptance.sh:360:  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+tests/acceptance.sh:363:echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+tests/acceptance.sh:364:if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+tests/acceptance.sh:366:  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+tests/acceptance.sh:375:  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+EXIT=0
+$ rg new suites in current CI log
+230:matrix (ubuntu-latest)	acceptance	2026-10-08T05:36:00.0601461Z   ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+231:matrix (ubuntu-latest)	acceptance	2026-10-08T05:36:00.0603085Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+232:matrix (ubuntu-latest)	acceptance	2026-10-08T05:36:00.3011685Z   ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+233:matrix (ubuntu-latest)	acceptance	2026-10-08T05:36:00.3013294Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+544:matrix (macos-latest)	acceptance	2026-10-08T05:35:57.8545380Z   ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+545:matrix (macos-latest)	acceptance	2026-10-08T05:35:57.8545880Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+546:matrix (macos-latest)	acceptance	2026-10-08T05:35:57.9957450Z   ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+547:matrix (macos-latest)	acceptance	2026-10-08T05:35:57.9957970Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+EXIT=0
+$ list system test files
+system/tests/test_core_wiring.py
+system/tests/test_infra_hardening.py
+system/tests/test_wenqu_adversarial.py
+system/tests/test_wenqu_pipeline.py
+EXIT=0
+$ workflow step command list
+matrix (ubuntu-latest)	Set up job	success
+matrix (ubuntu-latest)	Run actions/checkout@v4	success
+matrix (ubuntu-latest)	Run actions/setup-python@v5	success
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	success
+matrix (ubuntu-latest)	acceptance	success
+matrix (ubuntu-latest)	pytest 契约	success
+matrix (ubuntu-latest)	selftest	success
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	success
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	success
+matrix (ubuntu-latest)	Complete job	success
+matrix (macos-latest)	Set up job	success
+matrix (macos-latest)	Run actions/checkout@v4	success
+matrix (macos-latest)	Run actions/setup-python@v5	success
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	success
+matrix (macos-latest)	acceptance	success
+matrix (macos-latest)	pytest 契约	success
+matrix (macos-latest)	selftest	success
+matrix (macos-latest)	Post Run actions/setup-python@v5	success
+matrix (macos-latest)	Post Run actions/checkout@v4	success
+matrix (macos-latest)	Complete job	success
+EXIT=0

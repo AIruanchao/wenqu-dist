@@ -1,0 +1,10 @@
+$ git clone --no-hardlinks --branch main /Users/maccc/Documents/wenqu-dist /tmp/wenqu-reaudit4-module.apOk33/repo
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ python3 -c Path('system/wenqu_core/wenqu_pipeline.py').unlink()
+EXIT=0
+$ git status --short
+ D system/wenqu_core/wenqu_pipeline.py
+EXIT=0

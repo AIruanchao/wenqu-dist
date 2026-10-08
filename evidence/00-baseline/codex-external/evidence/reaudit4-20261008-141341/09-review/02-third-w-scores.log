@@ -1,0 +1,208 @@
+$ rg -n "W0|W1|W2|W3|W4|W5|W6|W7|W8|W9|W10|P0 十项|总分" /private/tmp/codex-test/验收报告-第三轮.md
+70:## 3. 第二轮 P0 十项逐项复核
+81:| P0-8 auto-merge | **PASS / 本轮关闭** | 源脚本是单行 fail-closed stub；`wenqu start` 拒绝；安装体、进程、launchd、cron 均未发现 writer | 仅关闭二轮具体危险 writer；不代表 W0/W3/W9 已完成 |
+223:本项只关闭第二轮 P0-8 的具体危险 writer，不代表 GitHub Required Gate、merge queue、writer inventory、凭据撤销或 W9 切换完成。
+258:## 4. W0–W10 同口径评分
+260:> 评分只对比第二轮后新增、且本轮可独立复核的证据。硬门优先于总分。
+264:| W0 快照与危险面隔离 | 8 | 2 | **3** | +1：源 auto-merge fail-closed、安装体/调度未发现、方案/报告快照验真、仓 clean。仍无完整 writer inventory、maintenance authorization、凭据撤销、quality-policy 唯一正源、ff050bb 完整 baseline manifest。 |
+265:| W1 契约、Schema、威胁模型、红探针 | 10 | 4 | **6** | +2：五个 Schema 有窄加固，131 集合/映射工具存在。仍无 Wenqu TLA/TLC、BEFORE 红探针、治理一致性 Gate；Schema 多个反例仍接受，专属覆盖 0。 |
+266:| W2 Trusted Runner、事件账本、授权、CAS | 15 | 3 | **6** | +3：七段/九停/Broker/RunManager/重放核心和 10 项自测真实存在，resume 原子消费窄路径成立。授权、双轴、事件写入口、重放唯一正源、CAS TOCTOU、runner 隔离、action saga 仍存在 P0。 |
+267:| W3 Gate、CI、合流控制 | 15 | 2 | **3** | +1：ff050bb 双平台 CI success，模块/工具移除锚点进入 acceptance。正式 v2 聚合链仍断；追踪 Gate 假绿；main 无保护且 rulesets=[]；无 action controller/required contexts。 |
+268:| W4 调度、Outbox、通知、备份 | 10 | 3 | **3** | 不升：仅见一条旧观察任务样本；无统一调度、outbox receipt、告警闭环、一致性备份恢复证据。 |
+269:| W5 旧账迁移 | 8 | 1 | **1** | 不升：无 481 条 reconciliation/43 条 ACCEPTED 裁定；07 目录只有 README；迁移器仍写独立 `events` 表。 |
+270:| W6 Bug 八站 | 15 | 8 | **8** | 不升：既有站点模块/selftest 保留，但无 scanner goldens、分母/DB/租户/供应链专属验收增量，正式统一聚合仍断链。 |
+271:| W7 制品、安装、部署、回滚 | 8 | 2 | **3** | +1：`.sh` mode 和首败 current 清理为真实窄修。升级回滚、mode manifest、签名/lease/备份/兼容性、installer 接线、最终制品仍缺。 |
+272:| W8 Dashboard 与控制面安全 | 7 | 3 | **4** | +1：候选旧路由四检查、新模块化只读 server 自检真实。active 7789 仍是旧未加固文件；无 Playwright/read authorization；聚合契约不兼容。 |
+273:| W9 Shadow/Canary/切换 | 2 | 0 | **0** | 不升：无 shadow、48h 投影、14d 全线 shadow、canary、writer epoch cutover 工件。 |
+274:| W10 观察窗/演练/收官 | 2 | 1 | **1** | 不升：只有一次 08:00 样本；无 14 天、两次周任务、14 次 nightly、回滚/DR/备份恢复演练与独立 S5。 |
+275:| **总分** | **100** | **29** | **38** | **BLOCKED** |
+380:- 没有本轮声称的完整 W0～W10 原始工件。
+432:7. 完成 W4/W5/W9/W10：outbox/告警/备份恢复、旧账对账、shadow/canary/cutover、14 天观察和回滚/DR 演练。
+447:7. W5、W9、W10 的真实时序证据到期并完成，不得用模拟或单次样本替代；
+EXIT=0
+$ sed -n 300,520p report
+| EventStore 重试 | A、B、再 A | 返回伪 hash；head 指向 A | **FAIL** |
+| CAS 父目录竞态 | check 后替换 shard 为 symlink | 根外写入/读取成功 | **FAIL** |
+| Runner 逃逸 | 子孙自行 setsid | timeout 后 marker 存在 | **FAIL** |
+| 升级回滚 | v1 成功、v2 selfcheck 失败 | 无 previous rollback，current 留在 v2 | **FAIL** |
+| §20 追踪篡改 | 改 ID 后跑完整 acceptance | 仍 62/0 ALL GREEN | **FAIL / 假绿** |
+| §25.1 映射篡改 | 改映射后工具 `--check` | rc=0 | **FAIL / 假绿** |
+
+所有破坏性探针路径与源码均在证据根下；产物仓未承受删件、篡改或竞态注入。
+
+---
+
+## 6. 追踪矩阵复核
+
+执行：
+
+```text
+python3 tools/ac_traceability.py --check \
+  --json /private/tmp/codex-test/evidence/reaudit3-20261008-122924/04-evidence/traceability-live.json
+```
+
+结果：
+
+| 项 | 数量 |
+|---|---:|
+| 工具冻结目录 | 131 |
+| 方案 §20 独立解析 | 131 |
+| 方案 §25.1 独立展开 | 131 |
+| 重复 ID | 0 |
+| 三集合差异 | 0 |
+| §25.1 四列映射差异 | 0（由本轮独立脚本对原始方案核对） |
+| 专属覆盖 | **0 / 131（0.0%）** |
+| 代理部分覆盖 | 3 |
+| 缺失 | 128 |
+| 专属+代理参考覆盖 | 2.29% |
+
+因此“131 集合等式成立”和“0% 专属覆盖”都是真实结论。必须同时保留这两句话：集合完整不等于测试实现，更不等于验收通过。
+
+此外，当前工具自身的 `cross_check_plan()` 只核对 §20 显式 ID，不解析 §25.1 元数据；本轮之所以能确认 §25.1 映射，是使用独立解析脚本，而不是相信工具标签。
+
+证据：`04-evidence/ac-traceability-live.txt`、`independent-id-set-check.txt`、`agent-evidence/10-independent-trace-check.log`、`22-*`～`25-*`。
+
+---
+
+## 7. CI 真实性与准入边界
+
+`gh run view 37727549548 --repo AIruanchao/wenqu-dist` 返回：
+
+- workflow：`acceptance`
+- event：`push`
+- branch：`main`
+- head SHA：`ff050bbb9c95c04ecb975900f5440f9bfcd1a447`
+- status：`completed`
+- conclusion：`success`
+- macOS 与 Ubuntu 两个 matrix job：均 success
+- CI acceptance：各为 61 PASS / 0 FAIL（其内部 pytest 不可用而跳过）
+- 后续独立 pytest step：安装 pytest 后 20 passed
+- P1、P1b、P1c：日志确认实际执行
+
+因此，**“该 CI run 对该 SHA 成功”属实。**
+
+但 GitHub API 同时返回：
+
+- main branch protection：HTTP 404 `Branch not protected`
+- repository rulesets：`[]`
+
+所以该 run 是一次成功的 push workflow，不是不可绕过的 Required Gate。再叠加 P1c 不使用 `--check` 的假绿路径，不能据此认定 CI 准入闭环。
+
+证据：`05-ci/gh-run-view.json.txt`、`gh-run-log.txt`、`branch-protection.txt`。
+
+---
+
+## 8. 证据包与实际文件对账
+
+### 8.1 仓内证据包
+
+- 14 个目录均存在；
+- 01～13 的直接实质工件数均为 0；
+- 00-baseline 的递归内容主要是第二轮外部证据快照；
+- 方案和第二轮报告快照哈希通过；
+- evidence index 对 ff050bb、当前 CI、当前追踪矩阵均已陈旧；
+- 没有本轮声称的完整 W0～W10 原始工件。
+
+### 8.2 最终制品
+
+仓根存在多份 `SHA256-v*.txt`，但仓内没有其对应的 `.tar.gz/.tgz/.zip`，也没有 ff050bb 的签名 manifest/attestation。因此不能把历史哈希指针当成最终候选制品。
+
+### 8.3 本轮第三方证据
+
+本轮独立证据根保存 130+ 个文件，包括：
+
+- 命令、时间、stdout/stderr 与 exit code；
+- 三个移除锚点；
+- Schema 篡改；
+- 核心、Schema、CAS/Runner、EventStore、Deploy 动态探针源码；
+- CI JSON/日志与 branch rules API；
+- 运行身份、文件哈希与 observation 样本；
+- 独立 131 集合/映射解析；
+- 子审计发现与分目录 SHA256 manifest。
+
+总索引：`06-final/EVIDENCE-INDEX.md`。  
+全目录完整性清单：`MANIFEST.sha256`。
+
+---
+
+## 9. 剩余阻断清单
+
+### 9.1 必须先关闭的代码与契约 P0
+
+1. 正式 CLI/controller/scheduler 必须实际调用 RunManager；安装器删核心时必须失败。
+2. approval 公共 envelope 全字段 required；payload 互斥且封闭；实现真实验签、可信 actor/key/audience/user-presence。
+3. resume/risk/action 全部做 exact SHA/env/scope/policy/ruleset/watermark/state_version/TTL 绑定和统一 CAS。
+4. STOP 前置必须读取受信探针/证据，禁止非空字符串代替布尔与客观事实。
+5. P0/P1 风险接受机器拒绝；禁止 TIMEOUT/ERROR/BLOCKED 经 CONDITIONAL 洗成完成。
+6. 禁止裸 EventStore 注入控制事件；重放必须重验七段、identity、双轴与终态不变量。
+7. nonce/risk/action consumption 纳入可重放唯一事件正源，移除不可重放旁表权威性。
+8. 实现 action saga、outbox、receipt/reconcile 与 FAILED_UNKNOWN。
+9. 让实现自产事件全部通过正式 Schema；补全 finding、evidence、station、run 的跨字段规则。
+10. station-result-v2、aggregator、dashboard 使用同一版本化契约并由生产调用链生成快照。
+11. CAS 使用 dirfd/openat 型安全打开、私有临时文件+fsync+原子 rename，拒绝 hardlink，并消除父目录替换窗口。
+12. Runner 改为最小环境、默认 allowlist、真正容器/cgroup 或等效子孙进程隔离。
+13. 修复 EventStore duplicate 返回值、链头查询并收敛 events/pipeline_events/approval consumption。
+14. 修复 DeployManager 相对 previous 回滚、mode 记录/校验、完整 manifest；移除 `cp -R` 和 `doctor || true`。
+15. 部署安全 Dashboard 到 active 7789；完成 read auth、真实浏览器与运行身份对账。
+
+### 9.2 必须补齐的 Gate 与证据
+
+1. acceptance 的追踪步骤强制 `--check`，并真正解析 §25.1 全映射；篡改 §20/§25.1 都必须 CI 红。
+2. 131 个 ID 建立专属测试；0% 不得作为完成证据。
+3. main 建立受保护分支/ruleset/required contexts，控制 bypass 角色并保留回读证据。
+4. evidence index 使用逐工件 file path、完整 40 位 SHA、run_id、argv、real_rc、artifact sha256、TTL。
+5. 补齐 BEFORE/AFTER 红探针、property/mutation、100×100/kill-9、scanner golden、迁移逐条 reconciliation。
+6. 生成 ff050bb 或后续冻结 SHA 的不可变最终制品、签名 manifest、SBOM、兼容性与 rollback 包。
+7. 完成 W4/W5/W9/W10：outbox/告警/备份恢复、旧账对账、shadow/canary/cutover、14 天观察和回滚/DR 演练。
+8. 所有证据绑定同一 `run_id + commit_sha + environment + policy/ruleset`，并由不可变 manifest 校验。
+
+---
+
+## 10. 复验准入条件
+
+下一轮不得仅以“acceptance 全绿”“CI success”“目录已创建”再次申请生产完成验收。最低复验入口：
+
+1. 冻结新的 commit SHA，工作树 clean；
+2. P0-1～P0-7、P0-9、P0-10 对应反例全部转为 fail-closed；
+3. 131 专属覆盖不再为 0，且 traceability 篡改能使 acceptance/CI 非零；
+4. station→aggregator→required context→action controller→deploy saga 有端到端证据；
+5. active runtime hash 与候选 release manifest 一致；
+6. branch rules/required checks 回读已入证据；
+7. W5、W9、W10 的真实时序证据到期并完成，不得用模拟或单次样本替代；
+8. 独立验收方从不可变制品和事件正源重新执行，不沿用开发方自认证结论。
+
+---
+
+## 11. 证据索引
+
+证据根：
+
+```text
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/
+```
+
+关键入口：
+
+- `06-final/EVIDENCE-INDEX.md`
+- `agent-core/findings.md`
+- `agent-evidence/findings.md`
+- `agent-schema/15-schema-adversarial-results.txt`
+- `agent-schema/16-approval-broker-adversarial-results.txt`
+- `agent-schema/17-cas-runner-adversarial-results.txt`
+- `MANIFEST.sha256`
+
+报告摘要文件：
+
+```text
+/private/tmp/codex-test/验收报告-第三轮.md.sha256
+```
+
+---
+
+## 12. 验收声明
+
+本报告只证明在 `ff050bbb9c95c04ecb975900f5440f9bfcd1a447`、本机当前可见环境与本轮证据时间窗内观察到的事实。它不替代生产授权，不批准部署、合流、回滚、DDL 或任何生产写。
+
+# **最终结论：38/100，BLOCKED。退回整改；不得声明候选完成、CI 准入完成、部署完成或生产闭环。**
+
+EXIT=0

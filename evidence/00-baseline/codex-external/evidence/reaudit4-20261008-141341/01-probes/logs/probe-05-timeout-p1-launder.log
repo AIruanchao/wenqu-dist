@@ -1,0 +1,14 @@
+[started_utc=2026-10-08T06:17:43Z]
+[cwd=/Users/maccc/Documents/wenqu-dist]
+$ env WENQU_REPO_COPY=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py --probe 05
+PROBE_ENV={"pipeline_sha256": "358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf", "probe": "05", "python": "3.13.13 (main, Apr  7 2026, 18:19:01) [Clang 17.0.0 (clang-1700.6.4.2)]", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "system": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system"}
+{"attempt_status": "FAILED", "check": "S7 TIMEOUT+CONDITIONAL 映射 FAILED 而非软终态", "ok": true}
+{"check": "TIMEOUT run 最终为 FAILED 而非 COMPLETED_CONDITIONAL", "final_state": "FAILED", "ok": true}
+{"check": "对照：执行完成的 S7 条件项形成软终态", "ok": true}
+{"check": "LOW/P1 指纹不能进入可风险接受集合", "expected_exception": "ApprovalRejected", "observed": "ApprovalRejected: approval rejected: risk payload.finding_fingerprints 必须与 run 实际可风险接受 finding 指纹精确匹配", "ok": true}
+{"check": "空覆盖面的合法授权作为终态三层校验对照已消费", "ok": true}
+{"check": "即使存在授权，LOW/P1 finding 仍阻断条件完成", "expected_exception": "PipelineError", "observed": "PipelineError: run run_20261008T141743Z_8c118835 存在不可风险接受 finding ['fnd_p1_low']（P0/P1/CRITICAL/HIGH）——COMPLETED_CONDITIONAL 机器拒绝（P0/P1 不得风险接受）", "ok": true}
+{"check": "P1 终态拒绝后 run 未被洗为完成态", "ok": true, "run_state": "RUNNING"}
+PROBE_RESULT={"checks": 7, "loaded_pipeline": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py", "probe": "05", "repo_copy": "/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj", "result": "PASS", "title": "TIMEOUT/P1 洗白：执行轴与优先级终态两层都 fail-closed"}
+[exit_code=0]
+[finished_utc=2026-10-08T06:17:43Z]

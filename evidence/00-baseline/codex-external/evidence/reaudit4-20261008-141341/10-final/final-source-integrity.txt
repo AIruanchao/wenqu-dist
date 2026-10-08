@@ -1,0 +1,16 @@
+captured_at=2026-10-08T14:22:26+08:00
+cwd=/Users/maccc/Documents/wenqu-dist
+head=e4aba84c1dabe1342ea234321eea3d300bea24a5
+branch=main
+origin_main=e4aba84c1dabe1342ea234321eea3d300bea24a5
+status_porcelain_begin
+status_porcelain_end
+status_branch_begin
+## main...origin/main
+status_branch_end
+git_diff_exit=0
+git_diff_cached_exit=0
+scheme_external=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+scheme_repo=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+third_report_external=b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee
+third_report_repo=b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee

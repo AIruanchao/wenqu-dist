@@ -1,0 +1,62 @@
+{
+  "baseRefName": "main",
+  "headRefName": "wave4/evidence-deploy",
+  "headRefOid": "c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1",
+  "mergeCommit": {
+    "oid": "e4aba84c1dabe1342ea234321eea3d300bea24a5"
+  },
+  "mergedAt": "2026-10-08T05:35:37Z",
+  "number": 2,
+  "state": "MERGED",
+  "url": "https://github.com/AIruanchao/wenqu-dist/pull/2",
+  "commits": [
+    {
+      "oid": "c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1",
+      "messageHeadline": "evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）",
+      "authoredDate": "2026-10-08T05:34:47Z",
+      "committedDate": "2026-10-08T05:34:47Z"
+    }
+  ],
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (macos-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:35:06Z",
+      "completedAt": "2026-10-08T05:35:30Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37733100994/job/113166490491",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (macos-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:35:01Z",
+      "completedAt": "2026-10-08T05:35:20Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37733093290/job/113166464786",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (ubuntu-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:35:03Z",
+      "completedAt": "2026-10-08T05:35:25Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37733100994/job/113166490764",
+      "workflowName": "acceptance"
+    },
+    {
+      "__typename": "CheckRun",
+      "name": "matrix (ubuntu-latest)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "startedAt": "2026-10-08T05:34:57Z",
+      "completedAt": "2026-10-08T05:35:22Z",
+      "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37733093290/job/113166464975",
+      "workflowName": "acceptance"
+    }
+  ]
+}

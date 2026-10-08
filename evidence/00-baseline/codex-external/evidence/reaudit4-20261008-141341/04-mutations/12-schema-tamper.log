@@ -1,0 +1,22 @@
+$ git clone --no-hardlinks --branch main /Users/maccc/Documents/wenqu-dist /tmp/wenqu-reaudit4-schema-tamper.gfNz1C/repo
+EXIT=0
+$ git rev-parse HEAD
+e4aba84c1dabe1342ea234321eea3d300bea24a5
+EXIT=0
+$ python3 -c replace nonce minLength 16 -> 0
+EXIT=0
+$ git diff -- system/schemas/approval-v2.schema.json
+diff --git a/system/schemas/approval-v2.schema.json b/system/schemas/approval-v2.schema.json
+index 2b00002..dee9929 100644
+--- a/system/schemas/approval-v2.schema.json
++++ b/system/schemas/approval-v2.schema.json
+@@ -44,7 +44,7 @@
+     "issued_at": {"type": "string", "format": "date-time"},
+     "expires_at": {"type": "string", "format": "date-time"},
+     "expected_state_version": {"type": "integer", "minimum": 1},
+-    "nonce": {"type": "string", "minLength": 16},
++    "nonce": {"type": "string", "minLength": 0},
+     "decision": {"enum": ["approve", "deny", "conditional"]},
+     "signature": {
+       "type": "string",
+EXIT=0

@@ -1,0 +1,1 @@
+gh run view 37733159993 --repo AIruanchao/wenqu-dist --log

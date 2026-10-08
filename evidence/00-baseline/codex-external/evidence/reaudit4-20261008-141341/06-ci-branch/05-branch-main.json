@@ -1,0 +1,28 @@
+{
+  "name": "main",
+  "commit": {
+    "sha": "e4aba84c1dabe1342ea234321eea3d300bea24a5"
+  },
+  "protected": true,
+  "protection": {
+    "enabled": true,
+    "required_status_checks": {
+      "enforcement_level": "everyone",
+      "contexts": [
+        "matrix (ubuntu-latest)",
+        "matrix (macos-latest)"
+      ],
+      "checks": [
+        {
+          "context": "matrix (ubuntu-latest)",
+          "app_id": 15368
+        },
+        {
+          "context": "matrix (macos-latest)",
+          "app_id": 15368
+        }
+      ]
+    }
+  },
+  "protection_url": "https://api.github.com/repos/AIruanchao/wenqu-dist/branches/main/protection"
+}

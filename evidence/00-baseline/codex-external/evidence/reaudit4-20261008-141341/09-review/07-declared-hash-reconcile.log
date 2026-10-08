@@ -1,0 +1,12 @@
+$ hashes for artifacts referenced in evidence-index claims
+6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161  evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/MANIFEST.sha256
+b748c2e6ff14c446911542e3cf0a1af6063434b7aecc87762fed747565980605  evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json
+5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593  evidence/00-baseline/codex-external/验收报告.md
+b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee  evidence/00-baseline/codex-external/验收报告-第三轮.md
+088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc  evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256
+2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c  SHA256-v3.6.3.txt
+EXIT=0
+$ hash system/tests/test_core_wiring.py at commit 1858a75
+git_show_EXIT=0
+31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823  /private/tmp/codex-test/evidence/reaudit4-20261008-141341/09-review/test_core_wiring-1858a75.py
+hash_EXIT=0

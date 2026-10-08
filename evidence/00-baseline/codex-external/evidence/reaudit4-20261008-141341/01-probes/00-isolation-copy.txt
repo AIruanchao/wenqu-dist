@@ -1,0 +1,12 @@
+$ ISO=$(mktemp -d /tmp/wenqu-reaudit4-probes-e4aba84.XXXXXX) && git archive --format=tar HEAD | tar -xf - -C "$ISO"
+[exit_code=0]
+[isolation_path=/tmp/wenqu-reaudit4-probes-e4aba84.e0zspj]
+$ test ! -d "$ISO/.git"
+[exit_code=0]
+$ find "$ISO" -type f | wc -l
+     369
+[exit_code=0]
+$ shasum -a 256 "$ISO/system/wenqu_core/wenqu_pipeline.py" /Users/maccc/Documents/wenqu-dist/system/wenqu_core/wenqu_pipeline.py
+358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf  /tmp/wenqu-reaudit4-probes-e4aba84.e0zspj/system/wenqu_core/wenqu_pipeline.py
+358e3d123a55c80bdc87e14dc939d7865b8f8607ca9a567b8d6f266d72c2bbcf  /Users/maccc/Documents/wenqu-dist/system/wenqu_core/wenqu_pipeline.py
+[exit_code=0]

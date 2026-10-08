@@ -1,0 +1,10 @@
+$ python3 independent-trace-audit.py /Users/maccc/Documents/wenqu-dist /private/tmp/codex-test/evidence/reaudit4-20261008-141341/05-trace/traceability-live-source.json /private/tmp/codex-test/evidence/reaudit4-20261008-141341/05-trace/independent-trace-results.json
+方案SHA=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+集合计数: §20=131/131 §25.1=131/131 工具=131 matrix=131
+重复: §20=0 §25.1=0 工具AST=0
+集合差异项总数=0
+§20逐行注入/期望差异=0；§25.1四列映射差异=0；live逐字段差异=0
+专属精确ID原始命中=0，测试上下文命中=0，live dedicated=0，proxy=3，missing=128
+tracked matrix HEAD=e00de1449b30bc5f7f7137155fd864c323cbd658 current=e4aba84c1dabe1342ea234321eea3d300bea24a5 match=False
+RESULT=PASS failures=[]
+EXIT=0

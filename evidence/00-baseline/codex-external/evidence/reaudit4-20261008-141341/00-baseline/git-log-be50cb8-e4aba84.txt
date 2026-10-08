@@ -1,0 +1,7 @@
+e4aba84 (HEAD -> main, origin/main) Merge pull request #2 from AIruanchao/wave4/evidence-deploy
+c345b7b (origin/wave4/evidence-deploy, wave4/evidence-deploy) evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）
+5403220 Merge pull request #1 from AIruanchao/wave4/p0-full-hardening
+14600f8 (origin/wave4/p0-full-hardening, wave4/p0-full-hardening) fix(wave4): Codex 三轮 12 对抗 FAIL 全量根修——授权/Schema/基建三簇
+ff050bb feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+e00de14 fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）
+1858a75 fix(p0-9): dashboard /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒）

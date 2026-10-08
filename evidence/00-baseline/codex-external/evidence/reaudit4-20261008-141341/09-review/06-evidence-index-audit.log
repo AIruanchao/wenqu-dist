@@ -1,0 +1,43 @@
+$ python3 audit_evidence_index.py
+index_sha256=a977e872fef0883c3def9d4ec23ce29d218026a14cb2d3e544558e59e62f1705
+index_version=1.0.0 entries=14
+repo_head_at_filing=ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+live_HEAD=e4aba84c1dabe1342ea234321eea3d300bea24a5
+head_match=False
+
+ENTRY_AUDIT
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "1858a757028afc0ab9b91efecf0afa05e4900b25", "entry_id": "EV-CI-001", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/08-ci-and-branch-rules/", "path_sha256": null, "path_type": "dir", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "be50cb820c0f1bd4fbcc563273d467f7e0c93e73", "entry_id": "EV-CI-002", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/08-ci-and-branch-rules/", "path_sha256": null, "path_type": "dir", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": true, "commit_exact40": false, "commit_resolved": "1858a757028afc0ab9b91efecf0afa05e4900b25", "entry_id": "EV-TEST-001", "missing_or_blank_required": [], "path": "evidence/04-unit-property-mutation/", "path_sha256": null, "path_type": "dir", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "1858a757028afc0ab9b91efecf0afa05e4900b25", "entry_id": "EV-TEST-002", "missing_or_blank_required": [], "path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log", "path_sha256": "60dcc26d73828b5cda00493c850945445a0902352a1e81fe48ac4e9fb33ee08d", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "1858a757028afc0ab9b91efecf0afa05e4900b25", "entry_id": "EV-TEST-003", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log", "path_sha256": "f119f47ca98eb86d05b7f511301b6f2fa5aa66b67f591d3c093c6a297e41549d", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-ACCEPT-001", "missing_or_blank_required": ["commit"], "path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt", "path_sha256": "269b834e20efea482503e2d7e0ab07d7c7ba2d651ecb287359243e8bc9f3c697", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": false, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-ACCEPT-002", "missing_or_blank_required": ["argv"], "path": "evidence/00-baseline/codex-external/验收报告.md", "path_sha256": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": false, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-REL-001", "missing_or_blank_required": ["run_id", "argv", "real_rc"], "path": "evidence/09-release-manifest-attestation/", "path_sha256": null, "path_type": "dir", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-TRACE-001", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/traceability-matrix.json", "path_sha256": "0081439c8d25dd375079795ba3e2c3359b4d05a234d0ebf3ab88812b870dcd20", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447", "entry_id": "EV-CI-003", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt", "path_sha256": "21238f672b944a8ff115776608eae151d23dfe3ab864e65a6b94bc946bd7dc1b", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": true, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-R3-001", "missing_or_blank_required": [], "path": "evidence/00-baseline/codex-external/验收报告-第三轮.md", "path_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": false, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447", "entry_id": "EV-R3-002", "missing_or_blank_required": ["argv", "real_rc"], "path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256", "path_sha256": "088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-TRACE-002", "missing_or_blank_required": ["artifact_sha256"], "path": "tools/ac_traceability.py", "path_sha256": "e7488f280067bbd69cfe73c87eeb0267b7ff143f27096705969305fd6f24f708", "path_type": "file", "strict_24_2_usable": false}
+{"argv_nonempty": true, "artifact_sha256_exact64": false, "commit_exact40": false, "commit_resolved": null, "entry_id": "EV-DEP-001", "missing_or_blank_required": ["artifact_sha256"], "path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json", "path_sha256": "0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a", "path_type": "file", "strict_24_2_usable": false}
+
+SUMMARY
+strict_24_2_usable_count= 0 ids= []
+path_types= {'dir': 4, 'file': 10}
+artifact_sha256_exact64_count= 2
+commit_exact40_count= 0
+entries_with_any_blank_required= 11
+known_gaps:
+- §20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐
+- Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中
+- main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置
+- W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐
+- 最终 release 制品（tar+签名 manifest+SBOM）未生成
+
+CURRENT_ARTIFACT_INDEXING
+{"path": "evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json", "exists": true, "sha256": "7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6", "exactly_indexed": false}
+{"path": "evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt", "exists": true, "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa", "exactly_indexed": false}
+{"path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json", "exists": true, "sha256": "0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a", "exactly_indexed": true}
+current_run_37733159993_indexed= False
+current_head_e4aba84_indexed= False
+EXIT=0

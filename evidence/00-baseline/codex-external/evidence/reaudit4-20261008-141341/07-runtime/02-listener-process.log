@@ -1,0 +1,37 @@
+$ lsof -nP -iTCP:7789 -sTCP:LISTEN
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  64211 maccc    3u  IPv4 0x255d56c7dcfa20c0      0t0  TCP 127.0.0.1:7789 (LISTEN)
+EXIT=0
+$ ps for listener PID
+PID=64211 LSOF_PIPE_EXIT=0
+64211     1   502 maccc Thu Oct  8 13:32:10 2026     43:57 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+EXIT=0
+$ lsof -p PID filtered
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF                NODE NAME
+Python  64211 maccc  cwd    DIR               1,16      704                   2 /
+Python  64211 maccc  txt    REG               1,16    33568           405770174 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+Python  64211 maccc  txt    REG               1,16  2374000 1152921500312573277 /usr/lib/dyld
+Python  64211 maccc  txt    REG               1,16    80448           405771087 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hashlib.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    53120           405771130 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/fcntl.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    72912           405771093 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_json.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16   128864           405771089 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hmac.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    54784           405771101 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_posixsubprocess.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    74992           405771137 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/select.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    54416           405771128 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/binascii.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    93456           405771132 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/math.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    77888           405771113 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_struct.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    76192           405771144 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/zlib.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    55056           405771072 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_bz2.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16  5468144           405770167 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Python
+Python  64211 maccc  txt    REG               1,16   115872           405771109 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_socket.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    74624           405771095 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_lzma.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16   205312           405771111 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_ssl.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16    96752           405771126 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_zstd.cpython-314-darwin.so
+Python  64211 maccc  txt    REG               1,16   167520           405757828 /opt/homebrew/Cellar/xz/5.8.4/lib/liblzma.5.dylib
+Python  64211 maccc  txt    REG               1,16   890256           405759450 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libssl.3.dylib
+Python  64211 maccc  txt    REG               1,16  4874336           405759443 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libcrypto.3.dylib
+Python  64211 maccc  txt    REG               1,16   653328             4836761 /opt/homebrew/Cellar/zstd/1.5.7_1/lib/libzstd.1.5.7.dylib
+Python  64211 maccc  txt    REG               1,16   783632           405771140 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/unicodedata.cpython-314-darwin.so
+Python  64211 maccc    1u   REG               1,16 11076973           456298089 /Users/maccc/.wenqu/logs/dashboard-launchd.log
+Python  64211 maccc    2u   REG               1,16 11076973           456298089 /Users/maccc/.wenqu/logs/dashboard-launchd.log
+EXIT=0

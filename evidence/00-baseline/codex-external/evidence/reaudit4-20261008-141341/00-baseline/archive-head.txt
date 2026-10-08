@@ -1,0 +1,6 @@
+本文件原由误用 `git archive HEAD > archive-head.txt` 产生二进制 tar 流；该内容不作为验收证据，已在生成总清单前替换为本说明。
+实际隔离副本路径及创建方式见：
+- 00-baseline/root-isolation-path.txt
+- 00-baseline/root-isolation-tree.txt
+- 01-probes/00-isolation-copy.txt
+本处理仅修改独立审计证据目录，不涉及被验仓库。

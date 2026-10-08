@@ -1,0 +1,2 @@
+10-tool-direct.log: EXIT=2
+11-tool-acceptance.log: EXIT=1
