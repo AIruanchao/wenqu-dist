@@ -13,6 +13,16 @@
   * 预置 hardlink（st_nlink>1）一律视为可疑拒绝；symlink 一律拒绝。
 - TrustedRunner P0-5 加固：超时终止 = killpg + 递归枚举进程树杀全部后代
   （setsid 逃逸进程组的子孙也死）；默认最小化环境白名单；可选命令 allowlist。
+- TrustedRunner P0-8 加固（Codex 第四轮 daemon 化逃逸根修）：每次执行注入
+  唯一 run token（环境变量 ``__WENQU_RUN_TOKEN__``，在环境白名单剥除
+  **之后**追加的内部哨兵，不是用户变量）；超时击杀在 killpg + 进程树扫荡
+  之外按 token 全系统扫杀——linux 逐 pid 读 ``/proc/<pid>/environ``，
+  darwin 用 ``ps -AxE -o pid=,command=``（含环境输出）逐行匹配完整
+  ``NAME=<crypto 随机值>`` 串。孙进程 setsid + double-fork、中间进程退出、
+  daemon 被 PID 1 收养（PPID 图断裂、进程树快照必漏）时，token 仍在
+  daemon 的 environ 里，照样命中击杀。诚实边界：主动清空自身 environ 的
+  对抗 daemon 逃逸 token 扫描（killpg/进程树对其同样无效）——该形态超出
+  本层防线，由部署面日志/审计兜底。
 - actual_exit_code 一律取自 subprocess 的 returncode，不推断、不美化。
 """
 
@@ -23,13 +33,14 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import stat as _stat
 import subprocess
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 __all__ = ["TrustedRunner", "EvidenceStore", "Evidence", "IntegrityError"]
 
@@ -37,6 +48,11 @@ DEFAULT_FRESHNESS_SECONDS = 300.0
 
 # P0-5：子进程默认环境白名单——其余环境变量一律剥除（可经 env_passthrough 扩展）
 DEFAULT_ENV_KEYS: Tuple[str, ...] = ("PATH", "LANG", "LC_ALL", "TZ", "TMPDIR", "HOME")
+
+# P0-8：run token 哨兵环境变量名——每次 run() 注入唯一 crypto 随机值，
+# 超时按 "NAME=value" 完整串全系统扫杀。它在白名单剥除之后追加：不是用户
+# 变量、不参与白名单语义（WQ_SECRET_TOKEN 等敏感变量照常剥除）。
+RUN_TOKEN_ENV: str = "__WENQU_RUN_TOKEN__"
 
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -174,26 +190,91 @@ class TrustedRunner:
             frontier = nxt
         return descendants
 
-    def _kill_tree(self, proc: subprocess.Popen) -> None:
-        """超时击杀：先快照后代，再 killpg + 逐 pid 补杀；多轮扫荡防快照后新孙。"""
+    def _kill_tree(self, proc: subprocess.Popen,
+                   token_pair: Optional[str] = None) -> None:
+        """超时击杀：killpg + 进程树扫荡 + run token 全系统扫杀（P0-8）。
+
+        三层互补：killpg 杀整进程组；_descendants 按 PPID 图补杀 setsid
+        子孙；token 扫杀兜住 double-fork 后被 PID 1 收养的 daemon（root
+        已死、PPID 图断裂——进程树快照必漏，token 在其 environ 仍可命中）。
+        多轮扫荡至收敛（无新后代、无 token 命中残留），防快照后新孙。
+        """
         import signal as _signal
+
+        def _safe_kill(pid: int) -> None:
+            if pid <= 1 or pid == os.getpid():
+                return  # 绝不自杀 / 杀 init
+            try:
+                os.kill(pid, _signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
 
         for _round in range(3):
             snap = self._descendants(proc.pid)
+            token_hits = (self._scan_token_pids(token_pair)
+                          if token_pair else set())
             try:
                 os.killpg(proc.pid, _signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
-            for pid in sorted(snap | {proc.pid}):
-                try:
-                    os.kill(pid, _signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+            for pid in sorted(snap | token_hits | {proc.pid}):
+                _safe_kill(pid)
             if proc.poll() is not None:
                 late = self._descendants(proc.pid) - snap
-                if not late:
+                late_token = (self._scan_token_pids(token_pair)
+                              if token_pair else set())
+                if not late and not late_token:
                     break
             time.sleep(0.05)
+
+    # ------------------------------------------------------------------
+    # P0-8：按 run token 全系统扫描存活进程（daemon 化逃逸的收网）
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _scan_token_pids(token_pair: str) -> Set[int]:
+        """返回 environ 携带本 run token 的全部进程 pid。
+
+        - linux：逐 pid 读 ``/proc/<pid>/environ``（本用户进程可读；
+          不可读的 pid 跳过，不误报）；
+        - darwin/BSD：``ps -AxE -o pid=,command=``（``-E`` 附带环境输出）
+          逐行匹配。
+
+        匹配串是完整的 ``NAME=<crypto 随机值>``——不匹配裸名，杜绝无关
+        误杀。两条通路都不可用时返回空集（killpg 与进程树扫杀仍然生效，
+        能力降级不静默丢证据——调用方照常记 timed_out）。
+        """
+        hits: Set[int] = set()
+        needle = token_pair.encode("utf-8")
+        if os.path.isdir("/proc"):
+            try:
+                names = os.listdir("/proc")
+            except OSError:
+                names = []
+            for name in names:
+                if not name.isdigit():
+                    continue
+                try:
+                    with open(os.path.join("/proc", name, "environ"),
+                              "rb") as fh:
+                        data = fh.read()
+                except OSError:
+                    continue
+                if needle in data:
+                    hits.add(int(name))
+            return hits
+        try:
+            proc = subprocess.run(
+                ["ps", "-AxE", "-o", "pid=,command="],
+                capture_output=True, text=True, timeout=10, shell=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return hits
+        for line in proc.stdout.splitlines():
+            if token_pair in line:
+                parts = line.split(None, 1)
+                if parts and parts[0].isdigit():
+                    hits.add(int(parts[0]))
+        return hits
 
     # ------------------------------------------------------------------
     # 环境最小化（P0-5：默认白名单，其余剥除）
@@ -208,6 +289,20 @@ class TrustedRunner:
                 env[key] = value
         return env
 
+    def _build_run_env(self, token_value: str) -> Dict[str, str]:
+        """在白名单环境之上注入本次执行的唯一 run token（P0-8 内部哨兵）。
+
+        token 在 env 白名单剥除**之后**追加：它是内部哨兵不是用户变量，
+        不参与白名单语义（WQ_SECRET_TOKEN 等敏感变量照常剥除）；
+        inherit_env=True 时以 os.environ 拷贝为底（与完整继承等价）再注入。
+        token 从不写入 os.environ——runner 自身绝不会被 token 扫杀命中。
+        """
+        env = self._build_env()
+        if env is None:
+            env = dict(os.environ)
+        env[RUN_TOKEN_ENV] = token_value
+        return env
+
     # ------------------------------------------------------------------
     # 执行
     # ------------------------------------------------------------------
@@ -217,6 +312,10 @@ class TrustedRunner:
         timestamp = time.time()
         fresh_until = timestamp + self._freshness_seconds
         argv_digest = self.argv_digest(argv)
+        # P0-8：每次执行注入唯一 run token——超时按 token 全系统扫杀
+        # （double-fork 后被 PID 1 收养的 daemon 逃不出）。
+        run_token = secrets.token_hex(24)
+        token_pair = f"{RUN_TOKEN_ENV}={run_token}"
         try:
             # P0-5：独立进程组（start_new_session=True）——超时 killpg 整组
             proc = subprocess.Popen(
@@ -225,7 +324,7 @@ class TrustedRunner:
                 shell=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=self._build_env(),        # P0-5：默认最小化环境白名单
+                env=self._build_run_env(run_token),  # P0-5 白名单 + P0-8 token
                 start_new_session=True,
             )
             try:
@@ -233,8 +332,9 @@ class TrustedRunner:
                 timed_out = False
                 actual_exit = proc.returncode
             except subprocess.TimeoutExpired:
-                # P0-5：killpg 之外递归枚举进程树补杀——setsid 逃逸的子孙也必须死
-                self._kill_tree(proc)
+                # P0-5/P0-8：killpg + 进程树扫荡 + token 全系统扫杀——
+                # setsid 逃逸的子孙、reparent 后的 daemon 都必须死
+                self._kill_tree(proc, token_pair)
                 try:
                     stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
                 except subprocess.TimeoutExpired:

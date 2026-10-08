@@ -1,0 +1,299 @@
+{
+  "artifact_kind": "ac-station-families/acceptance-tests",
+  "scope": {
+    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.3/§20.5（注入/期望逐字对齐）",
+    "families_responsible": [
+      "STA-01~02",
+      "DB-01~06",
+      "SC-01~05",
+      "ADV-01~02",
+      "TEN-01~08",
+      "PERF-01~06"
+    ],
+    "responsible_ids": 29,
+    "test_file": "system/tests/test_ac_station_families.py",
+    "test_file_sha256": "ec3f1a5b792950628fe4ad868b023cae90233d32e75ba0d01b814a5f9b051bc5",
+    "modules_under_test": [
+      "system/wenqu_core/bugscan_orchestrator.py",
+      "system/wenqu_core/station2_static.py",
+      "system/wenqu_core/station3_contract.py",
+      "system/wenqu_core/station4_behavior.py",
+      "system/wenqu_core/station7_runtime.py",
+      "system/wenqu_core/runner.py"
+    ],
+    "no_product_code_changed": true
+  },
+  "generated_at": "2026-10-08T07:08:08+00:00",
+  "repo": {
+    "head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "head_short": "b08fa7a",
+    "task_base": "e4aba84",
+    "task_base_is_ancestor_of_head": true,
+    "note": "工作区含其他工程师并行在途修改（schemas/acceptance.sh/runner 等）；本工件只登记本任务新建的单个测试文件"
+  },
+  "unit_run": {
+    "command": "python3 system/tests/test_ac_station_families.py",
+    "exit_code": 0,
+    "passed": 24,
+    "failed": 0
+  },
+  "totals": {
+    "defined": 29,
+    "implemented": 24,
+    "not_implementable": 5,
+    "passed": 24,
+    "failed": 0
+  },
+  "cases": [
+    {
+      "id": "STA-01",
+      "test": "test_STA_01",
+      "passed": true,
+      "duration_ms": 169.5
+    },
+    {
+      "id": "STA-02",
+      "test": "test_STA_02",
+      "passed": true,
+      "duration_ms": 770.6
+    },
+    {
+      "id": "DB-01",
+      "test": "test_DB_01",
+      "passed": true,
+      "duration_ms": 15.0
+    },
+    {
+      "id": "DB-02",
+      "test": "test_DB_02",
+      "passed": true,
+      "duration_ms": 30.0
+    },
+    {
+      "id": "DB-03",
+      "test": "test_DB_03",
+      "passed": true,
+      "duration_ms": 0.3
+    },
+    {
+      "id": "DB-04",
+      "test": "test_DB_04",
+      "passed": true,
+      "duration_ms": 23.5
+    },
+    {
+      "id": "DB-05",
+      "test": "test_DB_05",
+      "passed": true,
+      "duration_ms": 8.7
+    },
+    {
+      "id": "DB-06",
+      "test": "test_DB_06",
+      "passed": true,
+      "duration_ms": 16.3
+    },
+    {
+      "id": "SC-01",
+      "test": "test_SC_01",
+      "passed": true,
+      "duration_ms": 21.9
+    },
+    {
+      "id": "SC-02",
+      "test": "test_SC_02",
+      "passed": true,
+      "duration_ms": 65.7
+    },
+    {
+      "id": "SC-04",
+      "test": "test_SC_04",
+      "passed": true,
+      "duration_ms": 53.5
+    },
+    {
+      "id": "ADV-01",
+      "test": "test_ADV_01",
+      "passed": true,
+      "duration_ms": 29.3
+    },
+    {
+      "id": "ADV-02",
+      "test": "test_ADV_02",
+      "passed": true,
+      "duration_ms": 37.1
+    },
+    {
+      "id": "TEN-01",
+      "test": "test_TEN_01",
+      "passed": true,
+      "duration_ms": 7.3
+    },
+    {
+      "id": "TEN-02",
+      "test": "test_TEN_02",
+      "passed": true,
+      "duration_ms": 22.6
+    },
+    {
+      "id": "TEN-03",
+      "test": "test_TEN_03",
+      "passed": true,
+      "duration_ms": 14.9
+    },
+    {
+      "id": "TEN-05",
+      "test": "test_TEN_05",
+      "passed": true,
+      "duration_ms": 14.7
+    },
+    {
+      "id": "TEN-06",
+      "test": "test_TEN_06",
+      "passed": true,
+      "duration_ms": 21.6
+    },
+    {
+      "id": "TEN-07",
+      "test": "test_TEN_07",
+      "passed": true,
+      "duration_ms": 15.2
+    },
+    {
+      "id": "TEN-08",
+      "test": "test_TEN_08",
+      "passed": true,
+      "duration_ms": 30.7
+    },
+    {
+      "id": "PERF-01",
+      "test": "test_PERF_01",
+      "passed": true,
+      "duration_ms": 503.8
+    },
+    {
+      "id": "PERF-02",
+      "test": "test_PERF_02",
+      "passed": true,
+      "duration_ms": 60.6
+    },
+    {
+      "id": "PERF-05",
+      "test": "test_PERF_05",
+      "passed": true,
+      "duration_ms": 9.5
+    },
+    {
+      "id": "PERF-06",
+      "test": "test_PERF_06",
+      "passed": true,
+      "duration_ms": 535.1
+    }
+  ],
+  "not_implementable": {
+    "SC-03": "install script/resolved/integrity 变化检测需要 lockfile 内容 diff 面；本发行包 SupplyChainScanner 仅消费 npm audit JSON 输出，无 package-lock 解析/比对通道，无真实注入口。",
+    "SC-05": "离线 registry 快照的签名/时效/分页完整性校验件不在本发行包（SupplyChainScanner 假定在线 audit stdout；无快照签名验证通道）。注：『分页不全=自报计数与解析列表不一致→ERROR（证据损坏）』的机制已在 ADV-02 的截断子例中侧面覆盖。",
+    "TEN-04": "$queryRaw 跨租户阻断需要 SQL/查询构建器分析面；本包站3 只消费结构化探针结果（org_guard/permission_matrix payload），无 SQL 解析/拦截通道。",
+    "PERF-03": "尾部极慢样本进入 p95/p99 需要分位数计算面；SloMonitorScanner 只消费上游已算好的快照指标值，本包无原始延迟样本聚合通道，无法做真实注入。",
+    "PERF-04": "输入 1→100 query count 线性度（N+1）检测需要 DB 查询计数探针；本包无该剖析通道。"
+  },
+  "coverage_delta_ac_traceability": {
+    "tool": "python3 tools/ac_traceability.py --json",
+    "per_family": {
+      "STA": {
+        "defined": 2,
+        "before": 0,
+        "after": 2,
+        "newly_implemented": [
+          "STA-01",
+          "STA-02"
+        ]
+      },
+      "DB": {
+        "defined": 6,
+        "before": 0,
+        "after": 6,
+        "newly_implemented": [
+          "DB-01",
+          "DB-02",
+          "DB-03",
+          "DB-04",
+          "DB-05",
+          "DB-06"
+        ]
+      },
+      "SC": {
+        "defined": 5,
+        "before": 0,
+        "after": 3,
+        "newly_implemented": [
+          "SC-01",
+          "SC-02",
+          "SC-04"
+        ]
+      },
+      "ADV": {
+        "defined": 2,
+        "before": 0,
+        "after": 2,
+        "newly_implemented": [
+          "ADV-01",
+          "ADV-02"
+        ]
+      },
+      "TEN": {
+        "defined": 8,
+        "before": 0,
+        "after": 7,
+        "newly_implemented": [
+          "TEN-01",
+          "TEN-02",
+          "TEN-03",
+          "TEN-05",
+          "TEN-06",
+          "TEN-07",
+          "TEN-08"
+        ]
+      },
+      "PERF": {
+        "defined": 6,
+        "before": 0,
+        "after": 4,
+        "newly_implemented": [
+          "PERF-01",
+          "PERF-02",
+          "PERF-05",
+          "PERF-06"
+        ]
+      }
+    },
+    "total_newly_implemented": 24,
+    "attribution": "每个新增 implemented ID 的 test_file 均为 system/tests/test_ac_station_families.py 且命中其专属 test_<ID> 函数（无代理/无假命中）；不可实现 ID 保持 implemented=false（含删除 docstring 交叉引用防假命中的修正）"
+  },
+  "regression": {
+    "module_selftests_current_tree": {
+      "wenqu_core.station2_static": "rc=0",
+      "wenqu_core.station3_contract": "rc=0",
+      "wenqu_core.station4_behavior": "rc=0",
+      "wenqu_core.station7_runtime": "rc=1（与本文件无关）",
+      "wenqu_core.bugscan_orchestrator": "rc=0",
+      "station7_rc1_cause": "并行工程师在途修改 system/schemas/station-result-v2.schema.json（F4-SCHEMA-001 收紧非完成态裁决枚举）所致；已实证与本文件无关（移除本文件后复跑 rc 仍=1），且 git archive HEAD 洁净副本五模块全部 rc=0"
+    },
+    "module_selftests_pristine_head": "git archive HEAD 洁净副本：五模块全部 rc=0",
+    "acceptance_sh_current_tree": "rc=1，PASS=63/FAIL=1（P1d 对抗自测 exit=1）——同因并行在途修改（F4-AUTH-001 加固 vs 对抗自测未同步），移除本文件复跑仍 FAIL；与本文件无关",
+    "acceptance_sh_pristine_head": "git archive HEAD 洁净副本：rc=0，RESULT: PASS=62 FAIL=0 ALL GREEN",
+    "conclusion": "本任务唯一变更=新增 system/tests/test_ac_station_families.py（未触碰产品码/其他测试/acceptance.sh/tools）；当前树两处红均为并行工程师在途修改且经移除-复跑法实证与本文件无关"
+  },
+  "interpretation_notes": {
+    "ADV": "§20 ADV(advisory) 的 version parser/seen/多页多 range 语义，在本发行包落在 station2 SupplyChainScanner 的 npm-audit 公告解析通道（station2 为任务指定的 ADV 被测体）：解析异常→UNKNOWN 方向保守升 HIGH 并写账（不静默跳过=不写 seen）；多页合流+多 range 全遍历，截断=自报与解析列表不一致→ERROR。",
+    "DB-01": "judge_drift 的 [+]/[-]/[*] 方向标记映射为 change_type 分类（新增类/删除类/修改类），断言九方向全识别+未知类型 fail-closed HIGH。",
+    "DB-03": "未知格式/空输出=畸形载荷 fail-closed 拒绝（DriftReportMalformed/ContractPayloadMalformed）；『命令非零』子注入与空输出同型（适配器不执行命令——契约边界，judge_drift 非零→无有效产物→同一拒绝面）。",
+    "DB-05": "『BLOCKED』在本包的等价机械语义=证据身份绑定失败→适配器 fail-closed 抛错拒绝产出任何结果（含 PASS）——最强阻断形态。",
+    "DB-06": "默认表达式/extension 对象的 golden 规范化属 judge_drift.py（不在发行包）；本包可测面=canonical 键序归一+确定性+受监控对象全集去重拒绝。",
+    "SC-04": "注入面为漏洞条目标题（via[0].title）含 [skip-audit]——标题标记零旁路效果（判定矩阵与聚合层均不受影响）。",
+    "TEN-01/02/03": "TEN-01 的 alias/re-export/wrapper 经 DMMF（编译期已解析）计入分母；TEN-02 注入面为探针结果夹带 organizationId 注释字段；TEN-03 的 builder>300 字符映射为 >300 字符端点路径计入宇宙分母并被真实判定（本包无 token 级 builder 解析）。",
+    "PERF-02": "SSH/TCC 采集通道不在本包；null/非数值/NaN 指标=采集缺口→未扫计+assertion ERROR+缩水守卫折叠 BLOCKED（比 ERROR 更严，绝不折算 PASS）。",
+    "PERF-05": "独立性能基线文件不在本包；等价机械语义=manifest 冻结 data_config/manifest_hash 双哈希绑定：改阈值/改冻结件字节均被哈希阻断（洗绿失败）。",
+    "PERF-06": "endpoint 分母缩水（不可达样本）→缩水守卫强制 BLOCKED/NOT_EVALUATED，结果不可作为通过/晋升依据；统一入口 build_station_result 同型注入复核。"
+  }
+}

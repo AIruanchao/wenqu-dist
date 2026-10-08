@@ -1,0 +1,82 @@
+[
+  {
+    "id": "AUTH-01",
+    "test": "test_AUTH_01_resume_without_authorization_rejected",
+    "passed": true
+  },
+  {
+    "id": "AUTH-02",
+    "test": "test_AUTH_02_expired_replay_scope_widening_stale_version_rejected",
+    "passed": true
+  },
+  {
+    "id": "AUTH-03",
+    "test": "test_AUTH_03_ai_self_issued_high_risk_approval_rejected",
+    "passed": true
+  },
+  {
+    "id": "AUTH-04",
+    "test": "test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails",
+    "passed": true
+  },
+  {
+    "id": "AUTH-05",
+    "test": "test_AUTH_05_concurrent_double_consume_exactly_one_wins",
+    "passed": true
+  },
+  {
+    "id": "AUTH-06",
+    "test": "test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected",
+    "passed": true
+  },
+  {
+    "id": "COND-01",
+    "test": "test_COND_01_conditional_without_risk_authorization_not_eligible",
+    "passed": true
+  },
+  {
+    "id": "COND-02",
+    "test": "test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected",
+    "passed": true
+  },
+  {
+    "id": "COND-03",
+    "test": "test_COND_03_authorized_conditional_action_gate_exactly_once",
+    "passed": true
+  },
+  {
+    "id": "COND-04",
+    "test": "test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked",
+    "passed": true
+  },
+  {
+    "id": "COND-05",
+    "test": "test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated",
+    "passed": true
+  },
+  {
+    "id": "COND-06",
+    "test": "test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once",
+    "passed": true
+  },
+  {
+    "id": "RISK-01",
+    "test": "test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs",
+    "passed": true
+  },
+  {
+    "id": "STOP-01",
+    "test": "test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected",
+    "passed": true
+  },
+  {
+    "id": "STOP-02",
+    "test": "test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked",
+    "passed": true
+  },
+  {
+    "id": "STOP-03",
+    "test": "test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected",
+    "passed": true
+  }
+]

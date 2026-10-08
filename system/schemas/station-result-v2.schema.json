@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/station-result-v2.json",
   "title": "Bug 八站 Station Result Schema v2",
-  "description": "每站统一结果——Codex 方案 §7.2 契约。P0-4 加固：PASS 必须带 coverage（分母>0）与非空 artifacts，且 execution rc=0 + assertion PASS；rc 非 0 不得 PASS",
+  "description": "每站统一结果——Codex 方案 §7.2 契约。P0-4 加固：PASS 必须带 coverage（分母>0）与非空 artifacts，且 execution rc=0 + assertion PASS；rc 非 0 不得 PASS。F4-SCHEMA-001 加固：PASS 必须 execution COMPLETED 且 coverage.scanned == denominator（分母缩水即拒）；执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE 裁决（TIMEOUT+PASS/TIMEOUT+CONDITIONAL 双轴洗白全拒；NOT_APPLICABLE 是站级探针缺失/不适用语义，聚合层落 CONDITIONAL 不上绿）",
   "type": "object",
   "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
   "properties": {
@@ -83,19 +83,97 @@
   "additionalProperties": false,
   "allOf": [
     {
+      "if": {"properties": {"execution_status": {"enum": ["ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]}}, "required": ["execution_status"]},
+      "then": {
+        "properties": {
+          "policy_verdict": {"enum": ["FAIL", "NOT_EVALUATED", "NOT_APPLICABLE"]}
+        }
+      }
+    },
+    {
       "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
       "then": {
         "required": ["coverage", "artifacts"],
         "properties": {
+          "execution_status": {"const": "COMPLETED"},
           "coverage": {
             "type": "object",
             "required": ["denominator", "scanned"],
             "properties": {
               "denominator": {"type": "integer", "minimum": 1},
               "scanned": {"type": "integer", "minimum": 1}
-            }
+            },
+            "allOf": [
+              {"if": {"properties": {"scanned": {"const": 1}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 1}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 2}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 2}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 3}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 3}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 4}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 4}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 5}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 5}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 6}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 6}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 7}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 7}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 8}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 8}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 9}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 9}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 10}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 10}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 11}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 11}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 12}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 12}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 13}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 13}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 14}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 14}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 15}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 15}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 16}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 16}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 17}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 17}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 18}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 18}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 19}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 19}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 20}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 20}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 21}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 21}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 22}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 22}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 23}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 23}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 24}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 24}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 25}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 25}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 26}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 26}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 27}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 27}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 28}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 28}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 29}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 29}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 30}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 30}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 31}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 31}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 32}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 32}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 33}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 33}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 34}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 34}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 35}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 35}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 36}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 36}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 37}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 37}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 38}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 38}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 39}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 39}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 40}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 40}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 41}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 41}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 42}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 42}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 43}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 43}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 44}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 44}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 45}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 45}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 46}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 46}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 47}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 47}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 48}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 48}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 49}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 49}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 50}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 50}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 51}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 51}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 52}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 52}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 53}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 53}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 54}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 54}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 55}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 55}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 56}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 56}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 57}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 57}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 58}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 58}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 59}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 59}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 60}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 60}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 61}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 61}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 62}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 62}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 63}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 63}}, "required": ["denominator"]}},
+              {"if": {"properties": {"scanned": {"const": 64}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 64}}, "required": ["denominator"]}}
+            ]
           },
-          "artifacts": {"type": "array", "minItems": 1},
+          "artifacts": {
+            "type": "array",
+            "minItems": 1
+          },
           "execution": {
             "type": "object",
             "required": ["actual_exit_code", "assertion_verdict"],
@@ -108,5 +186,5 @@
       }
     }
   ],
-  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]——scanned≤denominator 由站内守卫与 BLOCKED 规则强制，draft-07 无法表达跨字段比较）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS"
+  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，此处以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64）；scanned>64 时 schema 侧不判定（不误拒合法大分母全扫），由 gate_aggregator.mirror_validate_station_result_v2 镜像校验器做无界等式判定并强制 BLOCKED（镜像与 schema 的一致性自测见 system/tests/test_gate_schema_hardening.py）"
 }

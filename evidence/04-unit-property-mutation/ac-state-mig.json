@@ -1,0 +1,264 @@
+{
+  "artifact": "ac-state-mig",
+  "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py；不依赖 wenqu_pipeline）",
+  "exit_code": 0,
+  "finished_at": "2026-10-08T07:36:49.757783+00:00",
+  "fixture_note": "MIG 族旧账均为本测试内构造的小型合成旧账（临时目录），非生产账本；STATE-04 崩溃注入为真实 SIGKILL 子进程。",
+  "generated_at": "2026-10-08T07:36:49.757863+00:00",
+  "git_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+  "results": {
+    "MIG-01": {
+      "coverage_boundary": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
+      "detail": {
+        "bad_lines_in_events_table": 0,
+        "boundary": "run 级 BLOCKED 聚合在编排层（不在被测体）",
+        "imported": 5,
+        "imported_status_counts": {
+          "BLOCKED": 2,
+          "FIXED_PENDING_VERIFY": 1,
+          "PASS": 2
+        },
+        "quarantined": 7
+      },
+      "name": "坏 JSON/未知状态 → quarantine+BLOCKED",
+      "verdict": "PASS"
+    },
+    "MIG-02": {
+      "coverage_boundary": "测迁移器已实现面：ACCEPTED 是未知状态——无论缺不缺审批信息一律 quarantine（不猜映射为 PASS），进 quarantine=待人工 reopen 的账，sidecar 全程留痕。『invalid 后写 reopen 事件』属 risk acceptance 子系统（FND-016，不在被测体）",
+      "detail": {
+        "accepted_lines": 4,
+        "boundary": "risk acceptance/reopen 事件子系统（FND-016）不在被测体",
+        "imported": 0,
+        "quarantined": 4,
+        "reopen_channel": "quarantine + sidecar 预览（人工再录）"
+      },
+      "name": "缺审批信息的 ACCEPTED → invalid/reopen",
+      "verdict": "PASS"
+    },
+    "MIG-03": {
+      "detail": {
+        "events_table_identical": true,
+        "run1": {
+          "duplicates": 1,
+          "imported": 3,
+          "quarantined": 2
+        },
+        "run2": {
+          "duplicates": 4,
+          "imported": 0,
+          "quarantined": 2
+        },
+        "sidecar_append_only": true,
+        "source_bytewise_unchanged": true
+      },
+      "name": "两次迁移 → 结果幂等一致",
+      "verdict": "PASS"
+    },
+    "MIG-04": {
+      "coverage_boundary": "ConservationError 是防御性守卫：tally 与处理循环遍历同一 list，经公共 API 构造不出账目不平（已实证 + 代码通读）。本用例测同秩语义的运行时面：逐行独立对账零失联 + 删行后重迁移精确补账 + 审计侧不可写则迁移整体失败、零部分导入、零假守恒记账",
+      "detail": {
+        "boundary": "ConservationError 为防御性守卫（公共 API 构造不出不平，已实证）；此处验证同秩运行时语义",
+        "deleted_rows_reimported": 3,
+        "independent_recount": {
+          "db_rows": 9,
+          "quarantined": 2,
+          "source_nonblank": 11
+        },
+        "unopenable_db": "迁移失败（异常）",
+        "unwritable_sidecar": "迁移失败，events=0、migration_runs=0"
+      },
+      "name": "源行数不守恒 → 迁移失败",
+      "verdict": "PASS"
+    },
+    "MIG-05": {
+      "name": "project key 冲突 → 明确冲突，不拆成假项目",
+      "reason": "ledger_migrator.py 全文无 project 概念（grep 'project' 零命中）：迁移按行 SHA256 判重导入 events 表，不存在 project key 的映射/冲突检测/报错路径。该语义未实现，无法真实注入",
+      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+    },
+    "STATE-01": {
+      "coverage_boundary": "测 store 层 schema 边界：携带任意 stage/status 的管线控制事件（RUN_*/STAGE_*/ATTEMPT_* 等 event_type）经公共 EventStore.append 一律 ValueError；attempt 状态枚举校验在 wenqu_pipeline（禁 import，不越界）",
+      "detail": {
+        "boundary": "attempt 状态枚举校验在 wenqu_pipeline（本文件禁 import）",
+        "control_types": [
+          "STAGE_ATTEMPT_RECORDED",
+          "STAGE_STATUS",
+          "RUN_STATUS",
+          "ATTEMPT_STATUS",
+          "RUN_RUNNING"
+        ],
+        "rejected_combinations": 408
+      },
+      "name": "任意 stage/status → schema 拒绝",
+      "verdict": "PASS"
+    },
+    "STATE-02": {
+      "name": "`../`、绝对路径、NUL、超长 ID → 拒绝",
+      "reason": "store.py 的 EventStore 没有任何调用方可控 ID/路径参数——event_id 由 canonical payload 哈希自动生成（store.py append），db_path 是构造器参数且不做校验（属运维输入，非不可信输入面）；ledger_migrator.py 同样没有 ID 概念。『拒绝 ../、绝对路径、NUL、超长 ID』的 ID 校验语义在被测体中不存在（wenqu_pipeline 的 _validate_identity 只校验非空/40-hex/environment 枚举，亦无路径/NUL/长度面，且该模块本文件禁 import）",
+      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+    },
+    "STATE-03": {
+      "detail": {
+        "chain_verified": true,
+        "distinct_event_ids": 10000,
+        "per_writer": 100,
+        "same_content_concurrent_rows": 1,
+        "total_rows": 10000,
+        "writers": 100
+      },
+      "name": "100×100 并发写 → 零丢失/重复",
+      "verdict": "PASS"
+    },
+    "STATE-04": {
+      "detail": {
+        "deterministic_points": {
+          "after_begin": {
+            "chain_ok": true,
+            "committed": false,
+            "rows": 3
+          },
+          "after_commit": {
+            "chain_ok": true,
+            "committed": true,
+            "rows": 4
+          },
+          "after_insert": {
+            "chain_ok": true,
+            "committed": false,
+            "rows": 3
+          }
+        },
+        "timer_rounds": [
+          {
+            "chain_ok": true,
+            "delay_s": 0.077,
+            "round": 0,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.112,
+            "round": 1,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.243,
+            "round": 2,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.074,
+            "round": 3,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.026,
+            "round": 4,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.18,
+            "round": 5,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.081,
+            "round": 6,
+            "rows": 50
+          },
+          {
+            "chain_ok": true,
+            "delay_s": 0.17,
+            "round": 7,
+            "rows": 50
+          }
+        ],
+        "verdict": "每次崩溃后：链完好，行数=已提交事务数（全有或全无）"
+      },
+      "name": "事务各点 kill -9 → 全有或全无",
+      "verdict": "PASS"
+    },
+    "STATE-05": {
+      "name": "双 writer epoch → 所有写入拒绝",
+      "reason": "全仓 grep 无 writer epoch/fencing 实现：store.py 无 epoch 字段/比较，wenqu_pipeline 亦无（grep 'epoch' 仅命中 scheduler 时间换算与审批 issued/expires）。『旧 epoch writer 的所有写入被拒』这一产品语义未实现，无法对 store/ledger_migrator 做真实注入",
+      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+    },
+    "STATE-06": {
+      "coverage_boundary": "测 store 层：SUPERSEDED 属控制事件不可裸 append 伪造；WAITING 残留事件行不可 UPDATE/DELETE 静默消除，唯一出路是追加新事件。残留清扫与 SUPERSEDED 控制事件的实际签发在 RunManager（wenqu_pipeline，禁 import）",
+      "detail": {
+        "boundary": "SUPERSEDED 控制事件的实际签发在 RunManager（禁 import）",
+        "forged_superseded_events": "rejected (control-event guard)",
+        "residue_rows_preserved": 1,
+        "silent_delete": "rejected (append-only trigger)",
+        "silent_update": "rejected (append-only trigger)"
+      },
+      "name": "WAITING 终态残留 → SUPERSEDED 事件，不静默删",
+      "verdict": "PASS"
+    },
+    "STATE-07": {
+      "coverage_boundary": "测 store 层：已落账的 PASSED 证据不可 UPDATE/DELETE 回改成 RUNNING；RUNNING 类状态转移事件是控制类型，普通（裸）事件无法伪造。转移表级拒绝（InvalidTransitionError）在 wenqu_pipeline（禁 import）",
+      "detail": {
+        "boundary": "转移表级拒绝（InvalidTransitionError）在 wenqu_pipeline",
+        "delete_rewrite_path": "rejected",
+        "forged_transition_events": "rejected",
+        "passed_evidence_intact": true,
+        "update_path": "rejected"
+      },
+      "name": "普通事件把 PASSED 改回 RUNNING → 拒绝",
+      "verdict": "PASS"
+    },
+    "STATE-08": {
+      "coverage_boundary": "测 store 层：FAILED attempt 的旧证据行不可覆盖（UPDATE 拒绝），重试只能追加新事件（新 attempt 记录），旧证据逐字节不变且链可验证。attempt_id 分配与不可变（AttemptImmutabilityError）在 wenqu_pipeline（禁 import）",
+      "detail": {
+        "attempts_in_ledger": [
+          "att-1 (FAILED)",
+          "att-2 (new, RUNNING)"
+        ],
+        "boundary": "attempt_id 分配/AttemptImmutabilityError 在 wenqu_pipeline",
+        "chain_verified": true,
+        "old_evidence_byte_identical": true,
+        "overwrite_attempt": "rejected"
+      },
+      "name": "FAILED 重试 → 新 attempt，旧证据不覆盖",
+      "verdict": "PASS"
+    },
+    "STATE-09": {
+      "name": "SHA/scope/policy 变化 → 强制新 run",
+      "reason": "run 身份绑定（identity.commit_sha/scope_hash/policy_hash 校验、InvalidIdentityError、变化即拒绝复用 run）全部实现在 wenqu_pipeline RunManager/_validate_identity；store.py 事件负载对身份字段完全透明。该模块被工单禁止 import，且并行 agent 正在改它，本文件不越界测它",
+      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+    },
+    "STATE-10": {
+      "coverage_boundary": "测 store 层前半句：WAITING/FAILED attempt 直接改回 RUNNING 的两条路（UPDATE 行 / 伪造控制事件）全拒；追加新 attempt 事件成功且旧行保留。后半句 stage projection 指向新 attempt 在 RunManager（禁 import）",
+      "detail": {
+        "boundary": "stage projection 指向新 attempt 在 RunManager（禁 import）",
+        "direct_update_to_running": "rejected (WAITING & FAILED rows)",
+        "forged_control_transitions": "rejected",
+        "new_attempt_appended": "att-3",
+        "old_rows_preserved": [
+          "att-1 WAITING",
+          "att-2 FAILED"
+        ]
+      },
+      "name": "WAITING/FAILED attempt 直接改回 RUNNING → 拒绝；追加新 attempt 后由 stage projection 指向它",
+      "verdict": "PASS"
+    },
+    "STATE-11": {
+      "name": "S7 CONDITIONAL 缺 risk authorization → S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING",
+      "reason": "S7 终判聚合与 risk authorization 消费（consume_authorization/has_unexpired_risk_authorization）全部实现在 wenqu_pipeline ApprovalBroker/RunManager；store.py 只有控制事件类型守卫这一个相邻机制（已由本文件其他用例覆盖）。仅凭守卫硬凑 S7 语义即冒充，不凑",
+      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+    }
+  },
+  "run_command": "python3 system/tests/test_ac_state_mig.py",
+  "started_at": "2026-10-08T07:36:46.081495+00:00",
+  "summary": {
+    "failed": 0,
+    "ids_total": 16,
+    "implemented_and_passed": 11,
+    "not_implementable_in_scope": 5
+  },
+  "test_file": "system/tests/test_ac_state_mig.py"
+}

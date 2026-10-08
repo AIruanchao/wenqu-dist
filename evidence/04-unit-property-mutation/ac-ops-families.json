@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "artifact": "ac-ops-families",
+    "generated_at": "2026-10-08T07:36:57+00:00",
+    "repo_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "test_file": "system/tests/test_ac_ops_families.py",
+    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+    "scope": "SCH-01~07, ALT-01~02, HLT-01, DOC-01~04（14 ID）",
+    "run_rc": 0,
+    "passed": 14,
+    "failed": 0
+  },
+  "results": {
+    "ALT-01": {
+      "pass": true,
+      "detail": "500/超时->ERROR+指数退避（窗口内零重试）->5 次后死信留痕，CRITICAL 双通道管线告警入队并在恢复后真实送达；全灭时死信链 6 条封顶收敛（环保护）"
+    },
+    "ALT-02": {
+      "pass": true,
+      "detail": "waiting 到期零 attempt/零 receipt 可机器检出；watchdog 干净跑完不产生 SENT/sent_at（健康不凭 exit0）；dispatch 将障碍 surfaced 为 ERROR+last_error 回执；通道恢复后告警真实送达、违例归零"
+    },
+    "DOC-01": {
+      "pass": true,
+      "detail": "契约 §6 九类停等与 NineStopTypes 实现逐项一致（真实对账绿，标题计数=正文=实现）；删行/改名/加类/标题数量缩水四种注入漂移全部判 blocked（CI 阻断语义）"
+    },
+    "DOC-02": {
+      "pass": true,
+      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 64 vs 实测 66 漂移（观察项，已如实上报）"
+    },
+    "DOC-03": {
+      "pass": true,
+      "detail": "真实 policy/Skill 文档根 12 文件零违禁文本；5 种注入形态（L4/--admin/force-with-lease/--skip-audit/skip 绕闸）全部抓获；阴性对照零误报"
+    },
+    "DOC-04": {
+      "pass": true,
+      "detail": "真实治理文档 3 条实体宣称全部对上注册表（9 站）；真实 Gate 正源（dashboard 读快照）BLOCKED 时 PASS/现役宣称判阻断、幽灵实体判阻断；Gate 复绿后放行"
+    },
+    "HLT-01": {
+      "pass": true,
+      "detail": "watermark 过期->503 STALE 作废；半写/缺字段->503 MALFORMED；重算新快照（BLOCKED+新 watermark）即刻生效；高频换 watermark 40 连读全部命中完整 (verdict, watermark) 对或结构化 503（观测 2 对）"
+    },
+    "SCH-01": {
+      "pass": true,
+      "detail": "spawn 不可达/无权限 cwd -> ERROR+NOT_EVALUATED，WARNING 告警真实投递 (3 条)；last_success=None；perm-cwd 注入=已跑"
+    },
+    "SCH-02": {
+      "pass": true,
+      "detail": "脚本 exit 1 且 touch heartbeat：mtime 前进被实证，last_success 保持 None，FUNCTION_DEAD/CRITICAL 告警照发——touch 假心跳零效果"
+    },
+    "SCH-03": {
+      "pass": true,
+      "detail": "错过 9 周期唤醒：COALESCE 恰补最新 1 次（missed=9），跳过全落审计、消费后零重复；ALL 回填恰 3 次+overrun 审计"
+    },
+    "SCH-04": {
+      "pass": true,
+      "detail": "并发双拥有者：runs 表恰 1 行、run_id 归一；顺序重放 replayed=True 零副作用。边界（如实记录）：物理子进程执行了 2 次——模块契约以 (job_id, scheduled_at) 唯一键保证账本级幂等，事务前预检为咨询性"
+    },
+    "SCH-05": {
+      "pass": true,
+      "detail": "调度器停摆后独立 HeartbeatMonitor 仍从持久化运行态判出 STALE_NO_RESULT/CRITICAL 并真实投递告警；runs 账本静止（1 行）"
+    },
+    "SCH-06": {
+      "pass": true,
+      "detail": "one-shot manual 运行：状态库仅 5 张 scheduler_* 表；next_due 不变；文件系统新增仅限 workdir/ 与 state/（home 零写入）"
+    },
+    "SCH-07": {
+      "pass": true,
+      "detail": "NA/过期 PASS/异指纹过期 PASS 三注入均不刷新；异指纹切换重置旧成功；run_job 集成：commit_sha 变更后 FAIL 将 last_success 清零"
+    }
+  },
+  "not_implementable": [
+    {
+      "id": "SCH-01",
+      "gap": "真实 launchd 会话 + TCC「无 Documents 权限」注入",
+      "reason": "需要真 launchd 加载作业与 macOS TCC 授权环境，单测沙箱不可复现",
+      "mitigation": "以 JobRunner spawn 失败（argv 不可达 / cwd 不可读）等价注入覆盖 ERROR+告警 判定链"
+    },
+    {
+      "id": "SCH-03",
+      "gap": "真实系统睡眠/唤醒跨真实周期",
+      "reason": "pmset 睡眠与 14 天时序不可在单测内发生",
+      "mitigation": "使用 scheduler 正源时钟接缝 now= 注入错过周期，补跑语义全链真跑"
+    },
+    {
+      "id": "SCH-05",
+      "gap": "跨故障域独立 watchdog 宿主（独立进程/独立机器）",
+      "reason": "本机单测只能证明同库独立组件在调度器停摆后仍告警",
+      "mitigation": "HeartbeatMonitor 与 JobRunner 完全解耦、只读持久化运行态，单进程内独立性实证"
+    },
+    {
+      "id": "HLT-01",
+      "gap": "gate_aggregator 聚合进程内的 watermark 竞态重算",
+      "reason": "gate_aggregator 为并行工作面（本件不碰）；且重算语义属聚合器域",
+      "mitigation": "dashboard 正源侧真服务探针：watermark 过期/畸形->快照作废 503，重算产物重写快照后新判定即刻生效、旧结论不缓存"
+    }
+  ]
+}

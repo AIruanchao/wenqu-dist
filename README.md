@@ -11,7 +11,7 @@ wenqu-dist/
 ├── cli/README.md        # CLI 用法（上游版）
 ├── probes/stations.json # 初始三域探测器（trap-double/guard-comment-swallow/cred-cli-expose）
 ├── docs/问渠轨道规范-发行版-v2.0.md  # ★先读这个——轨道规范（站/档/账本/收敛/探测器规约）
-└── tests/acceptance.sh   # 回归测试件（49 项验收面，含变异闭环；包内任何变更后跑它，全绿再发）
+└── tests/acceptance.sh   # 回归测试件（64 项验收面，含变异闭环+P1/P1b/P1c/P1d/P1e 五锚点；包内任何变更后跑它，全绿再发；项数随加固演进以脚本 RESULT 为准）
 ```
 
 ## 新仓接入（三步）
@@ -46,4 +46,4 @@ python3 cli/wenqu verify --path <你的仓> --allow-open 0
 
 ## CI（平台证据第三环境）
 
-`.github/workflows/acceptance.yml`（macOS+Ubuntu 双矩阵×release-check+49 项+pytest+selftest）已备——推送到 GitHub 即生效，永久闭掉条件放行声明的平台证据盲区（#5）。推送命令（外发动作，待定）：`git remote add origin <私仓URL> && git push -u origin main`。
+`.github/workflows/acceptance.yml`（macOS+Ubuntu 双矩阵×release-check+64 项+pytest+selftest）已备——推送到 GitHub 即生效，永久闭掉条件放行声明的平台证据盲区（#5）；main 已开分支保护（双平台 required+strict+enforce_admins），合流走 PR 正门。

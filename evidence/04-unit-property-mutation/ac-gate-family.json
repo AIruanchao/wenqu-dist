@@ -1,0 +1,102 @@
+[
+  {
+    "id": "CI-05",
+    "test": "test_CI_05_fork_merge_group_or_missing_check_explicit_failure",
+    "passed": true
+  },
+  {
+    "id": "CI-07",
+    "test": "test_CI_07_unauthorized_app_same_context_untrusted_blocked",
+    "passed": true
+  },
+  {
+    "id": "CI-08",
+    "test": "test_CI_08_wenqu_gate_missing_bugscan_green_no_merge",
+    "passed": true
+  },
+  {
+    "id": "CI-09",
+    "test": "test_CI_09_recursive_aggregate_or_duplicate_publish_rejected",
+    "passed": true
+  },
+  {
+    "id": "GATE-01",
+    "test": "test_GATE_01_fetch_fail_or_missing_base_ref_is_error",
+    "passed": true
+  },
+  {
+    "id": "GATE-02",
+    "test": "test_GATE_02_zero_tests_scope_not_pure_docs_is_blocked",
+    "passed": true
+  },
+  {
+    "id": "GATE-03",
+    "test": "test_GATE_03_missing_runner_or_dependency_is_error",
+    "passed": true
+  },
+  {
+    "id": "GATE-04",
+    "test": "test_GATE_04_inner_exit7_selfreport_zero_findings_fails",
+    "passed": true
+  },
+  {
+    "id": "GATE-05",
+    "test": "test_GATE_05_artifact_symlink_hardlink_outside_root_blocked",
+    "passed": true
+  },
+  {
+    "id": "GATE-06",
+    "test": "test_GATE_06_artifact_hash_tamper_blocked",
+    "passed": true
+  },
+  {
+    "id": "GATE-07",
+    "test": "test_GATE_07_commit_env_scope_ruleset_mismatch_blocked",
+    "passed": true
+  },
+  {
+    "id": "GATE-08",
+    "test": "test_GATE_08_evidence_past_ttl_refused",
+    "passed": true
+  },
+  {
+    "id": "GATE-12",
+    "test": "test_GATE_12_unsigned_flip_or_adjudication_blocked",
+    "passed": true
+  },
+  {
+    "id": "MRG-01",
+    "test": "test_MRG_01_fast_green_security_red_no_merge",
+    "passed": true
+  },
+  {
+    "id": "MRG-02",
+    "test": "test_MRG_02_missing_fast_and_gate_red_no_merge",
+    "passed": true
+  },
+  {
+    "id": "MRG-03",
+    "test": "test_MRG_03_same_name_forgery_or_old_sha_no_merge",
+    "passed": true
+  },
+  {
+    "id": "MRG-04",
+    "test": "test_MRG_04_pending_skipped_neutral_cancelled_no_merge",
+    "passed": true
+  },
+  {
+    "id": "MRG-05",
+    "test": "test_MRG_05_head_moves_during_aggregation_invalidates",
+    "passed": true
+  },
+  {
+    "id": "MRG-06",
+    "test": "test_MRG_06_remote_429_empty_json_timeout_circuit_breaker",
+    "passed": true
+  },
+  {
+    "id": "MRG-07",
+    "test": "test_MRG_07_head_changed_after_final_validation_atomic_reject",
+    "passed": true
+  }
+]

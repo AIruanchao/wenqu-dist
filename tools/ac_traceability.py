@@ -310,7 +310,14 @@ def build_catalog():
 
 
 def cross_check_plan(plan_path, catalog):
-    """可选：解析方案 §20 表格提取 ID 集合，与冻结目录做集合等式校验（§25.1 要求）。"""
+    """可选：解析方案 §20 表格，与冻结目录做 ID 集合等式校验 + 逐 ID 语义比对。
+
+    F4-TRC-001 根修（Codex 第四轮实锤）：旧版只比 ID 集合——保留 ID 不动、
+    只改该行「注入/期望」文本的语义篡改全绿。现从 §20.1～§20.5 表格逐行解析
+    (ID, 注入, 期望)，与冻结目录（ID_DEFS 转录）做归一化语义比对：
+    去首尾空白、markdown 反引号剥离、全半角标点归一、连续空白折叠。
+    任一 ID 语义漂移 → semantic problems → --check exit 2。
+    """
     try:
         with open(plan_path, encoding="utf-8") as f:
             text = f.read()
@@ -325,13 +332,62 @@ def cross_check_plan(plan_path, catalog):
     ids = set(re.findall(r"\b([A-Z]{2,5}-\d{2})\b", body))
     plan_ids = {i for i in ids if not re.match(r"^(FND|W\d)", i)}
     frozen = set(catalog)
+    # ---- 逐 ID 语义比对（F4-TRC-001）------------------------------------
+    semantic_problems = []
+    row_re = re.compile(
+        r"^\|\s*([A-Z]{2,5}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$")
+    plan_semantics = {}
+    for line in body.splitlines():
+        mm = row_re.match(line)
+        if mm:
+            plan_semantics[mm.group(1)] = (mm.group(2), mm.group(3))
+    if not plan_semantics:
+        semantic_problems.append("§20 表格解析出 0 行数据行（格式漂移？）")
+    for tid in sorted(frozen):
+        if tid not in plan_semantics:
+            # 集合等式已另行报告；这里防「ID 在正文他处出现但表格行被删」的缝隙
+            semantic_problems.append(f"§20 表格缺 {tid} 行（或行格式无法解析）")
+            continue
+        plan_inj, plan_exp = plan_semantics[tid]
+        frozen_inj = catalog[tid]["injection"]
+        frozen_exp = catalog[tid]["expectation"]
+        if _norm_semantic(plan_inj) != _norm_semantic(frozen_inj):
+            semantic_problems.append(
+                f"{tid} 注入语义漂移: 方案={plan_inj!r} 冻结={frozen_inj!r}")
+        if _norm_semantic(plan_exp) != _norm_semantic(frozen_exp):
+            semantic_problems.append(
+                f"{tid} 期望语义漂移: 方案={plan_exp!r} 冻结={frozen_exp!r}")
+    for tid in sorted(set(plan_semantics) - frozen):
+        semantic_problems.append(f"§20 表格行 {tid} 不在冻结目录中")
     return {
-        "ok": plan_ids == frozen,
+        "ok": plan_ids == frozen and not semantic_problems,
         "plan_only": sorted(plan_ids - frozen),
         "frozen_only": sorted(frozen - plan_ids),
         "plan_ids_count": len(plan_ids),
         "frozen_count": len(frozen),
+        "semantic_ok": not semantic_problems,
+        "semantic_problems": semantic_problems,
+        "semantic_rows_parsed": len(plan_semantics),
     }
+
+
+# 全角→半角标点归一表（语义比对用；只归一标点，不动字母/数字/汉字）
+_FW_PUNCT = {
+    "，": ",", "、": ",", "。": ".", "？": "?", "！": "!", "：": ":",
+    "；": ";", "（": "(", "）": ")", "～": "~", "「": '"', "」": '"',
+    "『": '"', "』": '"', "“": '"', "”": '"', "‘": "'", "’": "'",
+    "【": "[", "】": "]", "《": "<", "》": ">", "　": " ",
+}
+
+
+def _norm_semantic(s):
+    """§20 语义归一化：去 markdown 反引号、全半角标点归一、折叠空白、去首尾。"""
+    if not isinstance(s, str):
+        return "" if s is None else str(s)
+    out = s.replace("`", "")
+    out = "".join(_FW_PUNCT.get(ch, ch) for ch in out)
+    out = re.sub(r"\s+", " ", out)
+    return out.strip()
 
 
 def _norm_meta(s):
@@ -548,7 +604,12 @@ def main():
     if args.plan and os.path.isfile(args.plan):
         plan_check = cross_check_plan(args.plan, catalog)
         if not plan_check.get("ok", False):
-            problems.append(f"方案交叉校验不一致: {plan_check.get('plan_only')}/{plan_check.get('frozen_only')}")
+            if (plan_check.get("plan_only") or plan_check.get("frozen_only")
+                    or plan_check.get("error")):
+                problems.append(f"方案交叉校验不一致: {plan_check.get('plan_only')}/{plan_check.get('frozen_only')}")
+            for p in (plan_check.get("semantic_problems") or [])[:20]:
+                # F4-TRC-001：逐 ID 语义漂移必须计入 problems（--check exit 2）
+                problems.append(f"§20 语义漂移: {p}")
         plan_check_251 = cross_check_plan_251(args.plan, catalog)
         if not plan_check_251.get("ok", False):
             problems.append("§25.1 映射交叉校验不一致: " + "; ".join(
@@ -645,10 +706,15 @@ def main():
     print(f"目录完整性: {report['meta']['catalog_integrity']}  "
           f"(冻结 {total} ID，期望 {EXPECTED_TOTAL})")
     if plan_check is not None:
-        print(f"方案交叉校验(§20 集合等式): {'PASS' if plan_check.get('ok') else 'FAIL'}"
+        print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
               f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
         if not plan_check.get("ok"):
             print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
+        print(f"方案交叉校验(§20 逐 ID 语义比对): "
+              f"{'PASS' if plan_check.get('semantic_ok') else 'FAIL'}"
+              f"  解析表格行 {plan_check.get('semantic_rows_parsed')}")
+        for p in (plan_check.get("semantic_problems") or [])[:5]:
+            print(f"  §20 语义漂移: {p}")
         print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
               f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
               f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")

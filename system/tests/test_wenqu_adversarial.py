@@ -12,7 +12,15 @@
   #7  控制事件直写：公共 EventStore.append 注入 RUN_COMPLETED/PASS
   #8  第二正源：仅复制 pipeline_events 后同一 nonce 可再消费
   #9  自产事件不过 run-event-v2（WAITING 扩展字段 additionalProperties=false 拒绝）
-  #10 action saga 缺失（ACTION_* control_outbox、receipt 对账）
+  #10 action saga（ACTION_* control_outbox、receipt 对账）
+  #11 F4-AUTH-001（Codex 第四轮实锤）：ActionSaga 无授权可提交——
+      approval_consumptions=0 时 reserve→start→commit 对 release/production
+      照样走通、receipt 为调用方自报字符串。根修后：reserve_action 必传
+      action 类型 HMAC 审批（consume_authorization 路径：验签+绑定+payload
+      判别+state_version CAS）；自报 receipt 只能 PROVISIONAL，commit 必须
+      外部正源对账（action-execution-receipt 验签+水印/动作一致性）；
+      重放校验授权消费链（reserved 必须有对应 APPROVAL_CONSUMED）。
+      adv10 同步升级为授权链语义（原断言保留/诚实更新，只增不减）。
 
 另含：K 项 CLI 端到端链（wenquctl create→…→complete）。
 """
@@ -31,6 +39,7 @@ from wenqu_core.wenqu_pipeline import (
     SevenStageStateMachine as SM, ApprovalBroker, RunManager, ActionSaga,
     PipelineCorruptionError, PipelineError, ApprovalRejected,
     ApprovalReuseError, ApprovalPreconditionError, ActionError, STAGES,
+    RECEIPT_PROVISIONAL, RECEIPT_RECONCILED,
 )
 
 PASS_N, FAIL_N = 0, 0
@@ -136,6 +145,86 @@ def make_risk(run_id, task_id, state_version, *, fingerprints=None,
     ap.pop("signature", None)
     ap["signature"] = sign_envelope(SECRET, ap)
     return ap
+
+# ====================================================================== #
+# F4-AUTH-001：action 类型审批与外部正源回执构造器
+# ====================================================================== #
+_ACTION_TYPE_TO_APPROVAL = {
+    "prod-write": "prod_write", "prod_write": "prod_write",
+    "fund-auth": "fund_auth", "fund_auth": "fund_auth",
+    "merge": "merge", "release": "release", "ddl": "ddl",
+    "rollback": "rollback",
+}
+ACTION_PAYLOADS = {
+    "merge": {"repo_id": "qisemi-erp", "base_sha": "b" * 40,
+              "head_sha": "c" * 40, "merge_method": "merge"},
+    "release": {"release_id": "rel-77", "artifact_sha256": "d" * 64,
+                "manifest_sha256": "e" * 64,
+                "environment": IDENT["environment"],
+                "previous_release_id": "rel-76"},
+    "ddl": {"database_identity": "db://staging/erp",
+            "statement_digest": "f" * 64, "before_schema_hash": "1" * 64,
+            "after_schema_hash": "2" * 64, "backup_id": "bak-1",
+            "rollback_plan_hash": "3" * 64},
+    "prod_write": {"operation_digest": "4" * 64, "data_scope_digest": "5" * 64,
+                   "idempotency_key": "idem-77", "conservation_hash": "6" * 64},
+    "fund_auth": {"subject_role": "ops", "amount_scope_digest": "9" * 64,
+                  "positive_negative_test_hash": "8" * 64,
+                  "audit_target": "audit-1"},
+    "rollback": {"failed_deployment_id": "dep-9",
+                 "exact_previous_release_id": "rel-70", "trigger": "gate-red",
+                 "schema_compatibility_hash": "7" * 64},
+}
+
+def make_action_approval(run_id, task_id, state_version, action_type, *,
+                         stage="S1_REQUIREMENT", nonce=None, payload=None,
+                         **over):
+    """action 类型审批（approval-v2 全信封 + 测试密钥 HMAC 签名）。"""
+    ap_type = _ACTION_TYPE_TO_APPROVAL[action_type]
+    ap = {
+        "schema_version": "2.0",
+        "approval_id": f"apr_act_{ap_type}_{os.urandom(3).hex()}",
+        "approval_type": ap_type, "key_id": KEY_ID,
+        "run_id": run_id, "task_id": task_id,
+        "stop_event_id": "n/a-action-reserve", "stop_type": "prod-write",
+        "stage": stage, "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "actor": "chaoge", "issued_at": "2026-10-08T00:00:00Z",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "expected_state_version": state_version,
+        "nonce": nonce or f"nonce-act-{ap_type}-{os.urandom(6).hex()}",
+        "decision": "approve", "signature": "",
+        "payload": dict(payload if payload is not None
+                        else ACTION_PAYLOADS[ap_type]),
+    }
+    ap.update(over)
+    ap.pop("signature", None)
+    ap["signature"] = sign_envelope(SECRET, ap)
+    return ap
+
+def make_external_receipt(action, run_id, watermark, *, outcome="COMMITTED",
+                          external_ref="ext-deploy-77", **over):
+    """外部正源回执（action-execution-receipt v1.0 + 测试密钥 HMAC 签名）。
+
+    action 传 reserve_action 的返回 dict（取 action_id/action_type/
+    action_target 做一致性绑定）。
+    """
+    rc = {
+        "schema_version": "1.0", "receipt_type": "action-execution-receipt",
+        "action_id": action["action_id"], "run_id": run_id,
+        "action_type": action["action_type"],
+        "action_target": action["action_target"],
+        "watermark": watermark, "outcome": outcome,
+        "external_ref": external_ref, "ts": "2026-10-08T00:00:00Z",
+        "key_id": KEY_ID, "signature": "",
+    }
+    rc.update(over)
+    rc.pop("signature", None)
+    rc["signature"] = sign_envelope(SECRET, rc)
+    return rc
 
 def soft_s7_run(mgr, task_id="task_adv_soft"):
     """S1..S6 PASS（S7 自动启动），S7 CONDITIONAL（软终态），登记 MEDIUM/P2 finding。"""
@@ -479,7 +568,10 @@ def adv9_schema_roundtrip():
     # 富事件流：create/advance/raise/resume/finding/risk/complete/action saga
     run_id = mgr.create_run("task_adv9", IDENT)["run_id"]
     mgr.advance_stage(run_id)
-    mgr.reserve_action(run_id, "deploy", "db://prod/erp", actor="adv9")
+    # F4-AUTH-001（诚实更新）：action 预留必传审批——原 "deploy" 无审批类型
+    # 映射，改用 release 动作 + 签发的 release 审批（锚定 S1 RUNNING/版本 2）
+    rel_ap = make_action_approval(run_id, "task_adv9", 2, "release")
+    mgr.reserve_action(run_id, "release", "db://prod/erp", rel_ap, actor="adv9")
     mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
     w = mgr.raise_waiting(run_id, "prod-write", "adv9")
     v = mgr.get_run(run_id).state_version
@@ -525,52 +617,208 @@ def adv9_schema_roundtrip():
 
 # ====================================================================== #
 # Codex 实锤 #10：action saga（control_outbox + receipt 对账）
+# F4-AUTH-001 升级：授权消费链 + receipt 分级 + 外部正源对账
+# （原断言保留/诚实更新：commit 与 reconcile 语义按授权链根修更新，只增不减）
 # ====================================================================== #
 def adv10_action_saga():
     store, mgr = fresh()
     run_id = mgr.create_run("task_adv10", IDENT)["run_id"]
     mgr.advance_stage(run_id)
-    # 纯规则引擎
+    v = mgr.get_run(run_id).state_version
+    target = "db://prod/erp#batch-77"
+    # 纯规则引擎（原断言保留）
     ActionSaga.validate_transition("RESERVED", "STARTED")
     ActionSaga.validate_transition("STARTED", "COMMITTED")
     expect(ActionError, lambda: ActionSaga.validate_transition(
         "RESERVED", "COMMITTED"))
     expect(ActionError, lambda: ActionSaga.validate_transition(
         "COMMITTED", "STARTED"))
-    # 生命周期：RESERVED → STARTED → COMMITTED
-    r = mgr.reserve_action(run_id, "prod-write", "db://prod/erp#batch-77")
+    # F4-AUTH-001：零审批预留必拒；无审批类型映射的 action_type 必拒；
+    # 类型不符审批（真密钥签发的 ddl 审批喂 prod-write action）必拒
+    expect(ActionError, lambda: mgr.reserve_action(run_id, "prod-write", target))
+    expect(ActionError, lambda: mgr.reserve_action(
+        run_id, "deploy", target,
+        make_action_approval(run_id, "task_adv10", v, "release")))
+    wrong = make_action_approval(run_id, "task_adv10", v, "ddl")
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, wrong))
+    # 生命周期（授权链版）：签发 prod-write 审批 → RESERVED
+    ap = make_action_approval(run_id, "task_adv10", v, "prod-write")
+    r = mgr.reserve_action(run_id, "prod-write", target, ap)
     aid = r["action_id"]
     assert r["action_state"] == "RESERVED"
-    assert mgr.start_action(run_id, aid)["action_state"] == "STARTED"
-    # 非法：COMMITTED 前置缺失 / 重复 START
+    assert r["approval_id"].startswith("apr_") and len(r["nonce_digest"]) == 64
+    st = mgr.get_run(run_id)
+    assert st.actions[aid]["approval_id"] == r["approval_id"]
+    assert st.actions[aid]["nonce_digest"] == r["nonce_digest"]
+    # 审批一次性：同一审批（同 nonce）二次预留 → 复用拒绝
+    expect(ApprovalReuseError,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, ap))
+    # RESERVED → STARTED（自报 receipt 只能 PROVISIONAL 分级）
+    s = mgr.start_action(run_id, aid, receipt="deploy-77 started by caller")
+    assert s["action_state"] == "STARTED"
+    st = mgr.get_run(run_id)
+    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+    assert st.actions[aid]["receipt"].startswith("PROVISIONAL|")
+    # 非法：重复 START（原断言保留）
     expect(ActionError, lambda: mgr.start_action(run_id, aid))
-    c = mgr.commit_action(run_id, aid, "receipt:deploy-77:ok")
+    # F4-AUTH-001：自报字符串 commit 必拒——必须停在 PROVISIONAL 不可 COMMITTED
+    expect(ActionError, lambda: mgr.commit_action(run_id, aid, "receipt:deploy-77:ok"))
+    st = mgr.get_run(run_id)
+    assert st.actions[aid]["action_state"] == "STARTED"
+    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+    # 伪签名外部回执必拒；水印不一致必拒；target 移花接木必拒
+    bad = make_external_receipt(r, run_id, IDENT["commit_sha"])
+    bad["signature"] = "0" * 64
+    expect(ActionError, lambda: mgr.commit_action(run_id, aid, bad))
+    expect(ActionError, lambda: mgr.commit_action(
+        run_id, aid, make_external_receipt(r, run_id, "b" * 40)))
+    expect(ActionError, lambda: mgr.commit_action(
+        run_id, aid, make_external_receipt(
+            r, run_id, IDENT["commit_sha"],
+            action_target="db://prod/EVIL#batch-77")))
+    # 对账实装：验签+水印/动作一致 → reconciled=True；commit → COMMITTED
+    good = make_external_receipt(r, run_id, IDENT["commit_sha"])
+    rec = mgr.reconcile_receipt(run_id, aid, good)
+    assert rec["reconciled"] is True and rec["outcome"] == "COMMITTED"
+    c = mgr.commit_action(run_id, aid, good)
     assert c["action_state"] == "COMMITTED"
-    expect(ActionError, lambda: mgr.commit_action(run_id, aid, "again"))
+    assert c["receipt_status"] == RECEIPT_RECONCILED
+    st = mgr.get_run(run_id)
+    assert st.actions[aid]["receipt"].startswith("RECONCILED|")
+    assert st.actions[aid]["receipt_status"] == RECEIPT_RECONCILED
+    # 终态后不可再变更（原断言保留，语义升级为授权链终态）
+    expect(ActionError, lambda: mgr.commit_action(run_id, aid, good))
     expect(ActionError, lambda: mgr.start_action(run_id, aid))
-    # FAILED_UNKNOWN 终态路径（另一个 action）
-    r2 = mgr.reserve_action(run_id, "ddl", "db://staging/schema")
+    # FAILED_UNKNOWN 终态路径（另一个 action：ddl 审批 + 对账不了收口）
+    ap2 = make_action_approval(run_id, "task_adv10",
+                               mgr.get_run(run_id).state_version, "ddl")
+    r2 = mgr.reserve_action(run_id, "ddl", "db://staging/schema", ap2)
     aid2 = r2["action_id"]
     mgr.start_action(run_id, aid2)
     f = mgr.fail_action(run_id, aid2, "runner crash; outcome unknown")
     assert f["action_state"] == "FAILED_UNKNOWN"
     expect(ActionError, lambda: mgr.start_action(run_id, aid2))
-    # receipt 对账占位接口
-    rec = mgr.reconcile_receipt(run_id, aid, "receipt:deploy-77:ok")
-    assert rec["reconciled"] is True
-    rec = mgr.reconcile_receipt(run_id, aid, "receipt:deploy-77:TAMPERED")
-    assert rec["reconciled"] is False
-    rec = mgr.reconcile_receipt(run_id, aid2, "whatever")
+    # FAILED_UNKNOWN 终态：reconcile 不再裁决（reconciled=None，终态收口）
+    rec = mgr.reconcile_receipt(run_id, aid2, {"anything": 1})
     assert rec["reconciled"] is None and "FAILED_UNKNOWN" in rec["note"]
-    expect(ActionError, lambda: mgr.reconcile_receipt(run_id, "act_ghost", "x"))
-    # 重放一致性：action 聚合随事件流重建
+    expect(ActionError, lambda: mgr.reconcile_receipt(
+        run_id, "act_ghost", {"x": 1}))
+    # 伪签名回执在 STARTED 动作上同样 reconciled=False（原 TAMPERED 断言语义升级）
+    ap3 = make_action_approval(run_id, "task_adv10",
+                               mgr.get_run(run_id).state_version, "merge")
+    r3 = mgr.reserve_action(run_id, "merge", "repo://qisemi-erp/pr-9", ap3)
+    aid3 = r3["action_id"]
+    mgr.start_action(run_id, aid3, receipt="merge attempt started")
+    tampered = make_external_receipt(r3, run_id, IDENT["commit_sha"])
+    tampered["external_ref"] = "ext-TAMPERED"  # 签名后篡改 → 验签失败
+    rec = mgr.reconcile_receipt(run_id, aid3, tampered)
+    assert rec["reconciled"] is False
+    # 重放一致性：action 聚合（含授权消费链与 receipt 分级）随事件流重建
     mgr2 = RunManager(store, keyring=KEYRING)
     st2 = mgr2.get_run(run_id)
     assert st2.actions[aid]["action_state"] == "COMMITTED"
-    assert st2.actions[aid]["receipt"] == "receipt:deploy-77:ok"
+    assert st2.actions[aid]["receipt"] == mgr.get_run(run_id).actions[aid]["receipt"]
+    assert st2.actions[aid]["receipt_status"] == RECEIPT_RECONCILED
+    assert st2.actions[aid]["approval_id"] == r["approval_id"]
     assert st2.actions[aid2]["action_state"] == "FAILED_UNKNOWN"
-    # 未知 action 推进 → ActionError
+    assert len(st2.consumed_nonce_types) >= 3  # 授权消费链随事件流重建
+    # 未知 action 推进 → ActionError（原断言保留）
     expect(ActionError, lambda: mgr.start_action(run_id, "act_nope"))
+    assert store.verify_chain()["ok"]
+    # 伪造面：带正确 seal 的 ACTION_COMMITTED + 裸串 receipt → 重放 Corruption
+    # （receipt 分级由重放强校验——即使 seal 派生规则泄露也伪造不出 COMMITTED）
+    import wenqu_core.wenqu_pipeline as wp
+    st_now = mgr.get_run(run_id)
+    forged = mgr._base_event(
+        "ACTION_COMMITTED", st_now, "COMPLETED", "NOT_EVALUATED",
+        actor="attacker", state_version=st_now.state_version,
+        action_id=aid3, action_type="merge", receipt="receipt:bare:self-report")
+    wp._PipelineDb.append_event(mgr._db._conn, wp._seal_event(run_id, forged))
+    expect(PipelineCorruptionError, lambda: mgr.get_run(run_id))
+
+# ====================================================================== #
+# Codex 第四轮 F4-AUTH-001：ActionSaga 无授权可提交（探针三连复刻）
+# ====================================================================== #
+def adv11_action_auth_gate():
+    """Codex 探针复刻铁律：
+    (1) 零审批 reserve 必须拒绝（approval_consumptions 保持 0、事件面零 ACTION_*）；
+    (2) 自报 receipt 的 commit 必须停在 PROVISIONAL 不可 COMMITTED；
+    (3) 合法链（签发的 action 审批 + 对账回执）能走通。"""
+    # -- 探针 (1)：零审批（含未登记密钥自签的伪审批）reserve 必拒 --
+    tmp = tempfile.mkdtemp(prefix="wenqu-adv11a-")
+    store0 = EventStore(os.path.join(tmp, "events.db"))
+    mgr0 = RunManager(store0)  # 无 keyring → 空 keyring（零登记密钥）
+    rid0 = mgr0.create_run("task_adv11a", IDENT)["run_id"]
+    mgr0.advance_stage(rid0)
+    v0 = mgr0.get_run(rid0).state_version
+    expect(ActionError,
+           lambda: mgr0.reserve_action(rid0, "release", "prod://erp/rel-77"))
+    rogue = make_action_approval(rid0, "task_adv11a", v0, "release")
+    rogue["key_id"] = "key_rogue_9"
+    rogue = resign(rogue)
+    expect(ApprovalRejected, lambda: mgr0.reserve_action(
+        rid0, "release", "prod://erp/rel-77", rogue))
+    assert mgr0.broker.consumed_approvals(run_id=rid0) == []  # 零消费
+    assert not mgr0.get_run(rid0).actions                     # 事件面零 ACTION_*
+    assert store0.verify_chain()["ok"]
+
+    # -- 探针 (2)+(3)：合法链走通 + 自报 receipt 停 PROVISIONAL --
+    store, mgr = fresh()
+    run_id = mgr.create_run("task_adv11b", IDENT)["run_id"]
+    mgr.advance_stage(run_id)
+    v = mgr.get_run(run_id).state_version
+    ap = make_action_approval(run_id, "task_adv11b", v, "release")
+    r = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap)
+    aid = r["action_id"]
+    assert r["action_state"] == "RESERVED"
+    assert len(mgr.broker.consumed_approvals(run_id=run_id)) == 1  # 授权已消费
+    mgr.start_action(run_id, aid, receipt="caller self report")
+    # 自报字符串 commit 必拒且状态不动
+    expect(ActionError, lambda: mgr.commit_action(run_id, aid, "receipt:self:report"))
+    st = mgr.get_run(run_id)
+    assert st.actions[aid]["action_state"] == "STARTED"
+    assert st.actions[aid]["receipt_status"] == RECEIPT_PROVISIONAL
+    # 合法收口：签发的外部回执（验签+水印/动作一致）→ COMMITTED
+    good = make_external_receipt(r, run_id, IDENT["commit_sha"])
+    assert mgr.reconcile_receipt(run_id, aid, good)["reconciled"] is True
+    assert mgr.commit_action(run_id, aid, good)["action_state"] == "COMMITTED"
+
+    # -- 重放授权消费链：伪造无 APPROVAL_CONSUMED 的 RESERVED → Corruption --
+    import wenqu_core.wenqu_pipeline as wp
+    tmp2 = tempfile.mkdtemp(prefix="wenqu-adv11c-")
+    store2 = EventStore(os.path.join(tmp2, "events.db"))
+    mgr2 = RunManager(store2, keyring=KEYRING)
+    rid2 = mgr2.create_run("task_adv11c", IDENT)["run_id"]
+    mgr2.advance_stage(rid2)
+    st2 = mgr2.get_run(rid2)
+    forged = mgr2._base_event(
+        "ACTION_AUTH_RESERVED", st2, "COMPLETED", "NOT_EVALUATED",
+        actor="attacker", state_version=st2.state_version,
+        action_id="act_forge000001", action_type="prod-write",
+        action_target="db://prod/erp")
+    wp._PipelineDb.append_event(mgr2._db._conn, wp._seal_event(rid2, forged))
+    expect(PipelineCorruptionError, lambda: mgr2.get_run(rid2))
+    # 伪造面：合法审批预留后，攻击者拿别的 nonce_digest 移花接木 → 重放拒
+    store3, mgr3 = fresh()
+    rid3 = mgr3.create_run("task_adv11d", IDENT)["run_id"]
+    mgr3.advance_stage(rid3)
+    v3 = mgr3.get_run(rid3).state_version
+    risk_ap = make_risk(rid3, "task_adv11d", v3, stage="S1_REQUIREMENT",
+                        fingerprints=[])  # run 无登记 finding → 空覆盖面
+    assert mgr3.authorize_risk(rid3, risk_ap)["consumed"] is True
+    st3 = mgr3.get_run(rid3)
+    risk_digest = st3.consumed_nonce_types and next(
+        d for d, t in st3.consumed_nonce_types.items() if t == "risk")
+    forged2 = mgr3._base_event(
+        "ACTION_AUTH_RESERVED", st3, "COMPLETED", "NOT_EVALUATED",
+        actor="attacker", state_version=st3.state_version,
+        action_id="act_forge000002", action_type="prod-write",
+        action_target="db://prod/erp",
+        approval_id="apr_act_prod_write_stolen",
+        nonce_digest=risk_digest)  # 移花接木：拿 risk 消费的 nonce 冒充 prod_write
+    wp._PipelineDb.append_event(mgr3._db._conn, wp._seal_event(rid3, forged2))
+    expect(PipelineCorruptionError, lambda: mgr3.get_run(rid3))
     assert store.verify_chain()["ok"]
 
 # ====================================================================== #
@@ -656,7 +904,8 @@ TESTS = [
     ("#7 控制事件直写 → append 守卫+重放验封", adv7_control_event_injection),
     ("#8 第二正源 → APPROVAL_CONSUMED 事件为唯一正源", adv8_event_source_of_truth),
     ("#9 自产事件全过 run-event-v2（FormatChecker）", adv9_schema_roundtrip),
-    ("#10 action saga（outbox/receipt 对账/重放）", adv10_action_saga),
+    ("#10 action saga（授权链/outbox/receipt 分级对账/重放）", adv10_action_saga),
+    ("#11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门", adv11_action_auth_gate),
     ("K：wenquctl CLI 端到端链", adv_cli_end_to_end),
 ]
 if __name__ == "__main__":
