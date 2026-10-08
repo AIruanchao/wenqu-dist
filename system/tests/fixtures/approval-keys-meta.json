@@ -1,0 +1,28 @@
+{
+  "keys": {
+    "key_meta_active": "391eb016b8973d5fb30fe70a939ce86620c71aec93a2c0eaa4895aa33f21f65d",
+    "key_meta_rotated": "97589307dee0d07eece4c95ea2d2435d28232c7f636a16a46b9f9d01bf643c3d",
+    "key_meta_revoked": "6ce16a46f1d2a6f0b6ed1feb2442704abdbd974b5ff8c2d27340bfba5c8c2d7d"
+  },
+  "meta": {
+    "key_meta_active": {
+      "status": "active",
+      "created_at": "2026-10-01T00:00:00Z",
+      "description": "签发端元数据测试：active key"
+    },
+    "key_meta_rotated": {
+      "status": "rotated",
+      "created_at": "2026-09-01T00:00:00Z",
+      "rotated_at": "2026-10-01T00:00:00Z",
+      "rotated_to": "key_meta_active",
+      "description": "签发端元数据测试：rotated key（可验存量、不得签发）"
+    },
+    "key_meta_revoked": {
+      "status": "revoked",
+      "created_at": "2026-09-01T00:00:00Z",
+      "revoked_at": "2026-10-02T00:00:00Z",
+      "description": "签发端元数据测试：revoked key（验签即拒）"
+    }
+  },
+  "_comment": "P0-2 残余（审批签发端）测试专用 HMAC 密钥+生命周期元数据——仅用于 system/tests/test_approval_issue.py 的元数据加载/轮换/吊销语义断言；生产环境必须独立生成（python3 -c \"import secrets;print(secrets.token_hex(32))\"）并以 0600 权限与仓库/事件库物理隔离存放，严禁复用本文件密钥。动态生命周期（create/rotate/revoke 落盘与权限）一律用运行时临时目录实测，不依赖本静态夹具。"
+}

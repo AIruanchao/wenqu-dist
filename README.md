@@ -11,7 +11,7 @@ wenqu-dist/
 ├── cli/README.md        # CLI 用法（上游版）
 ├── probes/stations.json # 初始三域探测器（trap-double/guard-comment-swallow/cred-cli-expose）
 ├── docs/问渠轨道规范-发行版-v2.0.md  # ★先读这个——轨道规范（站/档/账本/收敛/探测器规约）
-└── tests/acceptance.sh   # 回归测试件（64 项验收面，含变异闭环+P1/P1b/P1c/P1d/P1e 五锚点；包内任何变更后跑它，全绿再发；项数随加固演进以脚本 RESULT 为准）
+└── tests/acceptance.sh   # 回归测试件（65 项验收面，含变异闭环+P1~P1f 六锚点；包内任何变更后跑它，全绿再发；项数随加固演进以脚本 RESULT 为准）
 ```
 
 ## 新仓接入（三步）

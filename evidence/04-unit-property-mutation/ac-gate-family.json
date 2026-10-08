@@ -5,6 +5,11 @@
     "passed": true
   },
   {
+    "id": "CI-06",
+    "test": "test_CI_06_codeowners_present_ruleset_not_enforced_doctor_error",
+    "passed": true
+  },
+  {
     "id": "CI-07",
     "test": "test_CI_07_unauthorized_app_same_context_untrusted_blocked",
     "passed": true
@@ -57,6 +62,21 @@
   {
     "id": "GATE-08",
     "test": "test_GATE_08_evidence_past_ttl_refused",
+    "passed": true
+  },
+  {
+    "id": "GATE-09",
+    "test": "test_GATE_09_convergence_rounds_domain_minus1_zero_over_cap_rejected",
+    "passed": true
+  },
+  {
+    "id": "GATE-10",
+    "test": "test_GATE_10_round_cap_n_plus_1_blocks_awaiting_human_adjudication",
+    "passed": true
+  },
+  {
+    "id": "GATE-11",
+    "test": "test_GATE_11_same_command_relabel_not_new_heterogeneous_round",
     "passed": true
   },
   {

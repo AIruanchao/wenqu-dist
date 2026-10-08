@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# wenqu-scheduler——W4 生产调度壳（终端/手动入口）。
+# 实体在 system/wenqu_core/scheduler.py 的生产接线节（纯标准库）；
+# 本壳只负责：定位 python3 + 设 PYTHONPATH 指向 system/ 后以
+# `python3 -m wenqu_core.scheduler tick` 运行。
+#
+# ⚠️ launchd 边界（2026-10-08 实测定案，见 macos-launchd-tcc-ops）：launchd
+# GUI 语境下 /bin/bash 无 ~/Documents TCC 读授权——本 bash 壳在 launchd 下
+# 必 exit 126 静默死。因此 com.wenqu.scheduler.plist 直用已授权的
+# /opt/homebrew/bin/python3 -m wenqu_core.scheduler tick（PYTHONPATH 经
+# plist EnvironmentVariables 注入）；本壳仅供终端手动调跑/排障。
+# 退出码：0=tick 完成（作业 verdict 体现在 gate/心跳/通知里）；
+#         2=tick 进程级故障（崩溃心跳已写 ~/.wenqu/observation/heartbeat.json）。
+set -uo pipefail
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYS_DIR="$(cd "$SELF_DIR/.." && pwd)"
+
+if [ -f "${SYS_DIR}/wenqu_core/scheduler.py" ]; then
+  SYS_ROOT="${SYS_DIR}"
+elif [ -f "${SYS_DIR}/lib/wenqu_core/scheduler.py" ]; then
+  SYS_ROOT="${SYS_DIR}"   # 安装体布局：<prefix>/bin -> <prefix>/lib/wenqu_core
+else
+  echo "wenqu-scheduler: wenqu_core/scheduler.py not found under ${SYS_DIR}" >&2
+  exit 2
+fi
+
+PY_BIN="${WENQU_PYTHON:-}"
+if [ -z "${PY_BIN}" ]; then
+  for cand in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+    if [ -x "${cand}" ]; then PY_BIN="${cand}"; break; fi
+  done
+fi
+if [ -z "${PY_BIN}" ]; then
+  echo "wenqu-scheduler: python3 not found" >&2
+  exit 2
+fi
+
+export PYTHONPATH="${SYS_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+export PYTHONUNBUFFERED=1
+exec "${PY_BIN}" -m wenqu_core.scheduler "$@"

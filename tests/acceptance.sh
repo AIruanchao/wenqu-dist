@@ -382,7 +382,7 @@ else
 fi
 
 echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
-P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run"
+P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
 P1F_COUNT=0
 P1F_FAIL=0
 for tf in $P1F_FILES; do
@@ -400,9 +400,22 @@ for tf in $P1F_FILES; do
   fi
 done
 if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
-  PASS_N=$((PASS_N+1)); echo "  ✅ 七专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+fi
+
+echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+  RA_RC=$?
+  if [ $RA_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
 fi
 
 echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="

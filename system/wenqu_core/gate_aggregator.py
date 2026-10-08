@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """统一 Gate 聚合器（Codex W3B；P0-3 二次加固：双契约消费 + dashboard 输出对齐；
-F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验）。
+F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验；
+F6 六轮加固：镜像 RFC3339 严格 date-time、重复站幂等等价键收紧
+（attempt_id+scope_hash+coverage+artifact 摘要全等）、manifest 范围绑定
+（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）。
 
 消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
 
@@ -52,7 +55,12 @@ outcome 别名表（大小写不敏感）：
     C2 任一站点证据 SHA 与 target_sha 不一致（或缺失、无法绑定目标）-> BLOCKED；
     C3 分母缩水：required 站未全部上报 -> BLOCKED；空 required_stations 同样 BLOCKED；
     C4 CONDITIONAL != PASS：条件通过永不映射为绿判定 / GitHub success；
-    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）。
+    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）；
+    C6 manifest 范围绑定（F6-GATE-SCOPE-001）：expected_scope_hash/
+       expected_denominator 给定时，逐站对账 identity.scope_hash 与
+       coverage.denominator——scope 缺失/不符、coverage 缺失/分母自报
+       （≠ manifest 冻结分母）、legacy 结果（无法证明 scope 绑定）一律
+       记 scope_binding_violation 并整线 BLOCKED。
 
 ## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
 
@@ -126,12 +134,14 @@ _GITHUB_STATE = {
 # date-time 检查注册后）结论必须一致。改 schema 文件时必须同步改这里。
 #
 # 与 jsonschema 的两处刻意差异（均有一致性自测护栏）：
-#   1. date-time：镜像无条件做严格 ISO-8601 解析（jsonschema 的 FormatChecker
+#   1. date-time：镜像无条件做严格 RFC3339 解析（jsonschema 的 FormatChecker
 #      在未安装 rfc3339-validator 时对 date-time 空转——自测按仓内既有惯例
-#      注册严格检查后对齐）；
+#      注册严格检查后对齐；F6-GATE-FORMAT-DUP-002：纯日期/无时区一律拒）；
 #   2. PASS 的 scanned==denominator：schema 侧以 const 级联（1..64）机器判定
 #      （draft-07 无法表达跨字段数值比较），分母>64 时不误拒合法全扫；镜像
-#      侧做全量无界等式判定（缩水无论多大必拒）。
+#      侧做全量无界等式判定（缩水无论多大必拒）。F6-SCHEMA-BOUND-001：
+#      65/66 等级联外缩水由本镜像机器强制红（schema $comment 已注记，
+#      复验正本 system/tests/test_gate_scope_binding.py）。
 _MIRROR_TOP_KEYS = frozenset({
     "schema_version", "run_id", "station_id", "attempt_id",
     "execution_status", "policy_verdict", "identity", "tool", "execution",
@@ -152,6 +162,11 @@ _MIRROR_EXEC_REQUIRED = (
 _MIRROR_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 _MIRROR_SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _MIRROR_CAS_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+# RFC3339 date-time：完整日期 + [Tt] 时间(可带小数秒) + 必带时区（Z/z 或 ±HH:MM）。
+# F6-GATE-FORMAT-DUP-002：纯日期（"2026-10-08"）、无时区（"2026-10-08T00:00:00"）、
+# 无时间部分一律拒——datetime.fromisoformat 单独使用会放过这些形态。
+_MIRROR_RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$")
 _MIRROR_EXEC_STATUS = frozenset(
     {"COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
 _MIRROR_VERDICTS = frozenset(
@@ -168,8 +183,16 @@ def _mirror_int(value: Any) -> bool:
 
 
 def _mirror_iso_datetime(value: Any) -> bool:
-    """format: date-time（严格 ISO-8601；Z/z 后缀按 UTC 接受）。"""
+    """format: date-time（RFC3339 严格：Z/z 后缀按 UTC 接受；纯日期/无时区拒）。
+
+    F6-GATE-FORMAT-DUP-002：镜像此前直接 fromisoformat，会放过纯日期
+    （"2026-10-08"）与无时区时间（"2026-10-08 00:00:00"）——两者都不是
+    RFC3339 date-time。先以结构正则把关，再交给 fromisoformat 校验日历
+    合法性（如 2026-02-30）。
+    """
     if not isinstance(value, str):
+        return False
+    if not _MIRROR_RFC3339_RE.match(value):
         return False
     text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
     try:
@@ -264,7 +287,8 @@ def mirror_validate_station_result_v2(result: Any) -> List[str]:
             _err("execution.argv_digest must be a string")
         for key in ("started_at", "ended_at"):
             if key in execution and not _mirror_iso_datetime(execution[key]):
-                _err(f"execution.{key} must be an ISO-8601 date-time")
+                _err(f"execution.{key} must be an RFC3339 date-time "
+                     "(full date+time+timezone; bare date/timezone-less rejected)")
         if "timeout_s" in execution and (
                 not _mirror_int(execution["timeout_s"])
                 or execution["timeout_s"] < 1):
@@ -337,7 +361,8 @@ def mirror_validate_station_result_v2(result: Any) -> List[str]:
             if coverage["scanned"] < 1:
                 _err("PASS coverage.scanned must be >= 1")
             # F4-SCHEMA-001 #2（分母缩水）：PASS 必须 scanned == denominator
-            # （schema 侧 const 级联 1..64 的无界镜像）
+            # （schema 侧 const 级联 1..64 的无界镜像——F6-SCHEMA-BOUND-001：
+            #   级联外（>64，如 65/66）同样由本等式机器强制红）
             if coverage["scanned"] != coverage["denominator"]:
                 _err("PASS coverage.scanned("
                      f"{coverage['scanned']}) != denominator("
@@ -379,15 +404,42 @@ class GateAggregator:
         verdict = agg.aggregate()          # 含 generated_at/policy_verdict（dashboard 契约）
         status = agg.to_github_status()    # {"state": ..., "conclusion": ..., "description": ...}
 
+    manifest 范围绑定（F6-GATE-SCOPE-001，正门路径）::
+
+        agg = GateAggregator(required_stations=manifest_required_set,
+                             target_sha=manifest.commit_sha,
+                             environment=manifest.environment,
+                             expected_scope_hash=manifest.identity.scope_hash,
+                             expected_denominator=manifest.scope.denominator)
+
     required_stations 兼容 int 站点号（自动归一为字符串键，如 2 -> "2"）。
+    expected_scope_hash/expected_denominator 必须成对提供（来自冻结
+    run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
+    逐站对账 scope 与分母，自报/缺失一律 BLOCKED（C6）。
     """
 
-    def __init__(self, required_stations: Set[str], target_sha: str, environment: str) -> None:
+    def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
+                 *, expected_scope_hash: Optional[str] = None,
+                 expected_denominator: Optional[int] = None) -> None:
         target_sha = str(target_sha or "").strip().lower()
         if not target_sha:
             raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
         if not isinstance(environment, str) or not environment:
             raise ValueError("environment is required: gate evidence must be bound to an environment")
+        if (expected_scope_hash is None) != (expected_denominator is None):
+            raise ValueError(
+                "expected_scope_hash 与 expected_denominator 必须成对提供"
+                "（manifest 范围绑定——F6-GATE-SCOPE-001）")
+        if expected_scope_hash is not None and (
+                not isinstance(expected_scope_hash, str)
+                or not expected_scope_hash.strip()):
+            raise ValueError("expected_scope_hash must be a non-empty string")
+        if expected_denominator is not None and (
+                isinstance(expected_denominator, bool)
+                or not isinstance(expected_denominator, int)
+                or expected_denominator < 1):
+            raise ValueError("expected_denominator must be an integer >= 1 "
+                             "(manifest scope denominator)")
 
         self.required_stations: frozenset = frozenset(
             str(s).strip() for s in required_stations
@@ -395,6 +447,8 @@ class GateAggregator:
         )
         self.target_sha: str = target_sha
         self.environment: str = environment
+        self.expected_scope_hash: Optional[str] = expected_scope_hash
+        self.expected_denominator: Optional[int] = expected_denominator
 
         # 内部登记簿
         self._stations: Dict[str, Dict[str, Any]] = {}
@@ -403,6 +457,7 @@ class GateAggregator:
         self._malformed: List[Dict[str, Any]] = []
         self._sha_violations: List[Dict[str, Any]] = []
         self._env_violations: List[Dict[str, Any]] = []
+        self._scope_violations: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------ #
     # 登记阶段
@@ -458,6 +513,7 @@ class GateAggregator:
         identity = station_result.get("identity")
         sha = ""
         environment = None
+        scope_hash_value: Optional[str] = None
         if isinstance(identity, Mapping):
             raw_sha = identity.get("commit_sha")
             if isinstance(raw_sha, str) and raw_sha.strip():
@@ -465,6 +521,9 @@ class GateAggregator:
             env_raw = identity.get("environment")
             if isinstance(env_raw, str):
                 environment = env_raw
+            raw_scope = identity.get("scope_hash")
+            if isinstance(raw_scope, str):
+                scope_hash_value = raw_scope
         else:
             # identity 缺失/非对象——schema_invalid 已记账（镜像 required:identity），
             # 这里继续提取其余字段并保持 C5 记账（宽松读不炸，聚合时 BLOCKED）
@@ -504,6 +563,28 @@ class GateAggregator:
                     "station": station,
                 })
 
+        # F6-GATE-FORMAT-DUP-002：重复站幂等等价键的原料（宽松提取，None=缺失）
+        attempt_raw = station_result.get("attempt_id")
+        attempt_value = attempt_raw if isinstance(attempt_raw, str) else None
+        coverage_value: Optional[Dict[str, Any]] = None
+        raw_coverage = station_result.get("coverage")
+        if isinstance(raw_coverage, Mapping):
+            raw_exclusions = raw_coverage.get("exclusions")
+            coverage_value = {
+                "denominator": raw_coverage.get("denominator"),
+                "scanned": raw_coverage.get("scanned"),
+                "exclusions": (tuple(raw_exclusions)
+                               if isinstance(raw_exclusions, list)
+                               else raw_exclusions),
+            }
+        raw_artifacts = station_result.get("artifacts")
+        artifact_digests: Optional[tuple] = None
+        if isinstance(raw_artifacts, list):
+            artifact_digests = tuple(
+                item.get("cas_digest") if isinstance(item, Mapping) else None
+                for item in raw_artifacts
+            )
+
         return {
             "station": station,
             "outcome": outcome,
@@ -515,6 +596,10 @@ class GateAggregator:
             "execution_status": execution_status or None,
             "policy_verdict_raw": policy_verdict or None,
             "schema_valid": not schema_errors,
+            "attempt_id": attempt_value,
+            "scope_hash": scope_hash_value,
+            "coverage": coverage_value,
+            "artifact_digests": artifact_digests,
         }
 
     def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
@@ -548,7 +633,76 @@ class GateAggregator:
             "execution_status": None,
             "policy_verdict_raw": None,
             "schema_valid": True,
+            # legacy 无 attempt/scope/coverage/artifact——重复等价键退化为
+            # outcome+sha+environment（历史语义），manifest 绑定下记 C6 违规
+            "attempt_id": None,
+            "scope_hash": None,
+            "coverage": None,
+            "artifact_digests": None,
         }
+
+    def _resend_equivalent(self, previous: Dict[str, Any],
+                           entry: Dict[str, Any]) -> bool:
+        """重复站幂等等价键（F6-GATE-FORMAT-DUP-002）。
+
+        v2：attempt_id + scope_hash + coverage（分母/扫描/排除）+ artifact
+        cas_digest 摘要序列 + （历史基线）outcome/sha/environment 全等才算
+        幂等重发；任一不等 -> duplicate_conflict（aggregate 时 BLOCKED）。
+        旧键只有 outcome/sha/environment——同站两次自报不同分母/不同批次
+        工件曾被静默择优（首条为准），此处收紧为冲突。
+        legacy：无 attempt/coverage/artifact 概念，维持历史等价键。
+        """
+        if (previous["outcome"] != entry["outcome"]
+                or previous["sha"] != entry["sha"]
+                or previous["environment"] != entry["environment"]
+                or previous["input_version"] != entry["input_version"]):
+            return False
+        if previous["input_version"] != "v2":
+            return True
+        return (previous.get("attempt_id") == entry.get("attempt_id")
+                and previous.get("scope_hash") == entry.get("scope_hash")
+                and previous.get("coverage") == entry.get("coverage")
+                and previous.get("artifact_digests")
+                == entry.get("artifact_digests"))
+
+    def _reconcile_manifest_binding(self, station: str,
+                                    entry: Dict[str, Any]) -> None:
+        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
+
+        expected_scope_hash/expected_denominator 给定时：identity.scope_hash
+        必须等于冻结值；coverage.denominator 必须等于 manifest 冻结分母
+        （缺失/自报一律违规）；legacy 结果无法证明 scope 绑定——同样违规。
+        """
+        assert self.expected_scope_hash is not None  # 调用点已保证
+        if entry.get("input_version") != "v2":
+            self._scope_violations.append({
+                "station": station,
+                "reason": "legacy_result_not_manifest_bound",
+                "detail": "manifest 正门只接受 station-result-v2"
+                          "（legacy 结果无法证明 scope 绑定）",
+            })
+            return
+        scope = entry.get("scope_hash")
+        if scope != self.expected_scope_hash:
+            self._scope_violations.append({
+                "station": station,
+                "reason": "missing_scope_hash" if scope is None
+                          else "scope_hash_mismatch",
+                "scope_hash": scope,
+                "expected": self.expected_scope_hash,
+            })
+        coverage = entry.get("coverage")
+        denominator = (coverage.get("denominator")
+                       if isinstance(coverage, Mapping) else None)
+        if denominator != self.expected_denominator:
+            self._scope_violations.append({
+                "station": station,
+                "reason": ("missing_coverage_denominator"
+                           if denominator is None
+                           else "self_declared_denominator"),
+                "denominator": denominator,
+                "expected": self.expected_denominator,
+            })
 
     def add(self, station_result: dict) -> "GateAggregator":
         """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
@@ -556,8 +710,9 @@ class GateAggregator:
         v2 条目先过镜像校验器（F4-GATE-001）：schema-invalid 一律记 malformed
         并强制该站 BLOCKED——聚合输出必为 BLOCKED、technical_eligible=false。
 
-        重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
-        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+        重复站点（F6-GATE-FORMAT-DUP-002）：幂等等价键（attempt_id+scope_hash+
+        coverage+artifact 摘要+outcome/sha/environment）全等才视为幂等重发
+        （忽略）；否则 duplicate_conflict——aggregate() 时 BLOCKED，绝不静默择优。
         """
         if not isinstance(station_result, Mapping):
             self._malformed.append(
@@ -575,12 +730,7 @@ class GateAggregator:
 
         previous = self._stations.get(station)
         if previous is not None:
-            identical = (
-                previous["outcome"] == entry["outcome"]
-                and previous["sha"] == entry["sha"]
-                and previous["environment"] == entry["environment"]
-            )
-            if identical:
+            if self._resend_equivalent(previous, entry):
                 self._duplicates.append(station)
             else:
                 self._conflicts.append({"station": station, "first": previous, "second": entry})
@@ -604,6 +754,9 @@ class GateAggregator:
                 "environment": entry["environment"],
                 "expected": self.environment,
             })
+        # C6：manifest 范围绑定逐站对账（正门路径激活时）
+        if self.expected_scope_hash is not None:
+            self._reconcile_manifest_binding(station, entry)
         return self
 
     # ------------------------------------------------------------------ #
@@ -619,7 +772,7 @@ class GateAggregator:
             hard = True
             reasons.append(reason)
 
-        # 1) C2/C5：证据完整性硬门
+        # 1) C2/C5/C6：证据完整性硬门
         if self._sha_violations:
             detail = "; ".join(f"{v['station']}:{v['reason']}" for v in self._sha_violations)
             block(f"sha_evidence_violation [{detail}]")
@@ -632,7 +785,14 @@ class GateAggregator:
                   f"[first={self._malformed[0]['reason']}]")
         if self._conflicts:
             names = ",".join(sorted({c["station"] for c in self._conflicts}))
-            block(f"duplicate_station_conflict [{names}]")
+            block(f"duplicate_station_conflict/duplicate_conflict [{names}] "
+                  "(attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)")
+        if self._scope_violations:
+            detail = "; ".join(
+                f"{v['station']}:{v['reason']}" for v in self._scope_violations)
+            block(f"scope_binding_violation [{detail}] "
+                  "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
+                  "必须对账冻结 manifest)")
 
         # 2) C3：分母缩水（required 站未全部上报）；空 required 同样拒绝（无真空 PASS）
         reported = set(self._stations)
@@ -678,11 +838,18 @@ class GateAggregator:
                 "environment_ok": e["environment"] == self.environment,
                 "input_version": e["input_version"],
                 "schema_valid": e.get("schema_valid", True),
+                **({
+                    "scope_bound": e.get("scope_hash") == self.expected_scope_hash,
+                    "denominator_bound": (
+                        isinstance(e.get("coverage"), Mapping)
+                        and e["coverage"].get("denominator")
+                        == self.expected_denominator),
+                } if self.expected_scope_hash is not None else {}),
             }
             for s, e in sorted(self._stations.items())
         }
 
-        return {
+        result: Dict[str, Any] = {
             # dashboard/server.py read_gate_aggregate() 强制要求的契约字段（P0-3 修）
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "policy_verdict": outcome,
@@ -699,11 +866,22 @@ class GateAggregator:
                 "duplicates_ignored": len(self._duplicates),
                 "conflicts": len(self._conflicts),
                 "malformed": len(self._malformed),
+                **({"scope_violations": len(self._scope_violations)}
+                   if self.expected_scope_hash is not None else {}),
             },
             "stations": stations_summary,
             "target_sha": self.target_sha,
             "environment": self.environment,
         }
+        if self.expected_scope_hash is not None:
+            result["scope_binding"] = {
+                "mode": "manifest",
+                "expected_scope_hash": self.expected_scope_hash,
+                "expected_denominator": self.expected_denominator,
+            }
+        else:
+            result["scope_binding"] = {"mode": "self_declared"}
+        return result
 
     def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """映射为 GitHub 状态：Commit Status `state` + Checks API `conclusion` 双口径。

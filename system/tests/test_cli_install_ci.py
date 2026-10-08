@@ -184,7 +184,8 @@ def test_h3_gate_two_legal_v2_pass_exit_0():
         os.makedirs(batch)
         _write(_mk_v2(7), os.path.join(batch, "s7.json"))
         r = _run_ctl(["gate", "--results",
-                      os.path.join(td, "s2.json"), batch], cwd=td)
+                      os.path.join(td, "s2.json"), batch,
+                      "--allow-self-declared"], cwd=td)
         _ck("H3 两合法 v2 站 -> rc=0", r.returncode == 0,
             f"rc={r.returncode} {_tail(r.stderr)}")
         try:
@@ -210,7 +211,8 @@ def test_h3_gate_malformed_result_blocked_exit_2():
         bad.pop("artifacts")       # 残缺：PASS 无工件凭证
         _write(bad, os.path.join(td, "bad.json"))
         r = _run_ctl(["gate", "--results", os.path.join(td, "s2.json"),
-                      os.path.join(td, "bad.json")], cwd=td)
+                      os.path.join(td, "bad.json"),
+                      "--allow-self-declared"], cwd=td)
         _ck("H3 残缺结果 -> rc=2", r.returncode == 2,
             f"rc={r.returncode} {_tail(r.stderr)}")
         try:
@@ -227,7 +229,8 @@ def test_h3_gate_missing_required_station_blocked_exit_2():
     with tempfile.TemporaryDirectory(prefix="wq_h3c_") as td:
         _write(_mk_v2(2), os.path.join(td, "s2.json"))
         r = _run_ctl(["gate", "--results", os.path.join(td, "s2.json"),
-                      "--required", "2,7"], cwd=td)
+                      "--required", "2,7",
+                      "--allow-self-declared"], cwd=td)
         _ck("H3 required 站缺报（只报 2 缺 7）-> rc=2", r.returncode == 2,
             f"rc={r.returncode} {_tail(r.stderr)}")
         try:
@@ -243,8 +246,8 @@ def test_h3_gate_missing_required_station_blocked_exit_2():
 def test_h3_gate_exit_code_map_conditional_and_error():
     with tempfile.TemporaryDirectory(prefix="wq_h3d_") as td:
         _write(_mk_v2(4, verdict="CONDITIONAL"), os.path.join(td, "cond.json"))
-        r = _run_ctl(["gate", "--results", os.path.join(td, "cond.json")],
-                     cwd=td)
+        r = _run_ctl(["gate", "--results", os.path.join(td, "cond.json"),
+                     "--allow-self-declared"], cwd=td)
         _ck("H3 CONDITIONAL -> rc=1（软条件绝不上绿）", r.returncode == 1,
             f"rc={r.returncode} {_tail(r.stderr)}")
         r2 = _run_ctl(["gate", "--results", os.path.join(td, "nope.json")],

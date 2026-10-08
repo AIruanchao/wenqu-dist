@@ -229,7 +229,8 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 </div>
 <script>
 async function j(u){const r=await fetch(u);return r.json()}
-function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
+function _htmlEsc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function el(h){const d=document.createElement('div');d.innerHTML=h;return d} // el 模板由调用方保证已转义；外部数据必须先 _htmlEsc
 function showTab(t){
   for(const id of['ov','pipe','deck','bugdeck'])document.getElementById(id).style.display=t==id?'':'none';
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.t==t));
@@ -470,6 +471,9 @@ loadTrend();setInterval(()=>loadTrend().catch(()=>{}),120000);
 try{
   const es=new EventSource('/api/bugscan-sse');
   es.addEventListener('ledger',()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{})});
+  // W11 SSE 断线对账：重连后拉 REST Snapshot 校验一致性（事件可能丢失→全量刷新兜底）
+  es.onopen=()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{});refresh().catch(()=>{})};
+  es.onerror=()=>{/* EventSource 自动重连；重连成功走 onopen 对账 */};
 }catch(e){}
 async function refresh(){
   const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -486,18 +490,18 @@ async function refresh(){
   const d=await j('/api/daemons');const db=document.getElementById('daemon');db.innerHTML='';
   const ds=Object.entries(d.daemons);
   if(!ds.length)db.innerHTML='<span class="dim">无运行中守护（wenqu start）</span>';
-  for(const[n,s]of ds)db.appendChild(el(`<div class="row"><span>${n}</span><span class="${s=='运行中'?'ok':'bad'}">${s}</span></div>`));
+  for(const[n,s]of ds)db.appendChild(el(`<div class="row"><span>${_htmlEsc(n)}</span><span class="${s=='运行中'?'ok':'bad'}">${_htmlEsc(s)}</span></div>`));
   document.getElementById('cronline').textContent=`定时哨兵：${d.cron} 条`;
   const r=await j('/api/ratchet');const rb=document.getElementById('ratchet');
   rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
   if(r.available){rb.innerHTML='';
-    for(const[l,v]of Object.entries(r.layers))rb.appendChild(el(`<div class="row"><span>${l}</span><span>${v.clones} 克隆 / ${v.rate}%</span></div>`))}
+    for(const[l,v]of Object.entries(r.layers))rb.appendChild(el(`<div class="row"><span>${_htmlEsc(l)}</span><span>${_htmlEsc(v.clones)} 克隆 / ${_htmlEsc(v.rate)}%</span></div>`))}
   const rd=await j('/api/rounds');const rbox=document.getElementById('rounds');
   {const prevR=window.__lastRounds;const n=rd.rounds.length;
    if(prevR!=null&&n>prevR){rbox.classList.remove('flash');void rbox.offsetWidth;rbox.classList.add('flash');}
    window.__lastRounds=n;}
   rbox.innerHTML='';
-  for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
+  for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${_htmlEsc(x.label||'')}"><span class="dim" style="flex:0 0 76px">${_htmlEsc(x.ts||'')}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_htmlEsc(x.label)}</span></div>`));
   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
   for(const[n,t]of Object.entries(lg)){const h2=document.createElement('h2');h2.style.marginTop='8px';h2.textContent=n;lbox.appendChild(h2);const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p);}
   const h=await j('/api/health');const hbox=document.getElementById('health');
@@ -696,6 +700,59 @@ def _fold_project(f, by_day=None):
 
 _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
+
+# ── CacheRegistry（W10 统一缓存：mtime+TTL+singleflight 合一）──
+class _CacheEntry:
+    __slots__ = ("data", "ts", "stamp", "lock")
+    def __init__(self):
+        self.data = None
+        self.ts = 0.0
+        self.stamp = None  # mtime 签名（可选）
+        self.lock = threading.Lock()
+
+_CACHE = {}  # name → _CacheEntry
+_CACHE_GUARD = threading.Lock()
+
+def cache_get(name, ttl=None, stamp=None, loader=None):
+    """统一缓存入口——W10 CacheRegistry。
+    ttl=None → 纯 mtime 签名模式（stamp 不变返回缓存）
+    stamp=None → 纯 TTL 模式（ttl 秒内返回缓存）
+    loader() → 缓存 miss 时加载函数（singleflight：并发只一路执行）
+    """
+    with _CACHE_GUARD:
+        e = _CACHE.setdefault(name, _CacheEntry())
+    # 快路径（无锁）
+    if e.data is not None:
+        if ttl is None and stamp is not None and e.stamp == stamp:
+            return e.data
+        if ttl is not None and stamp is None and time.time() - e.ts < ttl:
+            return e.data
+    # 慢路径（singleflight）
+    with e.lock:
+        if e.data is not None:
+            if ttl is None and stamp is not None and e.stamp == stamp:
+                return e.data
+            if ttl is not None and stamp is None and time.time() - e.ts < ttl:
+                return e.data
+        data = loader() if loader else None
+        if data is not None:
+            e.data = data
+            e.ts = time.time()
+            e.stamp = stamp
+        return data
+
+def cache_invalidate(*names):
+    """指定缓存失效（写操作后调用）。"""
+    for n in names:
+        with _CACHE_GUARD:
+            e = _CACHE.get(n)
+        if e:
+            with e.lock:
+                e.data = None
+                e.ts = 0.0
+                e.stamp = None
+
+_SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
 _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
 _SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
 _SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
@@ -735,16 +792,17 @@ def bugscan_ledger():
         return {"available": False}
     files = _ledger_files(root)
     stamp = frozenset(files.items())
-    with _LEDGER_LOCK:
-        if _LEDGER_CACHE["stamp"] == stamp:
-            return _LEDGER_CACHE["data"]
+
+    def _load():
         try:
-            data = _bugscan_ledger_impl(files)
-        except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
-            return {"available": False, "error": f"{type(e).__name__}: {e}"}
-        _LEDGER_CACHE["stamp"] = stamp
-        _LEDGER_CACHE["data"] = data
-        return data
+            return _bugscan_ledger_impl(files)
+        except Exception:
+            return None  # fail-soft：不缓存错误
+
+    result = cache_get("ledger", stamp=stamp, loader=_load)
+    if result is None:
+        return {"available": False}
+    return result
 
 
 def _bugscan_ledger_impl(files):

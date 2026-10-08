@@ -1,11 +1,11 @@
 {
   "artifact": "ac-state-mig",
-  "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py；不依赖 wenqu_pipeline）",
+  "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（A 组被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py，不依赖 wenqu_pipeline；B 组（STATE-02/05/09/11，wave6/P1F）被测体：wenqu_core/wenqu_pipeline.py）",
   "exit_code": 0,
-  "finished_at": "2026-10-08T08:48:45.263354+00:00",
+  "finished_at": "2026-10-08T10:13:38.893536+00:00",
   "fixture_note": "MIG 族旧账均为本测试内构造的小型合成旧账（临时目录），非生产账本；STATE-04 崩溃注入为真实 SIGKILL 子进程。",
-  "generated_at": "2026-10-08T08:48:45.263399+00:00",
-  "git_head": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
+  "generated_at": "2026-10-08T10:13:38.893568+00:00",
+  "git_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
   "results": {
     "MIG-01": {
       "coverage_boundary": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
@@ -24,6 +24,7 @@
         "write_api": "EventStore.append"
       },
       "name": "坏 JSON/未知状态 → quarantine+BLOCKED",
+      "passed": true,
       "verdict": "PASS"
     },
     "MIG-02": {
@@ -38,6 +39,7 @@
         "reopen_channel": "quarantine + sidecar 预览（人工再录）"
       },
       "name": "缺审批信息的 ACCEPTED → invalid/reopen",
+      "passed": true,
       "verdict": "PASS"
     },
     "MIG-03": {
@@ -58,6 +60,7 @@
         "source_bytewise_unchanged": true
       },
       "name": "两次迁移 → 结果幂等一致",
+      "passed": true,
       "verdict": "PASS"
     },
     "MIG-04": {
@@ -79,12 +82,31 @@
         "unwritable_sidecar": "迁移失败，pipeline_events=0、migration_runs=0"
       },
       "name": "源行数不守恒 → 迁移失败",
+      "passed": true,
       "verdict": "PASS"
     },
     "MIG-05": {
+      "coverage_boundary": "测迁移器最小实现面（P0-6 第六轮 MIG-05 落地）：PROJECT_FIELDS 一致性提取 + 多 project 身份字段值不一致 → project_key_conflict 显式 quarantine（绝不静默选边/拆成假项目）+ 一致时 project_id 贯通进事件负载。§21.1 canonical repo_id（forge_host+owner/repo）冻结映射表与 fingerprint collision 表不在被测体（编排层职责），本文件不越界",
+      "detail": {
+        "boundary": "§21.1 canonical repo_id 冻结映射/fingerprint collision 表在编排层（不在被测体）",
+        "conflict_rows_quarantined": 3,
+        "conflict_values_in_db": 0,
+        "idempotent_rerun": {
+          "duplicates": 4,
+          "imported": 0,
+          "quarantined": 3
+        },
+        "imported_with_project": 3,
+        "imported_without_project_key": 1,
+        "project_key_conflict_reasons": [
+          "project_key_conflict:project=wenqu!=task=erp-main",
+          "project_key_conflict:project_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!=repo=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "project_key_conflict:project_id=repo-a!=repo=repo-b"
+        ]
+      },
       "name": "project key 冲突 → 明确冲突，不拆成假项目",
-      "reason": "ledger_migrator.py 全文无 project 概念（grep 'project' 零命中）：迁移按行内容寻址判重（event_id=canonical payload SHA256，P0-6 第六轮经 EventStore.append 导入统一 pipeline_events 表），不存在 project key 的映射/冲突检测/报错路径。该语义未实现，无法真实注入",
-      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+      "passed": true,
+      "verdict": "PASS"
     },
     "STATE-01": {
       "coverage_boundary": "测 store 层 schema 边界：携带任意 stage/status 的管线控制事件（RUN_*/STAGE_*/ATTEMPT_* 等 event_type）经公共 EventStore.append 一律 ValueError；attempt 状态枚举校验在 wenqu_pipeline（禁 import，不越界）",
@@ -100,12 +122,25 @@
         "rejected_combinations": 408
       },
       "name": "任意 stage/status → schema 拒绝",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-02": {
-      "name": "`../`、绝对路径、NUL、超长 ID → 拒绝",
-      "reason": "store.py 的 EventStore 没有任何调用方可控 ID/路径参数——event_id 由 canonical payload 哈希自动生成（store.py append），db_path 是构造器参数且不做校验（属运维输入，非不可信输入面）；ledger_migrator.py 同样没有 ID 概念。『拒绝 ../、绝对路径、NUL、超长 ID』的 ID 校验语义在被测体中不存在（wenqu_pipeline 的 _validate_identity 只校验非空/40-hex/environment 枚举，亦无路径/NUL/长度面，且该模块本文件禁 import）",
-      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+      "coverage_boundary": "测 wenqu_pipeline 三个调用方可控 ID 面：create_run task_id（^字母数字/-/_ 且 ≤64，既有）、register_finding finding_id（^fnd_ 且 ≤64，wave6 补长度面）、全部公开 API 的 run_id（^run_[A-Za-z0-9_-]+$ 且 ≤64，wave6 新增 _validate_run_id 闸口）。../、绝对路径、NUL、超长一律结构层拒绝。store 层 event_id 是 canonical payload 内容哈希（STATE-03/04 已实证无调用方输入面），故注入面落在管线 ID 校验；审批信封内 stop_event_id 等绑定字段属 AUTH 族（AUTH-01/COND-02 已覆盖），不在本 ID 范围",
+      "detail": {
+        "bad_id_events_written": 0,
+        "rejected_id_kinds": 8,
+        "surfaces": [
+          "create_run.task_id",
+          "public API run_id (get/advance/cancel/complete/adjudicate)",
+          "register_finding.finding_id"
+        ],
+        "valid_ids_pass": true,
+        "wellformed_unknown_run": "RunNotFoundError（结构校验通过）"
+      },
+      "name": "../、绝对路径、NUL、超长 ID → 拒绝（wenqu_pipeline ID 面）",
+      "passed": true,
+      "verdict": "PASS"
     },
     "STATE-03": {
       "detail": {
@@ -117,6 +152,7 @@
         "writers": 100
       },
       "name": "100×100 并发写 → 零丢失/重复",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-04": {
@@ -191,12 +227,25 @@
         "verdict": "每次崩溃后：链完好，行数=已提交事务数（全有或全无）"
       },
       "name": "事务各点 kill -9 → 全有或全无",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-05": {
-      "name": "双 writer epoch → 所有写入拒绝",
-      "reason": "全仓 grep 无 writer epoch/fencing 实现：store.py 无 epoch 字段/比较，wenqu_pipeline 亦无（grep 'epoch' 仅命中 scheduler 时间换算与审批 issued/expires）。『旧 epoch writer 的所有写入被拒』这一产品语义未实现，无法对 store/ledger_migrator 做真实注入",
-      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+      "coverage_boundary": "fenced 写者（RunManager(writer_epoch=N)）的控制事件带 writer_epoch 扩展字段——超出冻结 run-event-v2 词表（默认/未启用模式零盖章、零比较、字节级兼容，P0-4 对抗 #9 的 schema 全绿面不受影响）——schema 升版登记为后续工作包；fencing 作用域=单 run 事件流（被接管流对旧 epoch writer 全写入拒绝，含 broker 消费路径 loader 栅栏；新流/新 run 不受旧租约牵连，本用例显式验证该边界）；epoch 唯一性由租约发放方保证（同 epoch=同租约不区分实例）",
+      "detail": {
+        "boundary": "fencing 作用域=单 run 事件流；fenced 事件带 writer_epoch 扩展字段（超出冻结 run-event-v2 词表，默认模式零变化）",
+        "broker_paths_fenced": [
+          "resume_waiting",
+          "authorize_risk"
+        ],
+        "old_epoch_replay": "PipelineCorruptionError（链完好）",
+        "side_effects_after_rejections": "zero（版本/状态/消费面不变）",
+        "stale_writer_apis_rejected": 8,
+        "unfenced_writer_rejected": true
+      },
+      "name": "双 writer epoch → 所有写入拒绝（wenqu_pipeline fencing）",
+      "passed": true,
+      "verdict": "PASS"
     },
     "STATE-06": {
       "coverage_boundary": "测 store 层：SUPERSEDED 属控制事件不可裸 append 伪造；WAITING 残留事件行不可 UPDATE/DELETE 静默消除，唯一出路是追加新事件。残留清扫与 SUPERSEDED 控制事件的实际签发在 RunManager（wenqu_pipeline，禁 import）",
@@ -208,6 +257,7 @@
         "silent_update": "rejected (append-only trigger)"
       },
       "name": "WAITING 终态残留 → SUPERSEDED 事件，不静默删",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-07": {
@@ -220,6 +270,7 @@
         "update_path": "rejected"
       },
       "name": "普通事件把 PASSED 改回 RUNNING → 拒绝",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-08": {
@@ -235,12 +286,26 @@
         "overwrite_attempt": "rejected"
       },
       "name": "FAILED 重试 → 新 attempt，旧证据不覆盖",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-09": {
-      "name": "SHA/scope/policy 变化 → 强制新 run",
-      "reason": "run 身份绑定（identity.commit_sha/scope_hash/policy_hash 校验、InvalidIdentityError、变化即拒绝复用 run）全部实现在 wenqu_pipeline RunManager/_validate_identity；store.py 事件负载对身份字段完全透明。该模块被工单禁止 import，且并行 agent 正在改它，本文件不越界测它",
-      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+      "coverage_boundary": "测重放侧 identity 不变量：RUN_CREATED 冻结身份后，流内任何事件携带漂移 identity（SHA/scope/policy 任一变化）或缺 identity 即 PipelineCorruptionError；『强制新 run』正道（supersede 旧 run + 新 identity 新建 run，不变量 #3）以正例激活。写入侧 identity 结构校验（_validate_identity：40-hex/枚举/必填）为既有语义由正常流隐式覆盖；审批跨 SHA/scope/policy 的绑定拒绝属 COND-02/AUTH-02 面（已覆盖）",
+      "detail": {
+        "chain_verified": true,
+        "drift_events_replay": "PipelineCorruptionError（旧流无换身份路径）",
+        "drift_fields_rejected": [
+          "commit_sha",
+          "policy_hash",
+          "scope_hash",
+          "(missing identity)"
+        ],
+        "forced_new_run": "supersede SUPERSEDED + 新 identity 新 run，旧 run 终态后 TerminalRunError",
+        "identity_consistent_events": "正常折叠（对照正例）"
+      },
+      "name": "SHA/scope/policy 变化 → 强制新 run（重放侧 identity 不变量）",
+      "passed": true,
+      "verdict": "PASS"
     },
     "STATE-10": {
       "coverage_boundary": "测 store 层前半句：WAITING/FAILED attempt 直接改回 RUNNING 的两条路（UPDATE 行 / 伪造控制事件）全拒；追加新 attempt 事件成功且旧行保留。后半句 stage projection 指向新 attempt 在 RunManager（禁 import）",
@@ -255,21 +320,33 @@
         ]
       },
       "name": "WAITING/FAILED attempt 直接改回 RUNNING → 拒绝；追加新 attempt 后由 stage projection 指向它",
+      "passed": true,
       "verdict": "PASS"
     },
     "STATE-11": {
-      "name": "S7 CONDITIONAL 缺 risk authorization → S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING",
-      "reason": "S7 终判聚合与 risk authorization 消费（consume_authorization/has_unexpired_risk_authorization）全部实现在 wenqu_pipeline ApprovalBroker/RunManager；store.py 只有控制事件类型守卫这一个相邻机制（已由本文件其他用例覆盖）。仅凭守卫硬凑 S7 语义即冒充，不凑",
-      "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
+      "coverage_boundary": "complete_run 对『软终态缺可用授权』的 fail-closed 拒绝保持不变（P0-2 既有测试断言不回退）；终判 FAILED 由 wave6 专属裁决口 adjudicate_gate_conditional 承接（S7 软终态 + 无已消费/未过期/指纹匹配授权 → RUN_COMPLETED/COMPLETED/FAIL）。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL 留档），终判落在 run 层；gate_aggregator 的 technical eligibility/context failure 属 COND-01 面（已覆盖）",
+      "detail": {
+        "complete_run_semantics": "fail-closed 拒绝保持不变（不回退）",
+        "final_verdict": {
+          "S7_attempt": "COMPLETED_CONDITIONAL（证据不可变留档）",
+          "run": "FAILED"
+        },
+        "late_authorizations": "authorize_risk/resume_waiting 均 ApprovalRejected（run 终态无目标）",
+        "new_run_path": "新 run + 新批准（新 run_id/CAS）→ COMPLETED_CONDITIONAL；旧批准跨 run 拒",
+        "post_terminal_writes": "全拒（TerminalRunError×6 + 重放侧 WAITING_RAISED Corruption）"
+      },
+      "name": "S7 CONDITIONAL 缺 risk authorization → 终判 FAILED；后续批准只能创建新 run，不得写 WAITING",
+      "passed": true,
+      "verdict": "PASS"
     }
   },
   "run_command": "python3 system/tests/test_ac_state_mig.py",
-  "started_at": "2026-10-08T08:48:41.744750+00:00",
+  "started_at": "2026-10-08T10:13:35.438559+00:00",
   "summary": {
     "failed": 0,
     "ids_total": 16,
-    "implemented_and_passed": 11,
-    "not_implementable_in_scope": 5
+    "implemented_and_passed": 16,
+    "not_implementable_in_scope": 0
   },
   "test_file": "system/tests/test_ac_state_mig.py"
 }

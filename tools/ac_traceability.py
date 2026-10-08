@@ -14,6 +14,16 @@
   python3 tools/ac_traceability.py --plan PATH     # 用真实方案文件交叉校验 ID 集合（可选）
   python3 tools/ac_traceability.py --check         # 目录完整性失败时 exit 2（CI 用）
 
+F6-TRC-PARSER-002（2026-10-08 Codex 第六轮根修，parser fail-open 全闭）：
+  - --plan 给定（含默认路径）但文件不存在 → problem → --check exit 2
+    （旧版静默 SKIP——方案文件被删/挪时 --check 仍全绿）；
+  - PLAN_SHA256 对方案文件实算并比对（方案文件任何字节变化 → problem →
+    exit 2；meta 落 plan_sha256_actual/plan_sha256_match）；
+  - §20 表格重复行检出报 problem：重复相同行、同 ID 异内容行（先毒后正/
+    先正后毒——旧版后行覆盖前行，投毒行可被后置正行掩蔽）一律 problem；
+  - 集合校验失败（目录完整性/§20/§25.1/哈希任一）时 meta.catalog_integrity
+    一律 FAIL（旧版仅目录完整性参与该字段，方案交叉校验失败仍标 OK）。
+
 判定口径（诚实优先）：
   implemented=true  仅当：某测试文件中存在「以该 ID 命名/标注的测试函数或用例」
       （.py: ID 出现在 test_*/selftest 函数体内或函数名含 ID；.sh: ID 字面量出现在测试脚本中）。
@@ -23,6 +33,7 @@
 """
 import argparse
 import ast
+import hashlib
 import json
 import os
 import re
@@ -317,6 +328,10 @@ def cross_check_plan(plan_path, catalog):
     (ID, 注入, 期望)，与冻结目录（ID_DEFS 转录）做归一化语义比对：
     去首尾空白、markdown 反引号剥离、全半角标点归一、连续空白折叠。
     任一 ID 语义漂移 → semantic problems → --check exit 2。
+
+    F6-TRC-PARSER-002 根修（Codex 第六轮实锤）：表格行重复检出报 problem——
+    重复相同行（整表任何 ID 出现两行）与同 ID 异内容行（先毒后正/先正后毒，
+    旧版 dict 后行覆盖前行=投毒行可被正行掩蔽的 fail-open）一律 problem。
     """
     try:
         with open(plan_path, encoding="utf-8") as f:
@@ -337,10 +352,25 @@ def cross_check_plan(plan_path, catalog):
     row_re = re.compile(
         r"^\|\s*([A-Z]{2,5}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$")
     plan_semantics = {}
+    duplicate_rows = []
     for line in body.splitlines():
         mm = row_re.match(line)
-        if mm:
-            plan_semantics[mm.group(1)] = (mm.group(2), mm.group(3))
+        if not mm:
+            continue
+        tid = mm.group(1)
+        content = (mm.group(2), mm.group(3))
+        if tid in plan_semantics:
+            first = plan_semantics[tid]
+            if (_norm_semantic(first[0]) == _norm_semantic(content[0])
+                    and _norm_semantic(first[1]) == _norm_semantic(content[1])):
+                duplicate_rows.append(
+                    f"§20 表格 {tid} 存在重复相同行（重复行一律 problem）")
+            else:
+                duplicate_rows.append(
+                    f"§20 表格 {tid} 重复 ID 行且内容不一致"
+                    "（先毒后正/先正后毒——后行覆盖前行的 fail-open 已闭）")
+        plan_semantics[tid] = content
+    semantic_problems.extend(duplicate_rows)
     if not plan_semantics:
         semantic_problems.append("§20 表格解析出 0 行数据行（格式漂移？）")
     for tid in sorted(frozen):
@@ -368,6 +398,7 @@ def cross_check_plan(plan_path, catalog):
         "semantic_ok": not semantic_problems,
         "semantic_problems": semantic_problems,
         "semantic_rows_parsed": len(plan_semantics),
+        "duplicate_row_count": len(duplicate_rows),
     }
 
 
@@ -585,6 +616,15 @@ def git_head():
     return None
 
 
+def file_sha256(path):
+    """对文件字节实算 sha256（F6-TRC-PARSER-002：PLAN_SHA256 不得只作摆设常量）。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def main():
     ap = argparse.ArgumentParser(description="§20 131 验收 ID 追踪矩阵生成器")
     ap.add_argument("--json", default=os.path.join(EVIDENCE_ROOT, "traceability-matrix.json"),
@@ -592,16 +632,42 @@ def main():
     ap.add_argument("--plan",
                     default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                          "evidence", "00-baseline", "codex-external", "方案.md"),
-                    help="方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；存在则做 ID 集合交叉校验）")
+                    help="方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；"
+                         "F6-TRC-PARSER-002：给定但不存在时一律校验失败——--check exit 2，"
+                         "不再静默 SKIP）")
     ap.add_argument("--check", action="store_true",
                     help="目录完整性/集合校验失败时 exit 2")
     args = ap.parse_args()
 
     catalog, problems = build_catalog()
-    integrity_ok = not problems
 
     plan_check = None
-    if args.plan and os.path.isfile(args.plan):
+    plan_check_251 = None
+    plan_sha256_actual = None
+    plan_sha256_match = None
+    if args.plan and not os.path.isfile(args.plan):
+        # F6-TRC-PARSER-002：方案文件缺失 = fail-open 缺口（旧版静默 SKIP 后
+        # --check 仍全绿）——一律计 problem，--check exit 2。
+        problems.append(
+            f"方案文件不存在: {args.plan}（--plan 缺失即校验失败，"
+            "不得以内置冻结目录静默放行）")
+        plan_check = {"ok": False,
+                      "error": f"方案文件不存在: {args.plan}",
+                      "plan_ids": None}
+    elif args.plan:
+        # F6-TRC-PARSER-002：PLAN_SHA256 对方案文件实算比对（任何字节变化必红）
+        try:
+            plan_sha256_actual = file_sha256(args.plan)
+            plan_sha256_match = plan_sha256_actual == PLAN_SHA256
+        except OSError as e:
+            plan_sha256_actual = None
+            plan_sha256_match = False
+            problems.append(f"方案文件读取失败（sha256 实算）: {e}")
+        else:
+            if not plan_sha256_match:
+                problems.append(
+                    f"方案文件 sha256 与冻结值不符: actual={plan_sha256_actual} "
+                    f"frozen={PLAN_SHA256}")
         plan_check = cross_check_plan(args.plan, catalog)
         if not plan_check.get("ok", False):
             if (plan_check.get("plan_only") or plan_check.get("frozen_only")
@@ -666,6 +732,10 @@ def main():
             st["proxy"] += 1
 
     now = datetime.now(timezone(timedelta(hours=8)))
+    # F6-TRC-PARSER-002：catalog_integrity 必须反映最终 problems 全集
+    # （目录完整性 + §20 语义/重复行 + §25.1 映射 + sha256 实算比对）——
+    # 旧版只看 build_catalog 的目录问题，方案交叉校验失败时仍标 OK。
+    integrity_ok = not problems
     report = {
         "meta": {
             "tool": "tools/ac_traceability.py",
@@ -674,6 +744,8 @@ def main():
             "repo_head": git_head(),
             "plan_source": "/private/tmp/codex-test/方案.md",
             "plan_sha256": PLAN_SHA256,
+            "plan_sha256_actual": plan_sha256_actual,
+            "plan_sha256_match": plan_sha256_match,
             "catalog_integrity": "OK" if integrity_ok else "FAIL",
             "catalog_problems": problems,
             "plan_cross_check": plan_check,
@@ -706,22 +778,29 @@ def main():
     print(f"目录完整性: {report['meta']['catalog_integrity']}  "
           f"(冻结 {total} ID，期望 {EXPECTED_TOTAL})")
     if plan_check is not None:
-        print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
-              f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
-        if not plan_check.get("ok"):
-            print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
-        print(f"方案交叉校验(§20 逐 ID 语义比对): "
-              f"{'PASS' if plan_check.get('semantic_ok') else 'FAIL'}"
-              f"  解析表格行 {plan_check.get('semantic_rows_parsed')}")
-        for p in (plan_check.get("semantic_problems") or [])[:5]:
-            print(f"  §20 语义漂移: {p}")
-        print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
-              f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
-              f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")
-        for p in (plan_check_251.get("problems") or [])[:5]:
-            print(f"  §25.1 问题: {p}")
-    elif args.plan and not os.path.isfile(args.plan):
-        print(f"方案交叉校验: SKIP（{args.plan} 不存在，使用内置冻结目录 sha256 锚定）")
+        if plan_check.get("error") and not plan_check.get("plan_ids"):
+            # F6-TRC-PARSER-002：方案文件缺失/不可读——明确红，不再 SKIP
+            print(f"方案交叉校验: FAIL（{plan_check.get('error')}）")
+        else:
+            print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
+                  f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
+            if not plan_check.get("ok"):
+                print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
+            print(f"方案交叉校验(§20 逐 ID 语义比对): "
+                  f"{'PASS' if plan_check.get('semantic_ok') else 'FAIL'}"
+                  f"  解析表格行 {plan_check.get('semantic_rows_parsed')}"
+                  f"（重复行 {plan_check.get('duplicate_row_count', 0)}——重复相同行/先毒后正一律红）")
+            for p in (plan_check.get("semantic_problems") or [])[:5]:
+                print(f"  §20 语义漂移: {p}")
+        print(f"方案文件 sha256 实算比对: "
+              f"{'PASS' if plan_sha256_match else 'FAIL'}"
+              f"  actual={plan_sha256_actual or 'N/A'}")
+        if plan_check_251 is not None:
+            print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
+                  f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
+                  f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")
+            for p in (plan_check_251.get("problems") or [])[:5]:
+                print(f"  §25.1 问题: {p}")
     print("-" * 64)
     print(f"总计测试 ID        : {total}")
     print(f"专属已实现          : {n_impl}  ({report['stats']['dedicated_coverage_pct']}%)")

@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "artifact": "ac-ui-family",
+    "generated_at": "2026-10-08T10:15:54+00:00",
+    "repo_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+    "test_file": "system/tests/test_ac_ui_family.py",
+    "probe_module": "system/wenqu_core/ui_probe.py",
+    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+    "scope": "UI-01~07（7 ID，UI 前缀全量）",
+    "method_level": "L2-HTTP-DOM",
+    "method_level_reason": "Playwright 不可用（python3 -c \"import playwright\" ModuleNotFoundError）——按方法可用性降级；被测体=system/dashboard/server.py 真子进程（临时随机端口，沙箱 WENQU_*，不触 7789）",
+    "playwright_available": false,
+    "run_rc": 0,
+    "passed": 7,
+    "failed": 0,
+    "observations": [
+      "UI-07 超大日志的产品界是行数界（tail -n 20/文件）而非字节界：病态单行超长日志文件可产生大响应（本任务不改产品面，登记观察）",
+      "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）"
+    ]
+  },
+  "results": {
+    "UI-01": {
+      "pass": true,
+      "detail": "产品 --self-check 启动门：完整副本 rc=0，删一个 </div> 后 rc!=0（点名「div 平衡」）；探针构建门：真件 0 发现，四种破损形态（</div>/</span>/游离</div>/</html>）全报，且抓到产品字符串计数门漏报的 </span> 缺失（parser 严格性 ⊇ 产品门）",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-02": {
+      "pass": true,
+      "detail": "XSS 注入三通道（日志/账本标题/钻取明细）payload 无损在场但全程 JSON+nosniff 传输；CSP 响应头+meta 双写、served 页零内联脚本/事件；app.js 零注入 API（innerHTML/insertAdjacentHTML/document.write/eval 全无）+textContent 渲染；负例假服务 5 类 XSS 面全被探针必报。浏览器渲染执行未验证（无 Playwright，证据 JSON 已登记）",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-03": {
+      "pass": true,
+      "detail": "跨源 Origin/Sec-Fetch-Site→403；OPTIONS 预检→405 零 ACAO；decide 双路径×（json/text/plain）→405 WRITE_DISABLED；其他端点 text/plain→415、chunked→411；同源对照 200 不误伤；负例假服务写开放/预检放行/跨源放行全被探针必报",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-04": {
+      "pass": true,
+      "detail": "Gate 红+各站高分（score 87）→health 逐字透传 BLOCKED（score/watermark 同水位，source=gate-aggregator）；快照转 PASS 即刻传播；过期→503 AGGREGATOR_STALE 绝不200 伪绿；前端判定优先级+errBox 源码契约在位；负例自算洗绿（PASS+99）被同水位探针双报（verdict+score）。浏览器目视读数未验证（已登记）",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-05": {
+      "pass": true,
+      "detail": "ACCEPTED/OTHER（注入点名）+OPEN 钻取：?items= 计数与明细一致（各恰 1 条、字段真实）；非法行被 fold 隔离（不计数不炸、分母=4）；前端 ?items= 通道与 ACCEPTED/OTHER 节点源码契约在位；负例状态错配+假计数被探针双报。quarantine UI 表面缺失+两节点无 click 接线（浏览器点击链）——如实登记 not_implementable",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-06": {
+      "pass": true,
+      "detail": "伪 Host/无 Host/错端口 Host→403 且日志 payload 零泄漏（数据面不可达）；跨源 Origin/Sec-Fetch-Site 读日志→403；本机合法读对照 200 在场；负例无 Host 校验假服务被探针报 HOST_VALIDATION_MISSING（含泄漏证据）。真实 DNS rebinding 链（DNS+浏览器）未验证——已登记；协议级防御即产品唯一防线，已实证",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-07": {
+      "pass": true,
+      "detail": "超大日志（4429KB 源→84KB 响应，tail 行数界、10ms、首行截出末行保留）；慢速半开请求期间并发 3×200、15.0s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；限速真实触发（第 None 发 429）；压力后存活。负例无限速假服务被探针必报。观察项：tail 为行数界非字节界（病态单行可放大响应，产品未改）",
+      "method": "L2-HTTP-DOM"
+    }
+  },
+  "not_implementable": [
+    {
+      "id": "UI-02",
+      "gap": "真实浏览器渲染执行环境（chromium headless）内 XSS payload 不执行的终证",
+      "reason": "Playwright 不可用（import playwright ModuleNotFoundError）；本机无浏览器自动化通道",
+      "mitigation": "三层等价链已证：JSON+nosniff 传输契约 / CSP 响应头+meta 双写禁内联 / 前端零注入 API+textContent 源码契约；负例假服务上的内联脚本/注入 API 面被探针必报"
+    },
+    {
+      "id": "UI-04",
+      "gap": "浏览器侧同水位目视读数（总览页渲染出的判定与权威一致）",
+      "reason": "无浏览器渲染通道；API 同水位与前端源码判定优先级契约已证",
+      "mitigation": "verdict/score/watermark 逐字透传断言 + app.js 判定优先级（policy_verdict||overall||verdict）与 errBox 失败路径源码契约"
+    },
+    {
+      "id": "UI-05",
+      "gap": "quarantine 状态的 UI 钻取表面；ACCEPTED/OTHER 节点的浏览器点击链",
+      "reason": "产品语义缺失：dashboard 状态机无 quarantine 表面（fold 静默跳过非法行，无隔离区查询端点）；app.js 中 ACCEPTED/OTHER 计数节点无 click 接线（仅 OPEN/FIXING/FIXED/VERIFIED/CLOSED 五链状态可点）",
+      "mitigation": "API 钻取已真激活（?items=ACCEPTED/OTHER 计数与明细一致、非法行不炸不计数）；静态契约证明钻取通道与两状态节点存在；浏览器点击链待 UI 交互面产品化后补"
+    },
+    {
+      "id": "UI-06",
+      "gap": "真实 DNS rebinding 攻击链（攻击者域名解析到回环+浏览器宿主）",
+      "reason": "需真实 DNS 栈与浏览器；单测沙箱不可复现",
+      "mitigation": "协议级验证其唯一产品防御点：Host 白名单（伪 Host/无 Host/错端口 Host 全 403 且日志数据面不可达）+ Origin/Sec-Fetch-Site 拒绝；负例假服务无 Host 校验被探针必报"
+    }
+  ]
+}

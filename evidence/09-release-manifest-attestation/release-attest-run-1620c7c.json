@@ -1,0 +1,67 @@
+{
+  "schema": "wenqu-release-evidence-run/1",
+  "recorded_at": "2026-10-08T09:50:30Z",
+  "title": "tools/release_attest.py 全链实跑（build+sign+sbom+verify）——HEAD 1620c7c",
+  "task_context": "Codex 多轮缺口：制品无签名/SBOM。本记录为独立打包工具（tools/release_attest.py v1.0.0）首次全链落档；部署侧 DEP-04 签名字段由并行工作流在 system/wenqu_core/deploy_framework.py 接线，两轨独立。",
+  "commit": {
+    "full": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+    "short": "1620c7c",
+    "subject": "fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65"
+  },
+  "keyring": {
+    "path": "~/.wenqu-dist-release/release-keyring.json（仓外，0600，本机 dev 根）",
+    "key_id": "key_release_w6p1f",
+    "algorithm": "HMAC-SHA256",
+    "secret_in_evidence": false,
+    "note": "对称签名：tamper-evident/防伪造，非非否认（方案 §21.4 边界）"
+  },
+  "artifacts": [
+    {"path": "dist/wenqu-dist-1620c7c.tar.gz", "size": 7095163, "sha256": "e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607"},
+    {"path": "dist/wenqu-dist-1620c7c.manifest.json", "size": 155696, "sha256": "6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560"},
+    {"path": "dist/wenqu-dist-1620c7c.release.sig", "size": 620, "sha256": "8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3"},
+    {"path": "dist/wenqu-dist-1620c7c.sbom.spdx.json", "size": 360080, "sha256": "76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e"}
+  ],
+  "manifest_facts": {
+    "schema": "wenqu-release-manifest/1",
+    "build_id": "rel-1620c7c-20261008T094952Z",
+    "built_at": "2026-10-08T09:49:52Z",
+    "version": "3.7.1（归档内 system/VERSION 自述）",
+    "n_files": 642,
+    "deterministic": "同 commit 两次 build tar sha256 一致（git archive + gzip mtime=0/level=9）"
+  },
+  "sbom_facts": {
+    "spdxVersion": "SPDX-2.3",
+    "root": "wenqu-dist@3.7.1",
+    "files": 642,
+    "packageVerificationCode": "a8883def016cf95bef5628a04efc80b0d0443a6d",
+    "deps": 0,
+    "dep_source": "归档内自述文件扫描（requirements*/package.json/pyproject/setup.py 等 basename 精确匹配）——本仓归档内无依赖清单，按 README 自述 stdlib-only 记零第三方依赖；无外部网络"
+  },
+  "verify": {
+    "rc": 0,
+    "result": "PASS",
+    "checks": ["manifest-schema", "artifact-hash", "files-reconcile(642/642)", "signature(key_release_w6p1f)", "sbom-reconcile", "build-identity"],
+    "report": "evidence/09-release-manifest-attestation/verify-report-1620c7c.json",
+    "console_log": "evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log"
+  },
+  "tool_hashes": {
+    "tools/release_attest.py": "53070504084a18cf45832529d6b4f33e2d04755f48e17860d03c3a9e6bdacd18",
+    "system/tests/test_release_attest.py": "89fd5a0c502313731e295659f627f609b186ecac74ebb1a79f7cb7ee3f389ab5"
+  },
+  "tests": {
+    "command": "python3 system/tests/test_release_attest.py",
+    "result": "8 PASS / 0 FAIL（含：篡改 tar 一字节必拒/重打包+自洽改 manifest 被签名拦截/换 key 必拒/SBOM 字段完整性+篡改必拒/manifest+sig 篡改必拒/rotated 不得签发+revoked 验签即拒/确定性构建）"
+  },
+  "honest_boundaries": [
+    "HMAC 对称签名与审批体系同根：防篡改/防伪造，不提供非否认（non-repudiation）；未建独立 release signer 前按方案 §21.4 只可宣称 tamper-evident",
+    "key_release_w6p1f 为本机 dev 签发根（0600 仓外存放）；生产发布应轮换为 CI/独立 broker 持有的 key（§21.4：被测运行体不可及）",
+    "本记录 tar 含 HEAD 树内既有 dist/wenqu-vNext-candidate-f2b8fc3.tar.gz（commit 树自带，非本次打包注入）",
+    "evidence/evidence-index.json 未登记本条（任务范围限定仅改 evidence/09-*；全局索引登记留给收口批）"
+  ],
+  "reproduce": [
+    "python3 tools/release_attest.py build",
+    "python3 tools/release_attest.py sign --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring> --key-id key_release_w6p1f",
+    "python3 tools/release_attest.py sbom --manifest dist/wenqu-dist-1620c7c.manifest.json",
+    "python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring>"
+  ]
+}

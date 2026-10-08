@@ -12,7 +12,7 @@
     ],
     "responsible_ids": 29,
     "test_file": "system/tests/test_ac_station_families.py",
-    "test_file_sha256": "ec3f1a5b792950628fe4ad868b023cae90233d32e75ba0d01b814a5f9b051bc5",
+    "test_file_sha256": "800dd1c16cf8b11b9a1943829227bebf3c9d0b1523c9806e82fb7f4da7375160",
     "modules_under_test": [
       "system/wenqu_core/bugscan_orchestrator.py",
       "system/wenqu_core/station2_static.py",
@@ -21,9 +21,18 @@
       "system/wenqu_core/station7_runtime.py",
       "system/wenqu_core/runner.py"
     ],
-    "no_product_code_changed": true
+    "no_product_code_changed": false,
+    "product_code_changed_this_round": {
+      "task": "wave6/p1f-gate §20 六项「产品面缺失」补齐（SC-03/SC-05、TEN-04、PERF-03/PERF-04）",
+      "files": [
+        "system/wenqu_core/station2_static.py（SC 族：lockfile 差异分析 + 快照签名/时效校验）",
+        "system/wenqu_core/station3_contract.py（TEN-04：RawQueryTenantScanner）",
+        "system/wenqu_core/station4_behavior.py（PERF 族：QuantileLatencyScanner + QueryCountProfileScanner）"
+      ],
+      "note": "既有 24 用例断言零回退（原函数体未改动，仅新增测试函数与模块面）"
+    }
   },
-  "generated_at": "2026-10-08T07:08:08+00:00",
+  "generated_at": "2026-10-08T09:50:41Z",
   "repo": {
     "head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
     "head_short": "b08fa7a",
@@ -34,14 +43,14 @@
   "unit_run": {
     "command": "python3 system/tests/test_ac_station_families.py",
     "exit_code": 0,
-    "passed": 24,
+    "passed": 29,
     "failed": 0
   },
   "totals": {
     "defined": 29,
-    "implemented": 24,
-    "not_implementable": 5,
-    "passed": 24,
+    "implemented": 29,
+    "not_implementable": 0,
+    "passed": 29,
     "failed": 0
   },
   "cases": [
@@ -49,25 +58,25 @@
       "id": "STA-01",
       "test": "test_STA_01",
       "passed": true,
-      "duration_ms": 169.5
+      "duration_ms": 200.4
     },
     {
       "id": "STA-02",
       "test": "test_STA_02",
       "passed": true,
-      "duration_ms": 770.6
+      "duration_ms": 815.2
     },
     {
       "id": "DB-01",
       "test": "test_DB_01",
       "passed": true,
-      "duration_ms": 15.0
+      "duration_ms": 15.3
     },
     {
       "id": "DB-02",
       "test": "test_DB_02",
       "passed": true,
-      "duration_ms": 30.0
+      "duration_ms": 29.9
     },
     {
       "id": "DB-03",
@@ -79,124 +88,148 @@
       "id": "DB-04",
       "test": "test_DB_04",
       "passed": true,
-      "duration_ms": 23.5
+      "duration_ms": 24.9
     },
     {
       "id": "DB-05",
       "test": "test_DB_05",
       "passed": true,
-      "duration_ms": 8.7
+      "duration_ms": 8.3
     },
     {
       "id": "DB-06",
       "test": "test_DB_06",
       "passed": true,
-      "duration_ms": 16.3
+      "duration_ms": 16.9
     },
     {
       "id": "SC-01",
       "test": "test_SC_01",
       "passed": true,
-      "duration_ms": 21.9
+      "duration_ms": 23.1
     },
     {
       "id": "SC-02",
       "test": "test_SC_02",
       "passed": true,
-      "duration_ms": 65.7
+      "duration_ms": 67.4
+    },
+    {
+      "id": "SC-03",
+      "test": "test_SC_03",
+      "passed": true,
+      "duration_ms": 67.5
     },
     {
       "id": "SC-04",
       "test": "test_SC_04",
       "passed": true,
-      "duration_ms": 53.5
+      "duration_ms": 56.3
+    },
+    {
+      "id": "SC-05",
+      "test": "test_SC_05",
+      "passed": true,
+      "duration_ms": 120.8
     },
     {
       "id": "ADV-01",
       "test": "test_ADV_01",
       "passed": true,
-      "duration_ms": 29.3
+      "duration_ms": 30.4
     },
     {
       "id": "ADV-02",
       "test": "test_ADV_02",
       "passed": true,
-      "duration_ms": 37.1
+      "duration_ms": 37.9
     },
     {
       "id": "TEN-01",
       "test": "test_TEN_01",
       "passed": true,
-      "duration_ms": 7.3
+      "duration_ms": 7.7
     },
     {
       "id": "TEN-02",
       "test": "test_TEN_02",
       "passed": true,
-      "duration_ms": 22.6
+      "duration_ms": 23.7
     },
     {
       "id": "TEN-03",
       "test": "test_TEN_03",
       "passed": true,
-      "duration_ms": 14.9
+      "duration_ms": 17.5
+    },
+    {
+      "id": "TEN-04",
+      "test": "test_TEN_04",
+      "passed": true,
+      "duration_ms": 40.7
     },
     {
       "id": "TEN-05",
       "test": "test_TEN_05",
       "passed": true,
-      "duration_ms": 14.7
+      "duration_ms": 17.0
     },
     {
       "id": "TEN-06",
       "test": "test_TEN_06",
       "passed": true,
-      "duration_ms": 21.6
+      "duration_ms": 23.5
     },
     {
       "id": "TEN-07",
       "test": "test_TEN_07",
       "passed": true,
-      "duration_ms": 15.2
+      "duration_ms": 18.8
     },
     {
       "id": "TEN-08",
       "test": "test_TEN_08",
       "passed": true,
-      "duration_ms": 30.7
+      "duration_ms": 32.6
     },
     {
       "id": "PERF-01",
       "test": "test_PERF_01",
       "passed": true,
-      "duration_ms": 503.8
+      "duration_ms": 503.5
     },
     {
       "id": "PERF-02",
       "test": "test_PERF_02",
       "passed": true,
-      "duration_ms": 60.6
+      "duration_ms": 51.2
+    },
+    {
+      "id": "PERF-03",
+      "test": "test_PERF_03",
+      "passed": true,
+      "duration_ms": 54.9
+    },
+    {
+      "id": "PERF-04",
+      "test": "test_PERF_04",
+      "passed": true,
+      "duration_ms": 77.5
     },
     {
       "id": "PERF-05",
       "test": "test_PERF_05",
       "passed": true,
-      "duration_ms": 9.5
+      "duration_ms": 9.7
     },
     {
       "id": "PERF-06",
       "test": "test_PERF_06",
       "passed": true,
-      "duration_ms": 535.1
+      "duration_ms": 526.5
     }
   ],
-  "not_implementable": {
-    "SC-03": "install script/resolved/integrity 变化检测需要 lockfile 内容 diff 面；本发行包 SupplyChainScanner 仅消费 npm audit JSON 输出，无 package-lock 解析/比对通道，无真实注入口。",
-    "SC-05": "离线 registry 快照的签名/时效/分页完整性校验件不在本发行包（SupplyChainScanner 假定在线 audit stdout；无快照签名验证通道）。注：『分页不全=自报计数与解析列表不一致→ERROR（证据损坏）』的机制已在 ADV-02 的截断子例中侧面覆盖。",
-    "TEN-04": "$queryRaw 跨租户阻断需要 SQL/查询构建器分析面；本包站3 只消费结构化探针结果（org_guard/permission_matrix payload），无 SQL 解析/拦截通道。",
-    "PERF-03": "尾部极慢样本进入 p95/p99 需要分位数计算面；SloMonitorScanner 只消费上游已算好的快照指标值，本包无原始延迟样本聚合通道，无法做真实注入。",
-    "PERF-04": "输入 1→100 query count 线性度（N+1）检测需要 DB 查询计数探针；本包无该剖析通道。"
-  },
+  "not_implementable": {},
   "coverage_delta_ac_traceability": {
     "tool": "python3 tools/ac_traceability.py --json",
     "per_family": {
@@ -224,9 +257,13 @@
       },
       "SC": {
         "defined": 5,
-        "before": 0,
-        "after": 3,
-        "newly_implemented": [
+        "before": 3,
+        "after": 5,
+        "newly_implemented_this_round": [
+          "SC-03",
+          "SC-05"
+        ],
+        "previously_implemented": [
           "SC-01",
           "SC-02",
           "SC-04"
@@ -243,9 +280,12 @@
       },
       "TEN": {
         "defined": 8,
-        "before": 0,
-        "after": 7,
-        "newly_implemented": [
+        "before": 7,
+        "after": 8,
+        "newly_implemented_this_round": [
+          "TEN-04"
+        ],
+        "previously_implemented": [
           "TEN-01",
           "TEN-02",
           "TEN-03",
@@ -257,9 +297,13 @@
       },
       "PERF": {
         "defined": 6,
-        "before": 0,
-        "after": 4,
-        "newly_implemented": [
+        "before": 4,
+        "after": 6,
+        "newly_implemented_this_round": [
+          "PERF-03",
+          "PERF-04"
+        ],
+        "previously_implemented": [
           "PERF-01",
           "PERF-02",
           "PERF-05",
@@ -267,22 +311,24 @@
         ]
       }
     },
-    "total_newly_implemented": 24,
-    "attribution": "每个新增 implemented ID 的 test_file 均为 system/tests/test_ac_station_families.py 且命中其专属 test_<ID> 函数（无代理/无假命中）；不可实现 ID 保持 implemented=false（含删除 docstring 交叉引用防假命中的修正）"
+    "total_newly_implemented": 29,
+    "attribution": "首轮 24 个 implemented ID 均命中专属 test_<ID> 函数；本轮（2026-10-08）补齐 5 个产品面缺失 ID（SC-03/SC-05、TEN-04、PERF-03/PERF-04）：先在三个站模块内新增真实产品通道，再将其 NOT_IMPLEMENTABLE 登记转真实用例（函数名原样含 ID、注入/期望与方案 §20.3/§20.5 逐字对齐）；29/29 全绿，python3 tools/ac_traceability.py rc=0（集合等式保持）"
   },
   "regression": {
-    "module_selftests_current_tree": {
-      "wenqu_core.station2_static": "rc=0",
-      "wenqu_core.station3_contract": "rc=0",
-      "wenqu_core.station4_behavior": "rc=0",
-      "wenqu_core.station7_runtime": "rc=1（与本文件无关）",
-      "wenqu_core.bugscan_orchestrator": "rc=0",
-      "station7_rc1_cause": "并行工程师在途修改 system/schemas/station-result-v2.schema.json（F4-SCHEMA-001 收紧非完成态裁决枚举）所致；已实证与本文件无关（移除本文件后复跑 rc 仍=1），且 git archive HEAD 洁净副本五模块全部 rc=0"
+    "family_tests_this_round": {
+      "command": "python3 system/tests/test_ac_station_families.py",
+      "exit_code": 0,
+      "result": "29 PASS / 0 FAIL（原 24 用例零回退 + 新增 5 个专属用例全绿）"
     },
-    "module_selftests_pristine_head": "git archive HEAD 洁净副本：五模块全部 rc=0",
-    "acceptance_sh_current_tree": "rc=1，PASS=63/FAIL=1（P1d 对抗自测 exit=1）——同因并行在途修改（F4-AUTH-001 加固 vs 对抗自测未同步），移除本文件复跑仍 FAIL；与本文件无关",
-    "acceptance_sh_pristine_head": "git archive HEAD 洁净副本：rc=0，RESULT: PASS=62 FAIL=0 ALL GREEN",
-    "conclusion": "本任务唯一变更=新增 system/tests/test_ac_station_families.py（未触碰产品码/其他测试/acceptance.sh/tools）；当前树两处红均为并行工程师在途修改且经移除-复跑法实证与本文件无关"
+    "module_selftests_this_round": {
+      "wenqu_core.station2_static": "rc=0（python3 system/wenqu_core/station2_static.py）",
+      "wenqu_core.station3_contract": "rc=0（python3 system/wenqu_core/station3_contract.py）",
+      "wenqu_core.station4_behavior": "rc=0（cd system && python3 -m wenqu_core.station4_behavior）",
+      "wenqu_core.bugscan_orchestrator": "未改动（本轮无涉及；基线 rc=0）"
+    },
+    "acceptance_sh_this_round": "rc=0，RESULT: PASS=65 FAIL=0 ALL GREEN（变更前后各跑一遍均 65/65）",
+    "traceability_this_round": "python3 tools/ac_traceability.py rc=0（§20 131 ID↔§25.1 集合等式保持；SC-03/SC-05、TEN-04、PERF-03/PERF-04 进入已实现清单）",
+    "conclusion": "本轮变更=3 个站模块新增 5 个产品面 + 本测试文件 5 个 NOT_IMPLEMENTABLE 登记转真实用例（断言只增不减：既有 24 个测试函数体零改动）+ 本证据工件；基线先采样（改动前 acceptance 65/65、三模块 selftest rc=0），改动后复跑同绿"
   },
   "interpretation_notes": {
     "ADV": "§20 ADV(advisory) 的 version parser/seen/多页多 range 语义，在本发行包落在 station2 SupplyChainScanner 的 npm-audit 公告解析通道（station2 为任务指定的 ADV 被测体）：解析异常→UNKNOWN 方向保守升 HIGH 并写账（不静默跳过=不写 seen）；多页合流+多 range 全遍历，截断=自报与解析列表不一致→ERROR。",
@@ -294,6 +340,11 @@
     "TEN-01/02/03": "TEN-01 的 alias/re-export/wrapper 经 DMMF（编译期已解析）计入分母；TEN-02 注入面为探针结果夹带 organizationId 注释字段；TEN-03 的 builder>300 字符映射为 >300 字符端点路径计入宇宙分母并被真实判定（本包无 token 级 builder 解析）。",
     "PERF-02": "SSH/TCC 采集通道不在本包；null/非数值/NaN 指标=采集缺口→未扫计+assertion ERROR+缩水守卫折叠 BLOCKED（比 ERROR 更严，绝不折算 PASS）。",
     "PERF-05": "独立性能基线文件不在本包；等价机械语义=manifest 冻结 data_config/manifest_hash 双哈希绑定：改阈值/改冻结件字节均被哈希阻断（洗绿失败）。",
-    "PERF-06": "endpoint 分母缩水（不可达样本）→缩水守卫强制 BLOCKED/NOT_EVALUATED，结果不可作为通过/晋升依据；统一入口 build_station_result 同型注入复核。"
+    "PERF-06": "endpoint 分母缩水（不可达样本）→缩水守卫强制 BLOCKED/NOT_EVALUATED，结果不可作为通过/晋升依据；统一入口 build_station_result 同型注入复核。",
+    "SC-03": "SupplyChainScanner 增 lockfile 差异分析面（构造参数 lockfile_baseline_path开启）：package-lock v2/v3 packages 面+v1 dependencies 面解析依赖指纹（resolved/integrity/hasInstallScript）；diff 出的新增依赖单独计入 finding与分母（denominator=metadata 自报总数+新增数）；resolved/integrity 变化与新增 install script 逐 aspect 落 HIGH/P1 finding→FAIL/人工审；基线缺失=无锚点→ERROR（fail-closed）。",
+    "SC-05": "SupplyChainScanner 增快照签名/时效面（snapshot_verify_key 开启）：stdout须为 build_snapshot_envelope 信封（HMAC-SHA256(content_hash.captured_at)+canonical JSON 哈希绑定）；验签失败/载荷篡改（hash 失配）/时间戳非法或未来/过期（默认 7d 窗）→该源数据不可用→BLOCKED（coverage 0/0——未验签内容连分母都不采信）；『分页不全』子面沿用 ADV-02 自报计数交叉核对=ERROR。",
+    "TEN-04": "站3 新增 RawQueryTenantScanner（词法级静态分析，零外部依赖）：发现$queryRaw/$executeRaw(含 Unsafe)调用点（模板字面量/带标签 prisma.sql/引号串/间接变量）与裸 SQL 模板字符串；只在谓词区（WHERE/ON/HAVING 体）认租户列肯定谓词（col=/IN/=ANY），SELECT 列表提及、SET 赋值、NOT IN/<>与间接 SQL 均不构成守卫（fail-closed 按无守卫处理）→无守卫查询 finding→FAIL=阻断；expected_query_sites 声明高于发现数→分母缩水 BLOCKED。独立消费工厂 raw_query_scanner()，不进默认聚合件（保持既有四件套语义）。",
+    "PERF-03": "站4 新增 QuantileLatencyScanner：p50/p95/p99 由全样本排序线性插值真实计算（percentile 算法正源；1..100→50.5/95.05/99.01），尾部极慢样本必然进入 p95/p99（不裁尾不均值）；阈值判定 quantile>threshold→finding→FAIL；采集缺口样本（bool/非数值/NaN/Inf）按未扫计→缩水守卫 BLOCKED（PERF-02同型语义）。",
+    "PERF-04": "站4 新增 QueryCountProfileScanner：输入规模→查询计数剖析点，最小二乘斜率判线性（slope≥1 query/输入项=N+1 形态→finding）+绝对上限判定面（任一点超 max_query_count→逐点 finding）双面独立；单点/无方差不可证线性（slope=None，只做上限）；剖析点结构非法→未扫计→缩水 BLOCKED。§20 注入原样：1→2、100→101（斜率≈1.0）→FAIL。"
   }
 }

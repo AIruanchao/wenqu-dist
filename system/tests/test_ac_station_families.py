@@ -18,8 +18,11 @@
 实现口径（诚实边界，逐条落在各测试 docstring）：
 - 全部走模块内既有的桩/合成数据通道（_StubRunner 罐头应答、结构化 payload、
   本地 127.0.0.1 真实 HTTP 服务、fake-vitest 真子进程）——零外网、零真实 DB 连接。
-- 不可实现的 ID 不硬凑：SC-03/SC-05、TEN-04、PERF-03/PERF-04 共 5 条列入
-  NOT_IMPLEMENTABLE（原因见该常量）；它们不设测试函数，避免追踪矩阵假绿。
+- 29 条 ID 全部实现（本轮给 SC-03/SC-05、TEN-04、PERF-03/PERF-04 补齐了
+  产品面通道：站2 SupplyChainScanner 增 lockfile 差异分析（SC-03）与快照
+  签名/时效校验（SC-05）；站3 增 RawQueryTenantScanner 词法静态分析
+  （TEN-04）；站4 增 QuantileLatencyScanner（PERF-03）与
+  QueryCountProfileScanner（PERF-04））。NOT_IMPLEMENTABLE 登记清零。
 - DB-06/PERF-02/PERF-05/PERF-06/TEN-01~03 为「本发行包可实现子面」的等价语义，
   覆盖边界在各自 docstring 中显式声明。
 
@@ -62,6 +65,7 @@ from wenqu_core.station2_static import (
     RawTrustedRunner,
     Station2Static,
     SupplyChainScanner,
+    build_snapshot_envelope,
 )
 from wenqu_core.station3_contract import (
     DRIFT_CHANGE_SEVERITY,
@@ -71,6 +75,8 @@ from wenqu_core.station3_contract import (
     DriftReportMalformed,
     EvidenceIdentityMismatch,
     NonReadOnlyDataSource,
+    RawQueryScanMalformed,
+    RawQueryTenantScanner,
     Station3Contract,
     Station3Error,
     derive_dynamic_denominator,
@@ -78,8 +84,11 @@ from wenqu_core.station3_contract import (
 )
 from wenqu_core.station4_behavior import (
     E2eScanner,
+    QueryCountProfileScanner,
+    QuantileLatencyScanner,
     RouteDynamicScanner,
     combine_station4_results,
+    percentile,
 )
 from wenqu_core.station7_runtime import (
     SentinelHealthScanner,
@@ -89,35 +98,15 @@ from wenqu_core.station7_runtime import (
 
 # ---------------------------------------------------------------------------
 # 不可实现清单（§20 注入面在本发行包无对应通道——不硬凑、不设测试函数）
+#
+# 2026-10-08 起清零：SC-03/SC-05（站2 SupplyChainScanner 增 lockfile 差异
+# 分析与快照签名/时效校验产品面）、TEN-04（站3 RawQueryTenantScanner）、
+# PERF-03/PERF-04（站4 QuantileLatencyScanner/QueryCountProfileScanner）
+# 均已具备真实注入通道并转为专属测试函数；保留空映射以维持
+# implemented/not-implementable 集合等式断言的机械形态。
 # ---------------------------------------------------------------------------
 
-NOT_IMPLEMENTABLE = {
-    "SC-03": (
-        "install script/resolved/integrity 变化检测需要 lockfile 内容 diff 面；"
-        "本发行包 SupplyChainScanner 仅消费 npm audit JSON 输出，"
-        "无 package-lock 解析/比对通道，无真实注入口。"
-    ),
-    "SC-05": (
-        "离线 registry 快照的签名/时效/分页完整性校验件不在本发行包"
-        "（SupplyChainScanner 假定在线 audit stdout；无快照签名验证通道）。"
-        "注：『分页不全=自报计数与解析列表不一致→ERROR（证据损坏）』的机制"
-        "已在 ADV-02 的截断子例中侧面覆盖。"
-    ),
-    "TEN-04": (
-        "$queryRaw 跨租户阻断需要 SQL/查询构建器分析面；"
-        "本包站3 只消费结构化探针结果（org_guard/permission_matrix payload），"
-        "无 SQL 解析/拦截通道。"
-    ),
-    "PERF-03": (
-        "尾部极慢样本进入 p95/p99 需要分位数计算面；"
-        "SloMonitorScanner 只消费上游已算好的快照指标值，本包无原始延迟样本"
-        "聚合通道，无法做真实注入。"
-    ),
-    "PERF-04": (
-        "输入 1→100 query count 线性度（N+1）检测需要 DB 查询计数探针；"
-        "本包无该剖析通道。"
-    ),
-}
+NOT_IMPLEMENTABLE: dict = {}
 
 # ---------------------------------------------------------------------------
 # 公共桩与夹具（范式参考各模块内嵌 selftest，独立成函数，按 §20 语义组织）
@@ -823,6 +812,21 @@ def _supply_scan(tmp_path, payload_bytes, rc=1):
                               identity=ST2_IDENTITY, repo_dir=str(repo)).scan()
 
 
+def _lockfile_v3(*entries):
+    """合成 package-lock v3：entries=(name, resolved, integrity, has_script)。"""
+    packages = {"": {"name": "app", "version": "1.0.0", "lockfileVersion": 3}}
+    for name, resolved, integrity, script in entries:
+        entry = {"version": "1.0.0"}
+        if resolved is not None:
+            entry["resolved"] = resolved
+        if integrity is not None:
+            entry["integrity"] = integrity
+        if script:
+            entry["hasInstallScript"] = True
+        packages[f"node_modules/{name}"] = entry
+    return {"name": "app", "lockfileVersion": 3, "packages": packages}
+
+
 def test_SC_01_valid_json_high_critical_fails():
     """SC-01｜注入：有效 JSON+HIGH/CRITICAL｜期望：FAIL。
 
@@ -882,6 +886,102 @@ def test_SC_02_empty_json_or_registry_timeout_error():
         validate_station_result(rep.result)
 
 
+def test_SC_03_lockfile_diff_added_deps_counted():
+    """SC-03｜注入：install script/resolved/integrity 变化｜期望：FAIL/人工审。
+
+    站2 供应链扫描器 lockfile 变更差异分析面（合成 lockfile fixture 真实断言）：
+    - diff 纯函数 aspect 语义：新增/resolved 变化/integrity 变化/新增 install
+      script 各成独立变化位；同一包多 aspect 同时变化逐位落账；
+    - 扫描面：新增依赖单独计入发现与分母（denominator=metadata 自报依赖总数
+      +新增数）；每个变化位一条 HIGH/P1 finding（人工审语义=FAIL 落账）；
+    - 对照负例：lockfile 完全一致 → 零 finding PASS、分母不加（探测器不对
+      噪声开火）；基线缺失 → 无锚点 fail-closed ERROR。
+    """
+    baseline = _lockfile_v3(
+        ("lodash", "https://registry/lodash/-/lodash-4.17.20.tgz",
+         "sha512-" + "a" * 64, False),
+        ("qs", "https://registry/qs.tgz", "sha512-" + "b" * 64, False),
+        ("minimist", "https://registry/minimist.tgz", "sha512-" + "e" * 64, False),
+    )
+    current = _lockfile_v3(
+        # lodash：resolved 变化 + integrity 变化 + 新增 install script（三位全变）
+        ("lodash", "https://evil-mirror.example/lodash-4.17.21.tgz",
+         "sha512-" + "c" * 64, True),
+        ("qs", "https://registry/qs.tgz", "sha512-" + "b" * 64, False),
+        ("newdep", "https://registry/newdep.tgz", "sha512-" + "d" * 64, False),
+    )
+
+    # diff 纯函数：aspect 级语义正源
+    base_deps = SupplyChainScanner.parse_lockfile_dependencies(baseline)
+    cur_deps = SupplyChainScanner.parse_lockfile_dependencies(current)
+    assert set(base_deps) == {"lodash", "qs", "minimist"}
+    diff = SupplyChainScanner.diff_lockfile_dependencies(base_deps, cur_deps)
+    assert diff["added"] == ["newdep"], diff
+    assert diff["removed"] == ["minimist"], diff
+    assert [(c["name"], c["aspect"]) for c in diff["changes"]] == [
+        ("lodash", "resolved"), ("lodash", "integrity"),
+        ("lodash", "install_script"),
+    ], diff["changes"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        (repo / "package-lock.json").write_text(json.dumps(current), encoding="utf-8")
+        baseline_path = Path(tmp) / "baseline-lock.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        runner = _StubRunner([
+            (lambda a: a[:2] == ["npm", "audit"],
+             lambda a: (_ev(a, 0), _j(NPM_CLEAN), b"")),  # audit 自身零漏洞
+        ])
+        rep = SupplyChainScanner(
+            runner=runner, run_id=_next_run_id("sc3"), identity=ST2_IDENTITY,
+            repo_dir=str(repo), lockfile_baseline_path=str(baseline_path),
+        ).scan()
+        validate_station_result(rep.result)
+        assert rep.result["policy_verdict"] == "FAIL", rep.result  # FAIL/人工审
+        assert rep.result["execution_status"] == "COMPLETED"
+        assert len(rep.findings) == 4, rep.findings  # 新增 1 + 三 aspect 位 3
+        rules = sorted(f.rule_id for f in rep.findings)
+        assert rules == [
+            "supply/lockfile-diff-added",
+            "supply/lockfile-diff-install_script",
+            "supply/lockfile-diff-integrity",
+            "supply/lockfile-diff-resolved",
+        ], rules
+        assert all(f.severity == "HIGH" and f.priority == "P1" for f in rep.findings)
+        # 新增依赖单独计入分母：12（audit 自报总数）+1（newdep）=13
+        assert rep.result["coverage"] == {"denominator": 13, "scanned": 13}
+        assert "minimist" in rep.note, rep.note  # 移除依赖只入 note 不计分母
+
+        # 对照：完全一致的 lockfile → PASS，分母不加、零 finding
+        (repo / "package-lock.json").write_text(json.dumps(baseline), encoding="utf-8")
+        runner = _StubRunner([
+            (lambda a: a[:2] == ["npm", "audit"],
+             lambda a: (_ev(a, 0), _j(NPM_CLEAN), b"")),
+        ])
+        rep = SupplyChainScanner(
+            runner=runner, run_id=_next_run_id("sc3"), identity=ST2_IDENTITY,
+            repo_dir=str(repo), lockfile_baseline_path=str(baseline_path),
+        ).scan()
+        validate_station_result(rep.result)
+        assert rep.result["policy_verdict"] == "PASS", rep.result
+        assert rep.result["coverage"] == {"denominator": 12, "scanned": 12}
+
+        # 负例：基线缺失 → 无锚点 fail-closed ERROR（绝不 PASS）
+        runner = _StubRunner([
+            (lambda a: a[:2] == ["npm", "audit"],
+             lambda a: (_ev(a, 0), _j(NPM_CLEAN), b"")),
+        ])
+        rep = SupplyChainScanner(
+            runner=runner, run_id=_next_run_id("sc3"), identity=ST2_IDENTITY,
+            repo_dir=str(repo),
+            lockfile_baseline_path=str(Path(tmp) / "absent-lock.json"),
+        ).scan()
+        assert rep.result["execution_status"] == "ERROR", rep.result
+        assert rep.result["policy_verdict"] == "NOT_EVALUATED"
+        assert "anchor" in rep.note, rep.note
+
+
 def test_SC_04_skip_audit_title_no_bypass():
     """SC-04｜注入：标题含 [skip-audit]｜期望：无绕过效果。
 
@@ -912,6 +1012,65 @@ def test_SC_04_skip_audit_title_no_bypass():
         assert agg["policy_verdict"] == "FAIL", agg  # 聚合层同样无绕过
         assert agg["coverage"]["denominator"] == 1 and agg["coverage"]["scanned"] == 1
         assert "dupscan" in agg["coverage"]["exclusions"]  # 显式缩件记账
+
+
+def test_SC_05_snapshot_signature_freshness_fail_closed():
+    """SC-05｜注入：离线快照签名错误/过期/分页不全｜期望：BLOCKED。
+
+    依赖基线快照（npm audit 载荷的离线信封）签名+时效校验面：
+    - 合法信封（build_snapshot_envelope 真实签名通道生产，现场时间戳）→
+      正常解析判定 PASS（校验面不误伤真源）；
+    - 过期（8 天前捕获、签名本身合法）→ 该源数据不可用 → BLOCKED；
+    - 签名错误（同 hash/时间戳、换签名）→ BLOCKED；
+    - 载荷被改（content_hash 失配=签名后篡改）→ BLOCKED；
+    - 无信封裸 JSON（未签名源）→ BLOCKED。
+    全部失败路径 coverage 记 0/0（未验签内容连 metadata 分母都不采信）、
+    NOT_EVALUATED、原因入 note——fail-closed，绝不折算 PASS。
+    （『分页不全』子面沿用 ADV-02 的自报计数交叉核对机制=证据损坏 ERROR。）
+    """
+    key = "ac-snapshot-key"
+    now = _utc_now()
+    fresh = build_snapshot_envelope(NPM_CLEAN, key=key, captured_at=now)
+    stale = build_snapshot_envelope(
+        NPM_CLEAN, key=key, captured_at=now - timedelta(days=8))
+    bad_sig = json.loads(json.dumps(fresh))
+    bad_sig["snapshot"]["signature"] = "0" * 64
+    tampered = json.loads(json.dumps(fresh))
+    tampered["payload"]["metadata"]["dependencies"]["total"] = 999  # 签名后篡改
+
+    def _scan(envelope):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp).mkdir(parents=True, exist_ok=True)
+            runner = _StubRunner([
+                (lambda a: a[:2] == ["npm", "audit"],
+                 lambda a: (_ev(a, 0), _j(envelope), b"")),
+            ])
+            return SupplyChainScanner(
+                runner=runner, run_id=_next_run_id("sc5"), identity=ST2_IDENTITY,
+                repo_dir=str(tmp),
+                snapshot_verify_key=key,
+            ).scan()
+
+    rep = _scan(fresh)
+    validate_station_result(rep.result)
+    assert rep.result["policy_verdict"] == "PASS", rep.result  # 真源不误伤
+    assert rep.result["coverage"] == {"denominator": 12, "scanned": 12}
+    assert "verified snapshot" in rep.note, rep.note
+
+    cases = (
+        ("expired", stale, "expired"),
+        ("bad-signature", bad_sig, "signature verification failed"),
+        ("tampered-payload", tampered, "content_hash mismatch"),
+        ("unsigned-raw", NPM_CLEAN, "missing 'snapshot'"),
+    )
+    for name, envelope, marker in cases:
+        rep = _scan(envelope)
+        validate_station_result(rep.result)
+        assert rep.result["execution_status"] == "BLOCKED", (name, rep.result)
+        assert rep.result["policy_verdict"] == "NOT_EVALUATED", (name, rep.result)
+        assert rep.result["coverage"] == {"denominator": 0, "scanned": 0}, (
+            name, rep.result["coverage"])
+        assert marker in rep.note, (name, rep.note)
 
 
 # ---------------------------------------------------------------------------
@@ -1070,6 +1229,82 @@ def test_TEN_03_long_builder_included_in_analysis():
     st = contract.org_guard_scanner().adapt(bad)
     assert st["policy_verdict"] == "FAIL", st
     assert any("negative_allowed" in f for f in st["finding_ids"])
+
+
+def test_TEN_04_queryraw_cross_tenant_static_analysis():
+    """TEN-04｜注入：$queryRaw 跨租户｜期望：阻断。
+
+    站3 RawQueryTenantScanner 的 SQL 字符串/queryRaw 调用点租户隔离静态分析：
+    - 无租户谓词的查询点（含 $queryRaw/$executeRaw 与裸 SQL 模板字符串）
+      → finding → FAIL（阻断语义：策略 FAIL 即阻断合流）；
+    - 对抗负例：SELECT 列表里出现 organization_id 不能骗过判定（谓词区
+      之外不算守卫）；SET 赋值不算守卫；间接 SQL（getSql(...)）无法证明
+      有守卫→按无守卫处理；NOT IN/<>/!= 否定算子不构成租户约束；
+    - 对照：谓词区内 org_id=/tenant_id = ANY 守卫 → PASS；
+    - 分母缩水：声明 expected_query_sites 高于发现数 → BLOCKED；
+      空文件载荷 → 畸形拒绝（防 vacuous PASS）。
+    """
+    src = "\n".join([
+        "import { prisma } from './client'",                                  # L1
+        "const leak = await prisma.$queryRaw`SELECT id FROM orders WHERE id = ${id}`",   # L2 无守卫
+        "const ok1 = await prisma.$queryRaw`SELECT * FROM orders WHERE org_id = ${orgId}`",  # L3 守卫
+        "const decoy = await prisma.$queryRaw`SELECT id, organization_id FROM orders WHERE id = ${id}`",  # L4 SELECT 列表骗术
+        "const indirect = await prisma.$executeRaw(getSql(id))",             # L5 间接 SQL
+        "const lit = `SELECT name FROM users`",                              # L6 裸 SQL 无守卫
+        "const litOk = `DELETE FROM audit WHERE tenant_id = ANY(${ids})`",   # L7 守卫
+    ]) + "\n"
+    contract, ts = _mk_st3(AC_DATA_CONFIG)
+    payload = {
+        "tool": {"name": "raw-query-tenant-scan", "version": "ac"},
+        "started_at": ts, "ended_at": ts,
+        "files": [{"path": "src/db/queries.ts", "content": src}],
+    }
+    st = contract.raw_query_scanner().adapt(payload)
+    validate_station_result(st)
+    assert st["policy_verdict"] == "FAIL", st            # 阻断
+    assert st["execution_status"] == "COMPLETED"
+    assert st["coverage"] == {"denominator": 6, "scanned": 6}  # 4 调用点+2 SQL 串
+    assert len(st["finding_ids"]) == 4, st["finding_ids"]      # L2/L4/L5/L6
+    for fid in st["finding_ids"]:
+        assert "no_tenant" in fid, fid
+    # 对抗细节：SELECT 列表骗术（L4）与间接 SQL（L5）都被抓——逐行核验
+    assert any("_4_prisma_queryraw" in f for f in st["finding_ids"]), st["finding_ids"]
+    assert any("_5_prisma_executeraw" in f for f in st["finding_ids"]), st["finding_ids"]
+    assert any("_6_sql_string" in f for f in st["finding_ids"]), st["finding_ids"]
+
+    # 谓词算子对抗（纯函数面）：NOT IN / <> / != 不构成租户守卫
+    has = RawQueryTenantScanner.has_tenant_predicate
+    cols = ("organization_id", "org_id", "tenant_id")
+    assert has("SELECT 1 FROM orders WHERE org_id = ${org}", cols)
+    assert has("SELECT 1 FROM orders WHERE o.tenant_id IN (${ids})", cols)
+    assert not has("SELECT 1 FROM orders WHERE org_id NOT IN (${ids})", cols)
+    assert not has("SELECT 1 FROM orders WHERE org_id <> ${other}", cols)
+    assert not has("SELECT organization_id FROM orders", cols)   # 无谓词区
+    assert not has(None, cols)                                   # 无法证明=无守卫
+
+    # 对照：全守卫 → PASS（空 finding、2/2 全扫）
+    guarded_src = "\n".join([
+        "const a = await prisma.$queryRaw`SELECT * FROM orders WHERE organization_id = ${orgId}`",
+        "const b = `UPDATE audit SET note = 'x' WHERE tenant_id = ANY(${ids})`",
+    ]) + "\n"
+    st = contract.raw_query_scanner().adapt({
+        **payload, "files": [{"path": "src/db/safe.ts", "content": guarded_src}]})
+    validate_station_result(st)
+    assert st["policy_verdict"] == "PASS", st
+    assert st["coverage"] == {"denominator": 2, "scanned": 2}
+    assert not st["finding_ids"]
+
+    # 分母缩水：声明宇宙 10、发现 6 → BLOCKED（探针漏读不得静默漏出分母）
+    st = contract.raw_query_scanner().adapt({**payload, "expected_query_sites": 10})
+    assert st["execution_status"] == "BLOCKED", st
+    assert st["coverage"] == {"denominator": 10, "scanned": 6}
+
+    # 空文件载荷 → 畸形拒绝（fail-closed，防 vacuous PASS）
+    try:
+        contract.raw_query_scanner().adapt({**payload, "files": []})
+        raise AssertionError("empty files payload must be rejected")
+    except RawQueryScanMalformed:
+        pass
 
 
 def test_TEN_05_non_export_download_path_scanned():
@@ -1248,6 +1483,138 @@ def test_PERF_02_null_metrics_error_class():
     assert st["policy_verdict"] == "PASS", st
 
 
+def test_PERF_03_tail_slow_samples_enter_p95_p99():
+    """PERF-03｜注入：尾部极慢样本｜期望：正确进入 p95/p99。
+
+    站4 QuantileLatencyScanner 指标分位数统计面（p50/p95/p99 真实计算+阈值判定）：
+    - 算法正源：percentile 线性插值——1..100 恰得 p50=50.5/p95=95.05/p99=99.01；
+    - 尾部注入：90 快样本(10ms)+10 极慢尾部(1000ms) → p95=p99=1000.0
+      （极慢样本真实进入尾部分位数；中位数 10.0 仍被快样本多数掩盖——
+      只看均值/中位数必然漏报，分位数面抓住）；
+    - 阈值判定：p95 超 800 → 恰 1 条 finding+FAIL；p99=1000 未超 1200 不报；
+    - 对照负例：全均匀快样本 → PASS 零 finding；
+    - 采集缺口（None/非数值/NaN）→ 按未扫计 → 缩水守卫 BLOCKED。
+    """
+    manifest, _ = _mk_manifest(_next_run_id("perf3"))
+    # 算法精确性（真实计算，非近似）
+    vals = list(range(1, 101))
+    assert percentile(vals, 0.50) == 50.5
+    assert percentile(vals, 0.95) == 95.05
+    assert percentile(vals, 0.99) == 99.01
+
+    thresholds = {"p50": 20, "p95": 800, "p99": 1200}
+    samples = [10.0] * 90 + [1000.0] * 10
+    st = QuantileLatencyScanner(
+        manifest, samples=samples, thresholds_ms=thresholds).scan()
+    validate_station_result(st)
+    assert st["policy_verdict"] == "FAIL", st
+    assert st["execution_status"] == "COMPLETED"
+    assert st["coverage"] == {"denominator": 100, "scanned": 100}
+    assert len(st["finding_ids"]) == 1, st["finding_ids"]  # 只 p95 超（800<1000<1200）
+    assert st["finding_ids"][0].startswith("fnd_quantile_")
+    probe = QuantileLatencyScanner(
+        manifest, samples=samples, thresholds_ms=thresholds)
+    probe.scan()
+    assert probe.last_breakdown["quantiles"] == {
+        "p50": 10.0, "p95": 1000.0, "p99": 1000.0}, probe.last_breakdown
+    assert probe.last_breakdown["tripped"] == ["p95"]
+
+    # 对照负例：全均匀快样本 → PASS
+    st = QuantileLatencyScanner(
+        manifest, samples=[10.0] * 100, thresholds_ms=thresholds).scan()
+    validate_station_result(st)
+    assert st["policy_verdict"] == "PASS", st
+    assert not st["finding_ids"]
+
+    # 采集缺口：null/非数值/NaN → 未扫计 → 缩水守卫 BLOCKED（绝不折算 PASS）
+    st = QuantileLatencyScanner(
+        manifest, samples=[10.0, None, "640ms", float("nan")],
+        thresholds_ms={"p95": 800}).scan()
+    validate_station_result(st)
+    assert st["coverage"] == {"denominator": 4, "scanned": 1}
+    assert st["execution_status"] == "BLOCKED", st
+    assert st["policy_verdict"] == "NOT_EVALUATED", st
+    assert st["execution"]["assertion_verdict"] == "ERROR", st
+
+
+def test_PERF_04_query_count_linear_n_plus_one():
+    """PERF-04｜注入：输入 1→100，query count 线性｜期望：FAIL。
+
+    站4 QueryCountProfileScanner 查询计数剖析面（N+1/超阈值→finding）：
+    - §20 注入原样：输入 1→2 条查询、输入 100→101 条 → 最小二乘斜率≈1.0
+      （每输入项 ≥1 查询=线性=N+1 形态）→ linear finding + 超上限 finding
+      → FAIL；
+    - 对照负例：批处理实现（1→3、100→3，斜率 0）→ PASS；
+    - 两判定面独立：常数但超上限（1→50、100→50）→ 无线性 finding、两条
+      超限 finding 照样 FAIL（常数形态不能洗绿超限）；
+    - 单点不可证线性（斜率 None 只做上限判定）；
+    - 剖析点结构非法 → 未扫计 → 缩水守卫 BLOCKED。
+    """
+    manifest, _ = _mk_manifest(_next_run_id("perf4"))
+    n_plus_one = QueryCountProfileScanner(
+        manifest,
+        profiles=[{"input_size": 1, "query_count": 2},
+                  {"input_size": 100, "query_count": 101}],
+        max_query_count=10,
+    )
+    st = n_plus_one.scan()
+    validate_station_result(st)
+    assert st["policy_verdict"] == "FAIL", st
+    assert st["execution_status"] == "COMPLETED"
+    assert st["coverage"] == {"denominator": 2, "scanned": 2}
+    assert len(st["finding_ids"]) == 2, st["finding_ids"]  # 线性 1 + 超限 1
+    assert st["finding_ids"][0].startswith("fnd_querycount_linear")
+    assert st["finding_ids"][1].startswith("fnd_querycount_over")
+    slope = n_plus_one.last_breakdown["least_squares"]["slope"]
+    assert slope is not None and abs(slope - 1.0) < 1e-9, slope  # 真实线性
+
+    # 对照：批处理（斜率 0、上限内）→ PASS
+    batched = QueryCountProfileScanner(
+        manifest,
+        profiles=[{"input_size": 1, "query_count": 3},
+                  {"input_size": 100, "query_count": 3}],
+        max_query_count=10,
+    )
+    st = batched.scan()
+    validate_station_result(st)
+    assert st["policy_verdict"] == "PASS", st
+    assert not st["finding_ids"]
+    assert batched.last_breakdown["least_squares"]["slope"] == 0.0
+
+    # 独立判定面：常数但超上限 → 无线性 finding、两条超限 finding 仍 FAIL
+    over = QueryCountProfileScanner(
+        manifest,
+        profiles=[{"input_size": 1, "query_count": 50},
+                  {"input_size": 100, "query_count": 50}],
+        max_query_count=10,
+    )
+    st = over.scan()
+    validate_station_result(st)
+    assert st["policy_verdict"] == "FAIL", st
+    assert len(st["finding_ids"]) == 2, st["finding_ids"]
+    assert all(f.startswith("fnd_querycount_over") for f in st["finding_ids"])
+    assert not over.last_breakdown["linear_tripped"]
+
+    # 单点：不可证线性（slope None），上限判定照常
+    single = QueryCountProfileScanner(
+        manifest, profiles=[{"input_size": 5, "query_count": 4}],
+        max_query_count=10)
+    st = single.scan()
+    assert st["policy_verdict"] == "PASS", st
+    assert single.last_breakdown["least_squares"]["slope"] is None
+
+    # 剖析点结构非法 → 缩水 BLOCKED（fail-closed）
+    st = QueryCountProfileScanner(
+        manifest,
+        profiles=[{"input_size": 1, "query_count": 2}, {"input_size": "x"}],
+        max_query_count=10,
+    ).scan()
+    validate_station_result(st)
+    assert st["coverage"] == {"denominator": 2, "scanned": 1}
+    assert st["execution_status"] == "BLOCKED", st
+    assert st["policy_verdict"] == "NOT_EVALUATED", st
+
+
 def test_PERF_05_baseline_threshold_tamper_blocked_by_hash():
     """PERF-05｜注入：修改 baseline/阈值试图洗绿｜期望：policy hash 阻断。
 
@@ -1368,8 +1735,12 @@ TESTS = [
      test_SC_01_valid_json_high_critical_fails),
     ("SC-02 空 JSON/registry 超时 → ERROR",
      test_SC_02_empty_json_or_registry_timeout_error),
+    ("SC-03 install script/resolved/integrity 变化 → FAIL/人工审（新增依赖计入发现/分母）",
+     test_SC_03_lockfile_diff_added_deps_counted),
     ("SC-04 标题含 [skip-audit] → 无绕过效果",
      test_SC_04_skip_audit_title_no_bypass),
+    ("SC-05 离线快照签名错误/过期 → BLOCKED（fail-closed 源不可用）",
+     test_SC_05_snapshot_signature_freshness_fail_closed),
     ("ADV-01 version parser 异常 → UNKNOWN（保守升 HIGH）不写 seen（不静默跳过）",
      test_ADV_01_version_parser_anomaly_unknown_not_silent),
     ("ADV-02 多页/多 range → 全遍历（截断=ERROR）",
@@ -1380,6 +1751,8 @@ TESTS = [
      test_TEN_02_comment_organizationId_cannot_fool),
     ("TEN-03 builder 超 300 字符 → 纳入分析（超长路径入分母并被判定）",
      test_TEN_03_long_builder_included_in_analysis),
+    ("TEN-04 $queryRaw 跨租户 → 阻断（无租户谓词查询 finding）",
+     test_TEN_04_queryraw_cross_tenant_static_analysis),
     ("TEN-05 路径不含 export/download 的下载 → 纳入扫描",
      test_TEN_05_non_export_download_path_scanned),
     ("TEN-06 Org A 访问/导出 Org B → 动态拒绝",
@@ -1392,6 +1765,10 @@ TESTS = [
      test_PERF_01_http_500_fast_still_fails),
     ("PERF-02 SSH/TCC/null 指标 → ERROR 类（采集缺口缩水折叠）",
      test_PERF_02_null_metrics_error_class),
+    ("PERF-03 尾部极慢样本 → 正确进入 p95/p99（真实计算+阈值判定）",
+     test_PERF_03_tail_slow_samples_enter_p95_p99),
+    ("PERF-04 输入 1→100 query count 线性 → FAIL（N+1/超阈值剖析）",
+     test_PERF_04_query_count_linear_n_plus_one),
     ("PERF-05 修改 baseline/阈值试图洗绿 → policy hash 阻断",
      test_PERF_05_baseline_threshold_tamper_blocked_by_hash),
     ("PERF-06 样本/时长/endpoint 分母缩水 → 不得晋升 baseline",
@@ -1399,7 +1776,7 @@ TESTS = [
 ]
 
 IMPLEMENTED_IDS = [name.split()[0] for name, _ in TESTS]
-assert len(IMPLEMENTED_IDS) == len(set(IMPLEMENTED_IDS)) == 24, IMPLEMENTED_IDS
+assert len(IMPLEMENTED_IDS) == len(set(IMPLEMENTED_IDS)) == 29, IMPLEMENTED_IDS
 assert not (set(IMPLEMENTED_IDS) & set(NOT_IMPLEMENTABLE)), "清单互斥被破坏"
 assert set(IMPLEMENTED_IDS) | set(NOT_IMPLEMENTABLE) == {
     "STA-01", "STA-02",

@@ -90,6 +90,36 @@ reserve→start→commit 对 release/production 照样走通、receipt 为调用
   - 重放一致：ACTION_* 折叠校验授权消费链（RESERVED 必须有对应
     APPROVAL_CONSUMED 且 approval_type 与 action_type 匹配）与 receipt
     分级（COMMITTED 出现非 RECONCILED 分级回执即 Corruption）。
+
+W6/P1F（wave6 产品面补缺——§20 验收 ID STATE-02/05/09/11 对应语义）：
+  - STATE-02（ID/路径校验面）：全部调用方可控 ID 做结构校验——
+    ``create_run`` task_id（^ alphanumeric/-/_ 且 ≤64）、
+    ``register_finding`` finding_id（^fnd_ 且 ≤64）、以及 ``_load_state``
+    入口的 run_id（^run_[A-Za-z0-9_-]+$ 且 ≤64）。路径穿越（``../``）、
+    绝对路径、NUL、超长一律 ``InvalidRunIdError``/``PipelineError`` 拒绝，
+    绝不进入事件流寻址；
+  - STATE-05（writer epoch fencing）：``RunManager(writer_epoch=N)`` 启用
+    写者栅栏。启用者发出的每个控制事件携带 ``writer_epoch`` 扩展字段；
+    重放维护流内最大 epoch（单调，旧 epoch 事件即
+    ``PipelineCorruptionError``），任何 writer 对 epoch 已被超越的 run 的
+    全部变更（advance/raise/resume/authorize/finding/cancel/supersede/
+    complete/adjudicate）一律 ``FencedWriterError``。未启用 fencing 的
+    存量调用零变化（不盖章、不比较——字节级兼容）；
+    诚实边界：fenced 模式事件的 ``writer_epoch`` 字段超出冻结
+    run-event-v2 词表（默认模式仍 100% 过 schema）；fencing 作用域=单
+    run 事件流（被接管的流整体拒绝旧写者，新流/新 run 不受旧租约牵连）；
+    epoch 唯一性由租约发放方保证（同 epoch 视为同一租约）；
+  - STATE-09（重放侧身份不变量）：run 事件流内 identity 必须全程逐字
+    一致——RUN_CREATED 冻结身份后，任何携带漂移 identity（commit_sha/
+    scope_hash/policy_hash/ruleset_hash/environment 等任一变化）或缺
+    identity 的 run 事件，重放即 ``PipelineCorruptionError``。SHA/scope/
+    policy 变化的唯一正道仍是既有不变量 #3：supersede 旧 run + 新建 run；
+  - STATE-11（S7 CONDITIONAL 缺授权终判）：新增
+    ``adjudicate_gate_conditional``——S7 软终态且无已消费、未过期、指纹
+    精确匹配的 risk 授权时，将该 run 终判 FAILED（RUN_COMPLETED/
+    COMPLETED/FAIL）。终态后一切写入（含 WAITING）拒绝，迟到的批准只能
+    指向新 run。``complete_run`` 的 fail-closed 拒绝语义保持不变（授权
+    到位后 COMPLETED_CONDITIONAL 的正道不受影响）。
 """
 
 from __future__ import annotations
@@ -97,6 +127,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import sqlite3
 import time
 import uuid
@@ -132,6 +163,8 @@ __all__ = [
     "ApprovalReuseError",
     "ApprovalPreconditionError",
     "ActionError",
+    "FencedWriterError",
+    "InvalidRunIdError",
     "RECEIPT_PROVISIONAL",
     "RECEIPT_RECONCILED",
 ]
@@ -218,6 +251,13 @@ POLICY_VERDICTS = frozenset(
     {"PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"}
 )
 ENVIRONMENTS = frozenset({"local", "staging", "production"})
+
+# W6/STATE-02：调用方可控 ID 的结构校验面。
+# run_id 由 create_run 生成（run_ + 时间戳 + uuid hex 片段，≤64）；任何
+# 路径穿越（../）、绝对路径、NUL、超长（>64）或含路径分隔符/非法字符的
+# run_id 在进入事件流寻址前直接拒绝——不把不可信 ID 当作"查不到就算了"。
+_RUN_ID_PATTERN = re.compile(r"^run_[A-Za-z0-9_-]{1,60}$")   # 总长 ≤ 64
+_ID_MAX_LEN = 64
 
 
 class NineStopTypes(str, Enum):
@@ -579,6 +619,25 @@ class ActionError(PipelineError):
     """ActionSaga 编排违规（未知 action / 非法转换 / 终态后变更）。"""
 
 
+class FencedWriterError(PipelineError):
+    """writer epoch 落后于事件流当前 epoch——本 writer 对该 run 的全部写入被拒。
+
+    W6/STATE-05（双 writer epoch）：新 writer 以更高 epoch 接管 run 事件流后，
+    旧 epoch writer（含未启用 epoch 的 writer，视为 epoch 0）对该 run 的一切
+    变更路径（advance/raise/resume/authorize/finding/cancel/supersede/
+    complete/adjudicate）均以此错误拒绝；恢复只能由 ≥ 流内 epoch 的 writer 或
+    新建 run 承接。
+    """
+
+
+class InvalidRunIdError(PipelineError):
+    """run_id 结构非法（路径穿越/绝对路径/NUL/超长/非规范形态）。
+
+    W6/STATE-02：拒绝 ``../``、绝对路径、NUL、超过 64 字符及一切含路径
+    分隔符的 ID——不可信 ID 不进入事件流寻址。
+    """
+
+
 # ====================================================================== #
 # 通用小工具
 # ====================================================================== #
@@ -761,7 +820,9 @@ class RunState:
     - findings：run 级 finding 登记面（FINDING_REGISTERED 事件）；
     - consumed_nonce_digests / risk_authorizations：审批消费正源
       （APPROVAL_CONSUMED 事件——approval_consumptions 旁表仅加速查询）；
-    - actions：ActionSaga 聚合状态（ACTION_* control_outbox 事件）。
+    - actions：ActionSaga 聚合状态（ACTION_* control_outbox 事件）；
+    - writer_epoch：流内已见最大 writer epoch（W6/STATE-05 fencing——由
+      各事件 writer_epoch 字段折叠，0=未启用/未被接管）。
     """
 
     run_id: str
@@ -781,6 +842,8 @@ class RunState:
     consumed_nonce_types: Dict[str, str] = field(default_factory=dict)
     risk_authorizations: List[Dict[str, Any]] = field(default_factory=list)
     actions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # W6/STATE-05：流内最大 writer epoch（fencing 判定锚点，重放折叠推导）
+    writer_epoch: int = 0
 
     @property
     def terminal(self) -> bool:
@@ -1815,13 +1878,64 @@ class RunManager:
 
     def __init__(self, store: EventStore,
                  broker: Optional[ApprovalBroker] = None,
-                 keyring: Optional[ApprovalKeyring] = None) -> None:
+                 keyring: Optional[ApprovalKeyring] = None,
+                 writer_epoch: Optional[int] = None) -> None:
+        """
+        writer_epoch（W6/STATE-05，可选）：启用写者栅栏——本 writer 以该
+        epoch 写入（控制事件盖章 ``writer_epoch``），对事件流 epoch 已被更高
+        writer 接管的 run 的全部变更一律 FencedWriterError。None（默认，存量
+        调用）不启用：不盖章、不比较，行为字节级不变。
+        """
+        if writer_epoch is not None and (
+                not isinstance(writer_epoch, int)
+                or isinstance(writer_epoch, bool) or writer_epoch < 1):
+            raise PipelineError(
+                "writer_epoch must be an integer >= 1 or None (lease token)")
+        self._writer_epoch = writer_epoch
         self._store = store
         self._db = _PipelineDb.from_store(store)
         # seal 密钥按 run 确定性派生（_run_seal_secret）——_emit 打封印，
         # 重放逐条验封（Codex 实锤 #7）；跨库复制事件流仍可验证。
         self.broker = broker if broker is not None else ApprovalBroker(
             store, db=self._db, keyring=keyring)
+
+    # ------------------------------------------------------------------ #
+    # W6/STATE-02：run_id 结构校验（路径穿越/绝对路径/NUL/超长一律拒绝）
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _validate_run_id(run_id: Any) -> str:
+        if not isinstance(run_id, str) or not _RUN_ID_PATTERN.match(run_id):
+            raise InvalidRunIdError(
+                f"run_id 结构非法（须 ^run_[A-Za-z0-9_-]+$ 且 ≤{_ID_MAX_LEN} 字符；"
+                f"拒绝 ../、绝对路径、NUL、超长 ID——STATE-02）: {run_id!r}")
+        return run_id
+
+    # ------------------------------------------------------------------ #
+    # W6/STATE-05：writer epoch fencing（旧 epoch 写者对被接管 run 全写入拒绝）
+    # ------------------------------------------------------------------ #
+    @property
+    def writer_epoch(self) -> Optional[int]:
+        """本 writer 的租约 epoch（None=未启用 fencing）。"""
+        return self._writer_epoch
+
+    def _fence_check(self, state: RunState) -> None:
+        mine = self._writer_epoch if self._writer_epoch is not None else 0
+        if state.writer_epoch > mine:
+            raise FencedWriterError(
+                f"run {state.run_id} 事件流已被 writer epoch "
+                f"{state.writer_epoch} 接管，本 writer（epoch={mine or '0，未启用'}）"
+                f"的全部写入被拒（STATE-05 双 writer fencing）——恢复须由不低于"
+                f"流内 epoch 的 writer 或新 run 承接")
+
+    def _fenced_loader(
+            self, run_id: str) -> Callable[[sqlite3.Connection], RunState]:
+        """带 fencing 核验的 run_loader（broker 消费路径共用 _load_state，
+        其变更入口不经 _require_mutable——在 loader 内补栅栏核验）。"""
+        def _loader(conn: sqlite3.Connection) -> RunState:
+            st = self._load_state(run_id, conn)
+            self._fence_check(st)
+            return st
+        return _loader
 
     # ------------------------------------------------------------------ #
     # 身份校验（run-event-v2.identity）
@@ -1895,13 +2009,52 @@ class RunManager:
                     f"run {ev.get('run_id')!r} 首事件非 RUN_CREATED: {etype}")
             ident = ev.get("identity") or {}
             stages = {s: StageState(stage=s) for s in STAGES}
+            epoch0 = ev.get("writer_epoch")
+            if epoch0 is not None and (not isinstance(epoch0, int)
+                                       or isinstance(epoch0, bool)
+                                       or epoch0 < 1):
+                raise PipelineCorruptionError(
+                    f"run {ev.get('run_id')!r}: RUN_CREATED writer_epoch 非法 "
+                    f"{epoch0!r}（须 >= 1 的整数——STATE-05）")
             state = RunState(
                 run_id=ev["run_id"], task_id=ev.get("task_id", ""),
                 identity=dict(ident), state=RUN_CREATED_S,
                 state_version=int(ev.get("state_version", 1)),
                 stages=stages, created_at=ev.get("ts"),
+                writer_epoch=epoch0 if isinstance(epoch0, int) else 0,
             )
             return state
+
+        # ---- W6/STATE-09：run 事件流 identity 不变量（重放侧）----
+        # RUN_CREATED 冻结身份后，流内任何事件携带的 identity 必须逐字一致。
+        # SHA/scope/policy（及环境/规则集等）任一漂移或缺 identity 的 run 事件
+        # 即 Corruption——身份变化没有"原地改"路径，唯一正道是
+        # supersede + 新建 run（不变量 #3）。
+        ident_ev = ev.get("identity")
+        if not isinstance(ident_ev, Mapping) or dict(ident_ev) != state.identity:
+            raise PipelineCorruptionError(
+                f"run {state.run_id}: event {etype!r} identity 漂移/缺失"
+                f"（流内身份必须全程一致；SHA/scope/policy 变化强制新 run"
+                f"——STATE-09）。流身份={_canonical_json(state.identity)}，"
+                f"事件身份={_canonical_json(ident_ev) if isinstance(ident_ev, Mapping) else repr(ident_ev)}")
+
+        # ---- W6/STATE-05：writer epoch fencing（重放侧）----
+        # 携带 writer_epoch 的事件参与流内 epoch 单调性：低于已见最大 epoch
+        # 即旧 epoch 写入/重放被拒（Corruption）；更高则接管（流内 epoch 前移）。
+        epoch_ev = ev.get("writer_epoch")
+        if epoch_ev is not None:
+            if not isinstance(epoch_ev, int) or isinstance(epoch_ev, bool) \
+                    or epoch_ev < 1:
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: event {etype!r} writer_epoch 非法 "
+                    f"{epoch_ev!r}（须 >= 1 的整数——STATE-05）")
+            if epoch_ev < state.writer_epoch:
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: event {etype!r} writer_epoch "
+                    f"{epoch_ev} < 流内当前 epoch {state.writer_epoch}"
+                    f"（旧 epoch 写入/重放被拒——STATE-05 双 writer fencing）")
+            if epoch_ev > state.writer_epoch:
+                state.writer_epoch = epoch_ev
 
         # ---- 观察类控制事件：登记面侧记，不推进状态机 ----
         if etype in OBSERVATION_EVENT_TYPES:
@@ -2199,6 +2352,9 @@ class RunManager:
 
     def _load_state(self, run_id: str,
                     conn: Optional[sqlite3.Connection] = None) -> RunState:
+        # W6/STATE-02：run_id 结构校验先于寻址（路径穿越/绝对路径/NUL/超长
+        # 一律拒绝，不进入事件流过滤）——单闸口覆盖全部公开 API。
+        self._validate_run_id(run_id)
         c = conn if conn is not None else self._db._conn  # noqa: SLF001
         state: Optional[RunState] = None
         for _seq, event_hash, payload in _PipelineDb.read_events(c):
@@ -2214,6 +2370,9 @@ class RunManager:
             raise TerminalRunError(
                 f"run {state.run_id} is terminal ({state.state})——"
                 f"控制事件只追加，纠错须 supersede/reopen（不变量 #6）")
+        # W6/STATE-05：终态检查后补写者栅栏——旧 epoch writer 对该 run 的
+        # 全部变更路径在此统一拒绝（各变更 API 均先 _require_mutable）。
+        self._fence_check(state)
 
     def _emit(self, conn: sqlite3.Connection, state: RunState,
               event: Mapping[str, Any]) -> str:
@@ -2223,8 +2382,14 @@ class RunManager:
         单调性、转换表与段序，因此本方法之后的内存状态与事后重放严格一致。
         seal 密钥按 run_id 确定性派生——控制事件不可经公共
         EventStore.append 注入（append 对控制类型直接 ValueError）。
+        W6/STATE-05：启用 writer_epoch 的 writer 在此盖章（写前再核栅栏，
+        观测面事件与状态面事件同一闸口）；未启用者不盖章（字节级兼容）。
         """
-        sealed = _seal_event(state.run_id, dict(event))
+        ev = dict(event)
+        if self._writer_epoch is not None:
+            self._fence_check(state)
+            ev["writer_epoch"] = self._writer_epoch
+        sealed = _seal_event(state.run_id, ev)
         event_hash, _ = _PipelineDb.append_event(conn, sealed)
         self._replay_fold(state, event_hash, sealed)
         return event_hash
@@ -2243,10 +2408,11 @@ class RunManager:
                    actor: str = "system") -> Dict[str, Any]:
         """创建七段 run：状态 CREATED，S1..S7 全 PENDING，state_version=1。"""
         if not (isinstance(task_id, str) and task_id.strip()
-                and len(task_id) <= 64
+                and len(task_id) <= _ID_MAX_LEN
                 and all(c.isalnum() or c in "-_" for c in task_id)):
             raise PipelineError(
-                "task_id must match ^[a-zA-Z0-9_-]+$ and be <= 64 chars")
+                "task_id must match ^[a-zA-Z0-9_-]+$ and be <= 64 chars"
+                "（拒绝 ../、绝对路径、NUL、超长 ID——STATE-02）")
         ident = self._validate_identity(identity)
         run_id = f"run_{time.strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
         if len(run_id) > 64:
@@ -2258,8 +2424,11 @@ class RunManager:
                 state=RUN_CREATED_S, state_version=1,
                 stages={s: StageState(stage=s) for s in STAGES},
             )
-            event = _seal_event(run_id, self._base_event(
-                "RUN_CREATED", seed, "COMPLETED", "NOT_EVALUATED", actor=actor))
+            raw = self._base_event(
+                "RUN_CREATED", seed, "COMPLETED", "NOT_EVALUATED", actor=actor)
+            if self._writer_epoch is not None:   # W6/STATE-05：fenced 写者盖章
+                raw["writer_epoch"] = self._writer_epoch
+            event = _seal_event(run_id, raw)
             event_hash, _ = _PipelineDb.append_event(conn, event)
             # 用与重放完全相同的规则自证事件可折叠（不一致立即失败回滚）
             self._replay_fold(None, event_hash, event)
@@ -2454,9 +2623,6 @@ class RunManager:
         - 充分：以上全部满足后没有任何自由裁量阻断——直接恢复 RUNNING；
         - attempt 不可变：旧 attempt 停留 WAITING，恢复创建新 attempt_id。
         """
-        def _loader(conn: sqlite3.Connection) -> RunState:
-            return self._load_state(run_id, conn)
-
         def _resume_event(state: RunState, ap: Mapping[str, Any],
                           nonce_digest: str) -> Mapping[str, Any]:
             if state.state != RUN_WAITING_S or state.waiting is None:
@@ -2476,7 +2642,7 @@ class RunManager:
 
         record = self.broker.consume(
             approval,
-            run_loader=_loader,
+            run_loader=self._fenced_loader(run_id),   # W6/STATE-05：栅栏核验
             resume_event_builder=_resume_event,
             objective_preconditions=objective_preconditions,
         )
@@ -2492,7 +2658,7 @@ class RunManager:
                        approval: Mapping[str, Any]) -> Dict[str, Any]:
         """消费一次性 risk 授权进台账——COMPLETED_CONDITIONAL 的前置。"""
         return self.broker.consume_authorization(
-            approval, run_loader=lambda conn: self._load_state(run_id, conn))
+            approval, run_loader=self._fenced_loader(run_id))  # W6/STATE-05
 
     def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
                      reason: str = "", actor: str = "system") -> Dict[str, Any]:
@@ -2582,6 +2748,77 @@ class RunManager:
 
         return self._db.transact(_body)
 
+    def adjudicate_gate_conditional(self, run_id: str, *, reason: str = "",
+                                    actor: str = "system") -> Dict[str, Any]:
+        """STATE-11｜S7 CONDITIONAL 缺 risk authorization → run 终判 FAILED。
+
+        语义（与 ``complete_run`` 互补，二者均保持 fail-closed）：
+        - 适用面：末段 S7 处于 COMPLETED_CONDITIONAL（软终态），且不存在
+          已消费、未过期、finding 指纹与 run 登记面精确匹配的 risk 授权
+          （判据与 ``complete_run`` 的 COMPLETED_CONDITIONAL 半边完全一致）；
+        - 终判：RUN_COMPLETED（execution=COMPLETED，policy_verdict=FAIL）
+          → run 终态 FAILED。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL
+          留档——attempt 一旦终态不可改写），终判落在 run 层；
+        - 终态后不得写 WAITING：raise_waiting/advance/resume/register_finding
+          等全部变更拒绝（TerminalRunError/ApprovalRejected），迟到的批准
+          （authorize_risk/resume_waiting）对该 run 无目标——只能创建新 run
+          重新授权（新 run_id + 新 state_version CAS 绑定）；
+        - 误用防护：存在可用 risk 授权时本方法拒绝（应走 complete_run →
+          COMPLETED_CONDITIONAL）；S7 非软终态时拒绝。
+        """
+        def _usable_risk(state: RunState) -> Optional[Dict[str, Any]]:
+            eligible = sorted({
+                f["fingerprint"] for f in state.findings.values()
+                if f.get("severity") in _RISK_ACCEPTABLE_SEVERITIES
+                and f.get("priority") in _RISK_ACCEPTABLE_PRIORITIES})
+            now = _utc_now_epoch()
+            for auth in state.risk_authorizations:
+                try:
+                    unexpired = (_parse_iso_ts(auth["expires_at"]).timestamp()
+                                 > now)
+                except (ValueError, TypeError):
+                    continue
+                if unexpired and sorted(auth["finding_fingerprints"]) == eligible:
+                    return auth
+            return None
+
+        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+            state = self._load_state(run_id, conn)
+            self._require_mutable(state)
+            if state.state == RUN_WAITING_S:
+                raise PipelineError(
+                    f"run {run_id} WAITING——先 resume_waiting 或 cancel_run")
+            last = STAGES[-1]
+            s7_status = state.stages[last].status
+            if s7_status != ATTEMPT_COMPLETED_CONDITIONAL:
+                raise PipelineError(
+                    f"{last} 状态为 {s7_status}（非 COMPLETED_CONDITIONAL）——"
+                    f"本终判仅针对 S7 软终态缺 risk authorization（STATE-11）")
+            risk = _usable_risk(state)
+            if risk is not None:
+                raise PipelineError(
+                    f"run {run_id} 存在可用（已消费/未过期/指纹匹配）risk 授权 "
+                    f"{risk['approval_id']}——应走 complete_run → "
+                    f"COMPLETED_CONDITIONAL，而非终判 FAILED（STATE-11 误用防护）")
+            terminal_reason = reason or (
+                f"{last} COMPLETED_CONDITIONAL 缺可用 risk authorization——"
+                f"S7/run 终判 FAILED（STATE-11；后续批准只能创建新 run）")
+            SevenStageStateMachine.validate_outcome("COMPLETED", "FAIL")
+            event = self._base_event(
+                "RUN_COMPLETED", state, "COMPLETED", "FAIL", actor=actor,
+                state_version=state.state_version + 1,
+                terminal_reason=terminal_reason)
+            event_hash = self._emit(conn, state, event)  # 折叠内校验终态转换
+            return {
+                "run_id": run_id, "final_state": RUN_FAILED_S,
+                "execution_status": "COMPLETED", "policy_verdict": "FAIL",
+                "terminal_reason": terminal_reason,
+                "state_version": state.state_version,
+                "event_hash": event_hash,
+            }
+
+        return self._db.transact(_body)
+
     def cancel_run(self, run_id: str, reason: str = "",
                    actor: str = "system") -> Dict[str, Any]:
         """取消（CREATED/RUNNING/WAITING → CANCELLED；attempt 亦 CANCELLED 由重放推导）。"""
@@ -2633,10 +2870,12 @@ class RunManager:
         只能登记一次。
         """
         if not (isinstance(finding_id, str) and finding_id.startswith("fnd_")
-                and len(finding_id) > 4
+                and 4 < len(finding_id) <= _ID_MAX_LEN      # W6/STATE-02：超长拒
                 and all(c.isalnum() or c == "_" for c in finding_id[4:])):
             raise PipelineError(
-                f"finding_id must match ^fnd_[a-zA-Z0-9_]+$, got {finding_id!r}")
+                f"finding_id must match ^fnd_[a-zA-Z0-9_]+$ and be "
+                f"<={_ID_MAX_LEN} chars（拒绝 ../、绝对路径、NUL、超长 ID"
+                f"——STATE-02）, got {finding_id!r}")
         if not (isinstance(fingerprint, str) and fingerprint.strip()):
             raise PipelineError("fingerprint must be a non-empty string")
         if severity not in _SEVERITIES:
@@ -2711,7 +2950,7 @@ class RunManager:
             # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
             # 任一步失败整体回滚，授权与预留绝不成单只
             self.broker._consume_authorization_txn(  # noqa: SLF001
-                conn, ap, lambda c: self._load_state(run_id, c), now, expected)
+                conn, ap, self._fenced_loader(run_id), now, expected)
             state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
             action_id = f"act_{uuid.uuid4().hex[:12]}"
             event = self._base_event(

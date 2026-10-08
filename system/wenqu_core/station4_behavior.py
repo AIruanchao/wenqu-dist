@@ -26,6 +26,14 @@
   失败请求作为诊断工件随报告归档。场景通过 = passed==true 且
   console_errors/failed_requests 双空。
 
+性能剖析腿（§20.3 PERF 族，进程内执行，同站合并）：
+- QuantileLatencyScanner：指标分位数统计（PERF-03）——p50/p95/p99 由
+  全样本线性插值真实计算（尾部极慢样本必然进入 p95/p99）+ 阈值判定
+  （超阈值→finding→FAIL；采集缺口样本按未扫计→缩水 BLOCKED）。
+- QueryCountProfileScanner：查询计数剖析（PERF-04）——最小二乘斜率
+  判线性（slope≥1 query/输入项=N+1 形态）+ 绝对上限双判定面
+  （超阈值/线性→finding→FAIL）。
+
 安全构造（by construction）：
 - 纯 stdlib；一切外部命令经 TrustedRunner（argv 列表、shell=False，
   actual_exit_code 只取 waitpid 真值）；无 shell 拼接、无 eval/exec。
@@ -46,6 +54,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import socket
 import tempfile
@@ -53,7 +62,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .bugscan_orchestrator import (
     RunManifest,
@@ -68,12 +77,16 @@ __all__ = [
     "E2eScanner",
     "RouteDynamicScanner",
     "WebGuiScanner",
+    "QuantileLatencyScanner",
+    "QueryCountProfileScanner",
     "combine_station4_results",
     "scan_station4",
     "BehaviorStationError",
     "E2eSetupError",
     "RouteSpecError",
     "WebGuiSetupError",
+    "PerfSpecError",
+    "percentile",
 ]
 
 __version__ = "1.0.0"
@@ -114,6 +127,10 @@ class RouteSpecError(BehaviorStationError):
 
 class WebGuiSetupError(BehaviorStationError):
     """浏览器抽检腿配置非法：缺报告契约或分母来源。"""
+
+
+class PerfSpecError(BehaviorStationError):
+    """性能剖析腿配置非法：空样本/空阈值集/非法剖析点（PERF-03/PERF-04）。"""
 
 
 # ---------------------------------------------------------------------------
@@ -903,6 +920,374 @@ class WebGuiScanner:
 
 
 # ---------------------------------------------------------------------------
+# 性能剖析腿（§20.3 PERF 族）：分位数统计 + 查询计数剖析
+# ---------------------------------------------------------------------------
+
+
+def percentile(sorted_values: Sequence[float], q: float) -> float:
+    """线性插值分位数（真实计算；PERF-03 的算法正源）。
+
+    rank = q*(n-1)，落在相邻次序统计量之间按 frac 线性插值；
+    n=1 返回该值本身。入参须已升序、非空、全有限数值——调用方保证
+    （空列表/越界 q 抛 PerfSpecError，绝不静默给 0）。
+    """
+    if not sorted_values:
+        raise PerfSpecError("percentile of an empty sample list is undefined")
+    if not 0.0 < q <= 1.0:
+        raise PerfSpecError(f"quantile q must be in (0, 1], got {q!r}")
+    n = len(sorted_values)
+    if n == 1:
+        return float(sorted_values[0])
+    rank = q * (n - 1)
+    lo = int(math.floor(rank))
+    hi = int(math.ceil(rank))
+    if lo == hi:
+        return float(sorted_values[lo])
+    frac = rank - lo
+    low = float(sorted_values[lo])
+    return low + (float(sorted_values[hi]) - low) * frac
+
+
+def _is_valid_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+class QuantileLatencyScanner:
+    """指标分位数统计腿（PERF-03）：p50/p95/p99 真实计算 + 阈值判定。
+
+    - 分位数由全样本排序后经 ``percentile`` 线性插值得出——尾部极慢样本
+      必然进入 p95/p99（不裁尾、不均值、不采信上游自报快照值）。
+    - 样本有效性：bool/非数值/NaN/±Inf = 采集缺口 → 该样本按未扫计
+      （PERF-02 同型语义）→ scanned<denominator → 缩水守卫 BLOCKED，
+      绝不折算 PASS。
+    - 阈值判定：quantile **>** threshold 才 trip（等于阈值=达标）；每个
+      tripped 键一条 ``fnd_quantile_*`` finding → FAIL；全达标 → PASS。
+    - 腿在进程内完成（无子进程）：actual_exit_code=0 采用
+      RouteDynamicScanner 同一先例——延迟问题体现为 policy FAIL，
+      绝不体现为假退出码。
+    """
+
+    STATION_ID = STATION_ID
+    LEG = "quantile-latency"
+    QUANTILE_KEYS: Tuple[str, ...] = ("p50", "p95", "p99")
+    _QUANTILE_Q: Dict[str, float] = {"p50": 0.50, "p95": 0.95, "p99": 0.99}
+
+    def __init__(
+        self,
+        manifest: RunManifest,
+        *,
+        samples: Sequence[Any],
+        thresholds_ms: Mapping[str, float],
+        metric_name: str = "latency_ms",
+        now: Optional[datetime] = None,
+    ) -> None:
+        _require_manifest(manifest)
+        if not isinstance(samples, (list, tuple)) or not samples:
+            raise PerfSpecError(
+                "samples must be a non-empty list of latency numbers (空分母禁止)"
+            )
+        if not isinstance(thresholds_ms, Mapping) or not thresholds_ms:
+            raise PerfSpecError(
+                "thresholds_ms must be a non-empty mapping "
+                "{p50|p95|p99: ms 上限}"
+            )
+        norm: Dict[str, float] = {}
+        for key, value in thresholds_ms.items():
+            if key not in self._QUANTILE_Q:
+                raise PerfSpecError(
+                    f"thresholds_ms keys must be subset of {list(self._QUANTILE_Q)}, "
+                    f"got {key!r}"
+                )
+            if not _is_valid_number(value) or value <= 0:
+                raise PerfSpecError(
+                    f"thresholds_ms[{key!r}] must be a positive finite number, "
+                    f"got {value!r}"
+                )
+            norm[str(key)] = float(value)
+        if not isinstance(metric_name, str) or not metric_name.strip():
+            raise PerfSpecError("metric_name must be a non-empty string")
+        self._manifest = manifest
+        self._samples = list(samples)
+        self._thresholds = norm
+        self._metric_name = metric_name.strip()
+        self._now = now
+        self.last_breakdown: Dict[str, Any] = {}
+
+    def scan(self) -> Dict[str, Any]:
+        started = _iso_z(self._now or _utc_now())
+        denominator = len(self._samples)
+        valid = sorted(
+            float(v) for v in self._samples if _is_valid_number(v)
+        )
+        scanned = len(valid)
+        quantiles = {
+            key: percentile(valid, q) for key, q in self._QUANTILE_Q.items()
+        }
+        tripped = sorted(
+            key for key, limit in self._thresholds.items()
+            if quantiles[key] > limit
+        )
+        invalid_count = denominator - scanned
+
+        if invalid_count:
+            # 采集缺口 → 未扫计；缩水守卫在 build_station_result 强制 BLOCKED
+            execution_status = "COMPLETED"
+            policy_verdict = "FAIL" if tripped else "NOT_EVALUATED"
+            assertion = "FAIL" if tripped else "ERROR"
+        elif tripped:
+            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+        else:
+            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+
+        finding_ids = [
+            _finding_id(
+                "quantile",
+                f"{key}:{quantiles[key]:.4f}>{self._thresholds[key]}",
+            )
+            for key in tripped
+        ]
+
+        ended = _iso_z(_utc_now())
+        self.last_breakdown = {
+            "leg": self.LEG,
+            "metric": self._metric_name,
+            "sample_count": denominator,
+            "valid_samples": scanned,
+            "invalid_samples": invalid_count,
+            "quantiles": {k: round(v, 6) for k, v in quantiles.items()},
+            "thresholds_ms": dict(self._thresholds),
+            "tripped": tripped,
+        }
+        stats_payload = json.dumps(
+            {"metric": self._metric_name, "quantiles": self.last_breakdown["quantiles"],
+             "thresholds_ms": dict(self._thresholds), "samples": list(self._samples)},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode("utf-8")
+        argv = ["wenqu_core.station4_behavior", "quantile-latency", self._metric_name]
+        return build_station_result(
+            run_id=self._manifest.run_id,
+            station_id=self.STATION_ID,
+            attempt_id=_attempt_id(self._manifest.run_id, "st4-quantile"),
+            execution_status=execution_status,
+            policy_verdict=policy_verdict,
+            identity=_manifest_identity(self._manifest),
+            tool={"name": "wenqu_core.station4_behavior.QuantileLatencyScanner",
+                  "version": __version__},
+            execution={
+                "argv_digest": TrustedRunner.argv_digest(argv),
+                "started_at": started,
+                "ended_at": ended,
+                "actual_exit_code": 0,  # 进程内完成先例（见类 docstring）
+                "expected_exit_set": [0],
+                "assertion_verdict": assertion,
+            },
+            coverage={"denominator": denominator, "scanned": scanned},
+            finding_ids=finding_ids,
+            artifacts=[_cas_artifact(stats_payload)],
+        )
+
+
+class QueryCountProfileScanner:
+    """查询计数剖析腿（PERF-04）：N+1 / 超阈值查询计数 → finding。
+
+    profiles 契约：``[{"input_size": int>=1, "query_count": int>=0}, …]``
+    （如 ``输入 1→2 条、输入 100→101 条`` 的经典 N+1 剖析）。
+
+    - 线性度（N+1 形态）：最小二乘斜率 slope >= linear_slope_threshold
+      （默认 1.0=每输入项至少 1 条查询）→ ``fnd_querycount_linear``
+      finding——§20 注入「输入 1→100，query count 线性」→ FAIL。
+    - 绝对上限：任一剖析点 query_count > max_query_count → 该点一条
+      ``fnd_querycount_over`` finding（常数但超限的批处理实现照样 FAIL，
+      两个判定面相互独立、不可互相洗绿）。
+    - 单点或输入尺寸无方差 → 斜率不可确立（记 None，不做线性判定）——
+      线性不能由单点证明，但绝对上限判定不受影响。
+    - 剖析点结构非法（非对象/字段缺失或非整数/负数）→ 未扫计 →
+      scanned<denominator → 缩水守卫 BLOCKED（fail-closed）。
+    """
+
+    STATION_ID = STATION_ID
+    LEG = "query-count-profile"
+
+    def __init__(
+        self,
+        manifest: RunManifest,
+        *,
+        profiles: Sequence[Mapping[str, Any]],
+        max_query_count: Optional[int] = None,
+        linear_slope_threshold: float = 1.0,
+        operation_name: str = "default",
+        now: Optional[datetime] = None,
+    ) -> None:
+        _require_manifest(manifest)
+        if not isinstance(profiles, (list, tuple)) or not profiles:
+            raise PerfSpecError(
+                "profiles must be a non-empty list of {input_size, query_count}"
+            )
+        if max_query_count is not None and (
+            not isinstance(max_query_count, int)
+            or isinstance(max_query_count, bool)
+            or max_query_count < 0
+        ):
+            raise PerfSpecError(
+                f"max_query_count must be an int >= 0 when provided, "
+                f"got {max_query_count!r}"
+            )
+        if (
+            not isinstance(linear_slope_threshold, (int, float))
+            or isinstance(linear_slope_threshold, bool)
+            or linear_slope_threshold < 0
+        ):
+            raise PerfSpecError(
+                f"linear_slope_threshold must be a number >= 0, "
+                f"got {linear_slope_threshold!r}"
+            )
+        if not isinstance(operation_name, str) or not operation_name.strip():
+            raise PerfSpecError("operation_name must be a non-empty string")
+        self._manifest = manifest
+        self._profiles = list(profiles)
+        self._max_query_count = max_query_count
+        self._linear_slope_threshold = float(linear_slope_threshold)
+        self._operation_name = operation_name.strip()
+        self._now = now
+        self.last_breakdown: Dict[str, Any] = {}
+
+    # -- 纯函数 ---------------------------------------------------------------
+    @staticmethod
+    def _valid_profile(entry: Any) -> Optional[Tuple[int, int]]:
+        if not isinstance(entry, Mapping):
+            return None
+        size = entry.get("input_size")
+        count = entry.get("query_count")
+        for value in (size, count):
+            if (
+                not isinstance(value, int)
+                or isinstance(value, bool)
+            ):
+                return None
+        if size < 1 or count < 0:
+            return None
+        return int(size), int(count)
+
+    @staticmethod
+    def fit_least_squares(points: Sequence[Tuple[float, float]]) -> Tuple[Optional[float], float]:
+        """最小二乘拟合 → (slope, intercept)；x 无方差时 slope=None。"""
+        if not points:
+            raise PerfSpecError("least squares fit of an empty point set")
+        n = len(points)
+        xs = [float(x) for x, _ in points]
+        ys = [float(y) for _, y in points]
+        mean_x = sum(xs) / n
+        mean_y = sum(ys) / n
+        var_x = sum((x - mean_x) ** 2 for x in xs)
+        if var_x == 0.0:
+            return None, mean_y
+        cov = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+        slope = cov / var_x
+        return slope, mean_y - slope * mean_x
+
+    # -- 执行 -----------------------------------------------------------------
+    def scan(self) -> Dict[str, Any]:
+        started = _iso_z(self._now or _utc_now())
+        denominator = len(self._profiles)
+        valid: List[Tuple[int, int]] = []
+        invalid = 0
+        for entry in self._profiles:
+            point = self._valid_profile(entry)
+            if point is None:
+                invalid += 1
+            else:
+                valid.append(point)
+        scanned = len(valid)
+
+        slope, intercept = self.fit_least_squares(valid) if valid else (None, 0.0)
+        linear_tripped = (
+            slope is not None and slope >= self._linear_slope_threshold
+        )
+        over_cap = sorted(
+            (size, count) for size, count in valid
+            if self._max_query_count is not None
+            and count > self._max_query_count
+        )
+
+        finding_ids: List[str] = []
+        if linear_tripped:
+            finding_ids.append(_finding_id(
+                "querycount_linear",
+                f"{self._operation_name}:slope={slope:.6f}",
+            ))
+        for size, count in over_cap:
+            finding_ids.append(_finding_id(
+                "querycount_over",
+                f"{self._operation_name}:n={size}:q={count}>"
+                f"{self._max_query_count}",
+            ))
+        tripped = bool(finding_ids)
+
+        if invalid:
+            execution_status = "COMPLETED"
+            policy_verdict = "FAIL" if tripped else "NOT_EVALUATED"
+            assertion = "FAIL" if tripped else "ERROR"
+        elif tripped:
+            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+        else:
+            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+
+        ended = _iso_z(_utc_now())
+        self.last_breakdown = {
+            "leg": self.LEG,
+            "operation": self._operation_name,
+            "profiles_total": denominator,
+            "profiles_valid": scanned,
+            "profiles_invalid": invalid,
+            "points": [{"input_size": s, "query_count": c} for s, c in valid],
+            "least_squares": {
+                "slope": None if slope is None else round(slope, 6),
+                "intercept": round(intercept, 6),
+                "slope_threshold": self._linear_slope_threshold,
+            },
+            "linear_tripped": linear_tripped,
+            "max_query_count": self._max_query_count,
+            "over_cap": [{"input_size": s, "query_count": c} for s, c in over_cap],
+        }
+        profile_payload = json.dumps(
+            {"operation": self._operation_name,
+             "points": self.last_breakdown["points"],
+             "max_query_count": self._max_query_count,
+             "linear_slope_threshold": self._linear_slope_threshold},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        ).encode("utf-8")
+        argv = [
+            "wenqu_core.station4_behavior", "query-count-profile",
+            self._operation_name,
+        ]
+        return build_station_result(
+            run_id=self._manifest.run_id,
+            station_id=self.STATION_ID,
+            attempt_id=_attempt_id(self._manifest.run_id, "st4-querycount"),
+            execution_status=execution_status,
+            policy_verdict=policy_verdict,
+            identity=_manifest_identity(self._manifest),
+            tool={"name": "wenqu_core.station4_behavior.QueryCountProfileScanner",
+                  "version": __version__},
+            execution={
+                "argv_digest": TrustedRunner.argv_digest(argv),
+                "started_at": started,
+                "ended_at": ended,
+                "actual_exit_code": 0,  # 进程内完成先例（同路由动态腿）
+                "expected_exit_set": [0],
+                "assertion_verdict": assertion,
+            },
+            coverage={"denominator": denominator, "scanned": scanned},
+            finding_ids=finding_ids,
+            artifacts=[_cas_artifact(profile_payload)],
+        )
+
+
+# ---------------------------------------------------------------------------
 # 整站合并——三条腿 → 单一 station-result-v2
 # ---------------------------------------------------------------------------
 
@@ -1032,10 +1417,16 @@ def scan_station4(
     e2e: Optional[E2eScanner] = None,
     routes: Optional[RouteDynamicScanner] = None,
     gui: Optional[WebGuiScanner] = None,
+    quantile: Optional[QuantileLatencyScanner] = None,
+    query_count: Optional[QueryCountProfileScanner] = None,
 ) -> Dict[str, Any]:
-    """站4 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。"""
+    """站4 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。
+
+    PERF 族两条剖析腿（quantile/query_count）为可选腿——与既有三腿同一
+    合并纪律（combine_station4_results），未选不折算失败。
+    """
     legs = []
-    for scanner in (e2e, routes, gui):
+    for scanner in (e2e, routes, gui, quantile, query_count):
         if scanner is not None:
             legs.append(scanner.scan())
     if not legs:
