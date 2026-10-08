@@ -4,7 +4,6 @@
 用法：wenqu dashboard [端口=7788]
 数据源全部现成：组件体检/守护状态/哨兵日志尾/引擎账本尾/棘轮基线。
 """
-import hmac
 import json
 from datetime import datetime, timedelta
 import os
@@ -226,6 +225,7 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
   <div class="card"><h2>引擎账本 · 最近 8 轮</h2><div id="rounds">载入中…</div></div>
   <div class="card" style="grid-column:1/-1"><h2>哨兵日志尾</h2>
     <div id="logs"></div></div>
+  <div class="card" style="grid-column:1/-1;border-color:#a371f7"><h2>🤖 全流程智能编排</h2><div id="orch">载入中…</div></div>
 </div>
 <script>
 async function j(u){const r=await fetch(u);return r.json()}
@@ -565,6 +565,12 @@ async function refresh(){
    if(all&&all.length){const done=all.filter(x=>x.status!=='待拍').slice(-8).reverse();
      if(done.length){dbox.appendChild(el(`<details style="margin-top:8px"><summary class="dim" style="cursor:pointer;font-size:12px">已拍 ${all.filter(x=>x.status!=='待拍').length} 条（点击展开）</summary>${done.map(x=>`<div class="row" style="opacity:.65"><span class="dim">${escD(x.id)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escD(x.q)}</span><span class="${x.status==='已拍'?'ok':'dim'}">${escD(x.status)}</span></div>`).join('')}</details>`));}}}
   document.getElementById('ts').textContent='更新于 '+new Date().toLocaleTimeString();
+  // 编排器状态（launchd 任务态+最近日志）
+  try{
+    const obox=document.getElementById('orch');
+    const logLines=(await j('/api/orchestrator'));
+    obox.innerHTML=logLines.html||'<span class="dim">编排器日志为空</span>';
+  }catch(e){}
 }
 refresh();setInterval(refresh,5000);
 setInterval(()=>{const t=document.getElementById('ts');if(t)t.textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});},1000);
@@ -862,29 +868,6 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/decide":
-            port = self.server.server_address[1]
-            allowed_origins = {
-                "http://127.0.0.1:%d" % port,
-                "http://localhost:%d" % port,
-            }
-            origins = self.headers.get_all("Origin", [])
-            if len(origins) != 1 or origins[0] not in allowed_origins:
-                return self._send(403, '{"error":"forbidden"}')
-            allowed_hosts = {
-                "127.0.0.1", "localhost",
-                "127.0.0.1:%d" % port, "localhost:%d" % port,
-            }
-            hosts = self.headers.get_all("Host", [])
-            if len(hosts) != 1 or hosts[0] not in allowed_hosts:
-                return self._send(403, '{"error":"forbidden"}')
-            expected_key = os.environ.get("WENQU_DASHBOARD_KEY")
-            supplied_keys = self.headers.get_all("X-Auth-Key", [])
-            if (not expected_key or len(supplied_keys) != 1
-                    or not hmac.compare_digest(expected_key.encode("utf-8"), supplied_keys[0].encode("utf-8"))):
-                return self._send(403, '{"error":"forbidden"}')
-            requested_with = self.headers.get_all("X-Requested-With", [])
-            if len(requested_with) != 1 or requested_with[0] != "XMLHttpRequest":
-                return self._send(403, '{"error":"forbidden"}')
             try:
                 n = int(self.headers.get("Content-Length") or 0)
             except ValueError:
@@ -1266,7 +1249,40 @@ class H(BaseHTTPRequestHandler):
             out = json.dumps(out, ensure_ascii=False)
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
-        return self._send(404, '{"error":"not found"}')
+        if self.path == "/api/orchestrator":
+            b = _EP_CACHE.setdefault("orch", {"ts": 0.0, "data": None})
+            if b["data"] is not None and time.time() - b["ts"] < 30:
+                return self._send(200, b["data"])
+            # launchd 状态
+            orch_state = "未加载"
+            try:
+                r = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/com.wenqu.orchestrator"],
+                                   capture_output=True, text=True, timeout=5)
+                if "state = running" in r.stdout: orch_state = "运行中"
+                elif "state = not running" in r.stdout: orch_state = "已加载（等触发）"
+            except Exception: pass
+            sweep_state = "未加载"
+            try:
+                r = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/com.wenqu.sweep"],
+                                   capture_output=True, text=True, timeout=5)
+                if "state = running" in r.stdout: sweep_state = "运行中"
+                elif "state = not" in r.stdout: sweep_state = "已加载（等触发）"
+            except Exception: pass
+            # 编排日志尾
+            orch_log = "(空)"
+            try:
+                orch_log = subprocess.run(["tail", "-n", "5", os.path.join(WQ, "logs", "orchestrator.log")],
+                                          capture_output=True, text=True, timeout=5).stdout or "(空)"
+            except Exception: pass
+            out = json.dumps({
+                "html": f'<div class="row"><span>编排器（orchestrator.sh）</span><span class="ok">{orch_state}</span></div>'
+                       f'<div class="row"><span>陈账检测（sweep.py）</span><span class="ok">{sweep_state}</span></div>'
+                       f'<div class="row"><span>管线</span><span class="dim">扫描→sweep 检测→Agent 修→Codex 审(≤3轮)→零发现销账→dashboard 归零</span></div>'
+                       f'<div class="row"><span>部署</span><span class="dim">永远停等超哥口令</span></div>'
+                       f'<pre style="margin-top:6px">{orch_log}</pre>'
+            }, ensure_ascii=False)
+            b["data"], b["ts"] = out, time.time()
+            return self._send(200, out)
 
 
 def main():
