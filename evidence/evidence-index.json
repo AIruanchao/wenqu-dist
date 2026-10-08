@@ -2,18 +2,18 @@
   "index_version": "1.0.0",
   "created_at": "2026-10-08T00:00:00+08:00",
   "created_by": "P0-10 证据包基础设施建档",
-    "plan_source": {
-        "path": "evidence/00-baseline/codex-external/方案.md",
-        "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
-        "sha256_verified_at": "2026-10-08",
-        "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
-    },
-    "repo_head_at_filing": {
-        "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
-        "subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
-        "ci_conclusion": "run 37727549548 acceptance success (macOS+Ubuntu 双平台, 62 PASS/0 FAIL)",
-        "note": "本索引 2026-10-08 第四波整改中刷新；后续提交以 git log 为准"
-    },
+  "plan_source": {
+    "path": "evidence/00-baseline/codex-external/方案.md",
+    "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "sha256_verified_at": "2026-10-08",
+    "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
+  },
+  "repo_head_at_filing": {
+    "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+    "subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
+    "ci_conclusion": "run 37727549548 acceptance success (macOS+Ubuntu 双平台, 62 PASS/0 FAIL)",
+    "note": "本索引 2026-10-08 第四波整改中刷新；后续提交以 git log 为准"
+  },
   "entries": [
     {
       "entry_id": "EV-CI-001",
@@ -26,7 +26,9 @@
       "scope": "acceptance workflow 4 步：release-check + tests/acceptance.sh + pytest 契约 + selftest",
       "ruleset": ".github/workflows/acceptance.yml (sha256 df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592)",
       "time": "2026-10-07T17:37:51Z",
-      "argv": ["gh run list --limit 5 (repo AIruanchao/wenqu-dist)"],
+      "argv": [
+        "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+      ],
       "real_rc": "conclusion=success (27s)",
       "artifact_sha256": null,
       "evidence_path": "evidence/08-ci-and-branch-rules/",
@@ -45,7 +47,9 @@
       "scope": "acceptance workflow 同上",
       "ruleset": ".github/workflows/acceptance.yml",
       "time": "2026-10-07T17:34:41Z",
-      "argv": ["gh run list --limit 5 (repo AIruanchao/wenqu-dist)"],
+      "argv": [
+        "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+      ],
       "real_rc": "conclusion=success (27s)",
       "artifact_sha256": null,
       "evidence_path": "evidence/08-ci-and-branch-rules/",
@@ -64,7 +68,9 @@
       "scope": "system/tests/test_core_wiring.py；经 tests/acceptance.sh P1 节接线（缺失时 acceptance 必红）",
       "ruleset": "同 CI acceptance.yml",
       "time": "2026-10-07T17:37:51Z",
-      "argv": ["python3 system/tests/test_core_wiring.py"],
+      "argv": [
+        "python3 system/tests/test_core_wiring.py"
+      ],
       "real_rc": "0 (8 PASS / 0 FAIL)",
       "artifact_sha256": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823",
       "evidence_path": "evidence/04-unit-property-mutation/",
@@ -83,7 +89,9 @@
       "scope": "tests/acceptance.sh 全 53 检查",
       "ruleset": "脚本 sha256 912347f2d2acc4723915c8d086bd186df4e66062bceede6bb717e42aab5c3e35",
       "time": "2026-10-07T23:13–23:21 (+08:00)",
-      "argv": ["bash tests/acceptance.sh"],
+      "argv": [
+        "bash tests/acceptance.sh"
+      ],
       "real_rc": "0 (53 PASS / 0 FAIL)",
       "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
       "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log",
@@ -102,7 +110,9 @@
       "scope": "5 个 wenqu_core 模块 _self_test()",
       "ruleset": "compileall 亦 rc=0",
       "time": "2026-10-07T23:14 (+08:00)",
-      "argv": ["python3 -m wenqu_core.<mod> (selftest 入口)"],
+      "argv": [
+        "python3 -m wenqu_core.<mod> (selftest 入口)"
+      ],
       "real_rc": "0 ×5",
       "artifact_sha256": null,
       "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log",
@@ -121,7 +131,9 @@
       "scope": "/private/tmp/codex-test/方案.md 自身（非代码整改验收）",
       "ruleset": "validate_plan.py",
       "time": "2026-10-07T15:27 (+08:00)",
-      "argv": ["python3 validate_plan.py 方案.md"],
+      "argv": [
+        "python3 validate_plan.py 方案.md"
+      ],
       "real_rc": "0 (29/29 PASS)",
       "artifact_sha256": "plan-self-validation.json.sha256 在快照目录",
       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
@@ -178,7 +190,9 @@
       "scope": "§20 全部 131 ID × 仓内测试资产扫描",
       "ruleset": "工具冻结目录=方案 §20/§25.1 转录；方案 sha256 96b8646f…",
       "time": "2026-10-08",
-      "argv": ["python3 tools/ac_traceability.py"],
+      "argv": [
+        "python3 tools/ac_traceability.py"
+      ],
       "real_rc": "见运行输出",
       "artifact_sha256": null,
       "evidence_path": "evidence/traceability-matrix.json",
@@ -197,7 +211,9 @@
       "scope": "acceptance workflow：release-check + tests/acceptance.sh（62 PASS/0 FAIL）+ pytest 20 用例",
       "ruleset": ".github/workflows/acceptance.yml",
       "time": "2026-10-08T04:27:13Z",
-      "argv": ["gh run view 37727549548 --json status,conclusion,displayTitle (repo AIruanchao/wenqu-dist)"],
+      "argv": [
+        "gh run view 37727549548 --json status,conclusion,displayTitle (repo AIruanchao/wenqu-dist)"
+      ],
       "real_rc": "conclusion=success",
       "artifact_sha256": null,
       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt",
@@ -216,7 +232,9 @@
       "scope": "wenqu-dist 全仓 W0-W10 + P0 十项逐项",
       "ruleset": "方案 §24.1 硬完成门",
       "time": "2026-10-08 12:29–12:37 (+08:00)",
-      "argv": ["codex exec (gpt-5.6-sol, reasoning=ultra) 第三轮验收指令"],
+      "argv": [
+        "codex exec (gpt-5.6-sol, reasoning=ultra) 第三轮验收指令"
+      ],
       "real_rc": "判定=BLOCKED 38/100",
       "artifact_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
       "evidence_path": "evidence/00-baseline/codex-external/验收报告-第三轮.md",
@@ -254,20 +272,44 @@
       "scope": "tools/ac_traceability.py + tests/acceptance.sh P1c",
       "ruleset": "方案 §25.1 机器校验集合等式要求",
       "time": "2026-10-08 13:0x (+08:00)",
-      "argv": ["python3 tools/ac_traceability.py --check --json /tmp/m{1,2,3}.json --plan {pristine,t20,t251}"],
+      "argv": [
+        "python3 tools/ac_traceability.py --check --json /tmp/m{1,2,3}.json --plan {pristine,t20,t251}"
+      ],
       "real_rc": "0 / 2 / 2（正常/篡改§20/篡改§25.1）",
       "artifact_sha256": null,
       "evidence_path": "tools/ac_traceability.py",
       "fresh_until": "随工具或方案变更须重验",
       "verified_by": "ZCode 第四波亲验（三命令实跑退出码在案）",
       "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0"
+    },
+    {
+      "entry_id": "EV-DEP-001",
+      "category": "10-ui-launchd-alert-backup",
+      "title": "P0-9 收口：7789 加固 dashboard 运行时部署（active hash=候选）",
+      "what": "launchctl 重启后 active ~/.wenqu/bin/wenqu-dashboard.py sha256 前缀 72ba1db7 与仓内候选完全一致（旧 52aba1b5 已备份）；GET /api/health=200、无鉴权 POST /api/decide=403 forbidden（四检查默认拒生效）",
+      "run_id": "wave4-p09-deploy",
+      "commit": "5403220 (部署基线)",
+      "environment": "local (macOS launchd com.wenqu.dashboard)",
+      "scope": "运行时替换+重启+双探针验证",
+      "ruleset": "Codex 三轮 §3.9 复验准入条件 5（active runtime hash 与候选一致）",
+      "time": "2026-10-08T13:3x (+08:00)",
+      "argv": [
+        "launchctl unload/load",
+        "curl GET /api/health",
+        "curl POST /api/decide"
+      ],
+      "real_rc": "health=200 / decide=403",
+      "artifact_sha256": null,
+      "evidence_path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json",
+      "fresh_until": "随下次 dashboard 变更须重验",
+      "verified_by": "ZCode 亲验（hash 双侧实算+探针实跑）",
+      "caveat": "回滚备份在 ~/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
     }
   ],
   "known_gaps": [
     "§20 的 131 个验收 ID 专属测试覆盖仍为 0（代理 3；详见 traceability-matrix.json）——第四波起逐族补齐",
     "Codex 三轮 12 项对抗探针 FAIL（伪签名/跨类型 payload/false 字符串前置/非 resume CAS/TIMEOUT 洗白/事件直写伪终态/旁表第二正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/已根治的追踪假绿除外）——第四波双 agent 整改中",
     "main 分支无 branch protection/ruleset/required contexts（Codex 三轮 §7 实锤）——待配置",
-    "active 7789 dashboard 仍运行旧未加固单文件（Codex 三轮 §3.9）——待部署新加固版",
     "W5 旧账 reconciliation、W9 shadow/canary、W10 14 天观察窗为时序性证据，无法当日补齐",
     "最终 release 制品（tar+签名 manifest+SBOM）未生成"
   ]

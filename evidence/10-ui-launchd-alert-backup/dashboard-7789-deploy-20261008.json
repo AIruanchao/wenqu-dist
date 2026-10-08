@@ -1,0 +1,15 @@
+{
+  "entry": "P0-9 runtime deploy",
+  "time": "2026-10-08T13:32:22+08:00",
+  "active_file": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py",
+  "active_sha256_prefix": "72ba1db7",
+  "repo_candidate_sha256_prefix": "72ba1db7",
+  "match": true,
+  "restart": "launchctl unload+load com.wenqu.dashboard",
+  "new_pid": 64211,
+  "probes": {
+    "GET /api/health": 200,
+    "POST /api/decide (no auth)": "403 forbidden"
+  },
+  "backup": "/Users/maccc/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+}
