@@ -472,6 +472,7 @@ try{
   es.addEventListener('ledger',()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{})});
 }catch(e){}
 async function refresh(){
+  const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
   let ok=0,tot=0;
   for(const[grp,items]of Object.entries(c)){
@@ -544,7 +545,6 @@ async function refresh(){
    window.__lastDec=dec.length;}
   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
   else{dbox.innerHTML='';
-    const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     for(const d of dec){
       const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
       const overdue=days===0;
@@ -570,6 +570,8 @@ async function refresh(){
     const obox=document.getElementById('orch');
     const logLines=(await j('/api/orchestrator'));
     obox.innerHTML=logLines.html||'<span class="dim">编排器日志为空</span>';
+    const ol=document.getElementById('orchlog');
+    if(ol) ol.textContent=logLines.log||'';  // textContent 防 XSS（日志内容不可信）
   }catch(e){}
 }
 refresh();setInterval(refresh,5000);
@@ -1250,9 +1252,12 @@ class H(BaseHTTPRequestHandler):
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
         if self.path == "/api/orchestrator":
-            b = _EP_CACHE.setdefault("orch", {"ts": 0.0, "data": None})
+            b = _EP_CACHE.setdefault("orch", {"ts": 0.0, "data": None, "lock": threading.Lock()})
             if b["data"] is not None and time.time() - b["ts"] < 30:
                 return self._send(200, b["data"])
+            with b["lock"]:  # singleflight：并发只一路执行子进程
+                if b["data"] is not None and time.time() - b["ts"] < 30:
+                    return self._send(200, b["data"])
             # launchd 状态
             orch_state = "未加载"
             try:
@@ -1279,7 +1284,8 @@ class H(BaseHTTPRequestHandler):
                        f'<div class="row"><span>陈账检测（sweep.py）</span><span class="ok">{sweep_state}</span></div>'
                        f'<div class="row"><span>管线</span><span class="dim">扫描→sweep 检测→Agent 修→Codex 审(≤3轮)→零发现销账→dashboard 归零</span></div>'
                        f'<div class="row"><span>部署</span><span class="dim">永远停等超哥口令</span></div>'
-                       f'<pre style="margin-top:6px">{orch_log}</pre>'
+                       f'<pre id="orchlog" style="margin-top:6px"></pre>',
+                "log": orch_log
             }, ensure_ascii=False)
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
