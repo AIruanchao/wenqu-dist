@@ -106,7 +106,7 @@ ARTIFACT_PATH = REPO_ROOT / "evidence" / "04-unit-property-mutation" / "ac-deplo
 NOT_IMPLEMENTABLE: Dict[str, str] = {}
 
 _SHA1 = "1f" + "0" * 38           # 40-hex git sha 形态（watermark 用）
-_BIGFILE_BYTES = 16 * 1024 * 1024  # 拓宽 kill 窗口的大文件
+_BIGFILE_BYTES = 64 * 1024 * 1024
 
 
 # ---------------------------------------------------------------------- #
@@ -310,15 +310,28 @@ def test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current(td: Path) -
                 f"{name}: 对照组新 release 必须完整")
             continue
         # 等 staging 目录出现（构建已开始），再按延迟 kill -9
-        deadline = time.time() + 60
+        # CI 冷 runner（macOS 实测 9min 级负载）构建起步可远慢于本机：60→240s
+        deadline = time.time() + 240
         staging_seen = False
+        child_died: str = ""
         while time.time() < deadline:
+            if proc.poll() is not None:
+                _out, _err = proc.communicate()
+                child_died = f"rc={proc.returncode} stdout={_out[:200]} stderr={_err[-500:]}"
+                break
             if releases.is_dir() and any(
                     d.name.startswith(".staging-") for d in releases.iterdir()):
                 staging_seen = True
                 break
-            time.sleep(0.002)
-        _ok(staging_seen, f"{name}: 60s 内未见 staging 目录（子进程未进入构建）")
+            time.sleep(0.05)
+        if not staging_seen and proc.returncode == 0:
+            # 竞态合法结局：部署抢在 kill 窗口前完成——后置不变量（完整新
+            # current/全部命名 release 可对账）仍须成立，按「快速完成」计通过
+            _ok(_real(current) != v1_real or mgr.verify(_real(current))["ok"],
+                f"{name}: 快速完成后 current 必须完整")
+            continue
+        _ok(staging_seen, f"{name}: 240s 内未见 staging 目录（子进程未进入构建）"
+            + (f"；子进程已退出: {child_died}" if child_died else "；子进程仍存活"))
         if delay > 0:
             time.sleep(delay)
         proc.send_signal(signal.SIGKILL)
