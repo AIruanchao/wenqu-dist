@@ -120,16 +120,15 @@ cd "$REPO"
 # 正源），并与刚产 manifest 的实算值互相印证——不等即中止（fail-closed）。
 # dist 阶段 verify 用临时 pin（部署树尚未存在）；部署后 pin 落进不可变树。
 FROZEN_PLAN_SHA=$("$PY" -c \
-  'import sys; sys.path.insert(0, "tools");
-   from ac_traceability import PLAN_SHA256; print(PLAN_SHA256)') \
+  'import sys; sys.path.insert(0, "tools"); from ac_traceability import PLAN_SHA256; print(PLAN_SHA256)') \
   || die "ac_traceability.PLAN_SHA256 读取失败"
 # bash 3.2 兼容的 64hex 校验（ERE {64}；模式侧不加引号）
 if [[ "$FROZEN_PLAN_SHA" =~ ^[0-9a-f]{64}$ ]]; then :; else
   die "PLAN_SHA256 非 64hex: $FROZEN_PLAN_SHA"
 fi
 MANI_PLAN_SHA=$("$PY" -c \
-  "import json,sys; m=json.load(open(sys.argv[1]));
-   print(m['policy_hash']['plan_sha256'])" "$DIST_DIR/$NAME.manifest.json") \
+  "import json,sys; m=json.load(open(sys.argv[1])); print(m['policy_hash']['plan_sha256'])" \
+  "$DIST_DIR/$NAME.manifest.json") \
   || die "manifest.policy_hash 读取失败"
 [ "$MANI_PLAN_SHA" = "$FROZEN_PLAN_SHA" ] \
   || die "manifest plan_sha256 ($MANI_PLAN_SHA) != 冻结正源 ($FROZEN_PLAN_SHA)"
