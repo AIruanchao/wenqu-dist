@@ -1,0 +1,12 @@
+{
+  "B_aggregator": {
+    "policy_verdict": "PASS",
+    "target_sha": "1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d",
+    "mode": "manifest"
+  },
+  "B_health": {
+    "status": 200,
+    "policy_verdict": "PASS",
+    "downgrade_absent": true
+  }
+}

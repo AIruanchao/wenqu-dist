@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ops-families",
-    "generated_at": "2026-10-08T14:03:45+00:00",
-    "repo_head": "1495913085eae13155f977fcebc8400b9789e04c",
+    "generated_at": "2026-10-08T19:41:04+00:00",
+    "repo_head": "12cb222ee1765dda5e917b3a2f300a53c1d4ef1d",
     "test_file": "system/tests/test_ac_ops_families.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
     "scope": "SCH-01~07, ALT-01~02, BAK-01, HLT-01, DOC-01~04, CAP-01, DR-01（17 ID）",
@@ -21,11 +21,11 @@
     },
     "BAK-01": {
       "pass": true,
-      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）四步真实演练：快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→恢复 5 文件→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变（只读）；报告 20261008T140330Z 含时间/文件/结果三要素+jsonl 事件日志24 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
+      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）四步真实演练：快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→恢复 5 文件→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变（只读）；报告 20261008T194053Z 含时间/文件/结果三要素+jsonl 事件日志24 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
     },
     "CAP-01": {
       "pass": true,
-      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_wl_2o_vf 所在卷，当日水位 96.16%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
+      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01__g0ogpe9 所在卷，当日水位 92.59%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
     },
     "DOC-01": {
       "pass": true,
@@ -45,7 +45,7 @@
     },
     "DR-01": {
       "pass": true,
-      "detail": "DR 模式真实演练 PASS：RPO 实测 1.561901s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.522673s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
+      "detail": "DR 模式真实演练 PASS：RPO 实测 1.55263s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.57787s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
     },
     "HLT-01": {
       "pass": true,

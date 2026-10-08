@@ -7,6 +7,10 @@ F6 六轮加固：镜像 RFC3339 严格 date-time、重复站幂等等价键收�
 R7 第七轮加固：等价键扩为全语义身份（R7-GATE-DUP-EQUIV-002——
 ruleset/data_config/tool name+digest/argv_digest/finding_ids 任一漂移
 都算 duplicate_conflict，不再静默 duplicates_ignored）。
+R8 第八轮加固：证据时效硬门 C7（R8-GATE-TTL-SEMANTICS-002）——
+station_ttls（受保护 registry 推导的逐站 TTL 天数）给定后，每个 v2 站
+结果的 execution.ended_at + TTL 必须 ≥ gate 调用时点（now 可注入测试），
+过期/ended_at 不可解析一律整线 BLOCKED；陈旧证据不得借有效签名上绿。
 
 消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
 
@@ -64,6 +68,10 @@ outcome 别名表（大小写不敏感）：
        coverage.denominator——scope 缺失/不符、coverage 缺失/分母自报
        （≠ manifest 冻结分母）、legacy 结果（无法证明 scope 绑定）一律
        记 scope_binding_violation 并整线 BLOCKED。
+    C7 证据时效（R8-GATE-TTL-SEMANTICS-002）：station_ttls（registry
+       推导值）给定时，每个 v2 站结果 execution.ended_at + TTL ≥ gate
+       时点；过期或 ended_at 不可解析 → evidence_ttl_violation 并整线
+       BLOCKED。
 
 ## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
 
@@ -88,12 +96,13 @@ from __future__ import annotations
 
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set
 
 __all__ = [
     "GateAggregator", "PASS", "CONDITIONAL", "BLOCKED",
     "mirror_validate_station_result_v2",
+    "check_result_freshness",
 ]
 
 PASS = "PASS"
@@ -203,6 +212,47 @@ def _mirror_iso_datetime(value: Any) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _parse_rfc3339_utc(value: Any) -> Optional[datetime]:
+    """RFC3339 字符串 → tz-aware UTC datetime；任何形状不符返回 None。"""
+    if not _mirror_iso_datetime(value):
+        return None
+    assert isinstance(value, str)
+    text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def check_result_freshness(
+    ended_at: Any,
+    ttl_days: int,
+    *,
+    now: datetime,
+) -> Optional[str]:
+    """R8 freshness 判定：ended_at + TTL ≥ now 才新鲜；返回违例原因或 None。
+
+    R8-GATE-TTL-SEMANTICS-002（第八轮 P0-3 残余）：manifest 语义重放关掉
+    「扩 TTL」后，结果本身的陈旧度仍须强制——每站 result 的
+    execution.ended_at + 站 TTL（受保护 registry 推导值）必须 ≥ gate
+    调用时点，过期证据不得上绿。``now`` 显式注入（可测）；边界语义：
+    ended_at + TTL == now 恰好新鲜（≥），早一秒即过期。
+    """
+    if isinstance(ttl_days, bool) or not isinstance(ttl_days, int) or ttl_days < 1:
+        return "ttl_days_invalid"
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        return "now_invalid"  # 防御：naive now 不可参与比较
+    ended = _parse_rfc3339_utc(ended_at)
+    if ended is None:
+        return "ttl_ended_at_missing_or_invalid"
+    if ended + timedelta(days=ttl_days) < now.astimezone(timezone.utc):
+        return "evidence_ttl_expired"
+    return None
 
 
 def mirror_validate_station_result_v2(result: Any) -> List[str]:
@@ -419,11 +469,21 @@ class GateAggregator:
     expected_scope_hash/expected_denominator 必须成对提供（来自冻结
     run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
     逐站对账 scope 与分母，自报/缺失一律 BLOCKED（C6）。
+
+    R8 freshness（station_ttls/now，第八轮 P0-3 残余）：station_ttls 给定
+    （站键 "0".."7" → 天数，来源必须是受保护 registry 推导值——CLI 经
+    replay_manifest_semantics 校验 manifest 自报 TTL 与 registry 相等后
+    注入）时，每个已登记 v2 站结果的 execution.ended_at + TTL 必须 ≥
+    gate 调用时点，过期/无法解析 ended_at 一律 BLOCKED（C7）。``now``
+    可显式注入（测试时间旅行；缺省=真实当下，CLI 不注入）。legacy 条目
+    无 ended_at 概念——正门下已由 C6 记违规，不重复计。
     """
 
     def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
                  *, expected_scope_hash: Optional[str] = None,
-                 expected_denominator: Optional[int] = None) -> None:
+                 expected_denominator: Optional[int] = None,
+                 station_ttls: Optional[Mapping[str, int]] = None,
+                 now: Optional[datetime] = None) -> None:
         target_sha = str(target_sha or "").strip().lower()
         if not target_sha:
             raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
@@ -443,6 +503,23 @@ class GateAggregator:
                 or expected_denominator < 1):
             raise ValueError("expected_denominator must be an integer >= 1 "
                              "(manifest scope denominator)")
+        ttl_table: Optional[Dict[str, int]] = None
+        if station_ttls is not None:
+            if not isinstance(station_ttls, Mapping):
+                raise ValueError("station_ttls must be a mapping of station "
+                                 "key -> TTL days")
+            ttl_table = {}
+            for key, value in station_ttls.items():
+                if isinstance(value, bool) or not isinstance(value, int) \
+                        or value < 1:
+                    raise ValueError(
+                        f"station_ttls[{key!r}] must be an integer >= 1 "
+                        f"(registry TTL days), got {value!r}")
+                ttl_table[str(key)] = value
+        if now is not None and (not isinstance(now, datetime)
+                                or now.tzinfo is None):
+            raise ValueError("now must be a timezone-aware datetime "
+                             "(freshness time injection)")
 
         self.required_stations: frozenset = frozenset(
             str(s).strip() for s in required_stations
@@ -452,6 +529,8 @@ class GateAggregator:
         self.environment: str = environment
         self.expected_scope_hash: Optional[str] = expected_scope_hash
         self.expected_denominator: Optional[int] = expected_denominator
+        self.station_ttls: Optional[Dict[str, int]] = ttl_table
+        self.freshness_now: Optional[datetime] = now
 
         # 内部登记簿
         self._stations: Dict[str, Dict[str, Any]] = {}
@@ -461,6 +540,7 @@ class GateAggregator:
         self._sha_violations: List[Dict[str, Any]] = []
         self._env_violations: List[Dict[str, Any]] = []
         self._scope_violations: List[Dict[str, Any]] = []
+        self._ttl_violations: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------ #
     # 登记阶段
@@ -608,6 +688,13 @@ class GateAggregator:
         if isinstance(raw_execution, Mapping):
             raw_argv = raw_execution.get("argv_digest")
             argv_digest_value = raw_argv if isinstance(raw_argv, str) else None
+        # R8 freshness 原料：execution.ended_at（宽松提取；缺失/非串=None，
+        # 由 station_ttls 激活时的 C7 按 fail-closed 记违例）
+        ended_at_value: Optional[str] = None
+        if isinstance(raw_execution, Mapping):
+            raw_ended = raw_execution.get("ended_at")
+            if isinstance(raw_ended, str):
+                ended_at_value = raw_ended
         raw_findings = station_result.get("finding_ids")
         finding_ids_sorted: Optional[tuple] = None
         if isinstance(raw_findings, list):
@@ -633,6 +720,7 @@ class GateAggregator:
             "tool_identity": tool_identity,
             "argv_digest": argv_digest_value,
             "finding_ids_sorted": finding_ids_sorted,
+            "ended_at": ended_at_value,
         }
 
     def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
@@ -677,6 +765,7 @@ class GateAggregator:
             "tool_identity": None,
             "argv_digest": None,
             "finding_ids_sorted": None,
+            "ended_at": None,
         }
 
     def _resend_equivalent(self, previous: Dict[str, Any],
@@ -850,6 +939,33 @@ class GateAggregator:
                   "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
                   "必须对账冻结 manifest)")
 
+        # 1b) C7：证据时效硬门（R8 freshness——station_ttls 来自受保护
+        #     registry 推导值时激活；ended_at+TTL ≥ gate 时点，过期即 BLOCKED）
+        if self.station_ttls is not None:
+            now = self.freshness_now or datetime.now(timezone.utc)
+            for station, entry in sorted(self._stations.items()):
+                ttl_days = self.station_ttls.get(station)
+                if ttl_days is None:
+                    continue  # registry TTL 表未覆盖（非 0-7 站键）
+                if entry.get("input_version") != "v2":
+                    continue  # legacy 已由 C6 记违规（正门必 BLOCKED）
+                reason = check_result_freshness(
+                    entry.get("ended_at"), ttl_days, now=now)
+                if reason is not None:
+                    violation: Dict[str, Any] = {
+                        "station": station, "reason": reason,
+                        "ttl_days": ttl_days,
+                    }
+                    if reason == "evidence_ttl_expired":
+                        violation["ended_at"] = entry.get("ended_at")
+                    self._ttl_violations.append(violation)
+            if self._ttl_violations:
+                detail = "; ".join(
+                    f"{v['station']}:{v['reason']}" for v in self._ttl_violations)
+                block(f"evidence_ttl_violation [{detail}] "
+                      "(R8 freshness: execution.ended_at + 站 TTL ≥ gate 时点"
+                      "——过期证据不得上绿)")
+
         # 2) C3：分母缩水（required 站未全部上报）；空 required 同样拒绝（无真空 PASS）
         reported = set(self._stations)
         missing_required = sorted(self.required_stations - reported)
@@ -901,6 +1017,10 @@ class GateAggregator:
                         and e["coverage"].get("denominator")
                         == self.expected_denominator),
                 } if self.expected_scope_hash is not None else {}),
+                **({
+                    "ttl_fresh": not any(
+                        v["station"] == s for v in self._ttl_violations),
+                } if self.station_ttls is not None else {}),
             }
             for s, e in sorted(self._stations.items())
         }
@@ -924,6 +1044,8 @@ class GateAggregator:
                 "malformed": len(self._malformed),
                 **({"scope_violations": len(self._scope_violations)}
                    if self.expected_scope_hash is not None else {}),
+                **({"ttl_violations": len(self._ttl_violations)}
+                   if self.station_ttls is not None else {}),
             },
             "stations": stations_summary,
             "target_sha": self.target_sha,
@@ -937,6 +1059,13 @@ class GateAggregator:
             }
         else:
             result["scope_binding"] = {"mode": "self_declared"}
+        if self.station_ttls is not None:
+            result["freshness"] = {
+                "mode": "registry_ttl",
+                "station_ttls": dict(sorted(self.station_ttls.items())),
+                "as_of": (self.freshness_now or datetime.now(timezone.utc)
+                          ).astimezone(timezone.utc).isoformat(),
+            }
         return result
 
     def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:

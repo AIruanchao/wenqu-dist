@@ -28,6 +28,19 @@ DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货�
   另含 plan-hash 绑定检查（R7-REL-POLICY-HASH-011 根修）：实算 tar 内方案
   快照 sha256 与 manifest.policy_hash.plan_sha256 等值校验 + 64hex 格式
   强校验——截损/漂移的 policy hash 不可能通过 verify。
+- **R8-REL-PIN-ROOT（第八轮 P0-7 残余根修：自洽替换可签可验）**：旧 verify
+  的全部输入（tar/manifest/sig/sbom）都是攻击者可整套重产的——持钥者替换
+  方案快照后自洽重算四件套仍 7 PASS（八轮报告 14_self_consistent_*
+  实证）。现补两条**仓外正源**：
+  ① plan pin（受保护外部根）：``--plan-pin`` / ``$WENQU_PLAN_PIN`` /
+     ``~/.wenqu/current/plan.pin``（0600，install-release.sh 部署时自动落
+     pin 到不可变激活树）内的冻结 64hex 必须**同时等于** manifest.
+     policy_hash.plan_sha256 与 tar 内方案快照实算值；pin 缺失/不可读/
+     格式错/组其他可写/值不符 → verify 失败（fail-closed，无豁免路径）。
+  ② source commit 绑定：manifest.source_commit（build 时 git rev-parse
+     实录）必须在 ``--repo`` 的 git 对象库中存在，且该 commit **树内**
+     方案文件字节实算 sha256 == manifest.plan_sha256——制品方案与 git
+     正源漂移（自洽替换 tar 内容）即拒。
 
 用法（纯标准库；仓根执行）：
   python3 tools/release_attest.py build  [--commit HEAD] [--dist-dir dist]
@@ -38,6 +51,7 @@ DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货�
   python3 tools/release_attest.py verify --manifest PATH --keyring PATH
                                         [--tar PATH] [--sig PATH] [--sbom PATH]
                                         [--report PATH]
+                                        [--plan-pin PATH] [--repo PATH]
 
 产物命名（dist/ 下四件套，<name> = <prefix>-<shortsha>）：
   <name>.tar.gz           制品（git archive 干净树）
@@ -73,7 +87,7 @@ if SYSTEM_DIR not in sys.path:
 from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
 
 TOOL_NAME = "release_attest.py"
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.2.0"
 MANIFEST_SCHEMA = "wenqu-release-manifest/1"
 SIG_SCHEMA = "wenqu-release-sig/1"
 SBOM_SPDX_VERSION = "SPDX-2.3"
@@ -587,11 +601,75 @@ class VerifyFail(Exception):
     pass
 
 
+# ---------------------------------------------------------------------- #
+# R8-REL-PIN-ROOT：外部受保护 plan pin（第八轮 P0-7 残余根修）
+# ---------------------------------------------------------------------- #
+def _default_plan_pin_path() -> str:
+    """默认 pin 位：~/.wenqu/current/plan.pin（install-release.sh 部署时落
+    pin 到不可变激活树根；current 是 symlink → 部署树内 0600 pin）。"""
+    return os.path.expanduser(os.path.join("~", ".wenqu", "current", "plan.pin"))
+
+
+def _resolve_plan_pin(explicit: Optional[str]) -> str:
+    """解析优先级：--plan-pin > $WENQU_PLAN_PIN > ~/.wenqu/current/plan.pin。"""
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    env = os.environ.get("WENQU_PLAN_PIN", "").strip()
+    if env:
+        return os.path.abspath(os.path.expanduser(env))
+    return _default_plan_pin_path()
+
+
+def _load_plan_pin(pin_path: str) -> str:
+    """读外部受保护 pin 文件 → 冻结 64hex。
+
+    fail-closed 面（全部按 verify FAIL 收口，exit 1）：
+    - pin 文件缺失（无 --plan-pin/env/默认位 → 拒，**无豁免路径**）；
+    - 不可读 / 超 4KiB / 非 UTF-8 可解；
+    - 内容非「恰一个 64 位小写 hex」（注释/多值/截损全拒）；
+    - 权限过宽（组/其他可写，mode & 0o022）——他人可重写的根不是受保护根
+      （部署纪律 0600；只读性是保护语义，可读性不是——pin 值是公开哈希）。
+    """
+    if not os.path.isfile(pin_path):
+        raise VerifyFail(
+            f"plan pin 缺失（fail-closed，无豁免路径）: {pin_path!r}——"
+            f"需 --plan-pin、$WENQU_PLAN_PIN 或 ~/.wenqu/current/plan.pin"
+            f"（install-release.sh 部署时自动落 pin）")
+    try:
+        st = os.stat(pin_path)  # 跟随 symlink：保护语义作用于真实文件
+        if st.st_mode & 0o022:
+            raise VerifyFail(
+                f"plan pin 权限过宽（组/其他可写）: {pin_path!r} "
+                f"mode={oct(st.st_mode & 0o7777)}——受保护根须仅属主可写（0600）")
+        with open(pin_path, "rb") as fh:
+            raw = fh.read(4096 + 1)
+    except OSError as exc:
+        raise VerifyFail(f"plan pin 不可读: {pin_path!r} ({exc})")
+    if len(raw) > 4096:
+        raise VerifyFail(f"plan pin 超 4KiB（非单值 pin 文件）: {pin_path!r}")
+    text = raw.decode("utf-8", "replace").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", text):
+        raise VerifyFail(
+            f"plan pin 内容非法（应恰一个 64 位小写 hex）: {text[:80]!r}")
+    return text
+
+
+def _git_raw(repo: str, *args: str) -> subprocess.CompletedProcess:
+    """verify 专用 git 调用：失败走 VerifyFail（exit 1）而非 _die（exit 2）。"""
+    try:
+        return subprocess.run(["git", "-C", repo, *args],
+                              capture_output=True, check=False)
+    except FileNotFoundError:
+        raise VerifyFail("git 不可用（PATH 缺失）——source_commit 无法核验")
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     manifest_path = os.path.abspath(args.manifest)
     base_dir = os.path.dirname(manifest_path)
     checks: List[Dict[str, Any]] = []
     tar_path = sig_path = sbom_path = None
+    pin_path: Optional[str] = None
+    repo_path: Optional[str] = None
 
     def record(ok: bool, cid: str, detail: str = "") -> None:
         checks.append({"check": cid, "ok": bool(ok), "detail": detail[:400]})
@@ -673,6 +751,59 @@ def cmd_verify(args: argparse.Namespace) -> int:
         record(True, "plan-hash",
                f"{plan_member} sha256={actual_plan[:16]}…（实算等值，64hex）")
 
+        # --- 2c) 外部受保护 plan pin（R8-REL-PIN-ROOT：自洽替换根修）---
+        # 八轮 P0-7 实证洞：tar/manifest/sig/sbom 全部可由持钥者整套重产，
+        # 「方案快照替换 + 四件套自洽重算 + 重签」旧 verify 仍 7 PASS。pin 是
+        # 仓外/制品外受保护根（部署于不可变激活树，0600）：其冻结值必须同时
+        # 等于 manifest 声明值与 tar 实算值——攻击者改了方案内容后无论把
+        # manifest/签名重算得多自洽，都过不了这个不在攻击面里的常量。
+        pin_path = _resolve_plan_pin(args.plan_pin)
+        pin_value = _load_plan_pin(pin_path)  # 缺失/坏格式/权限过宽全拒
+        if pin_value != declared_plan:
+            raise VerifyFail(
+                f"plan pin 冻结值与 manifest.policy_hash.plan_sha256 不符"
+                f"（外部受保护根拦截）: pin={pin_value} "
+                f"declared={declared_plan}——自洽替换的四件套在此断裂")
+        if pin_value != actual_plan:
+            raise VerifyFail(
+                f"plan pin 冻结值与 tar 内方案快照实算不符: pin={pin_value} "
+                f"actual={actual_plan}")
+        record(True, "plan-pin",
+               f"{pin_path} 冻结值={pin_value[:16]}…（manifest+tar 双等值）")
+
+        # --- 2d) source commit 存在性 + 树内方案绑定（防自洽替换 tar 内容）---
+        # manifest.source_commit 是 build 期 git rev-parse 实录；verify 回到
+        # git 对象库：①commit 必须真实存在（幽灵 commit 即拒）；②该 commit
+        # **树内**方案文件字节实算 sha256 必须 == manifest.plan_sha256——
+        # 制品里的方案换成任何别的内容（哪怕全套重签）都与 git 正源断裂。
+        sc = manifest.get("source_commit")
+        if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
+            raise VerifyFail(
+                f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
+        repo_path = os.path.abspath(args.repo) if args.repo else REPO_ROOT
+        if not os.path.isdir(os.path.join(repo_path, ".git")):
+            raise VerifyFail(
+                f"--repo 不是 git 仓库: {repo_path!r}——source_commit 无法核验")
+        probe = _git_raw(repo_path, "cat-file", "-e", f"{sc}^{{commit}}")
+        if probe.returncode != 0:
+            raise VerifyFail(
+                f"source_commit 不在 git 对象库: {sc}——幽灵 commit"
+                f"（制品身份无 git 正源，fail-closed）")
+        blob = _git_raw(repo_path, "show", f"{sc}:{plan_member}")
+        if blob.returncode != 0:
+            raise VerifyFail(
+                f"git 读树内方案失败: {sc}:{plan_member} "
+                f"({(blob.stderr or b'').decode('utf-8', 'replace').strip()[:120]})")
+        tree_plan_sha = hashlib.sha256(blob.stdout).hexdigest()
+        if tree_plan_sha != declared_plan:
+            raise VerifyFail(
+                f"source commit 树内方案 sha256 与 manifest.plan_sha256 不符: "
+                f"tree={tree_plan_sha} declared={declared_plan}——"
+                f"制品方案与 git 正源漂移（自洽替换 tar 内容被拦截）")
+        record(True, "source-commit",
+               f"commit={sc[:12]}… 在对象库；树内 {plan_member} "
+               f"sha256={tree_plan_sha[:16]}…（实算等值）")
+
         # --- 3) detached 签名验签（keyring 只读；revoked fail-closed）---
         sig = _load_json(sig_path, "release.sig")
         if sig.get("schema") != SIG_SCHEMA:
@@ -725,6 +856,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
             "sig": sig_path,
             "sbom": sbom_path,
             "keyring": os.path.abspath(args.keyring),
+            "plan_pin": pin_path,
+            "repo": repo_path,
             "checks": checks,
             "result": "PASS" if ok else "FAIL",
         }
@@ -846,6 +979,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_verify.add_argument("--sig", default=None)
     p_verify.add_argument("--sbom", default=None)
     p_verify.add_argument("--report", default=None)
+    p_verify.add_argument(
+        "--plan-pin", default=None,
+        help="受保护 plan pin 文件（0600，含冻结 64hex）；缺省查 "
+             "$WENQU_PLAN_PIN 或 ~/.wenqu/current/plan.pin；缺失即 FAIL")
+    p_verify.add_argument(
+        "--repo", default=None,
+        help="核验 source_commit 的 git 仓（默认工具所在仓）：commit 须在"
+             "对象库且其树内方案 hash == manifest.plan_sha256")
     p_verify.set_defaults(func=cmd_verify)
 
     args = parser.parse_args(argv)

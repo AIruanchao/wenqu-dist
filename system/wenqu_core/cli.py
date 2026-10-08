@@ -20,7 +20,11 @@
                  正门必须 --verify-key <keyring> 验签（HMAC-SHA256 签名——
                  无签名/验签失败/key 未知或已吊销一律 ERROR），无签名 manifest
                  仅诊断可显式 --allow-unsigned，顶层与 planner 不一致
-                 （required/TTL/scope/分母）一律 BLOCKED；退出码
+                 （required/TTL/scope/分母）一律 BLOCKED；R8 第八轮：正门另以
+                 受保护 registry（--registry 验签快照或代码锚定
+                 default_registry）重放 lane/required/TTL/降档并实算 scope
+                 hash + 强制逐站证据时效（ended_at+TTL ≥ gate 时点），签名
+                 有效但语义不合法一律 BLOCKED；退出码
                  PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
 
 审批 JSON 即 approval-v2 信封（含 key_id + HMAC-SHA256 签名）——签发侧用
@@ -53,7 +57,9 @@ from wenqu_core.approval_keys import (  # noqa: E402
     ensure_keyring_dir, generate_secret, save_key_meta, write_key_to_dir,
 )
 from wenqu_core.bugscan_orchestrator import (  # noqa: E402
-    ManifestFreezeError, RunManifest, validate_manifest_consistency,
+    ManifestFreezeError, RegistryTrustError, RunManifest,
+    live_registry_view, load_trusted_registry_snapshot,
+    replay_manifest_semantics, validate_manifest_consistency,
 )
 from wenqu_core.gate_aggregator import (  # noqa: E402
     BLOCKED, GateAggregator, mirror_validate_station_result_v2,
@@ -596,6 +602,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
     → manifest_consistency_violation 并整线 BLOCKED（一致性校验独立于
     签名——第七轮反例：改顶层 required 重算 hash/删 TTL/内部不一致）。
 
+    语义重放信任根（R8 第八轮 P0-3 残余根修，R8-GATE-LANE-REQ-001/
+    TTL-SEMANTICS-002/SCOPE-HASH-003）：--manifest 正门另以受保护 registry
+    重放语义——--registry <快照>（signed_registry_snapshot 产物，必须经
+    --verify-key 验签+digest 重算一致+结构完整，否则 ERROR(3)）或缺省的
+    代码锚定 default_registry()（生产 CLI 从 immutable ~/.wenqu/current/
+    system 运行）。重放面：registry_version/registry_digest 对账、
+    lane_effective/required_stations（顶层与 planner）必须等于 lane 表−
+    合法降档、station_ttl 逐站等于 registry 值（扩/缩/删全拒）、降档记录
+    五要素+30 天日落+底线 {0,1}+registry 允许集、scope_hash 从 scope 内容
+    实算——任何违例 manifest_semantic_replay_violation 并整线 BLOCKED
+    （即使签名合法）。证据时效（freshness）：每个已登记站结果的
+    execution.ended_at + registry TTL ≥ gate 调用时点，过期/不可解析
+    evidence_ttl_violation 并整线 BLOCKED。
+
     无 manifest 裸调用默认拒绝（exit 3）：required/coverage 自报不具上绿
     效力背书，必须显式 --allow-self-declared（仅诊断用途）。
 
@@ -611,6 +631,23 @@ def cmd_gate(args: argparse.Namespace) -> int:
     manifest: Optional[RunManifest] = None
     manifest_keyring: Optional[ApprovalKeyring] = None
     manifest_unsigned_downgrade = False
+    trusted_registry = None        # R8：语义重放信任根（TrustedRegistryView）
+    registry_source = None         # "signed_snapshot" | "code_anchored"
+    if args.registry and not args.manifest:
+        return _gate_error_json(
+            "--registry 仅与 --manifest 搭配（registry 信任根只服务正门"
+            "语义重放——自报/诊断路径不存在外部 registry 可对账）",
+            mode="flag_conflict",
+            inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                    "schema_invalid": 0})
+    if args.registry and not args.verify_key:
+        return _gate_error_json(
+            "--registry 需要 --verify-key 验签（未验签的外部 registry 快照"
+            "不构成可信根——R8-GATE-SCOPE-HASH-003：registry digest 不得"
+            "自报自证）",
+            mode="flag_conflict",
+            inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                    "schema_invalid": 0})
     if args.manifest:
         if args.allow_self_declared:
             return _gate_error_json(
@@ -661,6 +698,27 @@ def cmd_gate(args: argparse.Namespace) -> int:
         if not manifest.signature:
             # 显式 --allow-unsigned 才能走到这里（load 默认拒无签名件）
             manifest_unsigned_downgrade = True
+        # R8 语义重放信任根：--registry 受保护快照（验签+digest 重算）优先；
+        # 缺省=运行中 CLI 代码锚定的 default_registry()（生产部署里 CLI 从
+        # immutable ~/.wenqu/current/system 运行——代码锚定即受保护快照）。
+        if args.registry:
+            assert manifest_keyring is not None  # 上方 flag_conflict 已保证
+            try:
+                trusted_registry = load_trusted_registry_snapshot(
+                    args.registry, keyring=manifest_keyring)
+            except (RegistryTrustError, OSError, ValueError,
+                    KeyError, TypeError) as exc:
+                return _gate_error_json(
+                    f"--registry 快照不可信/不可用 ({args.registry}): "
+                    f"{str(exc)[:200]}（R8 registry 可信根：验签/digest 重算/"
+                    "结构完整缺一不可）",
+                    mode="registry_trust_invalid",
+                    inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                            "schema_invalid": 0})
+            registry_source = "signed_snapshot"
+        else:
+            trusted_registry = live_registry_view()
+            registry_source = "code_anchored"
     else:
         if args.verify_key:
             return _gate_error_json(
@@ -828,6 +886,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     #     顶层与 planner 的 required/TTL/scope/分母任何不一致都 BLOCKED，
     #     即使签名合法或显式 --allow-unsigned 降级也不例外）。
     manifest_violations: List[str] = []
+    manifest_raw = None
     if manifest is not None:
         try:
             with open(args.manifest, "r", encoding="utf-8") as fh:
@@ -837,11 +896,31 @@ def cmd_gate(args: argparse.Namespace) -> int:
         else:
             manifest_violations = validate_manifest_consistency(manifest_raw)
 
-    # 6. 聚合（GateAggregator 宽松读+严格出；C1-C6 全在 aggregate 内裁决）。
+    # 5c. manifest 语义重放（R8 第八轮 P0-3 残余：签名有效 ≠ 语义合法——
+    #     持钥者重签后的 lane/required 缩水、TTL 扩张、scope 漂移、registry
+    #     digest 伪造曾仍 rc0/PASS）。以受保护 registry（--registry 验签快照
+    #     或代码锚定 default_registry）重放 lane 表/降档/TTL/收敛轮数，并从
+    #     scope 内容实算 hash——独立于签名与 5b 自一致性，违例整线 BLOCKED。
+    semantic_violations: List[str] = []
+    if manifest is not None:
+        try:
+            semantic_violations = replay_manifest_semantics(
+                manifest_raw if manifest_raw is not None else {},
+                registry=trusted_registry)
+        except Exception as exc:  # 防御：重放器自身异常按违例收口（fail-closed）
+            semantic_violations = [
+                f"semantic_replay_internal_error: {type(exc).__name__}: {exc}"]
+
+    # 6. 聚合（GateAggregator 宽松读+严格出；C1-C7 全在 aggregate 内裁决）。
     agg_kwargs: Dict[str, Any] = {}
     if manifest is not None:
         agg_kwargs["expected_scope_hash"] = manifest.scope_hash
         agg_kwargs["expected_denominator"] = manifest.denominator
+        # R8 freshness（C7）：逐站 TTL 一律取受保护 registry 推导值（5c 已
+        # 保证 manifest 自报 TTL 与 registry 相等——此处注入信任根正源，
+        # 全站 0-7 覆盖，旁路站结果同样受时效约束）。
+        agg_kwargs["station_ttls"] = {
+            str(i): trusted_registry.ttl_for(i) for i in range(8)}
     agg = GateAggregator(required_stations=required, target_sha=sha,
                          environment=env, **agg_kwargs)
     for doc in docs:
@@ -873,6 +952,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
         result["reasons"] = [reason_m] + list(result.get("reasons", []))
         result["reason"] = reason_m
 
+    # 7c. manifest 语义重放违例强制 BLOCKED（R8 第八轮 P0-3 残余：签名有效
+    #     ≠ 语义合法——合法签名下 lane/required 缩水、TTL 扩张、scope 漂移、
+    #     registry digest 伪造一律以信任根重放拦下，绝不 rc0/PASS）。
+    if semantic_violations:
+        if result.get("aggregate_outcome") != BLOCKED:
+            result["aggregate_outcome"] = BLOCKED
+            result["policy_verdict"] = BLOCKED
+            result["technical_eligible"] = False
+        first_s = semantic_violations[0]
+        reason_s = (f"manifest_semantic_replay_violation "
+                    f"x{len(semantic_violations)} [first={first_s[:160]}]")
+        result["reasons"] = [reason_s] + list(result.get("reasons", []))
+        result["reason"] = reason_s
+
     result["inputs"] = {
         "paths": len(paths),
         "docs": len(docs),
@@ -901,6 +994,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 "allow_unsigned_downgrade": bool(manifest_unsigned_downgrade),
             },
             "consistency_violations": len(manifest_violations),
+            # R8 语义重放证据（信任根来源/registry 指纹对账/违例数+明细）
+            "semantic_replay": {
+                "source": registry_source,
+                "registry_version": trusted_registry.registry_version,
+                "registry_digest": trusted_registry.registry_digest,
+                "digest_match": (
+                    isinstance(manifest_raw, Mapping)
+                    and manifest_raw.get("registry_digest")
+                    == trusted_registry.registry_digest),
+                "violations": len(semantic_violations),
+                **({"violations_detail":
+                    [v[:160] for v in semantic_violations[:8]]}
+                   if semantic_violations else {}),
+            },
         }
     else:
         result["mode"] = "self_declared_diagnostic"
@@ -1014,6 +1121,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "无签名/验签失败/key 未知或已吊销一律 ERROR(3)"
                         "（R7-GATE-MANIFEST-AUTH-001：纯 manifest_hash "
                         "可被任何人重算，不构成可信根）")
+    p.add_argument("--registry", default=None, metavar="PATH",
+                   help="受保护 registry 快照 JSON（signed_registry_snapshot "
+                        "产物）——R8 语义重放信任根：gate 用它重放 manifest "
+                        "的 lane/required/TTL/降档并实算 scope hash（manifest "
+                        "自报 registry digest 不再采信）。给定则必须经 "
+                        "--verify-key 验签通过（HMAC+digest 重算+结构完整，"
+                        "否则 ERROR(3)）；缺省=运行中 CLI 代码锚定的 "
+                        "default_registry()（生产=immutable ~/.wenqu/current/"
+                        "system 内同一份）；与 --manifest 搭配、需 --verify-key")
     p.add_argument("--allow-unsigned", dest="allow_unsigned",
                    action="store_true",
                    help="仅诊断用途：显式接受无签名 manifest（默认拒——"

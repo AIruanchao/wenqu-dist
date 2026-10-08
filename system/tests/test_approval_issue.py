@@ -176,6 +176,19 @@ def test_keyring_meta_fixture():
     bad = {"key_id": "key_meta_revoked", "approval_id": "apr_meta_bad"}
     bad["signature"] = sign_envelope(kr.get("key_meta_revoked"), bad)
     assert kr.verify(bad) is False
+    # R8-KEY-LIFECYCLE-001：rotated 可验「存量」收窄为 issued_at 时间窗内——
+    # 退休时刻之后手签（HMAC 为真）→ 拒；created_at 之前（时间穿越）→ 拒；
+    # 过期后签发 → 拒（增断言，只增不减）
+    late = {"key_id": "key_meta_rotated", "approval_id": "apr_meta_late",
+            "issued_at": "2026-10-02T00:00:00Z"}  # > rotated_at 10-01
+    late["signature"] = sign_envelope(kr.get("key_meta_rotated"), late)
+    assert kr.verify(late) is False
+    timetravel = {"key_id": "key_meta_active",
+                  "approval_id": "apr_meta_early",
+                  "issued_at": "2026-09-30T00:00:00Z"}  # < created_at 10-01
+    timetravel["signature"] = sign_envelope(
+        kr.get("key_meta_active"), timetravel)
+    assert kr.verify(timetravel) is False
     # 坏元数据（未知字段/缺 rotated_at/未知 key）拒绝加载 → 见
     # test_keyring_bad_meta_rejected（本仓测试无 pytest 依赖）
 
@@ -461,9 +474,12 @@ def test_rotation_semantics():
     run_id, stop_evt, v = make_waiting_run(mgr)
     r_old = issue_resume(issuer, run_id, stop_evt, v, key_id="key_old",
                          ttl_seconds=86400)
-    # 轮换：旧 → 新
+    # 轮换：旧 → 新（R8-KEY-LIFECYCLE-001：rotated_at 取轮换时刻的真实
+    # 时间——语义即「先签发后轮换」，存量审批 issued_at ≤ rotated_at
+    # 落在时间窗内可继续消费；退休后手签的批才拒）
+    rotated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     save_key_meta(kdir, "key_old", {
-        "status": "rotated", "rotated_at": "2026-10-08T00:00:00Z",
+        "status": "rotated", "rotated_at": rotated_at,
         "rotated_to": "key_new"})
     write_key_to_dir(kdir, "key_new", generate_secret(),
                      {"status": "active"})
@@ -486,6 +502,35 @@ def test_rotation_semantics():
     mgr2 = RunManager(store, keyring=kr2)
     rec = mgr2.resume_waiting(run_id, r_old["approval"], PRECONDITIONS)
     assert rec["resumed"] is True
+    # R8-KEY-LIFECYCLE-001：退休后手签的批不能消费——持旧 secret 直签、
+    # issued_at 晚于 rotated_at 的信封，即使 HMAC 为真也必须拒（keyring
+    # 面与消费端 Broker 面双拒）
+    late_issued = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime(time.time() + 3600))  # rotated_at 之后（真实时钟 +1h）
+    bypass = {
+        "schema_version": "2.0",
+        "approval_id": "apr_rot_late_1", "approval_type": "resume",
+        "key_id": "key_old", "run_id": run2, "task_id": "task_rot2",
+        "stop_event_id": w2["stop_event_id"], "stop_type": "prod-write",
+        "stage": "S1_REQUIREMENT", "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "expected_state_version": mgr2.get_run(run2).state_version,
+        "actor": "chaoge",
+        "issued_at": late_issued,
+        "expires_at": "2099-01-01T00:00:00Z",
+        "nonce": "nonce-rot-late-0001", "decision": "approve",
+        "payload": issue_from_preconditions_payload(
+            w2["stop_event_id"], "prod-write", PRECONDITIONS),
+    }
+    bypass.pop("signature", None)
+    bypass["signature"] = sign_envelope(kr2.get("key_old"), bypass)
+    assert kr2.verify(bypass) is False  # keyring 面：生命周期窗外即拒
+    expect(ApprovalRejected, lambda: mgr2.resume_waiting(
+        run2, bypass, PRECONDITIONS))  # 消费端 Broker 面同样拒
     assert store.verify_chain()["ok"]
     store.close()
 
@@ -659,6 +704,83 @@ def test_audit_reconciliation():
         fh.write(tampered + "".join(lines[1:]))
     report3 = reconcile_issuance(audit, os.path.join(tmp, "events.db"))
     assert report3["chain_ok"] is False and report3["ok"] is False
+    store.close()
+
+
+# ====================================================================== #
+# 11b. R8：principal 登记面（owner/actors）+ 同 actor 假双人 + 生命周期
+#      过期边界（Codex 第八轮 P0-2 残余①③ 签发端预检面；权威门在消费端）
+# ====================================================================== #
+def test_r8_principal_registration_and_issuance_gates():
+    tmp = tempfile.mkdtemp(prefix="wenqu-r8-iss-")
+    # 坏登记面（actors 空/重复、owner 不在 actors）→ 元数据规范化拒绝
+    expect(ValueError, lambda: ApprovalKeyring(
+        {"key_x_1": "s" * 32}, metadata={"key_x_1": {"actors": []}}))
+    expect(ValueError, lambda: ApprovalKeyring(
+        {"key_x_1": "s" * 32},
+        metadata={"key_x_1": {"actors": ["a", "a"]}}))
+    expect(ValueError, lambda: ApprovalKeyring(
+        {"key_x_1": "s" * 32},
+        metadata={"key_x_1": {"owner": "boss", "actors": ["chaoge"]}}))
+    kr = ApprovalKeyring(
+        {"key_r8_a": generate_secret(), "key_r8_b": generate_secret()},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "chaoge", "actors": ["chaoge", "boss"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    assert kr.key_actors("key_r8_a") == ("chaoge", "boss")
+    assert kr.key_actors("key_r8_b") == ("erge",)
+    issuer = ApprovalIssuer(kr, os.path.join(tmp, "a.jsonl"))
+    store = EventStore(os.path.join(tmp, "events.db"))
+    mgr = RunManager(store, keyring=kr)
+    run_id, stop_evt, v = make_waiting_run(mgr, "task_r8_iss")
+    # actor 不在主签 key 的 actors 登记面 → 签发端预检拒（fail-closed）
+    expect(IssuanceError, lambda: issue_resume(
+        issuer, run_id, stop_evt, v, task_id="task_r8_iss",
+        key_id="key_r8_a", actor="mallory"))
+    # 登记面内 actor（boss 属 key_r8_a.actors）→ 可签
+    r = issue_resume(issuer, run_id, stop_evt, v, task_id="task_r8_iss",
+                     key_id="key_r8_a", actor="boss")
+    assert r["approval"]["actor"] == "boss"
+    assert mgr.resume_waiting(run_id, r["approval"], PRECONDITIONS)[
+        "resumed"] is True
+    # 高危同 actor 假双人（两把不同 key、同一 actor）→ 拒（真双人）
+    base = dict(actor="chaoge", approval_type="prod_write", run_id="r1",
+                task_id="t1", stage="S1_REQUIREMENT", environment="staging",
+                authorized_scope="s", policy_hash="p", ruleset_hash="ru",
+                input_watermark="a" * 40, expected_state_version=1,
+                key_id="key_r8_a", payload=dict(PROD_WRITE_PAYLOAD))
+    expect(TwoPersonRuleError, lambda: issuer.issue(
+        confirm_two_persons=True, second_key_id="key_r8_b",
+        second_actor="chaoge", **base))
+    # 第二签发人不在第二 key 的 actors 登记面 → 签发端预检拒
+    expect(IssuanceError, lambda: issuer.issue(
+        confirm_two_persons=True, second_key_id="key_r8_b",
+        second_actor="chaoge2", **base))
+    # 合法联签：chaoge（∈key_r8_a）+ erge（∈key_r8_b）→ 双验真 + 消费端收
+    r2 = issuer.issue(confirm_two_persons=True, second_key_id="key_r8_b",
+                      second_actor="erge", **base)
+    cos = r2["approval"]["cosignatures"]
+    assert {c["actor"] for c in cos} == {"chaoge", "erge"}
+    body = {k: v for k, v in r2["approval"].items()
+            if k not in ("signature", "cosignatures")}
+    assert all(kr.verify_detached(c["key_id"], body, c["signature"])
+               for c in cos)
+    assert IssuanceAudit.read_records(
+        os.path.join(tmp, "a.jsonl"))  # 合法路径有审计
+    # 过期边界（增断言）：expiry 早于 issued_at 的手签批 → keyring 面拒
+    kr_exp = ApprovalKeyring(
+        {"key_r8_e": generate_secret()},
+        metadata={"key_r8_e": {
+            "status": "active", "created_at": "2026-10-01T00:00:00Z",
+            "expiry": "2026-10-03T00:00:00Z"}})
+    expired = {"key_id": "key_r8_e", "approval_id": "apr_r8_exp",
+               "issued_at": "2026-10-08T00:00:00Z"}
+    expired["signature"] = sign_envelope(kr_exp.get("key_r8_e"), expired)
+    assert kr_exp.verify(expired) is False
     store.close()
 
 
@@ -842,6 +964,7 @@ TESTS = [
     ("轮换：旧 key 可验存量、不得再签、新签发用新 key", test_rotation_semantics),
     ("吊销：验签即拒+拒绝事件记录+不得再签发", test_revocation_semantics),
     ("高危联签审批：reserve_action 消费→重放拒", test_high_risk_cosigned_reserve_action),
+    ("R8：principal 登记面（owner/actors）+同 actor 假双人+生命周期过期边界", test_r8_principal_registration_and_issuance_gates),
     ("审计对账：批了/用了/未用过期/旁路签发/篡改断链", test_audit_reconciliation),
     ("CLI 端到端：keys/approve/消费/重放拒/联签/feishu 占位/对账", test_cli_end_to_end),
     ("FeishuApprovalSource 占位接口（SKIP）", test_feishu_source_placeholder),

@@ -406,9 +406,26 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
 fi
 
-echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红）=="
+echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；八轮升级=AST 行为主门）=="
+# 八轮 Codex P1f2 残余修复：文本 grep 计数可被三类手法绕过——常量真值断言
+# （assert (True)）、删被测调用留断言壳、删失败路径。主门换 system/tests/
+# p1f_ast_gate.py（纯 ast 静态分析：逐 test 函数 trivial_asserts/被测调用/
+# 失败路径三指标，合格函数数对比冻结基线 tests/p1f-behavior-baseline.txt，
+# 缩水即红）；文本计数棘轮保留为第二道旧闸（防总断言面缩水）。
+P1F2_FAIL=0
+if [ -f "$ROOT/system/tests/p1f_ast_gate.py" ] && [ -f "$ROOT/tests/p1f-behavior-baseline.txt" ]; then
+  AST_OUT=$(python3 "$ROOT/system/tests/p1f_ast_gate.py" --root "$ROOT" --baseline "$ROOT/tests/p1f-behavior-baseline.txt" 2>&1)
+  AST_RC=$?
+  if [ "$AST_RC" -eq 0 ]; then
+    echo "  ✅ AST 行为主门通过：$(echo "$AST_OUT" | tail -1 | sed 's/^✅ //')"
+  else
+    P1F2_FAIL=1; echo "  ❌ AST 行为主门失败（exit=${AST_RC}——空壳化/恒真化/删被测调用/删失败路径/基线缩水）"
+    echo "$AST_OUT" | tail -30 | sed 's/^/      | /'
+  fi
+else
+  P1F2_FAIL=1; echo "  ❌ p1f_ast_gate.py 或 tests/p1f-behavior-baseline.txt 缺失——AST 行为门被拆"
+fi
 if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
-  P1F2_FAIL=0
   while read -r bf bn; do
     case "$bf" in ""|\#*) continue ;; esac
     bp="$ROOT/system/tests/$bf.py"
@@ -431,13 +448,13 @@ PYP
       P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
     fi
   done < "$ROOT/tests/p1f-assert-baseline.txt"
-  if [ $P1F2_FAIL -eq 0 ]; then
-    PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（八文件有效断言 ≥ 冻结基线）"
-  else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
-  fi
 else
-  FAIL_N=$((FAIL_N+1)); echo "  ❌ tests/p1f-assert-baseline.txt 不存在——棘轮未接线"
+  P1F2_FAIL=1; echo "  ❌ tests/p1f-assert-baseline.txt 不存在——旧文本棘轮被拆"
+fi
+if [ $P1F2_FAIL -eq 0 ]; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（AST 行为主门+文本旧棘轮 ≥ 冻结基线）"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
 fi
 
 echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="

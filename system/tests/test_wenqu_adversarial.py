@@ -1106,6 +1106,316 @@ def adv13_r7_keyring_permission_gate():
 
 
 
+# ====================================================================== #
+# R8（Codex 第八轮 P0-2 残余三洞）：key 生命周期按 issued_at 执法 +
+# actual-target 运行时重算绑定 + signer principal 绑定——五拒一通复验
+# ====================================================================== #
+def adv14_r8_lifecycle_principal_actual_target():
+    import hashlib as _hl
+
+    SEC_A = "r8a" + "a" * 61   # 64-char HMAC secrets（本测试私有，用后即弃）
+    SEC_B = "r8b" + "b" * 61
+
+    def sign_with(secret, ap):
+        ap = dict(ap)
+        ap.pop("signature", None)
+        ap.pop("cosignatures", None)
+        ap["signature"] = sign_envelope(secret, ap)
+        return ap
+
+    def cosign_with(kr, ap, primary_actor, second_key_id, second_actor):
+        body = {k: v for k, v in ap.items()
+                if k not in ("signature", "cosignatures")}
+        out = dict(ap)
+        out["cosignatures"] = [
+            {"key_id": ap["key_id"], "actor": primary_actor,
+             "signature": ap["signature"]},
+            {"key_id": second_key_id, "actor": second_actor,
+             "signature": sign_envelope(kr.get(second_key_id), body)},
+        ]
+        return out
+
+    def new_mgr(kr, tag):
+        tmpdir = tempfile.mkdtemp(prefix=f"wenqu-adv14-{tag}-")
+        store = EventStore(os.path.join(tmpdir, "events.db"))
+        return store, RunManager(store, keyring=kr)
+
+    def new_run(mgr, task):
+        run_id = mgr.create_run(task, IDENT)["run_id"]
+        mgr.advance_stage(run_id)
+        return run_id, mgr.get_run(run_id).state_version
+
+    # ------------------------------------------------------------------
+    # 变体 1：退休时刻后签发（envelope.issued_at > rotated_at/expiry）→ 拒
+    # ------------------------------------------------------------------
+    kr_rot = ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "rotated",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "rotated_at": "2026-10-05T00:00:00Z",
+                         "rotated_to": "key_r8_b",
+                         "owner": "chaoge", "actors": ["chaoge"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    store1, mgr1 = new_mgr(kr_rot, "rot")
+    run1, v1 = new_run(mgr1, "task_r8_rot")
+    ap1 = cosign_with(kr_rot, sign_with(SEC_A, make_action_approval(
+        run1, "task_r8_rot", v1, "prod-write", key_id="key_r8_a")),
+        "chaoge", "key_r8_b", "erge")
+    expect(ApprovalRejected,
+           lambda: mgr1.reserve_action(run1, "prod-write",
+                                       "db://prod/erp#r8", ap1,
+                                       action_descriptor=descriptor_of(ap1)),
+           contains="生命周期")
+    # 1b：expiry 后签发（active 但已过期于 10-03，手签 issued 10-08）→ 拒
+    kr_exp = ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "expiry": "2026-10-03T00:00:00Z",
+                         "owner": "chaoge", "actors": ["chaoge"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    store1b, mgr1b = new_mgr(kr_exp, "exp")
+    run1b, v1b = new_run(mgr1b, "task_r8_exp")
+    ap1b = cosign_with(kr_exp, sign_with(SEC_A, make_action_approval(
+        run1b, "task_r8_exp", v1b, "prod-write", key_id="key_r8_a")),
+        "chaoge", "key_r8_b", "erge")
+    expect(ApprovalRejected,
+           lambda: mgr1b.reserve_action(run1b, "prod-write",
+                                        "db://prod/erp#r8", ap1b,
+                                        action_descriptor=descriptor_of(ap1b)),
+           contains="生命周期")
+    # 1c：resume 消费路径同款执法（主签 key 已轮换、issued 晚于 rotated_at）
+    w1 = mgr1.raise_waiting(run1, "prod-write", "r8-rot-resume")
+    v1c = mgr1.get_run(run1).state_version
+    ap1c, pre1 = make_resume(run1, w1["stop_event_id"], "prod-write", v1c,
+                             "task_r8_rot", actor="chaoge")
+    ap1c = sign_with(SEC_A, dict(ap1c, key_id="key_r8_a"))
+    expect(ApprovalRejected,
+           lambda: mgr1.resume_waiting(run1, ap1c, pre1), contains="生命周期")
+    # 1d：联签 key 退休后手签（主 key 健康）→ 联签名生命周期门拒
+    store1d, mgr1d = new_mgr(ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "chaoge", "actors": ["chaoge"]},
+            "key_r8_b": {"status": "rotated",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "rotated_at": "2026-10-05T00:00:00Z",
+                         "rotated_to": "key_r8_a",
+                         "owner": "erge", "actors": ["erge"]}}), "rotcos")
+    run1d, v1d = new_run(mgr1d, "task_r8_rotcos")
+    ap1d = cosign_with(kr_rot, sign_with(SEC_A, make_action_approval(
+        run1d, "task_r8_rotcos", v1d, "prod-write", key_id="key_r8_a")),
+        "chaoge", "key_r8_b", "erge")
+    expect(ApprovalRejected,
+           lambda: mgr1d.reserve_action(run1d, "prod-write",
+                                        "db://prod/erp#r8", ap1d,
+                                        action_descriptor=descriptor_of(ap1d)),
+           contains="生命周期")
+    # 拒绝面零落账
+    assert mgr1.broker.consumed_approvals(run_id=run1) == []
+    assert not mgr1.get_run(run1).actions
+
+    # ------------------------------------------------------------------
+    # 变体 2：穿越签发（issued_at 早于 key created_at）→ 拒
+    # ------------------------------------------------------------------
+    kr_future = ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-10T00:00:00Z",  # 未来才建
+                         "owner": "chaoge", "actors": ["chaoge"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    store2, mgr2 = new_mgr(kr_future, "tt")
+    run2, v2 = new_run(mgr2, "task_r8_tt")
+    ap2 = cosign_with(kr_future, sign_with(SEC_A, make_action_approval(
+        run2, "task_r8_tt", v2, "prod-write", key_id="key_r8_a")),
+        "chaoge", "key_r8_b", "erge")  # issued_at=10-08 < created_at=10-10
+    expect(ApprovalRejected,
+           lambda: mgr2.reserve_action(run2, "prod-write",
+                                       "db://prod/erp#r8", ap2,
+                                       action_descriptor=descriptor_of(ap2)),
+           contains="生命周期")
+    assert mgr2.broker.consumed_approvals(run_id=run2) == []
+
+    # ------------------------------------------------------------------
+    # 变体 3：descriptor 与运行时实参不符（caller 双自报关闭）→ 拒
+    # ------------------------------------------------------------------
+    store3, mgr3 = fresh()
+    run3, v3 = new_run(mgr3, "task_r8_tgt")
+    # 3a：release payload.environment 声明 production、run 实况 staging
+    #     （hint descriptor 与 payload 完全一致——一致性不能替代运行时重算）
+    bad_env = cosign(make_action_approval(
+        run3, "task_r8_tgt", v3, "release",
+        payload=dict(ACTION_PAYLOADS["release"], environment="production")))
+    expect(ApprovalRejected,
+           lambda: mgr3.reserve_action(run3, "release", "prod://erp/rel-77",
+                                       bad_env,
+                                       action_descriptor=descriptor_of(bad_env)),
+           contains="actual-target")
+    # 3b：merge head_sha 与「当前 HEAD 实查」（RUN_HEAD 哨兵=run commit_sha）不符
+    v3b = mgr3.get_run(run3).state_version
+    ap_m = make_action_approval(run3, "task_r8_tgt", v3b, "merge")
+    expect(ApprovalRejected,
+           lambda: mgr3.reserve_action(run3, "merge",
+                                       "repo://qisemi-erp/pr-9", ap_m,
+                                       action_descriptor=descriptor_of(ap_m),
+                                       runtime_evidence={"head_sha": "RUN_HEAD"}),
+           contains="actual-target")
+    # 3c：artifact 路径实算 hash 与 payload 声明不符（真实文件、真实哈希）
+    art = os.path.join(tempfile.mkdtemp(prefix="wenqu-adv14-art-"),
+                       "artifact-r8.bin")
+    with open(art, "wb") as fh:
+        fh.write(b"r8-real-artifact-bytes")
+    real_hash = _hl.sha256(open(art, "rb").read()).hexdigest()
+    assert real_hash != "d" * 64
+    v3c = mgr3.get_run(run3).state_version
+    rel_bad = cosign(make_action_approval(
+        run3, "task_r8_tgt", v3c, "release",
+        payload=dict(ACTION_PAYLOADS["release"])))
+    expect(ApprovalRejected,
+           lambda: mgr3.reserve_action(run3, "release", "prod://erp/rel-77",
+                                       rel_bad,
+                                       action_descriptor=descriptor_of(rel_bad),
+                                       runtime_evidence={
+                                           "artifact_paths": {
+                                               "artifact_sha256": art}}),
+           contains="actual-target")
+    # 3d：runtime_evidence 混入非本类型字段 → 拒（键集封闭）
+    v3d = mgr3.get_run(run3).state_version
+    pw = cosign(make_action_approval(run3, "task_r8_tgt", v3d, "prod-write"))
+    expect(ApprovalRejected,
+           lambda: mgr3.reserve_action(run3, "prod-write",
+                                       "db://prod/erp#r8", pw,
+                                       action_descriptor=descriptor_of(pw),
+                                       runtime_evidence={"repo_id": "evil"}),
+           contains="runtime_evidence")
+    assert mgr3.broker.consumed_approvals(run_id=run3) == []
+    assert not mgr3.get_run(run3).actions
+
+    # ------------------------------------------------------------------
+    # 变体 4：actor 冒用他人 key（envelope.actor ∉ key.actors）→ 拒
+    # ------------------------------------------------------------------
+    kr_p = ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "boss", "actors": ["boss"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    store4, mgr4 = new_mgr(kr_p, "prin")
+    run4, v4 = new_run(mgr4, "task_r8_prin")
+    # 4a：主签 key 属 boss，信封 actor 自报 chaoge（HMAC 为真——持 secret 手签）
+    ap4 = cosign_with(kr_p, sign_with(SEC_A, make_action_approval(
+        run4, "task_r8_prin", v4, "prod-write", key_id="key_r8_a",
+        actor="chaoge")), "chaoge", "key_r8_b", "erge")
+    expect(ApprovalRejected,
+           lambda: mgr4.reserve_action(run4, "prod-write",
+                                       "db://prod/erp#r8", ap4,
+                                       action_descriptor=descriptor_of(ap4)),
+           contains="signer principal")
+    # 4b：联签条目 actor 冒用（key_r8_b 属 erge，条目自报 mallory）
+    ap4b = cosign_with(kr_p, sign_with(SEC_A, make_action_approval(
+        run4, "task_r8_prin", v4, "prod-write", key_id="key_r8_a",
+        actor="boss")), "boss", "key_r8_b", "mallory")
+    expect(ApprovalRejected,
+           lambda: mgr4.reserve_action(run4, "prod-write",
+                                       "db://prod/erp#r8", ap4b,
+                                       action_descriptor=descriptor_of(ap4b)),
+           contains="登记面")
+    assert mgr4.broker.consumed_approvals(run_id=run4) == []
+
+    # ------------------------------------------------------------------
+    # 变体 5：联签两条目同 actor（两把不同 key、同一人）→ 拒
+    # ------------------------------------------------------------------
+    store5, mgr5 = fresh()
+    run5, v5 = new_run(mgr5, "task_r8_same")
+    single5 = make_action_approval(run5, "task_r8_same", v5, "prod-write")
+    body5 = {k: v for k, v in single5.items()
+             if k not in ("signature", "cosignatures")}
+    same_actor = dict(single5)
+    same_actor["cosignatures"] = [
+        {"key_id": "key_test_1", "actor": "chaoge",
+         "signature": single5["signature"]},
+        {"key_id": "key_test_2", "actor": "chaoge",
+         "signature": sign_envelope(SECRET2, body5)},
+    ]
+    expect(ApprovalRejected,
+           lambda: mgr5.reserve_action(run5, "prod-write",
+                                       "db://prod/erp#r8", same_actor,
+                                       action_descriptor=descriptor_of(single5)),
+           contains="同 actor")
+    assert mgr5.broker.consumed_approvals(run_id=run5) == []
+
+    # ------------------------------------------------------------------
+    # 变体 6：合法链（真 actors + 生命周期窗内 + 实时 descriptor）→ 通过
+    # ------------------------------------------------------------------
+    kr_legit = ApprovalKeyring(
+        {"key_r8_a": SEC_A, "key_r8_b": SEC_B},
+        metadata={
+            "key_r8_a": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "chaoge", "actors": ["chaoge", "boss"]},
+            "key_r8_b": {"status": "active",
+                         "created_at": "2026-10-01T00:00:00Z",
+                         "owner": "erge", "actors": ["erge"]}})
+    store6, mgr6 = new_mgr(kr_legit, "ok")
+    run6, v6 = new_run(mgr6, "task_r8_ok")
+    # 6a：高危 prod_write——真 actors（chaoge/erge 各属其 key）+ 窗内 issued
+    ap6 = cosign_with(kr_legit, sign_with(SEC_A, make_action_approval(
+        run6, "task_r8_ok", v6, "prod-write", key_id="key_r8_a")),
+        "chaoge", "key_r8_b", "erge")
+    r6 = mgr6.reserve_action(run6, "prod-write", "db://prod/erp#r8ok", ap6,
+                             actor="runner",
+                             action_descriptor=descriptor_of(ap6))
+    assert r6["action_state"] == "RESERVED"
+    # 6b：release——artifact 路径实算 hash 相符 + env 实况相符 + 观测等值
+    v6b = mgr6.get_run(run6).state_version
+    rel_payload = dict(ACTION_PAYLOADS["release"], artifact_sha256=real_hash)
+    rel6 = cosign_with(kr_legit, sign_with(SEC_A, make_action_approval(
+        run6, "task_r8_ok", v6b, "release", key_id="key_r8_a",
+        payload=rel_payload)), "chaoge", "key_r8_b", "erge")
+    r6b = mgr6.reserve_action(
+        run6, "release", "prod://erp/rel-r8", rel6,
+        actor="runner", action_descriptor=descriptor_of(rel6),
+        runtime_evidence={
+            "artifact_paths": {"artifact_sha256": art},
+            "environment": IDENT["environment"],
+            "release_id": rel_payload["release_id"]})
+    assert r6b["action_state"] == "RESERVED"
+    # 6c：merge——RUN_HEAD 哨兵实查=run commit_sha，payload head_sha 与之一致
+    v6c = mgr6.get_run(run6).state_version
+    m6 = sign_with(SEC_A, make_action_approval(
+        run6, "task_r8_ok", v6c, "merge", key_id="key_r8_a",
+        payload=dict(ACTION_PAYLOADS["merge"], head_sha=IDENT["commit_sha"])))
+    r6c = mgr6.reserve_action(
+        run6, "merge", "repo://qisemi-erp/pr-9", m6, actor="runner",
+        action_descriptor=descriptor_of(m6),
+        runtime_evidence={"head_sha": "RUN_HEAD"})
+    assert r6c["action_state"] == "RESERVED"
+    # 6d：resume 消费路径——actors 登记面 + 生命周期窗内全过
+    w6 = mgr6.raise_waiting(run6, "prod-write", "r8-ok-wait")
+    v6d = mgr6.get_run(run6).state_version
+    ap6d, pre6 = make_resume(run6, w6["stop_event_id"], "prod-write", v6d,
+                             "task_r8_ok", actor="chaoge")
+    ap6d = sign_with(SEC_A, dict(ap6d, key_id="key_r8_a"))
+    assert mgr6.resume_waiting(run6, ap6d, pre6)["resumed"] is True
+    # 合法链落账恰三次授权消费 + 一次 resume，链完好
+    assert len(mgr6.broker.consumed_approvals(run_id=run6)) == 4
+    assert store6.verify_chain()["ok"]
+
+
 def adv_cli_end_to_end():
     tmp = tempfile.mkdtemp(prefix="wenqu-adv-cli-")
     db = os.path.join(tmp, "events.db")
@@ -1190,6 +1500,7 @@ TESTS = [
     ("#11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门", adv11_action_auth_gate),
     ("R7-005 高危联签消费门+exact descriptor+消费对账面", adv12_r7_dual_consume_gates),
     ("R7-006 0644 keyring loader fail-closed+豁免通道", adv13_r7_keyring_permission_gate),
+    ("R8 生命周期 issued_at 执法+actual-target 运行时重算+signer principal 绑定（五拒一通）", adv14_r8_lifecycle_principal_actual_target),
     ("K：wenquctl CLI 端到端链", adv_cli_end_to_end),
 ]
 if __name__ == "__main__":

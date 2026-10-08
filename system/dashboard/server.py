@@ -9,6 +9,17 @@
     快照透传，绝不再自算加权分
 第一阶段（写接口关闭）：POST /api/decide → 405。
 
+P0-9/W8 残余根修（2026-10-08，health 零 SHA/self-declared 拒 PASS）：
+  - 不变量 10 保守面落地：透传判定恰为 PASS 且快照携带 (a) target_sha 为
+    全零占位（0*40——GateAggregator C2 下各站 identity.commit_sha ==
+    target_sha，全零即证据未绑定任何真实 commit，identity_missing）或
+    (b) gate 以 --allow-self-declared 诊断模式聚合（快照如实携带
+    mode/scope_binding.mode，self_declared——无 manifest 上绿效力背书）
+    时，health 输出 policy_verdict 拒绝 PASS：identity_missing → BLOCKED，
+    仅 self_declared → NOT_EVALUATED；raw 判定与旗标保留在
+    dashboard_downgrade 审计字段，reason 注明。非 PASS 判定原样透传
+    （只等价或更保守，绝不上调）。
+
 R7 加固（第七轮验收根修，2026-10-08）：
   - R7-UI-LOG-AUTH-009：/api/v1/logs 加鉴权——WENQU_DASHBOARD_KEY 配置后须携带
     匹配的 X-Auth-Key；未配置 key 时该端点默认 403（fail-closed，与写接口
@@ -195,6 +206,85 @@ def read_gate_aggregate():
     return {"ok": True, "data": snap}
 
 
+# ───────────── 不变量 10 保守面：PASS 必须立在可验证身份与权威模式上 ─────────────
+def _is_zero_placeholder_sha(v):
+    """全零占位 SHA（0*40/0*64）——identity.commit_sha 未绑定真实 commit。
+
+    mirror_validate_station_result_v2 只要求 commit_sha 为 40-hex（全零也是
+    合法 hex），GateAggregator C2 又只对账「站 SHA == target_sha」——全零自洽
+    即可穿透（P0-9/W8 实锤：self_declared 诊断快照 target_sha=0*40 仍 PASS）。
+    """
+    s = str(v or "").strip().lower()
+    return len(s) in (40, 64) and set(s) == {"0"}
+
+
+def _is_self_declared_aggregation(snap):
+    """gate 以 self-declared/allow-self-declared 模式聚合（仅诊断，不具上绿
+    效力背书）。cli.py 如实携带顶层 mode=self_declared_diagnostic，aggregator
+    如实携带 scope_binding.mode=self_declared——任一命中即认定。"""
+    mode = str(snap.get("mode") or "").strip().lower().replace("-", "_")
+    if "self_declared" in mode:
+        return True
+    sb = snap.get("scope_binding")
+    if isinstance(sb, dict):
+        sb_mode = str(sb.get("mode") or "").strip().lower().replace("-", "_")
+        if "self_declared" in sb_mode:
+            return True
+    return False
+
+
+def conservative_health_snapshot(snap):
+    """health 保守过滤（P0-9/W8 残余根修；纯函数，不改入参）。
+
+    透传判定恰为 PASS 时按旗标降级，其余一律原样透传（只等价或更保守）：
+      - identity_missing（target_sha 全零占位）→ BLOCKED：证据身份是硬完整性
+        问题，与 aggregator C2「SHA 缺失/不可绑定 → BLOCKED」同哲学；
+      - self_declared（诊断模式聚合）→ NOT_EVALUATED：就上绿效力而言未在
+        权威模式下评估。
+    两旗标并存时取更保守的 BLOCKED。降级只改写 policy_verdict/
+    aggregate_outcome 的 PASS 值；raw 判定与旗标完整保留在
+    dashboard_downgrade 审计字段；reason/reasons 注明降级原因
+    （identity_missing/self_declared）。
+    """
+    raw = str(snap.get("policy_verdict") or snap.get("overall")
+              or snap.get("verdict") or "").strip().upper()
+    if raw != "PASS":
+        return dict(snap)
+    flags = []
+    if _is_zero_placeholder_sha(snap.get("target_sha")):
+        flags.append("identity_missing")
+    if _is_self_declared_aggregation(snap):
+        flags.append("self_declared")
+    if not flags:
+        return dict(snap)
+    out = dict(snap)
+    verdict = "BLOCKED" if "identity_missing" in flags else "NOT_EVALUATED"
+    causes = []
+    if "identity_missing" in flags:
+        causes.append("identity_missing：target_sha 为全零占位（0*40），"
+                      "各站 identity.commit_sha 未绑定任何真实 commit")
+    if "self_declared" in flags:
+        causes.append("self_declared：gate 以 --allow-self-declared 诊断模式聚合"
+                      "（无 manifest 上绿效力背书）")
+    note = ("dashboard_conservative_downgrade: 透传 PASS 拒绝——" +
+            "；".join(causes) + "；降级为 " + verdict)
+    out["policy_verdict"] = verdict
+    if str(out.get("aggregate_outcome") or "").strip().upper() == "PASS":
+        out["aggregate_outcome"] = verdict
+    base = str(out.get("reason") or "").strip()
+    out["reason"] = (base + "；" + note) if base else note
+    if isinstance(out.get("reasons"), list):
+        out["reasons"] = list(out["reasons"]) + [note]
+    out["dashboard_downgrade"] = {
+        "raw_policy_verdict": raw,
+        "policy_verdict": verdict,
+        "flags": flags,
+        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or "
+                "self-declared aggregation mode（不变量 10 保守面）",
+    }
+    return out
+
+
 def _health_history_path():
     return os.environ.get("WENQU_HEALTH_HISTORY",
                           os.path.expanduser("~/Documents/ERP）Zcode/健康度走势.jsonl"))
@@ -207,7 +297,9 @@ def health_history_writer(stop_evt):
     while True:
         r = read_gate_aggregate()
         if r["ok"]:
-            snap = r["data"]
+            # 与 /api/v1/health 同口径（P0-9/W8）：走势记录与 API 判定一致，
+            # 不出现「API 已降级 NOT_EVALUATED 而走势仍记 PASS」的分叉
+            snap = conservative_health_snapshot(r["data"])
             score = snap.get("score")
             verdict = snap.get("policy_verdict") or snap.get("overall") or snap.get("verdict")
             if isinstance(score, (int, float)) or verdict:
@@ -751,7 +843,9 @@ class Handler(BaseHTTPRequestHandler):
             r = read_gate_aggregate()
             if not r["ok"]:
                 return self._err(503, r["code"], r["detail"])
-            out = dict(r["data"])
+            # P0-9/W8 保守面：零 SHA 身份占位 / self-declared 聚合模式下
+            # 透传 PASS 拒绝（降级+reason 注明；非 PASS 原样透传，绝不上调）
+            out = conservative_health_snapshot(r["data"])
             out.setdefault("source", "gate-aggregator")
             return self._json(200, out)
         if ep == "health-history":
@@ -996,6 +1090,42 @@ def self_check(port):
                 os.environ.pop("WENQU_DASHBOARD_KEY", None)
             else:
                 os.environ["WENQU_DASHBOARD_KEY"] = _saved_key
+        # P0-9/W8 保守面：零 SHA / self-declared 拒 PASS（沙箱快照现场注入，
+        # 跑完还原 WENQU_GATE_AGGREGATE——绝不碰真实 ~/.wenqu/state）
+        _saved_agg = os.environ.get("WENQU_GATE_AGGREGATE")
+        try:
+            import tempfile as _tf
+            with _tf.TemporaryDirectory(prefix="wq-selfcheck-agg-") as _ad:
+                _agg = os.path.join(_ad, "gate-aggregate.json")
+                os.environ["WENQU_GATE_AGGREGATE"] = _agg
+
+                def _agg_write(verdict, target_sha, mode, sb_mode):
+                    payload = {"generated_at": datetime.now(timezone.utc)
+                               .isoformat(timespec="seconds").replace("+00:00", "Z"),
+                               "policy_verdict": verdict, "aggregate_outcome": verdict,
+                               "target_sha": target_sha, "mode": mode,
+                               "scope_binding": {"mode": sb_mode},
+                               "reason": "selfcheck injected", "reasons": []}
+                    with open(_agg, "w", encoding="utf-8") as fh:
+                        json.dump(payload, fh, ensure_ascii=False)
+
+                _agg_write("PASS", "0" * 40, "self_declared_diagnostic", "self_declared")
+                s, _, _, j = req("GET", "/api/v1/health")
+                ck("零 SHA(self_declared) 快照 PASS → health 拒 PASS（BLOCKED+identity_missing+self_declared）",
+                   s == 200 and isinstance(j, dict) and j.get("policy_verdict") == "BLOCKED"
+                   and isinstance(j.get("dashboard_downgrade"), dict)
+                   and set(j["dashboard_downgrade"].get("flags", [])) == {"identity_missing", "self_declared"}
+                   and "identity_missing" in str(j.get("reason", "")) and "self_declared" in str(j.get("reason", "")))
+                _agg_write("PASS", "ab" * 20, "manifest", "manifest")
+                s, _, _, j = req("GET", "/api/v1/health")
+                ck("真实 SHA(manifest) 快照 PASS → health 保持 PASS（不误伤正门）",
+                   s == 200 and isinstance(j, dict) and j.get("policy_verdict") == "PASS"
+                   and "dashboard_downgrade" not in j)
+        finally:
+            if _saved_agg is None:
+                os.environ.pop("WENQU_GATE_AGGREGATE", None)
+            else:
+                os.environ["WENQU_GATE_AGGREGATE"] = _saved_agg
         # 速率限制（放最后：耗尽窗口不影响前面用例）
         limited = 0
         for _ in range(RATE_MAX + 60):

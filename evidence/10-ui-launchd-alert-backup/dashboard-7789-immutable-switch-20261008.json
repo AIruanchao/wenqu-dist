@@ -1,0 +1,117 @@
+{
+  "entry": "P0-9/W8 残余根修：现役 dashboard 切 immutable release 激活 + health 零 SHA/self-declared 拒 PASS",
+  "time": "2026-10-08T16:49:47+00:00",
+  "residuals": [
+    "现役 dashboard（com.wenqu.dashboard）直吃可变树 ~/.wenqu/dashboard/server.py（旧拷贝 fb4c6ce2…，与仓 HEAD/发布链漂移），未走 immutable release 激活链",
+    "/api/v1/health 对零 SHA（target_sha=0*40，镜像各站 identity.commit_sha）+ self-declared 诊断模式（mode=self_declared_diagnostic）快照仍透传 PASS"
+  ],
+  "runtime_switch": {
+    "plist": "~/Library/LaunchAgents/com.wenqu.dashboard.plist",
+    "plist_sha256_after": "c996a4429cee6e17f27cf1d2217fd26efcf58415bba4c9aba5899ef1c4ecbd94",
+    "plist_backup": "evidence/10-ui-launchd-alert-backup/com.wenqu.dashboard.plist.pre-immutable-switch.bak（sha256=812c49241190c83dd741d5ca0202853ff83afcae79bd0bc831f8541e06f5e792，即切换前原件）",
+    "program_args_before": [
+      "/opt/homebrew/bin/python3",
+      "/Users/maccc/.wenqu/dashboard/server.py",
+      "--port",
+      "7789"
+    ],
+    "program_args_after": [
+      "/opt/homebrew/bin/python3",
+      "/Users/maccc/.wenqu/current/system/dashboard/server.py",
+      "--port",
+      "7789"
+    ],
+    "added_env": {
+      "WorkingDirectory": "/Users/maccc/.wenqu/current",
+      "WENQU_REPO_DIR": "/Users/maccc/.wenqu/current",
+      "HOME": "/Users/maccc",
+      "PYTHONUNBUFFERED": "1"
+    },
+    "restart": "launchctl bootout gui/$(id -u)/com.wenqu.dashboard + bootstrap（plist lint OK）",
+    "post_switch": {
+      "state": "running",
+      "pid": "29477",
+      "ps_command": "/opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/current/system/dashboard/server.py --port 7789",
+      "launchctl_env_WENQU_REPO_DIR": "/Users/maccc/.wenqu/current（print 回读已核）"
+    },
+    "current_symlink": "/Users/maccc/.wenqu/releases/2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551/tree",
+    "four_file_hash_evidence": {
+      "server.py": {
+        "current_release": "02e2691a474342b1628b449b6396cb18c5c9fd03811348f764f54f4a8fb49bac",
+        "repo_worktree": "82a0b54b736361ef80df0f2327354674b197e06100d6e99bf5dea8569b77264e",
+        "repo_eq_current": false,
+        "old_mutable_copy": "fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b"
+      },
+      "index.html": {
+        "current_release": "caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2",
+        "repo_worktree": "caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2",
+        "repo_eq_current": true,
+        "old_mutable_copy": "caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2"
+      },
+      "app.js": {
+        "current_release": "fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e",
+        "repo_worktree": "fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e",
+        "repo_eq_current": true,
+        "old_mutable_copy": "fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e"
+      },
+      "app.css": {
+        "current_release": "d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a",
+        "repo_worktree": "d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a",
+        "repo_eq_current": true,
+        "old_mutable_copy": "d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a"
+      }
+    },
+    "four_file_note": "运行时=按 current symlink 解析 → 与 current 树一致由进程 argv+哈希双证；repo==current 三件全符；server.py repo≠current 为本轮未提交的保守过滤修复（02e2691a=已部署版，repo 版含 P0-9/W8 修复，待 commit 后经 install-release.sh 出下一版）"
+  },
+  "three_probes_after_switch": {
+    "GET /api/v1/health": {
+      "status": 200,
+      "policy_verdict": "PASS",
+      "target_sha": "0000000000000000000000000000000000000000",
+      "mode": "self_declared_diagnostic",
+      "note": "200；运行时为已部署 immutable 版（修复前代码）——快照如实为 self-declared+零 SHA，透传 PASS；保守过滤已在仓内修复+测试实证，随下一 release 激活（见 pending 项）"
+    },
+    "POST /api/decide": {
+      "status": 405,
+      "error_code": "WRITE_DISABLED"
+    },
+    "POST /api/v1/decide": {
+      "status": 405,
+      "error_code": "WRITE_DISABLED"
+    },
+    "GET /": {
+      "status": 200
+    }
+  },
+  "health_semantics_fix": {
+    "file": "system/dashboard/server.py",
+    "rule": "透传判定恰为 PASS 时：(a) target_sha 全零占位(0*40/0*64) → identity_missing → BLOCKED；(b) mode/scope_binding.mode 含 self_declared → NOT_EVALUATED；两旗标并存取 BLOCKED。非 PASS 原样透传（只等价或更保守，绝不上调）。reason/reasons 注明旗标；dashboard_downgrade 审计字段保留 raw 判定；aggregate_outcome 同步降级（载荷不自相矛盾）；health_history_writer 同口径（走势与 API 判定不分叉）；--self-check 增双检查腿",
+    "adversarial_e2e": "adversarial-health-conservative-reverify-20261008.json——Leg A：真 wenquctl gate --allow-self-declared + 零 SHA station result（逐字镜像生产 0.json）→ 真 aggregate PASS → health=BLOCKED[identity_missing,self_declared]；Leg B：真 GateAggregator + 真实 40-hex SHA + manifest 模式 → PASS 零降级",
+    "tests": "test_ac_ui_family.py UI-04b（五腿：双旗标/仅模式/仅零 SHA/scope_binding-only/正门对照/非 PASS 不上调）+ 负例假服务（无过滤回 PASS 被同水位探针必报）"
+  },
+  "stability": {
+    "observation": "runs=3：run1=切换前可变树实例；run2=bootstrap（16:33Z）；run3=16:38:52Z 一次 KeepAlive 重拉（触发原因未能从现有日志定位；err log 两起 BrokenPipeError 均为 handler 线程级、socketserver handle_error 兜住不杀进程）",
+    "proof": "30s 混合脉冲（80 请求）+ 6 次故意早断对抗后 pid 29477 不变（STABLE）"
+  },
+  "regression": {
+    "test_ac_ui_family": "8/8（7 原 + UI-04b；断言只增未减）",
+    "acceptance": "67/67 ALL GREEN",
+    "dashboard_self_check": "rc=0（含零 SHA 拒 PASS/正门不误伤双新检查）",
+    "test_ac_ops_families": "17/17",
+    "test_infra_hardening": "66/66",
+    "test_gate_schema_hardening": "49/49",
+    "test_ac_deploy_release": "13/13",
+    "test_w4_production": "36/36",
+    "test_cli_install_ci": "19/19",
+    "test_wenqu_adversarial": "15 PASS / 0 FAIL"
+  },
+  "linkage": {
+    "install-release.sh": "新增 --reload-dashboard：current symlink 切换后 launchd 重载 com.wenqu.dashboard 并以 /api/v1/ping 活性回读（常驻进程持旧树 inode，不重载不生效）",
+    "observation_daily.py": "7789 探测适配（只读语义不变）：优先 /api/v1/health（现役已为 immutable modular server 契约路径），无 200 JSON 退回 /api/health（legacy 兼容）；两路径原始结果均落盘；已在运行中 7789 实测命中 v1=200"
+  },
+  "pending": [
+    "server.py 保守过滤为未提交工作树改动：现役 7789 仍跑已部署 immutable 版（02e2691a）——live health 在零 SHA/self-declared 快照下仍显示 PASS，须主会话 commit 后跑 install-release.sh（--reload-dashboard）出下一 release 才闭合运行时语义；本任务约束「不 commit」，不可由本会话完成",
+    "scheduler 侧 refresh_gate_aggregate 继续走 --allow-self-declared 诊断模式（F6-GATE-SCOPE-001 契约：shadow 数据源不冒充发布门）——快照如实携带模式旗标，dashboard 侧已按旗标拒 PASS"
+  ],
+  "rollback": "R1 记录级（未演练）：cp evidence/10-ui-launchd-alert-backup/com.wenqu.dashboard.plist.pre-immutable-switch.bak ~/Library/LaunchAgents/ 并 bootout/bootstrap；server.py/install-release.sh/observation_daily.py/tests 为仓内未提交改动，git diff 可逆"
+}

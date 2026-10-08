@@ -20,7 +20,8 @@ UI-01～07、HLT-01、SCH-01～03/06/07、ALT-01～02、BAK-01。
 
 | 项 | 状态 |
 |---|---|
-| `system/dashboard/` 四文件（index/app.css/app.js/server.py） | 存在；接线测试断言存在性（CI 绿） |
+| `system/dashboard/` 四文件（index/app.css/app.js/server.py） | 存在；接线测试断言存在性（CI 绿）；**P0-9/W8（2026-10-08）**：server.py 增透传前保守过滤——零 SHA(0*40) 身份占位→BLOCKED(identity_missing)、self-declared 聚合→NOT_EVALUATED，非 PASS 原样透传，UI-04b 五腿+--self-check 双腿+真 CLI 端到端对抗实证（`dashboard-7789-immutable-switch-20261008.json` + `adversarial-health-conservative-reverify-20261008.json`）；**未提交——live 生效待下一 release** |
+| com.wenqu.dashboard launchd（W8 现役 UI） | **真机切 immutable 激活链实证（2026-10-08 16:33Z）**：plist 改指 `~/.wenqu/current/system/dashboard/server.py`（current→releases/2bd59ab…/tree 验签部署链）+WENQU_REPO_DIR/WorkingDirectory=current；bootout/bootstrap 后三探针绿（health 200 / decide 双路径 405 WRITE_DISABLED / 页面 200）、launchctl env 回读核；旧 plist 备份 `com.wenqu.dashboard.plist.pre-immutable-switch.bak`；30s 脉冲+早断对抗 pid 稳定；联动 `install-release.sh --reload-dashboard`（current 切换后须重载才重解析）。注意：现役 immutable 版仍为修复前代码——live health 对零 SHA/self-declared 快照仍透传 PASS，闭合须 commit 后出下一 release（诚实边界，登记 pending） |
 | /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒） | commit 1858a75，CI run 37660552501 绿（2026-10-07）；但为代码+单元级，无独立安全探针落档 |
 | UI XSS escD/七态钻取等 Codex 三审修复 | v3.6.1～v3.6.3 提交在册；无 Playwright trace |
 | com.wenqu.observation-window launchd | 外部 reaudit 证实已装载（每日 08:00），回读未固化 |

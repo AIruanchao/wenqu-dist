@@ -1,0 +1,14 @@
+# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被
+# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。
+# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。
+# 只允许增长，缩水即 CI 红。再生成：
+#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
+#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）
+test_ac_gate_family 24
+test_ac_state_mig 16
+test_ac_deploy_release 13
+test_ac_station_families 29
+test_ac_ops_families 17
+test_ac_auth_cond 16
+test_ac_act_run 9
+test_ac_ui_family 7

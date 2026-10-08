@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ui-family",
-    "generated_at": "2026-10-08T14:04:25+00:00",
-    "repo_head": "1495913085eae13155f977fcebc8400b9789e04c",
+    "generated_at": "2026-10-08T19:41:45+00:00",
+    "repo_head": "12cb222ee1765dda5e917b3a2f300a53c1d4ef1d",
     "test_file": "system/tests/test_ac_ui_family.py",
     "probe_module": "system/wenqu_core/ui_probe.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
@@ -11,12 +11,13 @@
     "method_level_reason": "Playwright 不可用（python3 -c \"import playwright\" ModuleNotFoundError）——按方法可用性降级；被测体=system/dashboard/server.py 真子进程（临时随机端口，沙箱 WENQU_*，不触 7789）",
     "playwright_available": false,
     "run_rc": 0,
-    "passed": 7,
+    "passed": 8,
     "failed": 0,
     "observations": [
       "UI-07 超大日志产品界=行数界（tail -n 20）+字节界（R7-UI-LOG-BYTES-010 响应硬上限默认 1MiB/WENQU_LOG_MAX_BYTES 可配/超限按字节截断+truncated 标记）双闸；6MiB 病态单行对抗腿实证 ≤上限+标记+前缀保留",
       "UI-06 日志端点已加鉴权（R7-UI-LOG-AUTH-009）：WENQU_DASHBOARD_KEY 配置后须匹配 X-Auth-Key；未配置默认 403（fail-closed）——无 key/错 key/key 未配置三对抗腿均实证 403+零泄漏",
-      "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；R7 根修后产品配对门覆盖常见标签（删 </span> 必红）；server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）"
+      "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；R7 根修后产品配对门覆盖常见标签（删 </span> 必红）；server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）",
+      "UI-04b（P0-9/W8 根修腿，2026-10-08 增）：health 透传前保守过滤——零 SHA(0*40) 身份占位/self-declared 诊断聚合下的 PASS 拒绝（identity_missing→BLOCKED / self_declared→NOT_EVALUATED，reason+dashboard_downgrade 审计注明）；非 PASS 原样透传绝不上调；真实 SHA+manifest 正门 PASS 不误伤；产品 --self-check 同步带双检查腿"
     ]
   },
   "results": {
@@ -37,7 +38,7 @@
     },
     "UI-04": {
       "pass": true,
-      "detail": "Gate 红+各站高分（score 87）→health 逐字透传 BLOCKED（score/watermark 同水位，source=gate-aggregator）；快照转 PASS 即刻传播；过期→503 AGGREGATOR_STALE 绝不200 伪绿；前端判定优先级+errBox 源码契约在位；负例自算洗绿（PASS+99）被同水位探针双报（verdict+score）。浏览器目视读数未验证（已登记）",
+      "detail": "Gate 红+各站高分（score 87）→health 逐字透传 BLOCKED（score/watermark 同水位、source=gate-aggregator）；快照转 PASS 即刻传播；过期→503 AGGREGATOR_STALE 绝不200 伪绿；前端判定优先级+errBox 源码契约在位；负例自算洗绿（PASS+99）被同水位探针双报（verdict+score）。浏览器目视读数未验证（已登记）",
       "method": "L2-HTTP-DOM"
     },
     "UI-05": {
@@ -52,7 +53,12 @@
     },
     "UI-07": {
       "pass": true,
-      "detail": "超大日志（4429KB 源→84KB 响应，tail 行数界、11ms、首行截出末行保留）；R7 对抗腿：6MiB 病态单行→响应 1048560B ≤1MiB 上限+truncated 标记+前缀保留（字节界硬约束）；慢速半开请求期间并发 3×200、15.0s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；限速真实触发（第 None 发 429）；压力后存活。负例无限速假服务被探针必报",
+      "detail": "超大日志（4429KB 源→84KB 响应，tail 行数界、16ms、首行截出末行保留）；R7 对抗腿：6MiB 病态单行→响应 1048560B ≤1MiB 上限+truncated 标记+前缀保留（字节界硬约束）；慢速半开请求期间并发 3×200、15.0s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；限速真实触发（第 None 发 429）；压力后存活。负例无限速假服务被探针必报",
+      "method": "L2-HTTP-DOM"
+    },
+    "UI-04b": {
+      "pass": true,
+      "detail": "P0-9/W8 根修验证：零 SHA(0*40) 或 self-declared 聚合模式下快照透传 PASS 被保守过滤拒绝（identity_missing→BLOCKED / self_declared→NOT_EVALUATED，reason+dashboard_downgrade 注明；非 PASS 原样透传绝不上调；真实 SHA+manifest 正门 PASS 不误伤）；同水位探针在降级判定上零发现；负例假服务（回 PASS）被探针必报",
       "method": "L2-HTTP-DOM"
     }
   },
