@@ -1,13 +1,13 @@
 {
   "meta": {
     "artifact": "ac-ops-families",
-    "generated_at": "2026-10-08T07:36:57+00:00",
-    "repo_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "generated_at": "2026-10-08T10:47:01+00:00",
+    "repo_head": "ffd7b2b750ba6e5bf879123366bc0f5a5d9d886c",
     "test_file": "system/tests/test_ac_ops_families.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
-    "scope": "SCH-01~07, ALT-01~02, HLT-01, DOC-01~04（14 ID）",
+    "scope": "SCH-01~07, ALT-01~02, BAK-01, HLT-01, DOC-01~04, CAP-01, DR-01（17 ID）",
     "run_rc": 0,
-    "passed": 14,
+    "passed": 17,
     "failed": 0
   },
   "results": {
@@ -19,13 +19,21 @@
       "pass": true,
       "detail": "waiting 到期零 attempt/零 receipt 可机器检出；watchdog 干净跑完不产生 SENT/sent_at（健康不凭 exit0）；dispatch 将障碍 surfaced 为 ERROR+last_error 回执；通道恢复后告警真实送达、违例归零"
     },
+    "BAK-01": {
+      "pass": true,
+      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）四步真实演练：快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→恢复 5 文件→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变（只读）；报告 20261008T104653Z 含时间/文件/结果三要素+jsonl 事件日志23 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL，既有 PASS 工件零改写=不更新 success"
+    },
+    "CAP-01": {
+      "pass": true,
+      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_fwjp_0z0 所在卷，当日水位 93.40%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
+    },
     "DOC-01": {
       "pass": true,
       "detail": "契约 §6 九类停等与 NineStopTypes 实现逐项一致（真实对账绿，标题计数=正文=实现）；删行/改名/加类/标题数量缩水四种注入漂移全部判 blocked（CI 阻断语义）"
     },
     "DOC-02": {
       "pass": true,
-      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 64 vs 实测 66 漂移（观察项，已如实上报）"
+      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 66 vs 实测 68 漂移（观察项，已如实上报）"
     },
     "DOC-03": {
       "pass": true,
@@ -34,6 +42,10 @@
     "DOC-04": {
       "pass": true,
       "detail": "真实治理文档 3 条实体宣称全部对上注册表（9 站）；真实 Gate 正源（dashboard 读快照）BLOCKED 时 PASS/现役宣称判阻断、幽灵实体判阻断；Gate 复绿后放行"
+    },
+    "DR-01": {
+      "pass": true,
+      "detail": "DR 模式真实演练 PASS：RPO 实测 1.536288s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.473403s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
     },
     "HLT-01": {
       "pass": true,

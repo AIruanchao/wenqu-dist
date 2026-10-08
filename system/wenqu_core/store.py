@@ -6,6 +6,13 @@
 - 哈希链：event_hash = sha256(prev_event_hash || canonical_payload)，
   首条 prev 为全零 GENESIS；篡改任意行都会破坏 verify_chain()。
 - 写入用 BEGIN IMMEDIATE 单事务完成「读头 + 插入」，避免并发分叉。
+
+P0-6 第六轮（统一事件正源）：``pipeline_events`` 是全系统唯一的事件表，
+``EventStore.append``/RunManager._emit 是仅有的写入口——旧 JSONL 账本
+迁移器（ledger_migrator）的导入行也经公共 append 写入本表同一哈希链
+（不再自建第二张 events 表）；历史库中的旧 ``events`` 表冻结为只读兼容，
+残留行由 ledger_migrator.migrate_legacy_events 一次性收编。控制事件
+守卫语义（下方 P0-4）对本轮改写零改动。
 """
 
 from __future__ import annotations

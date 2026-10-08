@@ -11,8 +11,9 @@
   bugscan_orchestrator.build_station_result / validate_station_result
   （内置结构校验 + jsonschema 双保险）；本模块不自造判定第二正源。
 
-四个适配器（编排层不造扫描工具——只消费底层件结果并做机械映射，一律
-fail-closed：载荷畸形 / 身份绑定失败 / 证据过期即抛错，绝不折算为 PASS）：
+适配器（编排层不造扫描工具——只消费底层件结果并做机械映射，一律
+fail-closed：载荷畸形 / 身份绑定失败 / 证据过期即抛错，绝不折算为 PASS；
+唯一例外见 RawQueryTenantScanner——自带零依赖词法静态分析，TEN-04 面）：
 
 - OpenApiReconciler    openapi.json ↔ 实际路由对账。
                        denominator=端点总数（spec ∪ 实际路由的并集），
@@ -29,6 +30,10 @@ fail-closed：载荷畸形 / 身份绑定失败 / 证据过期即抛错，绝不
                        DROP=HIGH、未知变更类型=HIGH（fail-closed）；
                        白名单绑定对象 identity + 内容 hash + 到期时间
                        （30 天日落；hash 不匹配 / 已过期 = 条目无效）。
+- RawQueryTenantScanner  TEN-04 面：SQL 字符串/Prisma $queryRaw 调用点的
+                       租户隔离静态分析（词法级调用点发现 + 谓词区守卫判定；
+                       无租户谓词查询→finding→FAIL 阻断；独立消费工厂
+                       raw_query_scanner()，不进默认聚合件）。
 
 安全构造（by construction）：
 - 纯 stdlib；无 shell 拼接、无 eval/exec；所有哈希走 canonical JSON。
@@ -93,11 +98,13 @@ __all__ = [
     "UNKNOWN_CHANGE_SEVERITY",
     "DIFF_DIRECTIONS",
     "ALLOWLIST_MAX_DAYS",
+    "DEFAULT_TENANT_COLUMNS",
     "Station3Contract",
     "OpenApiReconciler",
     "OrgGuardScanner",
     "PermissionMatrixScanner",
     "DbDriftScanner",
+    "RawQueryTenantScanner",
     "DriftAllowlist",
     "openapi_spec_endpoints",
     "prisma_dmmf_model_count",
@@ -108,6 +115,7 @@ __all__ = [
     "OrgGuardResultMalformed",
     "PermissionMatrixMalformed",
     "DriftReportMalformed",
+    "RawQueryScanMalformed",
     "EvidenceIdentityError",
     "EvidenceIdentityMismatch",
     "NonReadOnlyDataSource",
@@ -144,6 +152,12 @@ UNKNOWN_CHANGE_SEVERITY = "HIGH"
 #: 白名单条目到期窗口上限（与降档风险接受记录同款 30 天日落纪律）。
 ALLOWLIST_MAX_DAYS = 30
 
+#: TEN-04 默认租户谓词列（小写匹配；构造器/payload 可覆写）。租户隔离的
+#: 静态判定=查询谓词面出现其中任一列（SELECT 列表/注释里的提及不算）。
+DEFAULT_TENANT_COLUMNS: Tuple[str, ...] = (
+    "organization_id", "org_id", "tenant_id",
+)
+
 #: diff 方向合法枚举——方向进入 evidence identity（翻向=不同证据，不可混用）。
 DIFF_DIRECTIONS: Tuple[str, ...] = ("actual_vs_expected", "expected_vs_actual")
 
@@ -168,6 +182,18 @@ _RE_FND_TOKEN = re.compile(r"[^A-Za-z0-9_]+")
 _RE_CREDENTIALISH = re.compile(
     r"(?i)(password|passwd|secret|token|api[_-]?key|credential)"
 )
+
+# ---- TEN-04：raw SQL / $queryRaw 静态面正则 --------------------------------
+#: Prisma 原生 SQL 逃逸口（$queryRaw/$executeRaw 及 Unsafe 变体）。
+_RE_RAWQUERY_CALL = re.compile(r"\$(queryRaw|executeRaw|queryRawUnsafe|executeRawUnsafe)\b")
+#: 模板字面量以 SQL 关键词开头 → 视为 SQL 字符串面（queryRaw 已消费的除外）。
+_RE_SQL_TEMPLATE_START = re.compile(r"(?is)^\s*(SELECT|WITH|INSERT|UPDATE|DELETE)\b")
+#: 谓词区（WHERE/ON/HAVING 体）——SET 赋值、SELECT 列表不在其内，防误判守卫。
+_RE_PREDICATE_ZONES = re.compile(
+    r"(?is)\b(?:where|on|having)\b(.*?)(?=$|\b(?:group\s+by|order\s+by|limit|offset|"
+    r"returning|for\s+update|join|union)\b)"
+)
+_RE_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _DEFAULT_TIMEOUT_S = 600
 
@@ -198,6 +224,10 @@ class PermissionMatrixMalformed(ContractPayloadMalformed):
 
 class DriftReportMalformed(ContractPayloadMalformed):
     """judge_drift.py 报告畸形。"""
+
+
+class RawQueryScanMalformed(ContractPayloadMalformed):
+    """raw SQL/queryRaw 静态扫描载荷畸形（TEN-04）。"""
 
 
 class EvidenceIdentityError(Station3Error):
@@ -1333,6 +1363,291 @@ class DbDriftScanner(_Station3Adapter):
 
 
 # ---------------------------------------------------------------------------
+# RawQueryTenantScanner——raw SQL / $queryRaw 租户隔离静态分析（TEN-04）
+# ---------------------------------------------------------------------------
+
+class RawQueryTenantScanner(_Station3Adapter):
+    """SQL 字符串 / Prisma ``$queryRaw`` 调用点的租户隔离静态分析（§20.3
+    TEN-04：``$queryRaw`` 跨租户 → 阻断）。
+
+    本适配器自研轻量静态分析（词法级，零外部依赖）：
+
+    - 调用点发现 ``extract_query_sites(content)``：
+      * ``$queryRaw/$executeRaw/$queryRawUnsafe/$executeRawUnsafe`` 调用 →
+        kind=``prisma_queryraw`` 等；捕获其 SQL 实参（反引号模板字面量——
+        跳过 ``${...}`` 插值、带标签形态 ``prisma.sql`` 加模板字面量、
+        以及引号字符串）；实参不可捕获（间接变量/未闭合模板）→ sql=None
+        （fail-closed）。
+      * 其余以 SELECT/WITH/INSERT/UPDATE/DELETE 开头的模板字面量 →
+        kind=``sql_string``（queryRaw 已消费的区间不重复计）。
+    - 守卫判定 ``has_tenant_predicate(sql, tenant_columns)``：只在谓词区
+      （WHERE/ON/HAVING 体）认租户列的肯定谓词（``col =``、``col IN``、
+      ``col = ANY(...)``）。SELECT 列表/注释/SET 赋值中的列提及**不算**
+      守卫（防骗）；``NOT IN``/``<>``/``!=`` 等否定或范围算子不构成租户
+      约束，同样不算。SQL 不可得（sql=None）= 无法证明有守卫 → 按无守卫
+      处理（fail-closed）。
+    - 无租户谓词的查询点 → finding（``st3_rawquery_no_tenant``）→ FAIL
+      （阻断语义：策略 FAIL 即阻断合流）；全部有守卫 → PASS。
+
+    payload 契约（adapt 的入参）::
+
+        {
+          "tool": {"name": …, "version": …}, "started_at"/"ended_at": ISO,
+          "argv_digest"?: str, "timeout_s"?: int,
+          "tenant_columns"?: ["organization_id", …],   # 缺省用构造器/默认列
+          "files": [{"path": "src/db/orders.ts", "content": "<源码快照>"}, …],
+          "expected_query_sites"?: int,   # 声明宇宙下限：发现数低于它=分母缩水
+        }
+
+    files 必须至少携带一个非空源码快照（空载荷拒绝——防 vacuous PASS）；
+    ``expected_query_sites`` 高于实际发现数 → scanned<denominator →
+    BLOCKED（分母缩水守卫：探针漏读文件不得静默漏出分母）。
+    """
+
+    slug = "raw_query_tenant"
+    tag = "st3-rawquery"
+
+    def __init__(
+        self,
+        manifest: RunManifest,
+        *,
+        registry: Optional[StationRegistry] = None,
+        now: Optional[Any] = None,
+        tenant_columns: Optional[Sequence[str]] = None,
+    ) -> None:
+        super().__init__(manifest, registry=registry, now=now)
+        self._tenant_columns = self._norm_tenant_columns(
+            tenant_columns if tenant_columns is not None else DEFAULT_TENANT_COLUMNS
+        )
+
+    # -- 归一化 ---------------------------------------------------------------
+    @staticmethod
+    def _norm_tenant_columns(columns: Any) -> Tuple[str, ...]:
+        if not isinstance(columns, (list, tuple)) or not columns:
+            raise RawQueryScanMalformed(
+                "tenant_columns must be a non-empty list of column identifiers"
+            )
+        out: List[str] = []
+        for i, col in enumerate(columns):
+            text = str(col or "").strip().lower()
+            if not _RE_IDENT.match(text):
+                raise RawQueryScanMalformed(
+                    f"tenant_columns[{i}] must be a plain identifier, got {col!r}"
+                )
+            out.append(text)
+        if len(set(out)) != len(out):
+            raise RawQueryScanMalformed("tenant_columns contains duplicates")
+        return tuple(out)
+
+    # -- 调用点发现（纯函数） -------------------------------------------------
+    @staticmethod
+    def _backtick_spans(content: str) -> List[Tuple[int, int, str]]:
+        """模板字面量词法扫描：所有反引号区段（跳过 ${…} 插值与 \\ 转义）。"""
+        spans: List[Tuple[int, int, str]] = []
+        n = len(content)
+        i = 0
+        while i < n:
+            if content[i] != "`":
+                i += 1
+                continue
+            start = i
+            j = i + 1
+            closed = False
+            while j < n:
+                ch = content[j]
+                if ch == "\\":
+                    j += 2  # 转义（含 \`）
+                    continue
+                if ch == "$" and j + 1 < n and content[j + 1] == "{":
+                    depth = 1
+                    k = j + 2
+                    while k < n and depth:
+                        if content[k] == "{":
+                            depth += 1
+                        elif content[k] == "}":
+                            depth -= 1
+                        k += 1
+                    j = k  # 跳过整个插值（插值体内不再认模板边界）
+                    continue
+                if ch == "`":
+                    closed = True
+                    break
+                j += 1
+            if not closed:
+                break  # 未闭合模板：不再继续（后续文本不可信）
+            spans.append((start, j, content[start + 1 : j]))
+            i = j + 1
+        return spans
+
+    @staticmethod
+    def extract_query_sites(content: str) -> List[Dict[str, Any]]:
+        """源码快照 → 调用点列表（[{line, kind, sql, call}]，sql 可能 None）。"""
+        if not isinstance(content, str):
+            raise RawQueryScanMalformed(
+                f"source content must be a string, got {type(content).__name__}"
+            )
+        spans = RawQueryTenantScanner._backtick_spans(content)
+        span_at = {start: (end, text) for start, end, text in spans}
+        n = len(content)
+        sites: List[Dict[str, Any]] = []
+        consumed: List[Tuple[int, int]] = []
+        for m in _RE_RAWQUERY_CALL.finditer(content):
+            line = content.count("\n", 0, m.start()) + 1
+            idx = m.end()
+            while idx < n and content[idx] in " \t\r\n":
+                idx += 1
+            if idx < n and content[idx] == "(":
+                idx += 1
+                while idx < n and content[idx] in " \t\r\n":
+                    idx += 1
+                j = idx
+                while j < n and (content[j].isalnum() or content[j] in "_$."):
+                    j += 1
+                if j > idx:  # 带标签形态：$queryRaw(prisma.sql`…`)
+                    idx = j
+                    while idx < n and content[idx] in " \t\r\n":
+                        idx += 1
+            sql = None
+            if idx < n and content[idx] == "`" and idx in span_at:
+                end, text = span_at[idx]
+                sql = text
+                consumed.append((idx, end))
+            elif idx < n and content[idx] in "'\"":
+                quote = content[idx]
+                j = idx + 1
+                buf: List[str] = []
+                while j < n and content[j] != quote:
+                    if content[j] == "\\" and j + 1 < n:
+                        buf.append(content[j + 1])
+                        j += 2
+                        continue
+                    buf.append(content[j])
+                    j += 1
+                if j < n:
+                    sql = "".join(buf)
+                    consumed.append((idx, j))
+            sites.append({
+                "line": line,
+                "kind": f"prisma_{m.group(1).lower()}",
+                "sql": sql,
+                "call": m.group(0),
+            })
+        # SQL 字符串面：未被 queryRaw 消费、以 SQL 关键词开头的模板字面量。
+        for start, end, text in spans:
+            if any(cs <= start < ce for cs, ce in consumed):
+                continue
+            if _RE_SQL_TEMPLATE_START.match(text):
+                sites.append({
+                    "line": content.count("\n", 0, start) + 1,
+                    "kind": "sql_string",
+                    "sql": text,
+                    "call": None,
+                })
+        sites.sort(key=lambda s: (s["line"], s["kind"]))
+        return sites
+
+    # -- 守卫判定（纯函数） ---------------------------------------------------
+    @staticmethod
+    def has_tenant_predicate(
+        sql: Optional[str], tenant_columns: Sequence[str]
+    ) -> bool:
+        """谓词区内出现租户列的肯定谓词才算守卫；无法证明=无守卫。"""
+        if not isinstance(sql, str) or not sql.strip():
+            return False
+        lowered = sql.lower()
+        zones = [m.group(1) for m in _RE_PREDICATE_ZONES.finditer(lowered)]
+        if not zones:
+            return False  # 无 WHERE/ON/HAVING=全表/跨租户面
+        for col in tenant_columns:
+            c = re.escape(col)
+            predicate = re.compile(
+                rf"\b{c}\s*=(?!=)|\b{c}\s+in\b|\b{c}\s*=\s*any\b"
+            )
+            for zone in zones:
+                if predicate.search(zone):
+                    return True
+        return False
+
+    # -- 适配 ---------------------------------------------------------------
+    def adapt(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
+        parsed = self._extract_common(payload, what="raw_query_tenant payload")
+        raw_columns = payload.get("tenant_columns")
+        tenant_columns = (
+            self._norm_tenant_columns(raw_columns)
+            if raw_columns is not None else self._tenant_columns
+        )
+
+        files_raw = payload.get("files")
+        if not isinstance(files_raw, list) or not files_raw:
+            raise RawQueryScanMalformed(
+                "raw_query_tenant.files must be a non-empty list of "
+                "{path, content} source snapshots (empty payload rejected)"
+            )
+        sites: List[Dict[str, Any]] = []
+        files_meta: List[Dict[str, Any]] = []
+        for i, entry in enumerate(files_raw):
+            if not isinstance(entry, Mapping):
+                raise RawQueryScanMalformed(
+                    f"files[{i}] must be an object, got {type(entry).__name__}"
+                )
+            path = _require_str(
+                entry.get("path"), what=f"files[{i}].path",
+                exc=RawQueryScanMalformed,
+            )
+            content = entry.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise RawQueryScanMalformed(
+                    f"files[{i}].content must be a non-empty source snapshot"
+                )
+            found = self.extract_query_sites(content)
+            for site in found:
+                site["file"] = path
+            sites.extend(found)
+            files_meta.append({"path": path, "query_sites": len(found)})
+
+        expected = payload.get("expected_query_sites")
+        if expected is not None:
+            expected = _require_int(
+                expected, what="raw_query_tenant.expected_query_sites"
+            )
+
+        findings: List[str] = []
+        site_records: List[Dict[str, Any]] = []
+        for site in sites:
+            guarded = self.has_tenant_predicate(site["sql"], tenant_columns)
+            site_records.append({
+                "file": site["file"],
+                "line": site["line"],
+                "kind": site["kind"],
+                "guarded": guarded,
+                "sql_head": str(site["sql"] or "")[:160],
+            })
+            if not guarded:
+                findings.append(
+                    _finding_id(
+                        "st3_rawquery_no_tenant",
+                        site["file"], site["line"], site["kind"],
+                    )
+                )
+
+        details = {
+            "kind": "station3/raw-query-tenant",
+            "tenant_columns": list(tenant_columns),
+            "files": files_meta,
+            "query_sites": site_records,
+            "unguarded_count": len(findings),
+        }
+        return self._build_result(
+            parsed=parsed,
+            findings=findings,
+            denominator=max(len(sites), expected or 0),
+            scanned=len(sites),
+            details=details,
+            exclusions=payload.get("exclusions", ()),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Station3Contract——站3 总适配（四件套工厂 + 聚合）
 # ---------------------------------------------------------------------------
 
@@ -1416,6 +1731,16 @@ class Station3Contract:
 
     def db_drift_scanner(self, **kwargs: Any) -> DbDriftScanner:
         return DbDriftScanner(
+            self._manifest, registry=self._registry, now=self._now, **kwargs
+        )
+
+    def raw_query_scanner(self, **kwargs: Any) -> RawQueryTenantScanner:
+        """TEN-04 面（raw SQL/$queryRaw 租户隔离静态分析）的独立消费工厂。
+
+        刻意不进 COMPONENTS/run() 聚合默认件——避免改动既有四件套聚合
+        语义；需要时显式选件消费（与 db_drift_scanner 同款工厂纪律）。
+        """
+        return RawQueryTenantScanner(
             self._manifest, registry=self._registry, now=self._now, **kwargs
         )
 

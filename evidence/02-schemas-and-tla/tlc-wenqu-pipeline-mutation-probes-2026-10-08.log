@@ -1,0 +1,30 @@
+=== mutation: mutA2_nonce_risk ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant NonceOnceConsumed is violated.
+86 states generated, 38 distinct states found, 24 states left on queue.
+=== mutation: mutB_outcome ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant AttemptImmutable is violated.
+6 states generated, 5 distinct states found, 2 states left on queue.
+=== mutation: mutC_skip ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant NoSkipStages is violated.
+3 states generated, 3 distinct states found, 1 states left on queue.
+=== mutation: mutD_terminal ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant TerminalFinal is violated.
+474 states generated, 177 distinct states found, 76 states left on queue.
+=== mutation: mutE_mapper_wash ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant AttemptImmutable is violated.
+6 states generated, 5 distinct states found, 2 states left on queue.
+=== mutation: mutF_immutable ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Error: Invariant AttemptImmutable is violated.
+6 states generated, 5 distinct states found, 2 states left on queue.
+
+=== attribution check: wash mutations with DoubleAxisNoWash-only cfg ===
+--- mutB_outcome (INVARIANT: DoubleAxisNoWash only) ---
+Error: Invariant DoubleAxisNoWash is violated.
+--- mutE_mapper_wash (INVARIANT: DoubleAxisNoWash only) ---
+Error: Invariant DoubleAxisNoWash is violated.

@@ -22,6 +22,11 @@
   既有结果并按 §7 退出码契约机械映射，不自行判定、不重跑；SHA 不匹配/
   证据过期/载荷畸形一律 fail-closed 抛错，绝不折算为 PASS（不变量：审批与
   证据不得跨 SHA 复用）。
+- 收敛环契约（§20.1 GATE-09/10/11）：validate_convergence_rounds 在编排器
+  入口执行 N 值域检查（-1/0/超上限=参数错误拒绝开跑）；ConvergenceTracker
+  按命令身份（argv 规范化摘要）计异源轮——同命令换 S 标签不铸造新异源轮
+  （GATE-11）；异源轮跑满 N+1 未收敛即 BLOCKED 等人工裁定、拒绝任何自动
+  重试，人工 CONTINUE 每次恰好放行 +1 轮预算（GATE-10）。
 
 安全构造（by construction）：
 - 纯 stdlib；无 shell 拼接、无 eval/exec；所有哈希走 canonical JSON。
@@ -63,8 +68,19 @@ __all__ = [
     "validate_station_result",
     "freeze_run_manifest",
     "default_registry",
+    "CONVERGENCE_ROUNDS_MIN",
+    "CONVERGENCE_ROUNDS_MAX",
+    "TRACKER_STATE_RUNNING",
+    "TRACKER_STATE_CONVERGED",
+    "TRACKER_STATE_BLOCKED",
+    "TRACKER_STATE_STOPPED",
+    "validate_convergence_rounds",
+    "normalized_argv_digest",
+    "ConvergenceTracker",
     "BugscanPlanError",
     "RiskDowngradeError",
+    "ConvergenceRoundsError",
+    "ConvergenceRoundCapExceeded",
     "ManifestFreezeError",
     "SourceGateError",
     "SourceGateShaMismatch",
@@ -104,6 +120,14 @@ LANE_CONVERGENCE_ROUNDS: Dict[str, int] = {
     LANE_STANDARD: 2,
     LANE_INCIDENT: 3,
 }
+
+#: GATE-09（§20.1）：收敛轮数 N 的值域。下界=1（N=-1/0 一律参数错误拒绝；
+#: 编排器域内不存在「N=0 合法开关」——cli/wenqu verify --convergence 0 的
+#: 「关闭收敛要求」是 CLI 查询侧开关语义，进入 bugscan 编排契约的 N 必须
+#: ≥1）。上界=最高档 INCIDENT 的收敛轮数——超过即试图把「N+1 熔断上限」
+#: 推成无限递归，同为参数错误。
+CONVERGENCE_ROUNDS_MIN = 1
+CONVERGENCE_ROUNDS_MAX = max(LANE_CONVERGENCE_ROUNDS.values())  # = 3
 
 #: 自动升档触发器（规范 §0 铁律 1——只升不降）。
 #: 值为该标志触发的最低档位。
@@ -172,6 +196,22 @@ class BugscanPlanError(ValueError):
 
 class RiskDowngradeError(BugscanPlanError):
     """降档缺少合法风险接受记录，或记录不满足五要素/日落约束。"""
+
+
+class ConvergenceRoundsError(BugscanPlanError):
+    """GATE-09：收敛轮数 N 值域违规（-1/0/超上限/非整数/布尔/低于档位契约）。
+
+    编排器入口参数错误——拒绝开跑，绝不静默钳制到合法值（钳制会掩盖
+    调用方对收敛契约的误解，产生假收敛声明）。
+    """
+
+
+class ConvergenceRoundCapExceeded(RuntimeError):
+    """GATE-10：跑满 N+1 轮未收敛已转 BLOCKED 后仍尝试追加轮次。
+
+    BLOCKED=停止递归、等待人工裁定（adjudicate）；任何未经人工裁定的
+    自动重试（含同命令重复轮）都在此拒绝。
+    """
 
 
 class ManifestFreezeError(ValueError):
@@ -694,6 +734,7 @@ class BugscanPlanner:
         downgrade: Optional[Mapping[str, Any] | RiskAcceptance] = None,
         downgrade_stations: Iterable[int] = (),
         now: Optional[datetime] = None,
+        convergence_rounds: Optional[int] = None,
     ) -> BugscanPlan:
         """生成冻结计划。
 
@@ -701,8 +742,16 @@ class BugscanPlanner:
         - downgrade（映射或 RiskAcceptance）+ downgrade_stations → 显式降档：
           记录五要素校验 + 日落校验；站 0/1 不可移除；只能移除生效档
           required 集内的站。
+        - convergence_rounds（GATE-09）：显式覆盖收敛轮数 N 时必须过
+          validate_convergence_rounds 值域检查（int 且 1≤N≤最高档上限、
+          且不得低于生效档契约 N——降档收敛是弱化，按参数错误拒绝）；
+          未提供时取生效档表值。N=-1/0/超上限一律 ConvergenceRoundsError。
         """
         effective, escalated, reasons = self.resolve_lane(lane, scope_flags)
+        if convergence_rounds is None:
+            rounds = LANE_CONVERGENCE_ROUNDS[effective]
+        else:
+            rounds = validate_convergence_rounds(convergence_rounds, lane=effective)
         base_set = set(self._registry.required_for(effective))
         dropped: List[int] = []
         drop_req = tuple(downgrade_stations or ())
@@ -743,7 +792,7 @@ class BugscanPlanner:
             lane_requested=lane,
             lane_effective=effective,
             required_stations=required,
-            convergence_rounds=LANE_CONVERGENCE_ROUNDS[effective],
+            convergence_rounds=rounds,
             escalated=escalated,
             escalation_reasons=reasons,
             downgrade=acceptance,
@@ -1599,6 +1648,326 @@ class SourceGateAdapter:
             finding_ids=[],
             artifacts=artifact,
         )
+
+
+# ---------------------------------------------------------------------------
+# 收敛环参数域与轮数熔断（GATE-09/GATE-10/GATE-11，§20.1）
+# ---------------------------------------------------------------------------
+
+def validate_convergence_rounds(
+    rounds: Any,
+    *,
+    lane: Optional[str] = None,
+    upper: Optional[int] = None,
+) -> int:
+    """GATE-09：编排器入口的收敛轮数 N 值域检查（§20.1 注入：-1/0/超上限）。
+
+    - 非整数/布尔 → 参数错误（bool 是 int 子类，显式拒绝）；
+    - N < 1（含 -1、0）→ 参数错误。编排器域内 N=0 不是「关闭收敛」开关
+      （那是 cli/wenqu verify --convergence 0 的查询侧语义）；bugscan 收敛
+      契约要求至少 1 轮异源实扫，0 轮即免检；
+    - N > 上限 → 参数错误。上限缺省=最高档 INCIDENT 收敛轮数
+      （CONVERGENCE_ROUNDS_MAX=3）——更大的 N 等于把「N+1 熔断」推成
+      无限递归；
+    - 给定 lane 时：lane 必须已知，且 N 不得低于该档契约轮数
+      （降档收敛环=弱化铁律 5，按参数错误拒绝，降档须走风险接受）。
+
+    返回通过校验的 N（int）；违规抛 ConvergenceRoundsError（参数错误，
+    拒绝开跑——绝不静默钳制）。
+    """
+    if isinstance(rounds, bool) or not isinstance(rounds, int):
+        raise ConvergenceRoundsError(
+            f"convergence rounds N must be an int (not bool), got {rounds!r} "
+            "(GATE-09 参数错误)"
+        )
+    cap = CONVERGENCE_ROUNDS_MAX if upper is None else int(upper)
+    if rounds < CONVERGENCE_ROUNDS_MIN:
+        raise ConvergenceRoundsError(
+            f"convergence rounds N={rounds} 非法（GATE-09 参数错误）：须 "
+            f"N >= {CONVERGENCE_ROUNDS_MIN}（-1/0 一律拒绝；编排器域内不存在"
+            "『N=0 关闭收敛』开关——收敛契约至少 1 轮异源实扫）"
+        )
+    if rounds > cap:
+        raise ConvergenceRoundsError(
+            f"convergence rounds N={rounds} 超上限（GATE-09 参数错误）："
+            f"须 N <= {cap}（N+1 轮熔断上限的递归预算不得放大）"
+        )
+    if lane is not None:
+        if lane not in LANE_CONVERGENCE_ROUNDS:
+            raise BugscanPlanError(
+                f"unknown lane {lane!r}; expected one of {LANES}"
+            )
+        floor = LANE_CONVERGENCE_ROUNDS[lane]
+        if rounds < floor:
+            raise ConvergenceRoundsError(
+                f"convergence rounds N={rounds} 低于 {lane} 档收敛契约 "
+                f"N={floor}（GATE-09 参数错误：降档收敛环须风险接受记录，"
+                "不得以参数覆盖弱化）"
+            )
+    return rounds
+
+
+def normalized_argv_digest(argv: Any) -> str:
+    """GATE-11：命令身份摘要（argv 规范化摘要）。
+
+    规范化规则（确定性、无环境依赖）：
+    1. 必须是非空序列且逐元素为 str（拒绝单个命令字符串/空 argv/非 str 元素）；
+    2. 逐元素 strip 并丢弃空串；
+    3. argv[0] 取 basename——`/usr/bin/python3 scan.py` 与 `python3 scan.py`
+       是同一命令身份（解释器/工具的安装路径前缀不构成异源）；
+    4. 摘要 = 规范化 argv 列表的 canonical JSON sha256（hex）。
+
+    同摘要 = 同命令身份 = 同一异源轮来源；换 S 标签不改变摘要。
+    """
+    if isinstance(argv, (str, bytes)):
+        raise ValueError(
+            "argv must be a sequence of argument strings, not a single "
+            f"command string (got {type(argv).__name__})"
+        )
+    try:
+        items = list(argv)
+    except TypeError as exc:
+        raise ValueError(
+            f"argv must be an iterable of strings, got {type(argv).__name__}"
+        ) from exc
+    if not items:
+        raise ValueError("argv must not be empty")
+    normalized: List[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            raise ValueError(
+                f"argv elements must be str, got {type(item).__name__}: {item!r}"
+            )
+        text = item.strip()
+        if text:
+            normalized.append(text)
+    if not normalized:
+        raise ValueError("argv normalizes to empty (all elements are whitespace)")
+    normalized[0] = os.path.basename(normalized[0])
+    return _sha256_hex(
+        json.dumps(normalized, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    )
+
+
+#: 追踪器状态机：RUNNING →（收敛）CONVERGED /（跑满 N+1 未收敛）BLOCKED
+#: →（人工裁定）CONTINUE→RUNNING（预算恰好 +1 轮）/ STOP→STOPPED（终态）。
+TRACKER_STATE_RUNNING = "RUNNING"
+TRACKER_STATE_CONVERGED = "CONVERGED"
+TRACKER_STATE_BLOCKED = "BLOCKED"
+TRACKER_STATE_STOPPED = "STOPPED"
+
+
+class ConvergenceTracker:
+    """GATE-10/GATE-11：异源收敛环轮数追踪器（§20.1）。
+
+    - 异源轮身份（GATE-11）：一轮异源实扫的身份=命令身份
+      （normalized_argv_digest）。同命令重跑/换 S 标签 → duplicate，不推进
+      异源轮计数、不进入收敛窗口（「同命令换 S 标签不计异源轮」）；
+      命令身份不同才计新异源轮（来源标签只是审计元数据）。
+    - 收敛判据（铁律 5）：最近连续 N 个异源轮 new_findings 全为 0。
+    - 轮数熔断（GATE-10）：异源轮数达到 N+1 仍未收敛 → 状态 BLOCKED +
+      「等待人工裁定」记录；此后任何 record_round（含自动重试）抛
+      ConvergenceRoundCapExceeded——不自动重试、不自动扩预算；
+      人工裁定 adjudicate(CONTINUE) 每次恰好放行 +1 轮预算，
+      adjudicate(STOP) 终态关闭。
+
+    状态只进不退：CONVERGED/STOPPED 后不再接受任何轮次（新发现须新 run）。
+    """
+
+    def __init__(self, plan: BugscanPlan, *, now: Optional[datetime] = None) -> None:
+        if not isinstance(plan, BugscanPlan):
+            raise TypeError(
+                f"plan must be BugscanPlan, got {type(plan).__name__}"
+            )
+        # GATE-09 双保险：伪造 plan（N=-1/0/超上限）在构造期即参数错误。
+        self._n = validate_convergence_rounds(
+            plan.convergence_rounds, lane=plan.lane_effective
+        )
+        self._state: str = TRACKER_STATE_RUNNING
+        self._hetero: List[Dict[str, Any]] = []   # 异源轮序列（每身份一条）
+        self._log: List[Dict[str, Any]] = []      # 全部提交记录（含重复轮）
+        self._identities: Dict[str, str] = {}     # argv_digest → 首见来源标签
+        self._duplicates = 0
+        self._relabels = 0
+        self._extensions = 0                      # 人工裁定放行预算（每次 +1）
+        self._awaiting: Optional[Dict[str, Any]] = None
+        self._adjudications: List[Dict[str, Any]] = []
+        self._now = now
+
+    # -- 属性 ---------------------------------------------------------------
+    @property
+    def n(self) -> int:
+        return self._n
+
+    @property
+    def round_cap(self) -> int:
+        """当前异源轮预算上限 = N + 1 + 人工裁定放行数（GATE-10）。"""
+        return self._n + 1 + self._extensions
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    # -- 记轮 ---------------------------------------------------------------
+    def record_round(
+        self,
+        *,
+        argv: Sequence[str],
+        source_label: str,
+        new_findings: int,
+        now: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """记录一轮实扫提交；返回最新 status 快照。
+
+        - source_label（S 标签）必须非空 str——标签参与审计但不参与身份；
+        - new_findings 必须为 ≥0 的 int（bool 拒绝）；
+        - BLOCKED/CONVERGED/STOPPED 态下一律拒绝追加（GATE-10 非自动重试；
+          CONVERGED/STOPPED 后新发现须开新 run）。
+        """
+        if not isinstance(source_label, str) or not source_label.strip():
+            raise ValueError(
+                "source_label (S 标签) must be a non-empty string"
+            )
+        if isinstance(new_findings, bool) or not isinstance(new_findings, int) \
+                or new_findings < 0:
+            raise ValueError(
+                f"new_findings must be an int >= 0, got {new_findings!r}"
+            )
+        if self._state == TRACKER_STATE_BLOCKED:
+            raise ConvergenceRoundCapExceeded(
+                f"round cap 已跑满（N={self._n}，cap={self.round_cap}）且未收敛："
+                "状态=BLOCKED 等待人工裁定——禁止自动重试追加轮次（GATE-10）；"
+                "解锁唯一通道=adjudicate(decision, approver=…)"
+            )
+        if self._state == TRACKER_STATE_STOPPED:
+            raise ConvergenceRoundCapExceeded(
+                "人工裁定 STOP 已终态关闭本收敛环——新扫描须开新 run（GATE-10）"
+            )
+        if self._state == TRACKER_STATE_CONVERGED:
+            raise ConvergenceRoundCapExceeded(
+                "收敛环已 CONVERGED 关闭——收敛后追加轮次无契约意义，新扫描须开新 run"
+            )
+
+        digest = normalized_argv_digest(argv)
+        label = source_label.strip()
+        ts = _iso_z(now if now is not None else (self._now or _utc_now()))
+        counted = digest not in self._identities
+        relabel_only = False
+        if counted:
+            self._identities[digest] = label
+            self._hetero.append({
+                "seq": len(self._hetero) + 1,
+                "argv_digest": digest,
+                "source_label": label,
+                "new_findings": new_findings,
+                "recorded_at": ts,
+            })
+        else:
+            self._duplicates += 1
+            relabel_only = self._identities[digest] != label
+            if relabel_only:
+                self._relabels += 1  # GATE-11：换标签不铸造新异源轮，只记账
+        self._log.append({
+            "seq": len(self._log) + 1,
+            "argv_digest": digest,
+            "source_label": label,
+            "new_findings": new_findings,
+            "counted_as_heterogeneous": counted,
+            "relabel_only_duplicate": relabel_only,
+            "recorded_at": ts,
+        })
+
+        # 收敛判据：最近连续 N 个异源轮零新发现（铁律 5）
+        converged = (
+            len(self._hetero) >= self._n
+            and all(r["new_findings"] == 0 for r in self._hetero[-self._n:])
+        )
+        if converged:
+            self._state = TRACKER_STATE_CONVERGED
+        elif len(self._hetero) >= self.round_cap:
+            # GATE-10：跑满 N+1（含人工放行预算）未收敛 → 熔断等人工裁定
+            self._state = TRACKER_STATE_BLOCKED
+            self._awaiting = {
+                "required": True,
+                "reason": "round_cap_exceeded",
+                "n": self._n,
+                "round_cap": self.round_cap,
+                "heterogeneous_rounds": len(self._hetero),
+                "decision": None,
+                "escalated_at": ts,
+                "note": "跑满 N+1 轮未收敛——停止递归转人工裁定，禁止自动重试",
+            }
+        return self.status()
+
+    # -- 人工裁定（GATE-10 唯一解锁通道）------------------------------------
+    def adjudicate(
+        self,
+        decision: str,
+        *,
+        approver: str,
+        now: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """人工裁定：CONTINUE=放行恰好 +1 轮预算回到 RUNNING；STOP=终态。
+
+        只在 BLOCKED（等待人工裁定）态可调用；approver 必须非空（裁定留痕）；
+        decision 只认 CONTINUE/STOP（大小写不敏感）。
+        """
+        if self._state != TRACKER_STATE_BLOCKED:
+            raise ConvergenceRoundCapExceeded(
+                f"adjudicate 仅在 BLOCKED 等人工裁定态可调用，当前 state={self._state}"
+            )
+        if not isinstance(approver, str) or not approver.strip():
+            raise ValueError(
+                "人工裁定必须登记裁定人（approver 非空）——匿名裁定无效"
+            )
+        verdict = (
+            decision.strip().upper() if isinstance(decision, str) else ""
+        )
+        if verdict not in ("CONTINUE", "STOP"):
+            raise ValueError(
+                f"decision 只认 CONTINUE/STOP，got {decision!r}（GATE-10："
+                "熔断后不存在第三种机器可执行的走向）"
+            )
+        ts = _iso_z(now if now is not None else (self._now or _utc_now()))
+        record = {
+            "decision": verdict,
+            "approver": approver.strip(),
+            "decided_at": ts,
+            "heterogeneous_rounds": len(self._hetero),
+        }
+        self._adjudications.append(record)
+        assert self._awaiting is not None  # BLOCKED 态必已建账
+        self._awaiting = {
+            **self._awaiting,
+            "decision": verdict,
+            "decided_by": approver.strip(),
+            "decided_at": ts,
+        }
+        if verdict == "CONTINUE":
+            self._extensions += 1  # 每次人工放行恰好 +1 轮，不放大不自动续
+            self._state = TRACKER_STATE_RUNNING
+        else:
+            self._state = TRACKER_STATE_STOPPED
+        return self.status()
+
+    # -- 快照 ---------------------------------------------------------------
+    def status(self) -> Dict[str, Any]:
+        return {
+            "n": self._n,
+            "round_cap": self.round_cap,
+            "state": self._state,
+            "converged": self._state == TRACKER_STATE_CONVERGED,
+            "heterogeneous_rounds": len(self._hetero),
+            "total_rounds_recorded": len(self._log),
+            "duplicate_rounds_ignored": self._duplicates,
+            "relabel_only_duplicates": self._relabels,
+            "awaiting_human_adjudication": (
+                dict(self._awaiting) if self._awaiting else None
+            ),
+            "adjudications": [dict(a) for a in self._adjudications],
+            "heterogeneous_sequence": [dict(r) for r in self._hetero],
+            "round_log": [dict(r) for r in self._log],
+        }
 
 
 # ---------------------------------------------------------------------------

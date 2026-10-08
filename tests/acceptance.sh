@@ -362,17 +362,61 @@ fi
 
 echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
 if [ -f "$ROOT/tools/ac_traceability.py" ]; then
-  AC_TMP_JSON="$(mktemp -t wq_matrix).json"
-  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
-  AC_RC=$?
-  rm -f "$AC_TMP_JSON"
-  if [ $AC_RC -eq 0 ]; then
-    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+  # F6-CI-PORT-001：模板必须含 X（Ubuntu mktemp 模板无 X 会报错且旧版吞掉继续绿）；
+  # mktemp 本身失败必须 fail-closed 计 FAIL。（主会话手改版——并行会话勿 git checkout 还原本节）
+  AC_TMP_JSON="$(mktemp -t wq_matrix.XXXXXXXX 2>/dev/null).json" || AC_TMP_JSON=""
+  if [ -z "$AC_TMP_JSON" ]; then
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ mktemp 失败——P1c 无法建立临时输出（fail-closed）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+    AC_RC=$?
+    rm -f "$AC_TMP_JSON"
+    if [ $AC_RC -eq 0 ]; then
+      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+    else
+      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+    fi
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+fi
+
+echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+P1F_COUNT=0
+P1F_FAIL=0
+for tf in $P1F_FILES; do
+  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+    TF_RC=$?
+    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+      P1F_COUNT=$((P1F_COUNT+NF))
+    else
+      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+    fi
+  else
+    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+  fi
+done
+if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+fi
+
+echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+  RA_RC=$?
+  if [ $RA_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
 fi
 
 echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="

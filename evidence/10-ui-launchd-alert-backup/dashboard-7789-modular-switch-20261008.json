@@ -1,0 +1,16 @@
+{
+  "entry": "P0-9 终态：7789 切换模块化 405 只读版（第六波）",
+  "time": "2026-10-08T18:16:30+08:00",
+  "runtime_file": "~/.wenqu/dashboard/server.py",
+  "runtime_sha256": "fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b",
+  "repo_candidate_sha256": "fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b",
+  "match": true,
+  "restart": "launchctl bootout+bootstrap com.wenqu.dashboard（homebrew python3，TCC 授权路径）",
+  "probes": {
+    "GET /api/v1/health": "200 真实聚合数据（PASS, technical_eligible=true, source=gate-aggregate.json）",
+    "POST /api/decide": "405 WRITE_DISABLED（写面移除）",
+    "GET /": "200 页面正常"
+  },
+  "backup": "~/.wenqu/bin/wenqu-dashboard.py.bak-wave6",
+  "legacy_note": "旧 legacy 单文件版已退役备份；本切换=W8 要求的模块化只读形态"
+}

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """§20 验收 ID 专属测试——GATE/MRG/CI 族（test_ac_gate_family）。
 
-覆盖 Codex 方案 §20.1/§20.5 中 GATE-01~08/12、MRG-01~07、CI-05/07/08/09
-共 20 条：每条按「注入→期望」逐字对齐方案表格，真实构造场景（真实 git
+覆盖 Codex 方案 §20.1/§20.5 中 GATE-01~12、MRG-01~07、CI-05/06/07/08/09
+共 24 条：每条按「注入→期望」逐字对齐方案表格，真实构造场景（真实 git
 仓/tmp fixture、真实调用产品码）并断言结果，绝不空转。
 
 被测正源（不改动任何产品码）：
@@ -19,17 +19,28 @@
 - system/wenqu_core/bugscan_orchestrator.py
                                       冻结身份/TTL/SourceGateAdapter/
                                       station-result-v2 schema（GATE-07/08、
-                                      CI-07/09、MRG-06b）
+                                      CI-07/09、MRG-06b）+
+                                      validate_convergence_rounds /
+                                      ConvergenceTracker（GATE-09/10/11：
+                                      N 值域参数错误、N+1 轮熔断 BLOCKED
+                                      等人工裁定、同命令换 S 标签不计
+                                      异源轮）
 - system/wenqu_core/gate_aggregator.py
                                       C1~C5 硬约束 + GitHub 状态映射
                                       （MRG-01~04、CI-05a/08）
 - system/daemons/auto-merge.sh        P0 封存 stub（MRG-01 执行器腿：不合流）
+- system/bin/codeowners-ruleset-doctor.py
+                                      CI-06 诊断件：CODEOWNERS 存在但
+                                      ruleset 未强制 review → doctor ERROR
+                                      （本地 fixture 模拟未强制/已强制两态）
 
 本地等价映射说明（CI 族依赖真实 GitHub API 的部分）：
 - CI-05 fork/merge_group → SourceGate.validate_exact_sha 对非目标 head 的
   SHA（fork PR SHA、merge_group 临时 SHA）一律 StaleShaError（T-02 旧/异
   SHA 绿灯拒合）；「check 不产生」→ GateAggregator required 站缺失 =
   denominator_shrinkage → BLOCKED（无 SKIP/无静默通过语义）。
+- CI-06 ruleset 证据 → GitHub REST /rulesets（或老式 /branches/*/protection）
+  同构 JSON fixture（evidence/08 回读件形状），不依赖网络与真实远端。
 - CI-07 未授权 App 自报同名 context → SourceGateAdapter 身份三源一律取
   冻结 manifest 正源、绝不采信 gate_result 自报身份：自报 SHA 与冻结
   不符 → SourceGateShaMismatch（不可信、阻断）。
@@ -38,9 +49,10 @@
 - CI-09 S7 递归聚合/重复发布 → station-result-v2 additionalProperties
   schema 拒绝 + 聚合输出回灌聚合器缺 station_id 结构 → malformed BLOCKED。
 
-明确未实现（本文件不硬凑、不 xfail，见交付报告「不可实现清单」）：
-GATE-09（N=0/超上限非产品参数错误）、GATE-10（N+1 上限无实现）、
-GATE-11（异源轮 S 标签追踪无实现）、CI-06（CODEOWNERS/ruleset doctor 无实现）。
+GATE-09 语义边界（与 cli/wenqu 的显式区分）：cli/wenqu verify
+--convergence 0 是查询侧「关闭收敛要求」开关；进入 bugscan 编排契约的 N
+（BugscanPlanner.plan/ConvergenceTracker）0 与 -1、超上限一律参数错误
+（ConvergenceRoundsError）——编排器域内不存在免检收敛。
 
 独立运行：python3 system/tests/test_ac_gate_family.py [--json OUT.json]
 exit 0 = 全部用例绿；--json 额外输出逐 ID 结果数组 {id, test, passed}。
@@ -49,6 +61,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -57,6 +70,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -82,8 +96,20 @@ from wenqu_core.source_gate import (  # noqa: E402
 from wenqu_core.store import EventStore  # noqa: E402
 
 AUTO_MERGE_STUB = SYSTEM_DIR / "daemons" / "auto-merge.sh"
+CODEOWNERS_DOCTOR = SYSTEM_DIR / "bin" / "codeowners-ruleset-doctor.py"
 
 _UTC = timezone.utc
+
+
+def _load_doctor():
+    """按路径加载 CI-06 诊断件（bin 脚本名含连字符，importlib 显式装载）。"""
+    spec = importlib.util.spec_from_file_location(
+        "wenqu_codeowners_ruleset_doctor", str(CODEOWNERS_DOCTOR)
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # __main__ 守卫内才跑 CLI，装载无副作用
+    return module
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +483,149 @@ def test_GATE_08_evidence_past_ttl_refused(root: Optional[Path] = None) -> None:
         _ok("aged out" in str(exc) and "TTL" in str(exc), "过期证据报错须点名 TTL 时效")
 
 
+def test_GATE_09_convergence_rounds_domain_minus1_zero_over_cap_rejected(root: Optional[Path] = None) -> None:
+    """GATE-09｜注入：N=-1/0/超上限｜期望：参数错误。
+
+    编排器入口（validate_convergence_rounds / BugscanPlanner.plan）值域检查：
+    -1 与 0（编排器域内非「关闭收敛」开关——那是 cli/wenqu verify
+    --convergence 0 的查询侧语义）、超过最高档上限（3）、非 int/布尔一律
+    ConvergenceRoundsError 拒绝开跑，绝不静默钳制。
+    """
+    # 注入逐值：-1/0/4（超上限）→ 参数错误；对照组 1/2/3 通过并原样返回
+    for bad in (-1, 0, 4, 99, True, False, "2", 2.0, None):
+        exc = _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, bad)
+        _ok("参数错误" in str(exc) or "GATE-09" in str(exc),
+            f"N={bad!r} 报错须点名参数错误/GATE-09，got {exc}")
+    for good in (1, 2, 3):
+        _ok(bo.validate_convergence_rounds(good) == good,
+            f"合法 N={good} 应原样通过（边界 3=INCIDENT 契约值）")
+    # 档位语义：低于生效档契约 N = 弱化收敛环 → 参数错误；更严（≤上限）通过
+    _ok(bo.validate_convergence_rounds(1, lane="FAST") == 1, "FAST N=1 契约值通过")
+    exc = _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, 1, lane="STANDARD")
+    _ok("低于" in str(exc) or "契约" in str(exc), "低于档位契约须点名弱化语义")
+    _ok(bo.validate_convergence_rounds(3, lane="STANDARD") == 3, "STANDARD 收紧到 3 合法（≤上限）")
+    _expect_raise(bo.ConvergenceRoundsError, bo.validate_convergence_rounds, 4, lane="INCIDENT")
+    _expect_raise(bo.BugscanPlanError, bo.validate_convergence_rounds, 1, lane="NOPE")
+    # 编排器 planner 入口：convergence_rounds 覆盖参数同值域
+    planner = bo.BugscanPlanner()
+    for bad in (-1, 0, 4):
+        _expect_raise(bo.ConvergenceRoundsError, planner.plan, "FAST", convergence_rounds=bad)
+    _expect_raise(bo.ConvergenceRoundsError, planner.plan, "STANDARD", convergence_rounds=1)
+    plan = planner.plan("STANDARD", convergence_rounds=3)
+    _ok(plan.convergence_rounds == 3, "合法覆盖 N=3 应落进计划")
+    _ok(planner.plan("FAST").convergence_rounds == 1 and
+        planner.plan("INCIDENT").convergence_rounds == 3,
+        "未覆盖时取档位表值（FAST=1/INCIDENT=3 回归对照）")
+    # 对抗负例：伪造 plan（N=0）绕过 planner 直构 tracker → 构造期同样拒绝
+    forged = replace(planner.plan("FAST"), convergence_rounds=0)
+    exc2 = _expect_raise(bo.ConvergenceRoundsError, bo.ConvergenceTracker, forged)
+    _ok("N=0" in str(exc2) or ">= 1" in str(exc2),
+        "伪造 plan 的 N=0 须在 tracker 构造期被拒（双保险）")
+
+
+def test_GATE_10_round_cap_n_plus_1_blocks_awaiting_human_adjudication(root: Optional[Path] = None) -> None:
+    """GATE-10｜注入：超过 N+1｜期望：BLOCKED 等人工裁定（非自动重试）。"""
+    planner = bo.BugscanPlanner()
+    # FAST：N=1，熔断预算 N+1=2。轮1 有发现、轮2 仍有发现 → 跑满预算未收敛
+    tracker = bo.ConvergenceTracker(planner.plan("FAST"))
+    tracker.record_round(argv=["scanner-a"], source_label="S1", new_findings=1)
+    status = tracker.record_round(argv=["scanner-b"], source_label="S1", new_findings=2)
+    _ok(status["state"] == "BLOCKED", f"跑满 N+1 未收敛须 BLOCKED，got {status['state']}")
+    waiting = status["awaiting_human_adjudication"]
+    _ok(waiting is not None and waiting["required"] is True,
+        "BLOCKED 必须携带『等待人工裁定』记录")
+    _ok(waiting["reason"] == "round_cap_exceeded" and waiting["n"] == 1
+        and waiting["round_cap"] == 2,
+        "等待记录须落 n/round_cap/reason 证据")
+    _ok("人工裁定" in waiting["note"], "等待记录须声明转人工、非自动重试")
+    # 非自动重试：BLOCKED 后任何追加轮（含换命令/换标签/同命令）一律拒绝
+    for kwargs in (
+        {"argv": ["scanner-c"], "source_label": "S1", "new_findings": 0},
+        {"argv": ["scanner-a"], "source_label": "S9", "new_findings": 0},  # 同命令重跑
+    ):
+        exc = _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.record_round, **kwargs)
+        _ok("人工裁定" in str(exc) and "禁止自动重试" in str(exc),
+            "BLOCKED 态追加轮须显式拒绝并指向人工裁定唯一通道")
+    # 人工裁定腿一：STOP → 终态；再追加/再裁定均拒
+    stopped = tracker.adjudicate("STOP", approver="risk-owner")
+    _ok(stopped["state"] == "STOPPED", "裁定 STOP 须转终态 STOPPED")
+    _ok(stopped["adjudications"][0]["approver"] == "risk-owner", "裁定须留痕裁定人")
+    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.record_round,
+                  argv=["scanner-d"], source_label="S1", new_findings=0)
+    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker.adjudicate, "CONTINUE", approver="x")
+    # 人工裁定腿二：CONTINUE → 恰好 +1 轮预算回到 RUNNING；补一轮零发现即收敛
+    tracker2 = bo.ConvergenceTracker(planner.plan("FAST"))
+    tracker2.record_round(argv=["scanner-a"], source_label="S1", new_findings=1)
+    tracker2.record_round(argv=["scanner-b"], source_label="S1", new_findings=1)
+    resumed = tracker2.adjudicate("continue", approver="risk-owner")
+    _ok(resumed["state"] == "RUNNING" and resumed["round_cap"] == 3,
+        "CONTINUE 须回到 RUNNING 且预算恰好 +1（2→3），不放大不自动续")
+    converged = tracker2.record_round(argv=["scanner-c"], source_label="S1", new_findings=0)
+    _ok(converged["state"] == "CONVERGED", "放行轮零发现应收敛（最近 N=1 轮零新发现）")
+    _expect_raise(bo.ConvergenceRoundCapExceeded, tracker2.record_round,
+                  argv=["scanner-e"], source_label="S1", new_findings=0,
+                  now=datetime.now(_UTC))  # 收敛后不再接受轮次——新发现须新 run
+    # 对抗负例：裁定本体不可伪造/不可匿名/无第三走向
+    tracker3 = bo.ConvergenceTracker(planner.plan("FAST"))
+    tracker3.record_round(argv=["a"], source_label="S1", new_findings=1)
+    tracker3.record_round(argv=["b"], source_label="S1", new_findings=1)
+    _expect_raise(ValueError, tracker3.adjudicate, "MAYBE", approver="x")
+    _expect_raise(ValueError, tracker3.adjudicate, "CONTINUE", approver="  ")
+    _expect_raise(ValueError, tracker3.adjudicate, "CONTINUE", approver="")
+    _expect_raise(bo.ConvergenceRoundCapExceeded, bo.ConvergenceTracker(planner.plan("FAST")).adjudicate,
+                  "CONTINUE", approver="x")  # RUNNING 态不可裁定（须先熔断）
+    # 对照：恰在最后一轮收敛则不熔断（A 有发现、B/C 零发现 → N=2 窗口干净）
+    tracker4 = bo.ConvergenceTracker(planner.plan("STANDARD"))
+    tracker4.record_round(argv=["a"], source_label="S1", new_findings=1)
+    tracker4.record_round(argv=["b"], source_label="S1", new_findings=0)
+    final = tracker4.record_round(argv=["c"], source_label="S1", new_findings=0)
+    _ok(final["state"] == "CONVERGED" and final["heterogeneous_rounds"] == 3,
+        "第 N+1 轮达成收敛窗口应判 CONVERGED 而非熔断")
+
+
+def test_GATE_11_same_command_relabel_not_new_heterogeneous_round(root: Optional[Path] = None) -> None:
+    """GATE-11｜注入：同命令换 S 标签｜期望：不计异源轮。"""
+    planner = bo.BugscanPlanner()
+    tracker = bo.ConvergenceTracker(planner.plan("STANDARD"))  # N=2
+    # 轮1：命令 A（label S1，有发现）→ 异源轮 1
+    s1 = tracker.record_round(argv=["python3", "scan.py"], source_label="S1", new_findings=5)
+    _ok(s1["heterogeneous_rounds"] == 1 and s1["state"] == "RUNNING", "首轮计异源 1")
+    # 注入：同命令换 S 标签（S1→S2）→ 不计新异源轮，只记 relabel 重复
+    s2 = tracker.record_round(argv=["python3", "scan.py"], source_label="S2", new_findings=0)
+    _ok(s2["heterogeneous_rounds"] == 1,
+        f"同命令换标签不得新增异源轮，got {s2['heterogeneous_rounds']}")
+    _ok(s2["duplicate_rounds_ignored"] == 1 and s2["relabel_only_duplicates"] == 1,
+        "换标签重复须落 duplicate+relabel 双计数")
+    _ok(s2["total_rounds_recorded"] == 2, "提交总数如实记账（审计不丢）")
+    # 注入变体：解释器绝对路径前缀（规范化归一）+ 空白/空串扰动 → 仍同命令身份
+    s3 = tracker.record_round(argv=["/usr/bin/python3", "scan.py"], source_label="S3", new_findings=0)
+    _ok(s3["heterogeneous_rounds"] == 1, "argv 规范化摘要须把路径前缀差异归一为同命令")
+    s3b = tracker.record_round(argv=["  python3 ", "scan.py", ""], source_label="S1", new_findings=0)
+    _ok(s3b["heterogeneous_rounds"] == 1 and s3b["duplicate_rounds_ignored"] == 3,
+        "空白/空串扰动不改变命令身份")
+    # 对照：命令身份真变（不同 argv）→ 计新异源轮；即使沿用同一 S 标签
+    s4 = tracker.record_round(argv=["python3", "other.py"], source_label="S1", new_findings=0)
+    _ok(s4["heterogeneous_rounds"] == 2,
+        "不同命令（标签相同）必须计新异源轮——标签不是身份")
+    # 去重与收敛判据联动：重复轮不推进窗口；真异源轮 B/C 零发现才收敛
+    s5 = tracker.record_round(argv=["scanner-x"], source_label="S9", new_findings=0)
+    _ok(s5["state"] == "CONVERGED" and s5["heterogeneous_rounds"] == 3,
+        "最近 N=2 个异源轮（other.py/scanner-x）零发现须收敛")
+    _ok(s5["total_rounds_recorded"] == 6 and s5["duplicate_rounds_ignored"] == 3,
+        "重复轮（含换标签）绝不进入收敛窗口（GATE-11 反向：防标签刷轮）")
+    # 对抗负例：刷轮攻击——同命令反复换标签无法把异源轮数刷到熔断或收敛
+    tracker2 = bo.ConvergenceTracker(planner.plan("FAST"))  # N=1, cap 2
+    tracker2.record_round(argv=["same-tool"], source_label="S1", new_findings=9)
+    for i in range(5):  # 5 次换标签重跑同一命令
+        st = tracker2.record_round(argv=["same-tool"], source_label=f"S{i+2}", new_findings=9)
+        _ok(st["heterogeneous_rounds"] == 1,
+            f"第 {i+2} 次换标签重跑仍不得计异源轮")
+        _ok(st["state"] == "RUNNING", "重复轮既不熔断也不收敛（未产生新异源证据）")
+    # argv 身份校验负例：命令字符串/空 argv/非 str 元素 → 拒绝
+    for bad_argv in ("python3 scan.py", [], ["a", 3], ()):
+        _expect_raise(ValueError, bo.normalized_argv_digest, bad_argv)
+
+
 def test_GATE_12_unsigned_flip_or_adjudication_blocked(root: Optional[Path] = None) -> None:
     """GATE-12｜注入：unsigned flip/adjudication｜期望：BLOCKED（拒绝）。"""
     with _tmp(root) as td:
@@ -663,6 +832,101 @@ def test_CI_05_fork_merge_group_or_missing_check_explicit_failure(root: Optional
                 f"{label} 的异源 SHA 必须被拒，且证据绑定真实 head")
 
 
+def test_CI_06_codeowners_present_ruleset_not_enforced_doctor_error(root: Optional[Path] = None) -> None:
+    """CI-06｜注入：CODEOWNERS 文件存在但 ruleset 未强制｜期望：doctor ERROR。"""
+    with _tmp(root) as td:
+        doctor = _load_doctor()
+        repo = td / "repo"
+        (repo / ".github").mkdir(parents=True)
+        (repo / ".github" / "CODEOWNERS").write_text("* @owners/team\n", encoding="utf-8")
+
+        def _ruleset(enforcement="active", branch="refs/heads/main", count=1,
+                     code_owner=False, has_pr_rule=True):
+            rules = ([{"type": "pull_request", "parameters": {
+                "required_approving_review_count": count,
+                "require_code_owner_review": code_owner}}]
+                if has_pr_rule else
+                [{"type": "non_fast_forward", "parameters": {}}])
+            conditions = ({"ref_name": {"include": [branch], "exclude": []}}
+                          if branch is not None else None)
+            rs = {"id": 1, "name": "fixture-ruleset", "enforcement": enforcement,
+                  "rules": rules}
+            if conditions is not None:
+                rs["conditions"] = conditions
+            return [rs]
+
+        # 状态一（注入正例）：CODEOWNERS 存在 + 零 ruleset（镜像本仓真实回读
+        # evidence/08 rulesets-count=0）→ doctor ERROR
+        report = doctor.check(repo, rulesets=[], default_branch="main")
+        _ok(report["status"] == "ERROR", f"零 ruleset 须 ERROR，got {report['status']}")
+        _ok(report["codeowners_found"] and report["codeowners_found"][0].endswith("CODEOWNERS"),
+            "须定位到 CODEOWNERS 文件")
+        _ok("NO active ruleset enforces review" in report["findings"][0],
+            "finding 须点名 CODEOWNERS 存在但 ruleset 未强制")
+        # 状态二（对照）：active ruleset 对默认分支强制 review → PASS
+        report_ok = doctor.check(repo, rulesets=_ruleset(), default_branch="main")
+        _ok(report_ok["status"] == "PASS" and report_ok["review_enforced_by"]["kind"] == "ruleset",
+            "active pull_request 强制应 PASS 并记强制证据")
+        # 对抗负例矩阵（全部仍是「未强制」→ ERROR）：
+        not_enforced = {
+            "evaluate 干跑不拦": _ruleset(enforcement="evaluate"),
+            "disabled": _ruleset(enforcement="disabled"),
+            "无 pull_request 规则": _ruleset(has_pr_rule=False),
+            "批准数 0 且不要求 code owner 审": _ruleset(count=0, code_owner=False),
+            "只覆盖 release/* 分支": _ruleset(branch="refs/heads/release/*"),
+            "排除默认分支": lambda: [{
+                **_ruleset()[0],
+                "conditions": {"ref_name": {"include": ["refs/heads/*"],
+                                            "exclude": ["~DEFAULT_BRANCH"]}}}],
+        }
+        for label, fixture in not_enforced.items():
+            rulesets = fixture() if callable(fixture) else fixture
+            rep = doctor.check(repo, rulesets=rulesets, default_branch="main")
+            _ok(rep["status"] == "ERROR", f"{label} 必须判未强制 ERROR")
+        # 合法强制变体（对照）：require_code_owner_review / ~DEFAULT_BRANCH /
+        # 老式分支保护 required_pull_request_reviews
+        _ok(doctor.check(repo, rulesets=_ruleset(count=0, code_owner=True))["status"] == "PASS",
+            "require_code_owner_review=true 是合法强制")
+        _ok(doctor.check(repo, rulesets=_ruleset(branch="~DEFAULT_BRANCH"))["status"] == "PASS",
+            "~DEFAULT_BRANCH 专属 token 应命中默认分支")
+        _ok(doctor.check(repo, rulesets=[],
+                         branch_protection={"required_pull_request_reviews":
+                                            {"required_approving_review_count": 1}})["status"] == "PASS",
+            "老式分支保护批准数>=1 是等价强制")
+        _ok(doctor.check(repo, rulesets=[],
+                         branch_protection={"required_pull_request_reviews":
+                                            {"required_approving_review_count": 0}})["status"] == "ERROR",
+            "老式分支保护批准数 0 仍判未强制")
+        # 反向对照：无 CODEOWNERS → 不适用，绝不 ERROR
+        bare = td / "bare-repo"
+        bare.mkdir()
+        _ok(doctor.check(bare, rulesets=[], default_branch="main")["status"] == "PASS",
+            "无 CODEOWNERS 时本检查不适用（PASS），不得借故 ERROR")
+        # CLI 腿：两种 fixture 状态各跑真脚本，断言退出码与 --json 报告
+        unf = td / "unforced.json"
+        unf.write_text(json.dumps([]), encoding="utf-8")  # 空规则集
+        enf = td / "enforced.json"
+        enf.write_text(json.dumps(_ruleset()), encoding="utf-8")
+        out_unf = td / "report-unforced.json"
+        out_enf = td / "report-enforced.json"
+        proc_bad = subprocess.run(
+            [sys.executable, str(CODEOWNERS_DOCTOR), "--repo", str(repo),
+             "--ruleset-file", str(unf), "--json", str(out_unf)],
+            capture_output=True, text=True, check=False,
+        )
+        _ok(proc_bad.returncode == 1, f"未强制状态 doctor 退出码须 1，got {proc_bad.returncode}")
+        _ok(json.loads(out_unf.read_text(encoding="utf-8"))["status"] == "ERROR",
+            "--json 工件须落 ERROR 报告")
+        proc_good = subprocess.run(
+            [sys.executable, str(CODEOWNERS_DOCTOR), "--repo", str(repo),
+             "--ruleset-file", str(enf), "--json", str(out_enf)],
+            capture_output=True, text=True, check=False,
+        )
+        _ok(proc_good.returncode == 0, f"已强制状态退出码须 0，got {proc_good.returncode}")
+        _ok(json.loads(out_enf.read_text(encoding="utf-8"))["status"] == "PASS",
+            "--json 工件须落 PASS 报告")
+
+
 def test_CI_07_unauthorized_app_same_context_untrusted_blocked(root: Optional[Path] = None) -> None:
     """CI-07｜注入：未授权 App 发布同名 context/旧 details URL｜期望：不可信、阻断。"""
     with _tmp(root) as td:
@@ -772,15 +1036,11 @@ def test_CI_09_recursive_aggregate_or_duplicate_publish_rejected(root: Optional[
 # ---------------------------------------------------------------------------
 _TEST_NAME_RE = re.compile(r"^test_(GATE|MRG|CI)_(\d{2})_")
 
-# 不可实现清单（产品未实现该语义，不硬凑；详见模块 docstring 与交付报告）
-NOT_IMPLEMENTABLE: Dict[str, str] = {
-    "GATE-09": "N=-1 已被 tests/acceptance.sh（--convergence -1 拒绝）覆盖；"
-               "N=0 在 cli/wenqu 是合法『关闭收敛要求』开关而非参数错误、N 超上限无上限校验——注入面后两态无产品语义",
-    "GATE-10": "超过 N+1 轮 BLOCKED 等人工裁定：仓内无可执行的轮数上限/人工裁定实现（仅 dashboard 文案）",
-    "GATE-11": "同命令换 S 标签不计异源轮：无可执行的异源轮来源追踪/命令身份判定实现",
-    "CI-06": "CODEOWNERS 存在但 ruleset 未强制 → doctor ERROR：hardening-doctor.sh 体检 launchd/哨兵/CI 卡死，"
-             "无 CODEOWNERS/ruleset 校验语义",
-}
+# 不可实现清单（产品未实现该语义，不硬凑；详见模块 docstring 与交付报告）。
+# 2026-10-08 wave6/p1f-gate：GATE-09/10/11、CI-06 已由 bugscan_orchestrator
+# 收敛环契约与 system/bin/codeowners-ruleset-doctor.py 落地为本文件真实用例，
+# 登记清零；此后新增登记仅限「产品确无对应语义」的 ID。
+NOT_IMPLEMENTABLE: Dict[str, str] = {}
 
 
 def _collect_tests() -> List[Tuple[str, Callable[..., None]]]:
@@ -798,7 +1058,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         json_out = argv[argv.index("--json") + 1]
     tests = _collect_tests()
     print("=" * 72)
-    print("§20 GATE/MRG/CI 族专属验收测试（实现 20 条；跳过 4 条见 NOT_IMPLEMENTABLE）")
+    print(f"§20 GATE/MRG/CI 族专属验收测试（实现 {len(tests)} 条"
+          f"{'；跳过 ' + str(len(NOT_IMPLEMENTABLE)) + ' 条见 NOT_IMPLEMENTABLE' if NOT_IMPLEMENTABLE else '；NOT_IMPLEMENTABLE 登记已清零'}）")
     for tid, reason in NOT_IMPLEMENTABLE.items():
         print(f"  SKIP {tid}: {reason}")
     print("-" * 72)

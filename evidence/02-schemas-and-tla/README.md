@@ -31,6 +31,23 @@
 注意（诚实边界）：`system/tests/test_core_wiring.py` 只验证 schema 存在且可解析 + 2 个业务不变量
 负例（CRITICAL 拒 ACCEPTED_RISK），**不等于** §20 全部 schema 面验收通过。
 
+## 2026-10-08 更新：W1 缺口（无 Wenqu TLA/TLC）已闭环
+
+问渠七段状态机 + 审批消费 TLA+ 规约建立并通过 TLC 真实模型检查
+（TLC 2.15 / Temurin 17 / 仓内 `system/bin/tla2tools.jar`）：
+
+| 工件 | 路径 | 状态 |
+|---|---|---|
+| wenqu_pipeline.tla | `specs/tla/` | 规约正本：常量表 + Next + 7 不变量（TypeOK/NoSkipStages/PriorPassedGate/AttemptImmutable/NonceOnceConsumed/TerminalFinal/DoubleAxisNoWash），逐定义注明代码行号映射 |
+| wenqu_pipeline.cfg | `specs/tla/` | 小模型 2 段 × 2 attempt 界；TLC `Model checking completed. No error has been found.`（2442 states / 834 distinct / depth 12） |
+| TLC 原始输出 + 覆盖统计 | `tlc-wenqu-pipeline-2026-10-08.log` | 10 个动作全部真实发生（非空转） |
+| 变异探针（6 个全红） | `tlc-wenqu-pipeline-mutation-probes-2026-10-08.log` | nonce/双轴门/段序/终态分支/映射锁/attempt 不可变逐一破坏 → 对应不变量当场 violated（检查可证伪） |
+| 运行记录 | `tla-wenqu-pipeline-run-2026-10-08.md` | 环境探测、命令、exit code、映射表、诚实边界 |
+| 规约漂移对照测试 | `system/tests/test_tla_spec.py` | 10 用例：TLA 常量表与 Python 正源逐项比对（25 对双轴全积映射）；单 token 漂移注入实证必红 |
+
+边界：TLC 穷举为有界实例（非 7 段满配）；审批结构/签名/TTL/绑定抽象为
+预审原子，保留 nonce/CAS/路由三轴；不主张活性。详见运行记录第 5 节。
+
 ## 填写规则
 
 1. 每次Schema 变更须附 before/after 正反例执行记录（jsonschema 校验日志，真实 rc）。

@@ -1,0 +1,69 @@
+{
+  "generated_at": "2026-10-08T09:37:54.396426+00:00",
+  "host": "M2Pro-Agent",
+  "uid": 502,
+  "launchctl_list_wenqu_rows": [
+    "47736\t-15\tcom.wenqu.app-relay",
+    "-\t0\tcom.wenqu.obs-ttest",
+    "-\t0\tcom.wenqu.spec-reconcile.monthly",
+    "-\t1\tcom.wenqu.sentinel-pulse",
+    "-\t0\tcom.wenqu.scheduler",
+    "-\t0\tcom.wenqu.sweep",
+    "57971\t-15\tcom.wenqu.dashboard",
+    "-\t0\tcom.wenqu.orchestrator",
+    "-\t0\tcom.wenqu.observation-window",
+    "-\t0\tcom.wenqu.observation"
+  ],
+  "agents": [
+    {
+      "label": "com.wenqu.scheduler",
+      "launchctl_print_rc": 0,
+      "state": "not running",
+      "path": "/Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist",
+      "last_exit_code": "0",
+      "runs": "1",
+      "program": "/opt/homebrew/bin/python3",
+      "plist_sha256": "e4cff86e61b434a404e714e12a1920994e3ec11443c26c72c7ae01c9c9c1c8b2",
+      "raw_print_head": "gui/502/com.wenqu.scheduler = {\n\tactive count = 0\n\tpath = /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /opt/homebrew/bin/python3\n\targuments = {\n\t\t/opt/homebrew/bin/python3\n\t\t-m\n\t\twenqu_core.scheduler\n\t\ttick\n\t}\n\n\tworking directory = /Users/maccc/Documents/wenqu-dist\n\n\tstdout path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log\n\tstderr path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log"
+    },
+    {
+      "label": "com.wenqu.observation",
+      "launchctl_print_rc": 0,
+      "state": "not running",
+      "path": "/Users/maccc/Library/LaunchAgents/com.wenqu.observation.plist",
+      "last_exit_code": "0",
+      "runs": "2",
+      "program": "/opt/homebrew/bin/python3",
+      "plist_sha256": "5a39fe0c4d71a17cd7450eb1d7a49c60be4996a0231044d0a2ba9263018433f5",
+      "raw_print_head": "gui/502/com.wenqu.observation = {\n\tactive count = 0\n\tpath = /Users/maccc/Library/LaunchAgents/com.wenqu.observation.plist\n\ttype = LaunchAgent\n\tstate = not running\n\n\tprogram = /opt/homebrew/bin/python3\n\targuments = {\n\t\t/opt/homebrew/bin/python3\n\t\t/Users/maccc/Documents/wenqu-dist/tools/observation_daily.py\n\t}\n\n\tstdout path = /Users/maccc/.wenqu/observation/logs/out.log\n\tstderr path = /Users/maccc/.wenqu/observation/logs/err.log"
+    },
+    {
+      "label": "com.wenqu.dashboard",
+      "launchctl_print_rc": 0,
+      "state": "running",
+      "path": "/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist",
+      "last_exit_code": null,
+      "runs": "5",
+      "program": "/opt/homebrew/bin/python3",
+      "plist_sha256": "9ebe0aff611a36d3844c05817f4bbe0e9c9af1082b36981a8fdf26e3325d3ae7",
+      "raw_print_head": "gui/502/com.wenqu.dashboard = {\n\tactive count = 1\n\tpath = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist\n\ttype = LaunchAgent\n\tstate = running\n\n\tprogram = /opt/homebrew/bin/python3\n\targuments = {\n\t\t/opt/homebrew/bin/python3\n\t\t/Users/maccc/.wenqu/bin/wenqu-dashboard.py\n\t\t7789\n\t}\n\n\tstdout path = /Users/maccc/.wenqu/logs/dashboard-launchd.log\n\tstderr path = /Users/maccc/.wenqu/logs/dashboard-launchd.log"
+    }
+  ],
+  "w4_production_state": {
+    "runs_total": 3,
+    "runs_scheduled": 2,
+    "outbox": {
+      "SENT": 2
+    },
+    "heartbeat": "2026-10-08T09:35:32Z",
+    "drill_reports": [
+      "drill-20261008T091843Z.json"
+    ],
+    "alert_receipts": "receipts.jsonl"
+  },
+  "notes": [
+    "com.wenqu.scheduler=W4 生产调度（StartInterval 300s+RunAtLoad）：2026-10-08 挂载首跑 bootstrap run PASS；到期机制经 09:27:11/09:32:11 两轮自然调度 run PASS 自续实证；gate 快照走 --allow-self-declared 诊断模式（F6-GATE-SCOPE-001 契约，shadow 数据源不冒充发布门）",
+    "com.wenqu.dashboard 与 7789 为既有生产面，本轮只读取_inventory 未做任何变更",
+    "plist 直用 /opt/homebrew/bin/python3：launchd GUI 下 /bin/bash 无 Documents TCC 授权（bash 壳 exit 126，2026-10-08 首挂实测；launchd StandardErrorPath 每次 spawn 截断故旧报错不留存于日志）"
+  ]
+}

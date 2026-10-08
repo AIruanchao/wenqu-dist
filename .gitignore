@@ -2,3 +2,21 @@
 ._*
 __pycache__/
 .pytest_cache/
+
+# ---- 审批签发端（P0-2 残余）：生产密钥/审计账本绝不入库 ----
+# 生产 keyring（目录型/JSON）常见落点（仓库根与任意层级同名的生产目录）
+/approval-keyring/
+/approval-keys/
+/keyring/
+/secrets/
+**/approval-keyring/
+**/approval-keys-dir/
+# 单密钥文件（目录型 keyring 的单元）与 keyring JSON 载体
+*.secret
+*.keyring.json
+# 签发审计/密钥事件账本（生产路径模式）
+/approval-issuance-audit.jsonl
+issuance-audit.jsonl
+keyring-events.jsonl
+# 测试密钥仅允许存在于 system/tests/fixtures/（显式放行，防误伤测试夹具）
+!system/tests/fixtures/**

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""§20 验收 ID 专属测试——调度/告警/健康/文档治理四族（P0-10 追踪缺口销账件）。
+"""§20 验收 ID 专属测试——调度/告警/健康/文档治理/容量/备份DR 六族（P0-10 追踪缺口销账件）。
 
-覆盖 §20.4/§20.5 中本件负责的 14 个验收 ID（注入/期望逐字对齐
+覆盖 §20.4/§20.5 中本件负责的 17 个验收 ID（注入/期望逐字对齐
 evidence/00-baseline/codex-external/方案.md §20 表格）：
 
     SCH-01  launchd 无 Documents 权限                -> ERROR+告警
@@ -14,11 +14,14 @@ evidence/00-baseline/codex-external/方案.md §20 表格）：
     SCH-07  COMPLETED+NOT_APPLICABLE 或过期/异指纹 PASS -> 不刷新任何实体的 last_success
     ALT-01  provider 500/超时                        -> outbox 重试/dead-letter
     ALT-02  waiting 到期但零 send attempt/receipt    -> ERROR+告警，不能以 watchdog exit0 记健康
+    BAK-01  磁盘满/tar/backup 失败                   -> 不更新 success
     HLT-01  聚合期间输入 watermark 变化              -> snapshot 作废重算
     DOC-01  one-shot 停等数量/枚举漂移               -> CI 阻断
     DOC-02  bug skill 版本/清单/验收数量漂移         -> CI 阻断
     DOC-03  policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本 -> CI 阻断
     DOC-04  文档宣称现役/PASS，但 registry 或 Gate 为 BLOCKED -> CI 阻断
+    CAP-01  峰值空间超过安全余量或磁盘满             -> 切换 BLOCKED，旧证据和 current 均完整
+    DR-01   恢复演练                                 -> 实测满足冻结 RPO/RTO
 
 被测体（全部真实注入、真实断言，零 mock 产品行为）：
     system/wenqu_core/scheduler.py   ScheduleRegistry / JobRunner / NotificationOutbox /
@@ -26,6 +29,24 @@ evidence/00-baseline/codex-external/方案.md §20 表格）：
     system/dashboard/server.py       /api/v1/health 健康原子性 + gate 快照输入水印
     system/wenqu_core/wenqu_pipeline.py 九类停等枚举 + system/docs/specs 契约 + docs/
     probes/stations.json + cli/wenqu VERSION + tests/acceptance.sh   文档注册表对账
+    system/wenqu_core/capacity_monitor.py 容量安全边际（REQ-CAP-001/AC-CAP-SAFE-MARGIN）：
+                                     shutil.disk_usage 真实采集 + 路径配额 + jsonl
+                                     峰值记录 + used/(used+free) 阈值判定（默认 0.90）
+                                     + §22 峰值预算 headroom + 趋势外推 + 容量闸
+                                     BLOCKED 切换（旧证据/current 只读完整性清单）；
+                                     磁盘满注入走 injected_sample 数字注入接口，
+                                     绝不真塞盘
+    system/sentinels/backup-restore-drill.sh + system/wenqu_core/drill_runner.py
+                                     备份可恢复（AC-BACKUP-RESTORABLE）：tmp 语料上
+                                     四步真实演练（快照→篡改[实测 sha 已变]→恢复→
+                                     逐文件 cmp+sha256 字节级对账）+ 备份失败族
+                                     fail-closed（语料不可达 -> 报告 result=FAIL、
+                                     退出非零、success 不更新）；DR 演练
+                                     （AC-DR-RPO-RTO）：RPO=最后快照点→故障注入点
+                                     实测时差（--fault-delay 已知窗口）、RTO=恢复开始→
+                                     全部对账通过实测耗时，冻结目标 RPO<=300s/RTO<=60s
+                                     由演练脚本内冻结；双工件 drill-<stamp>.json +
+                                     .jsonl 事件日志（时间/文件/结果三要素逐事件记账）
 
 运行：python3 system/tests/test_ac_ops_families.py   （独立 exit 0 = 全绿）
 证据：evidence/04-unit-property-mutation/ac-ops-families.json（每次运行覆写）。
@@ -42,14 +63,20 @@ not_implementable 字段）：
     4. HLT-01 的聚合器侧重算属 gate_aggregator 域（并行工作面，本件不碰）；
        本件覆盖 dashboard 正源侧：watermark 变化 -> 快照作废（503 结构化 ERROR，
        绝不透传旧结论）+ 聚合器重算产物（重写快照）即刻生效。bin/wenqu-dashboard.py
-       的 /api/health 为遗留自算卡（无 gate 快照水印面，且会写用户真实走势文件），
+       的 /api/v1/health 为遗留自算卡（无 gate 快照水印面，且会写用户真实走势文件），
        水印契约自 W8 起由 system/dashboard/server.py 承载，本件覆盖正源。
+    5. BAK-01 的「磁盘满/tar」字面向量不可移植注入（drill 用 cp 管道）；本件以
+       同族真实失败（备份语料不可达 -> 演练 fail-closed，报告 result=FAIL、退出
+       非零、既有 PASS 工件不被改写=success 不更新）覆盖「backup 失败 -> 不更新
+       success」判定链；备份可恢复正语义以 tmp 语料四步真实演练覆盖。
 """
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -68,6 +95,11 @@ SYSTEM = REPO / "system"
 sys.path.insert(0, str(SYSTEM))
 
 from wenqu_core.runner import TrustedRunner                     # noqa: E402
+from wenqu_core.drill_runner import (                           # noqa: E402
+    DrillFailure,
+    read_events,
+    run_drill,
+)
 from wenqu_core.scheduler import (                              # noqa: E402
     HeartbeatMonitor,
     JobDefinition,
@@ -78,6 +110,23 @@ from wenqu_core.scheduler import (                              # noqa: E402
     SchedulerStore,
     WatchdogPolicy,
     compute_input_fingerprint,
+)
+from wenqu_core.capacity_monitor import (                        # noqa: E402
+    CAP_DISK_FULL,
+    CAP_PEAK_BUDGET_EXCEEDS_HEADROOM,
+    CAP_QUOTA_RATIO_EXCEEDED,
+    CAP_TREND_THRESHOLD_APPROACH,
+    CAP_USED_RATIO_EXCEEDED,
+    CAP_WITHIN_MARGIN,
+    CapacityMonitor,
+    CapacitySpec,
+    CapacitySpecError,
+    SampleLog,
+    SampleLogError,
+    enforce_capacity_gate,
+    injected_sample,
+    integrity_manifest,
+    peak_budget_bytes,
 )
 
 # 测试卫生：产品模块的 log.warning（如 spawn failed）不要打进测试输出
@@ -112,6 +161,17 @@ _NOT_IMPLEMENTABLE = [
         "mitigation": "dashboard 正源侧真服务探针：watermark 过期/畸形->快照作废 503，"
                        "重算产物重写快照后新判定即刻生效、旧结论不缓存",
     },
+    # ---- F6-COVERAGE-AUTH-001 补录（2026-10-08）：本列表现仅存上方 4 条环境边界登记。
+    # ---- CAP-01 已于 2026-10-08 转真：wenqu_core/capacity_monitor.py 入产品
+    # ---- （本文件 test_CAP_01_ 专属测试），登记移除、断言只增不减。
+    # ---- BAK-01/DR-01 已于 2026-10-08 转真：backup-restore-drill.sh（jsonl
+    # ---- 事件日志+DR 模式 RPO/RTO 计时）+ wenqu_core/drill_runner.py 入产品
+    # ---- （本文件 test_BAK_01_/test_DR_01_ 专属测试），登记移除、断言只增不减。
+    # ---- UI-01~07 七条登记已于 2026-10-08 迁出：dashboard UI 面激活，由
+    # ---- system/tests/test_ac_ui_family.py 专属承接（探针=system/wenqu_core/
+    # ---- ui_probe.py；证据=evidence/04-unit-property-mutation/ac-ui-family.json；
+    # ---- L2 HTTP+DOM 级——Playwright 不可用按可用性降级，浏览器级缺口在该件
+    # ---- not_implementable 逐条登记）。
 ]
 
 
@@ -199,15 +259,22 @@ class _DashboardServer:
                    WENQU_AGGREGATE_TTL=str(self.ttl),
                    WENQU_HOME=str(self.sandbox / "wenqu-home"),
                    WENQU_HEALTH_HISTORY=str(self.history))
+        self.err_path = self.sandbox / "server.err.log"
         self.proc = subprocess.Popen(
             [sys.executable, str(SYSTEM / "dashboard" / "server.py"),
              "--port", str(self.port)],
-            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        deadline = time.monotonic() + 15.0
+            env=env, stdout=subprocess.DEVNULL,
+            stderr=open(self.err_path, "w"))
+        def _err_tail():
+            try:
+                return self.err_path.read_text(errors="replace")[-300:]
+            except OSError:
+                return "(unreadable)"
+        deadline = time.monotonic() + 60.0  # CI 冷 runner 就绪窗放宽（macOS 实测>15s）
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 raise AssertionError(
-                    f"dashboard server 提前退出 rc={self.proc.returncode}")
+                    f"dashboard server 提前退出 rc={self.proc.returncode}; stderr: {_err_tail()}")
             try:
                 status, _ = _http_get(self.port, "/api/v1/ping")
                 if status == 200:
@@ -215,7 +282,7 @@ class _DashboardServer:
             except OSError:
                 pass
             time.sleep(0.15)
-        raise AssertionError("dashboard server 15s 内未就绪")
+        raise AssertionError(f"dashboard server 60s 内未就绪; stderr: {_err_tail()}")
 
     def __exit__(self, *exc) -> None:
         if self.proc is None:
@@ -1238,6 +1305,397 @@ def test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci():
 
 
 # ---------------------------------------------------------------------------
+# CAP 族：容量安全边际（REQ-CAP-001 / AC-CAP-SAFE-MARGIN，§22 峰值公式）
+# ---------------------------------------------------------------------------
+def test_CAP_01_peak_budget_over_margin_or_disk_full_switches_blocked():
+    """CAP-01 | 注入: 峰值空间超过安全余量或磁盘满 | 期望: 切换 BLOCKED，旧证据和 current 均完整。
+
+    被测产品面：system/wenqu_core/capacity_monitor.py（本测试即其专属验收）。
+    磁盘满注入语义：injected_sample 数字注入接口（模拟 used/free），绝不真塞盘。
+
+    三面断言：
+    1. 真实采集正例——shutil.disk_usage 真值过完整判定链（含 jsonl 峰值
+       记录）；绿侧阈值由样本自身推导（当前真实水位 + 边际），使正例与
+       当日磁盘水位无关；另按产品默认阈值 0.90 断言判定侧与数字一致，
+       并如实记录当日真实水位（观察窗延续）。
+    2. 注入负例——超阈值/磁盘满/§22 峰值预算吃掉安全余量/路径配额超限
+       /临界边界（==阈值不触发，>阈值触发）全红。
+    3. 趋势外推 + 容量闸——最近 N 样本斜率外推到达阈值的时间（线性增长
+       可解析验算）；CRITICAL 切换 BLOCKED 后旧证据与 current 的完整性
+       清单前后相等（零删除、零改写，§22 禁删审计证据）。
+    """
+    GiB = 1024 ** 3
+    with tempfile.TemporaryDirectory(prefix="wq_cap01_") as tmp:
+        sandbox = Path(tmp)
+
+        # ---- 面 1：真实采集正例 -------------------------------------------
+        # 与 shutil.disk_usage 直连读数交叉核对（真实采集不造数；两次调用间
+        # 系统可自然少量写盘，容量按位相等、水位按容差比对）
+        direct = shutil.disk_usage(tmp)
+        log = SampleLog(sandbox / "capacity-samples.jsonl")
+        # 绿侧阈值 = 样本自推导（真实水位+0.001），正例不依赖当日水位高低
+        probe = CapacityMonitor(CapacitySpec(used_ratio_threshold=0.999999),
+                                sample_log=log)
+        real = probe.sample(path=tmp)
+        assert real.basis == "real", "采集样本必须标记 real 基准"
+        assert real.total_bytes == direct.total, \
+            f"total 必须与 statvfs 真值一致: {real.total_bytes} vs {direct.total}"
+        # 跨平台不变量：used+free ≤ total（Linux 保留块使 used+free 可小于 total；macOS 相等）
+        assert real.total_bytes >= real.used_bytes + real.free_bytes, \
+            "used+free<=total 不变量（Linux 保留块）"
+        assert abs(real.used_bytes - direct.used) <= 64 * 1024 * 1024, \
+            "真实采集应与直连 disk_usage 同源（±64MiB 活动盘容差）"
+        assert 0.0 <= real.used_ratio <= 1.0
+
+        green = probe.judge(real)
+        assert (green["severity"], green["code"], green["violations"]) == \
+            ("OK", CAP_WITHIN_MARGIN, []), f"绿侧判定失败: {green}"
+
+        # jsonl 峰值记录：真实采样已落一行且可回读；峰值游标随后续样本只增
+        assert log.samples()[-1] == real, "jsonl 回读样本必须与采集样本一致"
+        assert log.peak_used_bytes() == real.used_bytes, "首条记录的峰值即当前水位"
+        log.append(injected_sample(real.used_bytes + 1, 1))
+        log.append(injected_sample(1, 1))
+        assert log.peak_used_bytes() == real.used_bytes + 1, "峰值游标必须单调取最大"
+        assert [s.used_bytes for s in log.recent(2)] == [real.used_bytes + 1, 1], \
+            "recent 必须按时间正序返回最后 n 条"
+        # fail-closed：损坏行读取即抛错，绝不跳行（防峰值缩水）
+        bad_log = SampleLog(sandbox / "corrupt.jsonl")
+        bad_log.path.write_text("{ not json\n", encoding="utf-8")
+        try:
+            bad_log.entries()
+            raise AssertionError("损坏 jsonl 行必须抛错（fail-closed），不得静默跳过")
+        except SampleLogError:
+            pass
+
+        # 产品默认阈值 0.90：判定侧必须与数字侧一致（与当日水位无关的
+        # 确定性性质）；水位如实记录进证据（观察窗延续）
+        default_mon = CapacityMonitor()
+        by_default = default_mon.judge(real)
+        expected_critical = real.used_ratio > 0.90
+        assert (by_default["severity"] == "CRITICAL") == expected_critical, \
+            f"默认阈值判定侧必须与数字侧一致: ratio={real.used_ratio}"
+
+        # ---- 面 2：注入负例（数字注入，不真塞盘）--------------------------
+        # 注入 A：超阈值——used/(used+free)=0.95 > 0.90
+        over = default_mon.judge(injected_sample(950 * GiB, 50 * GiB))
+        assert over["severity"] == "CRITICAL" and over["code"] == CAP_USED_RATIO_EXCEEDED
+        assert over["used_ratio"] > 0.90 and over["sample"]["basis"] == "injected"
+        assert [v["code"] for v in over["violations"]] == [CAP_USED_RATIO_EXCEEDED]
+
+        # 注入 B：磁盘满——free=0（§20.5「或磁盘满」方向），优先级最高
+        full = default_mon.judge(injected_sample(100 * GiB, 0))
+        assert full["code"] == CAP_DISK_FULL and full["severity"] == "CRITICAL"
+        assert full["used_ratio"] == 1.0
+        assert CAP_USED_RATIO_EXCEEDED in [v["code"] for v in full["violations"]]
+
+        # 注入 C：峰值空间超过安全余量——磁盘水位健康（ratio=0.40）但 §22
+        # 峰值预算（backup=550GiB + next_release）吃掉余量：
+        # headroom = free(600GiB) - peak(550GiB) = 50GiB < min_headroom(100GiB)
+        budget = peak_budget_bytes(legacy_snapshot=0, imported_db=0, wal_peak=0,
+                                   cas_copy=0, backup=550 * GiB,
+                                   current_release=0, next_release=0,
+                                   rollback_release=0)
+        assert budget == 550 * GiB, "§22 八分量求和必须精确"
+        peak_mon = CapacityMonitor(CapacitySpec(min_headroom_bytes=100 * GiB))
+        peak = peak_mon.judge(injected_sample(400 * GiB, 600 * GiB), peak_budget=budget)
+        assert peak["severity"] == "CRITICAL"
+        assert peak["code"] == CAP_PEAK_BUDGET_EXCEEDS_HEADROOM
+        assert peak["headroom_bytes"] == 50 * GiB
+        assert peak["used_ratio"] <= 0.90, "本注入方向水位本身健康，红的是峰值余量"
+        # 峰值分量白名单：未知分量拒绝（防拼写缩水分母）
+        try:
+            peak_budget_bytes(typo_component=1)
+            raise AssertionError("未知峰值分量必须被拒绝（fail-closed）")
+        except CapacitySpecError:
+            pass
+
+        # 注入 D：路径配额——磁盘水位极低但 used/quota=0.95 超阈值
+        quota_mon = CapacityMonitor(CapacitySpec(
+            used_ratio_threshold=0.90,
+            path_quotas={"<fault-injection>": 100 * GiB}))
+        quota = quota_mon.judge(injected_sample(95 * GiB, 10 * 1024 * GiB))
+        assert quota["code"] == CAP_QUOTA_RATIO_EXCEEDED
+        assert quota["used_ratio"] < 0.90, "磁盘面水位低，红的是路径配额面"
+
+        # 注入 E：临界边界——ratio 恰等于阈值不触发（严格大于），越过即红
+        edge_ok = default_mon.judge(injected_sample(900 * GiB, 100 * GiB))
+        assert edge_ok["severity"] == "OK" and edge_ok["code"] == CAP_WITHIN_MARGIN, \
+            f"ratio==threshold 临界不应触发: {edge_ok}"
+        edge_over = default_mon.judge(injected_sample(901 * GiB, 99 * GiB))
+        assert edge_over["severity"] == "CRITICAL" and \
+            edge_over["code"] == CAP_USED_RATIO_EXCEEDED
+
+        # ---- 面 3：趋势外推 + 容量闸 BLOCKED 切换与完整性 -----------------
+        # 线性增长：t=0/3600/7200/10800s，used=100/200/300/400GiB，free=600GiB
+        # → 斜率 100GiB/h，阈值 0.9*1000GiB=900GiB，(900-400)GiB / (100GiB/h) = 5h
+        series = [injected_sample((100 + 100 * k) * GiB, 600 * GiB, at=3600.0 * k)
+                  for k in range(4)]
+        proj = default_mon.trend(series)
+        assert proj["samples_used"] == 4 and proj["slope_bytes_per_s"] > 0
+        assert abs(proj["projected_seconds_to_threshold"] - 18000.0) < 1.0, \
+            f"线性外推应为 18000s（5h），实得 {proj['projected_seconds_to_threshold']}"
+        trend = default_mon.trend_finding(proj)
+        assert (trend["severity"], trend["code"]) == ("WARNING", CAP_TREND_THRESHOLD_APPROACH), \
+            "视界内逼近阈值必须 WARNING 早警（不 BLOCKED）"
+        # 平盘/样本不足：不外推
+        flat = default_mon.trend(
+            [injected_sample(400 * GiB, 600 * GiB, at=3600.0 * k) for k in range(4)])
+        assert flat["projected_seconds_to_threshold"] is None and \
+            flat["reason"] == "not_growing"
+        assert default_mon.trend(series[:1])["reason"] == "insufficient_samples"
+        slow = default_mon.trend(
+            [injected_sample((400 + k) * GiB, 600 * GiB, at=3600.0 * k) for k in range(4)])
+        assert default_mon.trend_finding(slow)["severity"] == "OK", \
+            "远超早警视界（>7d）的外推不得报 WARNING"
+
+        # 容量闸：CRITICAL → BLOCKED，旧证据与 current 完整（前后清单相等）
+        ev1 = sandbox / "evidence" / "findings.jsonl"
+        ev2 = sandbox / "evidence" / "gate.json"
+        ev1.parent.mkdir(parents=True, exist_ok=True)
+        ev1.write_text('{"row": 1, "verdict": "PASS"}\n', encoding="utf-8")
+        ev2.write_text('{"policy_verdict": "PASS"}\n', encoding="utf-8")
+        release_dir = sandbox / "releases" / "r1"
+        release_dir.mkdir(parents=True)
+        (release_dir / "manifest.json").write_text('{"release": "r1"}\n', encoding="utf-8")
+        current = sandbox / "current"
+        current.symlink_to(release_dir)
+        before = integrity_manifest([ev1, ev2], current_path=current)
+        assert before[str(ev1)]["type"] == "file" and \
+            before["<current>"] == {"type": "symlink", "target": str(release_dir)}
+
+        decision = enforce_capacity_gate(over, evidence_paths=[ev1, ev2],
+                                         current_path=current)
+        assert decision["capacity_gate"] == "BLOCKED" and decision["triggered"] is True
+        assert decision["finding"]["code"] == CAP_USED_RATIO_EXCEEDED
+        assert decision["deleted_or_modified"] == [], "§22 禁删审计证据：必须零删除零改写"
+        assert decision["integrity"] == before, \
+            "BLOCKED 切换后旧证据/current 完整性清单必须与切换前完全相等"
+        assert ev1.read_text(encoding="utf-8") == '{"row": 1, "verdict": "PASS"}\n'
+        assert ev2.read_text(encoding="utf-8") == '{"policy_verdict": "PASS"}\n'
+        assert os.readlink(current) == str(release_dir), "current 指针必须原样"
+
+        # 阴性对照：绿侧 finding → OPEN，不切换
+        open_gate = enforce_capacity_gate(green, evidence_paths=[ev1, ev2],
+                                          current_path=current)
+        assert open_gate["capacity_gate"] == "OPEN" and open_gate["triggered"] is False
+
+        _record("CAP-01",
+                f"真实采集正例（{tmp} 所在卷，当日水位 {real.used_ratio:.2%}，"
+                f"默认 0.90 阈值判定侧={'CRITICAL' if expected_critical else 'OK'}"
+                f"——与数字侧一致，水位如实记录）；注入负例四向全红"
+                f"（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/"
+                f"配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；"
+                f"趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；"
+                f"CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、"
+                f"零删除；绿侧→OPEN")
+
+
+# ---------------------------------------------------------------------------
+# 备份/DR 演练族（真实子进程跑 backup-restore-drill.sh，零 mock）
+# ---------------------------------------------------------------------------
+def _mk_drill_corpus(sandbox: Path):
+    """构造演练语料根：真实字节的调度 DB + 聚合/心跳/采样 JSON（5 文件）。
+
+    返回 (wenqu_root, rels)。真实 sqlite 二进制 + 真实 JSON 字节——
+    恢复对账面对真实生产形态的文件，而非空壳。
+    """
+    root = sandbox / "wenqu-home"
+    (root / "state").mkdir(parents=True)
+    (root / "observation" / "samples").mkdir(parents=True)
+    (root / "observation" / "shadow").mkdir(parents=True)
+    conn = sqlite3.connect(str(root / "state" / "scheduler.db"))
+    conn.execute("CREATE TABLE jobs (id TEXT PRIMARY KEY, next_due REAL, argv TEXT)")
+    conn.executemany("INSERT INTO jobs VALUES (?, ?, ?)", [
+        ("nightly-backup", 1791400000.5, '["bash","backup.sh"]'),
+        ("weekly-watchdog", 1791500000.25, '["bash","watch.sh"]'),
+    ])
+    conn.commit()
+    conn.close()
+    (root / "state" / "gate-aggregate.json").write_text(
+        json.dumps({"policy_verdict": "PASS", "required": 9, "done": 9}), encoding="utf-8")
+    (root / "observation" / "heartbeat.json").write_text(
+        json.dumps({"station": 1, "beat_at": "2026-10-08T09:00:00Z"}), encoding="utf-8")
+    (root / "observation" / "samples" / "2026-10-08.json").write_text(
+        json.dumps({"cpu": 7.5, "disk_used_ratio": 0.93}), encoding="utf-8")
+    (root / "observation" / "shadow" / "2026-10-08.json").write_text(
+        json.dumps({"shadow": True, "n": 3}), encoding="utf-8")
+    rels = ["state/scheduler.db", "state/gate-aggregate.json",
+            "observation/heartbeat.json", "observation/samples/2026-10-08.json",
+            "observation/shadow/2026-10-08.json"]
+    return root, rels
+
+
+def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
+    """BAK-01｜注入：磁盘满/tar/backup 失败｜期望：不更新 success（§20.4 逐字）。
+
+    §25.1 证据类：checkpoint/restore drill（REQ-BACKUP-001/AC-BACKUP-RESTORABLE）。
+    测试内真实执行演练（零 mock）：tmp 语料根上跑
+    system/sentinels/backup-restore-drill.sh 四步——快照→篡改（实测 sha 已变
+    防伪造演练）→恢复→逐文件 cmp+sha256 字节级对账：
+    1. 断言恢复后逐文件一致（reconcile cmp+sha_match 双证，且与源语料三方一致）；
+    2. 断言报告结构（时间 stamp/文件 files/结果 result 三要素）+ jsonl 事件日志
+       （每事件 {ts,t,event,file,result}，覆盖全部语料文件的快照/篡改/恢复/对账）；
+    3. 失败分支（backup 失败族：备份语料不可达）→ 演练 fail-closed：退出非零、
+       报告 result=FAIL、既有 PASS 工件零改写（= success 不更新）。
+    诚实边界：「磁盘满/tar」字面向量不可移植注入（drill 用 cp 管道），以同族
+    真实失败覆盖「backup 失败 -> 不更新 success」判定链（见文件头边界 5）。
+    """
+    with tempfile.TemporaryDirectory(prefix="wq_bak01_") as td:
+        sandbox = Path(td)
+        root, rels = _mk_drill_corpus(sandbox)
+        assert len(rels) == 5
+        # 生产语料只读实证基线（演练前后必须逐字节不变）
+        sha_before = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest()
+                      for rel in rels}
+        reports = sandbox / "reports"
+        outcome = run_drill(wenqu_root=root, report_dir=reports)
+
+        rep = outcome.report
+        # —— 判定 + 报告结构（时间/文件/结果三要素）——
+        assert rep["drill"] == "backup-restore" and rep["result"] == "PASS"
+        assert rep["mode"] == "backup" and rep["byte_match_all"] is True
+        assert rep["corpus_count"] == len(rels)
+        assert re.fullmatch(r"\d{8}T\d{6}Z(?:-\d+)?", rep["stamp"]), rep["stamp"]
+        snap = {f["rel"]: f for f in rep["steps"]["snapshot"]["files"]}
+        assert set(snap) == set(rels), "快照文件集必须与语料一致"
+        for rel, f in snap.items():
+            assert re.fullmatch(r"[0-9a-f]{64}", f["sha256"]), f
+            assert f["size"] > 0 and f["sha256"] == sha_before[rel], \
+                f"快照必须与语料源字节一致: {rel}"
+        # 篡改真实发生：三种方式轮转全覆盖 + 演练自证（tamper.ok=实测 sha 已变）
+        acts = {a["rel"]: a["how"] for a in rep["steps"]["tamper"]["actions"]}
+        assert set(acts) == set(rels) and rep["steps"]["tamper"]["ok"] is True
+        assert set(acts.values()) == {"append", "truncate", "delete"}
+        assert rep["steps"]["restore"]["files_restored"] == len(rels)
+        # —— 恢复后逐文件一致（cmp+sha 双证，与快照、与源语料三方一致）——
+        recon = {f["rel"]: f for f in rep["steps"]["reconcile"]["files"]}
+        assert set(recon) == set(rels)
+        for rel, f in recon.items():
+            assert f["cmp"] is True and f["sha_match"] is True, f
+            assert f["sha256"] == snap[rel]["sha256"] == sha_before[rel], rel
+        for rel in rels:  # 生产语料全程只读
+            assert hashlib.sha256((root / rel).read_bytes()).hexdigest() == sha_before[rel]
+
+        # —— jsonl 事件日志（时间/文件/结果，逐事件机器可核）——
+        evs = read_events(outcome.jsonl_path)
+        kinds = [e["event"] for e in evs]
+        assert kinds[0] == "drill_start" and kinds[-1] == "drill_pass"
+        assert "tamper_verified" in kinds and "drill_fail" not in kinds
+        last_ts = 0.0
+        for e in evs:
+            assert isinstance(e["ts"], float) and math.isfinite(e["ts"]) \
+                and e["ts"] >= last_ts, e
+            last_ts = e["ts"]
+            assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", e["t"]), e
+        for phase in ("snapshot_file", "restore_file", "reconcile_file"):
+            got = {e["file"] for e in evs if e["event"] == phase and e["result"] == "true"}
+            assert got == set(rels), (phase, got)
+        tamp = {e["file"]: e["result"] for e in evs if e["event"] == "tamper_file"}
+        assert set(tamp) == set(rels)
+        assert set(tamp.values()) <= {"append", "truncate", "delete"}
+
+        # —— 失败分支：备份语料不可达（backup 失败族）→ fail-closed 不更新 success ——
+        pass_bytes = outcome.report_path.read_bytes()
+        fail_dir = sandbox / "fail-reports"
+        empty_root = sandbox / "empty-home"
+        empty_root.mkdir()
+        try:
+            run_drill(wenqu_root=empty_root, report_dir=fail_dir)
+            raise AssertionError("备份失败族必须 fail-closed 抛 DrillFailure")
+        except DrillFailure as exc:
+            assert exc.returncode == 1, exc
+            assert exc.report.get("result") == "FAIL", exc.report
+            assert "corpus empty" in exc.report.get("reason", ""), exc.report
+        # success 不更新：失败运行自建 FAIL 工件，既有 PASS 报告零改写
+        assert outcome.report_path.read_bytes() == pass_bytes, \
+            "失败运行不得改写既有 PASS 报告（success 不更新）"
+        newest_fail = sorted(fail_dir.glob("drill-*.json"))[-1]
+        assert json.loads(newest_fail.read_text(encoding="utf-8"))["result"] == "FAIL"
+        fail_events = read_events(newest_fail.with_suffix(".jsonl"))
+        assert fail_events[-1]["event"] == "drill_fail" \
+            and fail_events[-1]["result"] == "FAIL"
+
+    _record("BAK-01",
+            f"tmp 语料 {len(rels)} 文件（真实 sqlite DB+4 JSON）四步真实演练："
+            f"快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，"
+            f"实测 sha 已变防伪造）→恢复 {rep['steps']['restore']['files_restored']} 文件"
+            f"→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变"
+            f"（只读）；报告 {rep['stamp']} 含时间/文件/结果三要素+jsonl 事件日志"
+            f"{len(evs)} 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）"
+            f"fail-closed：exit1+result=FAIL，既有 PASS 工件零改写=不更新 success")
+
+
+def test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets():
+    """DR-01｜注入：恢复演练｜期望：实测满足冻结 RPO/RTO（§20.5 逐字）。
+
+    §25.1 证据类：restored state/RPO/RTO timing（REQ-DR-001/AC-DR-RPO-RTO）。
+    真实跑 --mode dr（零 mock）：快照完成后注入已知故障延迟窗口 1.5s 再篡改：
+    - RPO = 最后快照点 → 故障注入点实测时差（应 >= 已知窗口，窗口真实流逝；
+      零/负=伪造计时，编排层拒绝 fault_delay<=0）；
+    - RTO = 恢复开始 → 全部对账通过实测耗时；
+    - 冻结目标由演练脚本内冻结（RPO<=300s、RTO<60s，不接受 CLI 覆盖）。
+    断言数字存在且有限、锚点单调、rpo_ok/rto_ok 判定 True、恢复态字节全等、
+    RPO/RTO 记录进报告 JSON（dr 块+reason）与 jsonl dr_metrics 事件。
+    """
+    with tempfile.TemporaryDirectory(prefix="wq_dr01_") as td:
+        sandbox = Path(td)
+        root, rels = _mk_drill_corpus(sandbox)
+        outcome = run_drill(wenqu_root=root, report_dir=sandbox / "reports",
+                            mode="dr", fault_delay_s=1.5)
+        rep = outcome.report
+        dr = rep["dr"]
+        # —— RPO/RTO 数字存在且有限（实测，非补造）——
+        for key in ("rpo_seconds", "rto_seconds"):
+            v = dr[key]
+            assert isinstance(v, (int, float)) and math.isfinite(v), (key, v)
+        # RPO=最后快照点→故障注入点：>= 已知故障窗口（1.5s 真实流逝）
+        assert dr["rpo_seconds"] >= 1.5, dr
+        # 冻结目标正源：脚本内冻结 RPO<=300s / RTO<=60s
+        assert dr["rpo_target_s"] == 300 and dr["rto_target_s"] == 60, dr
+        assert dr["rpo_seconds"] <= 300, dr
+        assert dr["rto_seconds"] < 60, dr
+        assert dr["rpo_ok"] is True and dr["rto_ok"] is True, dr
+        # 计时锚点单调（故障在快照后、对账完成在恢复开始后）
+        assert dr["t_fault_epoch"] > dr["t_snapshot_done_epoch"], dr
+        assert dr["t_reconcile_done_epoch"] > dr["t_restore_start_epoch"], dr
+        # —— 恢复态：字节级全等（restored state）——
+        assert rep["result"] == "PASS" and rep["mode"] == "dr"
+        assert rep["byte_match_all"] is True
+        assert all(f["cmp"] is True and f["sha_match"] is True
+                   for f in rep["steps"]["reconcile"]["files"])
+        # 编排层暴露的实测数字与报告一致
+        assert outcome.rpo_seconds == dr["rpo_seconds"]
+        assert outcome.rto_seconds == dr["rto_seconds"]
+        # —— RPO/RTO 记录进报告（reason 文本 + jsonl dr_metrics 事件）——
+        # reason 由脚本 awk %.6f 打印——用同样 %.6f 格式化比对（浮点 repr 会
+        # 丢尾零，如 0.455810 -> '0.45581'，裸 f-string 比对会假红）
+        assert f"RPO={dr['rpo_seconds']:.6f}s" in rep["reason"], rep["reason"]
+        assert f"RTO={dr['rto_seconds']:.6f}s" in rep["reason"], rep["reason"]
+        metrics = [e for e in read_events(outcome.jsonl_path)
+                   if e["event"] == "dr_metrics"]
+        assert len(metrics) == 1, metrics
+        assert metrics[0]["rpo_seconds"] == dr["rpo_seconds"]
+        assert metrics[0]["rto_seconds"] == dr["rto_seconds"]
+        assert metrics[0]["result"] == "true"
+        # —— 阴性守卫：零故障窗口=伪造计时，编排层拒绝（fail-closed）——
+        try:
+            run_drill(wenqu_root=root, report_dir=sandbox / "reports",
+                      mode="dr", fault_delay_s=0)
+            raise AssertionError("零故障窗口必须被编排层拒绝（伪造计时）")
+        except ValueError:
+            pass
+
+    _record("DR-01",
+            f"DR 模式真实演练 PASS：RPO 实测 {dr['rpo_seconds']}s"
+            f"（>=已知窗口 1.5s，<=冻结目标 {dr['rpo_target_s']}s）、"
+            f"RTO 实测 {dr['rto_seconds']}s（<冻结目标 {dr['rto_target_s']}s）；"
+            f"计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 {len(rels)} 文件"
+            f"字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；"
+            f"零故障窗口被编排层 fail-closed 拒绝")
+
+
+# ---------------------------------------------------------------------------
 # 运行器：逐条执行、写证据工件、exit 0/1
 # ---------------------------------------------------------------------------
 def _git_head() -> str:
@@ -1254,13 +1712,14 @@ def _git_head() -> str:
 def main() -> int:
     tests = [(name, fn) for name, fn in sorted(globals().items())
              if name.startswith("test_") and callable(fn)]
-    order = {f"test_{p}_{n:02d}_": (p, n) for p, n in
-             [("SCH", i) for i in range(1, 8)] + [("ALT", i) for i in (1, 2)] +
-             [("HLT", 1)] + [("DOC", i) for i in range(1, 5)]}
-    tests.sort(key=lambda t: order.get(t[0][:12], (99, 99)))
+    def _order_key(name):  # 前缀长度无关（DR=2 字母、SCH=3 字母皆可）
+        m = re.match(r"test_([A-Z]{2,5})_(\d{2})_", name)
+        return (m.group(1), int(m.group(2))) if m else ("ZZZ", 99)
+
+    tests.sort(key=lambda t: _order_key(t[0]))
 
     print("=" * 72)
-    print("§20 验收 ID 专属测试——SCH/ALT/HLT/DOC 四族 14 条（真实注入/真实断言）")
+    print("§20 验收 ID 专属测试——SCH/ALT/BAK/HLT/DOC/CAP/DR 七族 17 条（真实注入/真实断言）")
     print(f"repo: {REPO}  HEAD: {_git_head()}")
     print("=" * 72)
     passed = failed = 0
@@ -1291,7 +1750,7 @@ def main() -> int:
                 "repo_head": _git_head(),
                 "test_file": "system/tests/test_ac_ops_families.py",
                 "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
-                "scope": "SCH-01~07, ALT-01~02, HLT-01, DOC-01~04（14 ID）",
+                "scope": "SCH-01~07, ALT-01~02, BAK-01, HLT-01, DOC-01~04, CAP-01, DR-01（17 ID）",
                 "run_rc": 0 if not failed else 1,
                 "passed": passed,
                 "failed": failed,

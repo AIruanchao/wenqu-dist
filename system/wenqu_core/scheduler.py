@@ -1553,3 +1553,607 @@ class JobRunner:
             )
         except Exception:  # 告警失败绝不反向影响已提交的执行结果
             log.exception("post-commit warning notification failed")
+
+
+# ===========================================================================
+# W4 生产接线（launchd com.wenqu.scheduler）——纯追加节，不改动上方任何
+# 既有类/函数语义（SCH/ALT/HLT/DOC 既有用例零回退约束）。
+#
+# 每 5 分钟一个 tick，闭环四件事：
+#   1. 观察窗采样：以 TrustedRunner 真跑 tools/observation_daily.py
+#      （复用其全部探针语义，非复刻）；run+heartbeat+outbox 同一事务。
+#   2. gate 聚合刷新：把采样作业结果铸成 station-result-v2 落
+#      ~/.wenqu/state/station-results/<station>.json（同站覆盖=只取最新），
+#      调真 wenquctl gate 聚合，原子写 ~/.wenqu/state/gate-aggregate.json
+#      （dashboard shadow 只读快照数据源由此激活）；无数据时如实写 BLOCKED。
+#   3. 通知闭环：NotificationOutbox 双通道投递——macOS 通知（osascript
+#      display notification）+ 文本投递箱 ~/.wenqu/observation/alerts/
+#      （attempt/receipt/dead-letter 全审计；通知失败→投递箱必成功，
+#      投递箱写入带 3 次重试，成功即 receipt 落 receipts.jsonl）。
+#   4. 心跳与日志：~/.wenqu/observation/heartbeat.json（tick 级心跳）+
+#      ~/.wenqu/observation/logs/scheduler-YYYY-MM-DD.jsonl（每 tick 一行）。
+#
+# 可测性：ProductionPaths 可整体注入（测试用临时 WENQU_HOME，绝不写真实
+# ~/.wenqu）；now= 时钟接缝贯穿（模块文档时间纪律的正源）。
+# ===========================================================================
+
+import os as _os
+import shutil as _shutil
+import subprocess as _subprocess  # noqa: S404——仅 argv 列表调用，shell=False
+from datetime import timezone as _timezone
+
+
+PROD_JOB_ID = "w4.observation-sample"
+PROD_PROBE_ID = "w4-observation-sampler"
+PROD_STATION_ID = 0  # W4 生产观察站（station-result-v2 站位）
+PROD_LABEL = "com.wenqu.scheduler"
+PROD_TICK_INTERVAL = 300  # launchd StartInterval（秒）
+PROD_CHANNEL_MACOS = "macos"
+PROD_CHANNEL_ALERTBOX = "alertbox"
+
+
+class ProductionPaths:
+    """W4 生产运行的全部路径（env 可覆盖；测试整体注入）。"""
+
+    __slots__ = (
+        "repo_root", "wenqu_home", "state_dir", "scheduler_db",
+        "gate_aggregate", "station_results_dir", "observation_root",
+        "samples_dir", "shadow_dir", "alerts_dir", "drills_dir", "logs_dir",
+        "heartbeat", "observation_daily", "cli_py",
+    )
+
+    def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
+        self.repo_root = repo_root
+        self.wenqu_home = wenqu_home
+        self.state_dir = _os.path.join(wenqu_home, "state")
+        self.scheduler_db = _os.path.join(self.state_dir, "scheduler.db")
+        self.gate_aggregate = _os.path.join(self.state_dir,
+                                            "gate-aggregate.json")
+        self.station_results_dir = _os.path.join(self.state_dir,
+                                                 "station-results")
+        self.observation_root = _os.path.join(wenqu_home, "observation")
+        self.samples_dir = _os.path.join(self.observation_root, "samples")
+        self.shadow_dir = _os.path.join(self.observation_root, "shadow")
+        self.alerts_dir = _os.path.join(self.observation_root, "alerts")
+        self.drills_dir = _os.path.join(self.observation_root, "drills")
+        self.logs_dir = _os.path.join(self.observation_root, "logs")
+        self.heartbeat = _os.path.join(self.observation_root, "heartbeat.json")
+        self.observation_daily = _os.path.join(repo_root, "tools",
+                                               "observation_daily.py")
+        self.cli_py = _os.path.join(repo_root, "system", "wenqu_core",
+                                    "cli.py")
+
+    @staticmethod
+    def from_env() -> "ProductionPaths":
+        repo_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+            _os.path.abspath(__file__))))  # system/wenqu_core/ → 仓根
+        wenqu_home = _os.environ.get("WENQU_HOME") or _os.path.expanduser(
+            "~/.wenqu")
+        return ProductionPaths(repo_root=repo_root, wenqu_home=wenqu_home)
+
+    def ensure_dirs(self) -> None:
+        for d in (self.state_dir, self.station_results_dir, self.samples_dir,
+                  self.shadow_dir, self.alerts_dir, self.drills_dir,
+                  self.logs_dir):
+            _os.makedirs(d, exist_ok=True)
+
+
+def _atomic_write_text(path: str, text: str) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    _os.replace(tmp, path)
+
+
+def _atomic_write_json(path: str, payload: Any) -> None:
+    _atomic_write_text(path, json.dumps(payload, ensure_ascii=False,
+                                        indent=2, sort_keys=False) + "\n")
+
+
+def _iso_utc(epoch: float) -> str:
+    return datetime.fromtimestamp(epoch, tz=_timezone.utc).isoformat(
+        timespec="seconds").replace("+00:00", "Z")
+
+
+def _git_head(repo_root: str) -> Optional[str]:
+    git = _shutil.which("git") or "/usr/bin/git"
+    try:
+        p = _subprocess.run([git, "rev-parse", "HEAD"], capture_output=True,
+                            text=True, timeout=15, cwd=repo_root)
+    except (OSError, _subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    head = (p.stdout or "").strip().lower()
+    return head if _SHA_RE.match(head) else None
+
+
+# ---------------------------------------------------------------------------
+# 通知通道（W4 双通道）
+# ---------------------------------------------------------------------------
+
+
+def _applescript_escape(text: str) -> str:
+    """AppleScript 字符串字面量转义 + 控制字符清洗（通知单行化）。"""
+    cleaned = "".join(
+        ch if ch >= " " and ch != "\x7f" else " " for ch in text)
+    return cleaned.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def make_macos_sender(*, osascript: Optional[str] = None) -> ChannelSender:
+    """macOS 通知通道：osascript display notification（argv 列表，无 shell）。
+
+    失败语义：osascript 不存在/超时/非零退出 → raise（由 outbox 记
+    attempt 并按退避重试→dead-letter；alertbox 通道独立兜底）。
+    """
+    bin_path = osascript or _shutil.which("osascript") or "/usr/bin/osascript"
+
+    def sender(payload: Dict[str, Any]) -> None:
+        title = _applescript_escape(
+            f"[wenqu:{payload.get('severity', 'INFO')}] "
+            f"{str(payload.get('subject', ''))[:120]}")
+        body = _applescript_escape(str(payload.get("body", ""))[:220])
+        argv = [bin_path, "-e",
+                f'display notification "{body}" with title "{title}"']
+        try:
+            p = _subprocess.run(argv, capture_output=True, text=True,
+                                timeout=15)
+        except (OSError, _subprocess.SubprocessError) as exc:
+            raise RuntimeError(f"osascript spawn failed: {exc}") from exc
+        if p.returncode != 0:
+            raise RuntimeError(
+                f"osascript rc={p.returncode}: "
+                f"{(p.stderr or '').strip()[:200]}")
+
+    return sender
+
+
+def make_alertbox_sender(alerts_dir: str, *, retries: int = 3) -> ChannelSender:
+    """文本投递箱通道：必成功通道（本地原子写 + N 次重试）。
+
+    每条消息一个 txt（文件名含 message_id → 重试幂等覆盖）+ 回执追加
+    receipts.jsonl（每行一个成功投递 attempt，含 message_id/时间/通道）。
+    重试后仍失败 → raise → outbox 记 attempt（审计正源在库表）。
+    """
+
+    def sender(payload: Dict[str, Any]) -> None:
+        mid = str(payload.get("message_id", "unknown"))
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        name = f"{ts}-{payload.get('severity', 'INFO')}-{mid[:12]}.txt"
+        path = _os.path.join(alerts_dir, name)
+        text = (
+            f"message_id: {mid}\n"
+            f"channel: {PROD_CHANNEL_ALERTBOX}\n"
+            f"severity: {payload.get('severity')}\n"
+            f"sent_at: {_iso_utc(time.time())}\n"
+            f"subject: {payload.get('subject', '')}\n"
+            f"attempts_so_far: {payload.get('attempts', 0) + 1}\n"
+            f"---\n{payload.get('body', '')}\n"
+        )
+        last_exc: Optional[BaseException] = None
+        for attempt in range(max(1, retries)):
+            try:
+                _os.makedirs(alerts_dir, exist_ok=True)
+                _atomic_write_text(path, text)
+                with open(_os.path.join(alerts_dir, "receipts.jsonl"), "a",
+                          encoding="utf-8") as fh:
+                    fh.write(json.dumps({
+                        "message_id": mid,
+                        "channel": PROD_CHANNEL_ALERTBOX,
+                        "file": name,
+                        "severity": payload.get("severity"),
+                        "subject": payload.get("subject"),
+                        "receipt_at": _iso_utc(time.time()),
+                        "attempt": payload.get("attempts", 0) + 1,
+                    }, ensure_ascii=False) + "\n")
+                return
+            except OSError as exc:
+                last_exc = exc
+                time.sleep(0.5 * (attempt + 1))
+        raise RuntimeError(f"alertbox write failed after {retries} tries: "
+                           f"{last_exc}")
+
+    return sender
+
+
+# ---------------------------------------------------------------------------
+# station-result-v2 铸造 + gate 聚合刷新
+# ---------------------------------------------------------------------------
+
+
+def _sha256_file(path: str) -> Optional[str]:
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(262144), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _latest_sample_artifact(paths: "ProductionPaths",
+                            finished_after: Optional[float] = None
+                            ) -> Tuple[Optional[str], Optional[int]]:
+    """取最新观察样本文件作 station 工件（需可读且非空）。
+
+    finished_after 给出时要求 mtime 晚于该时刻（防止把上一轮陈旧样本
+    记成本轮工件——诚实分母）。"""
+    best: Optional[Tuple[float, str, int]] = None
+    try:
+        names = _os.listdir(paths.samples_dir)
+    except OSError:
+        return None, None
+    for name in sorted(names):
+        if not name.endswith(".json"):
+            continue
+        path = _os.path.join(paths.samples_dir, name)
+        try:
+            st = _os.stat(path)
+        except OSError:
+            continue
+        if st.st_size <= 0:
+            continue
+        if finished_after is not None and st.st_mtime < finished_after:
+            continue
+        if best is None or st.st_mtime > best[0]:
+            best = (st.st_mtime, path, st.st_size)
+    if best is None:
+        return None, None
+    return best[1], best[2]
+
+
+def build_station_result(paths: "ProductionPaths", run: Dict[str, Any],
+                         *, now: float) -> Dict[str, Any]:
+    """把采样作业的最近 run 铸成 station-result-v2（gate CLI 严格校验）。"""
+    verdict = run.get("policy_verdict")
+    status = run.get("execution_status")
+    art_path, art_size = _latest_sample_artifact(
+        paths, finished_after=run.get("started_at"))
+    scanned = 1 if (art_path is not None) else 0
+    # 采样器完成且样本工件在位 → PASS 证据齐全；否则如实降级：
+    #   执行完成但工件缺失 = CONDITIONAL（软，不上绿）；
+    #   执行未完成（ERROR/TIMEOUT/BLOCKED）或 FAIL = 对应阻断裁决。
+    if status == "COMPLETED" and verdict == "PASS" and scanned == 1:
+        sr_verdict, assertion = "PASS", "PASS"
+    elif status == "COMPLETED" and verdict in ("FAIL", "CONDITIONAL"):
+        sr_verdict, assertion = verdict, "FAIL"
+    elif status == "COMPLETED":
+        sr_verdict, assertion = "CONDITIONAL", "ERROR"
+    else:
+        sr_verdict, assertion = "NOT_EVALUATED", "ERROR"
+    rc = run.get("actual_exit_code")
+    doc: Dict[str, Any] = {
+        "schema_version": "2.0",
+        "run_id": str(run.get("run_id", "w4-unknown"))
+                  .replace("job-", "w4-").replace(".", "-"),
+        "station_id": PROD_STATION_ID,
+        "attempt_id": str(run.get("run_id", "w4-attempt")),
+        "execution_status": status or "ERROR",
+        "policy_verdict": sr_verdict,
+        "identity": {
+            "commit_sha": run.get("commit_sha") or ("0" * 40),
+            "environment": run.get("environment") or "production",
+            "scope_hash": "wenqu-dist:w4-production-observation",
+            "project_id": "wenqu-dist",
+        },
+        "tool": {"name": "observation_daily", "version": "w4-1.0"},
+        "execution": {
+            "argv_digest": run.get("argv_digest") or "",
+            "started_at": _iso_utc(float(run.get("started_at") or now)),
+            "ended_at": _iso_utc(float(run.get("finished_at") or now)),
+            "actual_exit_code": rc if isinstance(rc, int) else 1,
+            "expected_exit_set": [0],
+            "assertion_verdict": assertion,
+        },
+        "coverage": {"denominator": 1, "scanned": scanned,
+                     "exclusions": []},
+        "artifacts": [],
+    }
+    if art_path is not None and art_size is not None:
+        digest = _sha256_file(art_path)
+        if digest:
+            doc["artifacts"].append({
+                "cas_digest": f"sha256:{digest}", "size": art_size})
+        else:
+            doc["coverage"]["scanned"] = 0
+    return doc
+
+
+def _blocked_snapshot(reason: str, *, now: float, **extra: Any
+                      ) -> Dict[str, Any]:
+    snap: Dict[str, Any] = {
+        "generated_at": _iso_utc(now),
+        "policy_verdict": "BLOCKED",
+        "aggregate_outcome": "BLOCKED",
+        "technical_eligible": False,
+        "reason": reason,
+        "reasons": [reason],
+        "counts": {"required_total": 0, "required_reported": 0,
+                   "required_missing": 0, "bypass_stations": 0,
+                   "duplicates_ignored": 0, "conflicts": 0, "malformed": 0},
+        "source": "w4-scheduler",
+    }
+    snap.update(extra)
+    return snap
+
+
+def refresh_gate_aggregate(paths: "ProductionPaths", *,
+                           now: Optional[float] = None) -> Dict[str, Any]:
+    """真跑 wenquctl gate 聚合并原子落 gate-aggregate.json。
+
+    无结果数据 / CLI 不可执行 → 如实写 BLOCKED 快照（绝不写真空 PASS）。
+    返回写入的快照（含 _written 标记与 CLI 退出码审计字段）。
+    """
+    now = _as_epoch(now)
+    results_dir = paths.station_results_dir
+    try:
+        names = [n for n in _os.listdir(results_dir) if n.endswith(".json")]
+    except OSError:
+        names = []
+    if not names:
+        snap = _blocked_snapshot(
+            "no station results under %s（采样器尚未产出任何结果——"
+            "拒绝真空 PASS，如实 BLOCKED）" % results_dir,
+            now=now, inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                             "schema_invalid": 0},
+            cli_exit=None)
+    else:
+        # F6-GATE-SCOPE-001（共享树 2026-10-08 17:25 并行任务入契约）：裸
+        # gate 调用默认拒绝。本刷新是 dashboard shadow 的观测快照数据源，
+        # 不是发布门判定——不冒充 freeze_run_manifest 正门（采样器非
+        # pipeline run，伪造 run-manifest 反而是契约滥用），显式走
+        # --allow-self-declared 诊断模式；快照如实携带
+        # mode=self_declared_diagnostic / scope_binding.mode=self_declared，
+        # 消费方可据此识别其不具上绿效力背书。
+        argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+                or "python3", paths.cli_py, "gate", "--results", results_dir,
+                "--allow-self-declared"]
+        try:
+            p = _subprocess.run(argv, capture_output=True, text=True,
+                                timeout=60, cwd=paths.repo_root)
+            out, rc = p.stdout, p.returncode
+        except (OSError, _subprocess.SubprocessError) as exc:
+            out, rc = "", -1
+            snap = _blocked_snapshot(f"wenquctl gate spawn failed: {exc}",
+                                     now=now, cli_exit=-1)
+            _atomic_write_json(paths.gate_aggregate, snap)
+            return snap
+        parsed = None
+        for line in reversed((out or "").strip().splitlines()):
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    parsed = json.loads(line)
+                except ValueError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    break
+        if not isinstance(parsed, dict):
+            snap = _blocked_snapshot(
+                "wenquctl gate 输出不可解析（rc=%s out=%.160s err=%.160s）"
+                % (rc, out or "", (p.stderr or "")),
+                now=now, cli_exit=rc)
+        else:
+            snap = dict(parsed)
+            snap.setdefault("generated_at", _iso_utc(now))
+            snap["source"] = "wenquctl-gate"
+            snap["cli_exit"] = rc
+    _atomic_write_json(paths.gate_aggregate, snap)
+    return snap
+
+
+# ---------------------------------------------------------------------------
+# 生产 tick（唯一入口；launchd 每 5 分钟调一次）
+# ---------------------------------------------------------------------------
+
+
+def _prod_job_definition(paths: "ProductionPaths",
+                         argv: Optional[Tuple[str, ...]] = None
+                         ) -> JobDefinition:
+    return JobDefinition(
+        job_id=PROD_JOB_ID,
+        owner="w4-production",
+        argv=argv or (
+            _os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+            or "python3", paths.observation_daily),
+        schedule=ScheduleSpec.every(PROD_TICK_INTERVAL),
+        environment="production",
+        probe_id=PROD_PROBE_ID,
+        station_id=PROD_STATION_ID,
+        cwd=paths.repo_root,
+        due_window_seconds=600.0,
+        catch_up="COALESCE",
+        max_catch_up_runs=2,
+        watchdog=WatchdogPolicy(freshness_seconds=1200.0,
+                                grace_seconds=1200.0),
+        ttl_seconds=900.0,
+        expected_exit_set=(0,),
+        channels=(PROD_CHANNEL_MACOS, PROD_CHANNEL_ALERTBOX),
+    )
+
+
+def production_tick(*, paths: Optional["ProductionPaths"] = None,
+                    now: Optional[float] = None,
+                    runner: Optional[TrustedRunner] = None,
+                    macos_sender: Optional[ChannelSender] = None,
+                    job_argv: Optional[Tuple[str, ...]] = None,
+                    ) -> Dict[str, Any]:
+    """W4 生产 tick：采样 → 铸站结果 → gate 刷新 → 心跳 → 通知投递。
+
+    返回 tick 摘要（同时写 heartbeat.json + 当日 tick 日志一行）。
+    tick 进程自身的成败与作业 verdict 分离：作业 FAIL 会体现在
+    gate/心跳/通知里，但 tick 仍 rc=0（调度器活着就是它的职责）。
+    首跑 bootstrap：该作业从未有过任何 run 时，本 tick 立即手动跑一次
+    （launchd RunAtLoad 首挂载即出首跑证据；此后走到期机制）。
+    job_argv/macdos_sender 为测试注入接缝（生产路径缺省用真采样器与
+    真 osascript 通道）。
+    """
+    paths = paths or ProductionPaths.from_env()
+    paths.ensure_dirs()
+    now = _as_epoch(now)
+
+    store = SchedulerStore(paths.scheduler_db)
+    try:
+        registry = ScheduleRegistry(store)
+        outbox = NotificationOutbox(
+            store,
+            critical_channels=(PROD_CHANNEL_MACOS, PROD_CHANNEL_ALERTBOX),
+        )
+        outbox.register_channel(
+            PROD_CHANNEL_MACOS, macos_sender or make_macos_sender())
+        outbox.register_channel(
+            PROD_CHANNEL_ALERTBOX, make_alertbox_sender(paths.alerts_dir))
+        heartbeat_mon = HeartbeatMonitor(store, outbox)
+        runner_impl = runner or TrustedRunner(timeout=240.0)
+        jrunner = JobRunner(
+            store, runner_impl, registry=registry, outbox=outbox,
+            heartbeat=heartbeat_mon,
+            commit_sha_provider=lambda: _git_head(paths.repo_root),
+        )
+        # 先取既有调度状态：register(replace=True) 会把 next_due_at 重置为
+        # now+interval——若不保留，每个 tick 先注册再算到期，到期被永远
+        # 推到未来 = 采样作业只在首跑 bootstrap 手动跑一次，此后每 tick 仅
+        # 拿陈旧 run 刷新 gate（假 PASS）+ 心跳误告警（2026-10-08 生产二跳
+        # 实锄：tick2 due=[]、runs 表零增长）。定义可升级（argv/指纹变更
+        # 照常生效），但调度状态（next_due_at / last_consumed_at /
+        # created_at=宽限锚点）必须跨 tick 保留。
+        prev_state: Optional[Dict[str, Any]] = None
+        try:
+            prev_state = registry.job_state(PROD_JOB_ID)
+        except SchedulerError:
+            prev_state = None
+        registry.register(
+            _prod_job_definition(paths, argv=job_argv), replace=True, now=now)
+        if prev_state is not None and prev_state["next_due_at"] is not None:
+            with store.transaction() as conn:
+                conn.execute(
+                    "UPDATE scheduler_jobs SET next_due_at=?,"
+                    " last_consumed_at=?, created_at=? WHERE job_id=?",
+                    (prev_state["next_due_at"],
+                     prev_state["last_consumed_at"],
+                     prev_state["registered_at"], PROD_JOB_ID),
+                )
+
+        due = registry.due_jobs(now=now)
+        runs: List[Dict[str, Any]] = []
+        bootstrapped = False
+        ever_ran = store.query(
+            "SELECT COUNT(*) FROM scheduler_runs WHERE job_id=?",
+            (PROD_JOB_ID,))[0][0]
+        if ever_ran == 0:
+            # 首跑 bootstrap：手动 run（无 scheduled_at 幂等键，不推进 next_due）
+            rec = jrunner.run_job(PROD_JOB_ID, now=now)
+            runs.append(rec.__dict__)
+            bootstrapped = True
+        for occ in due:
+            if occ.run:
+                rec = jrunner.run_job(occ.job_id,
+                                      scheduled_at=occ.scheduled_at,
+                                      now=now)
+                runs.append(rec.__dict__)
+            else:
+                registry.mark_skipped(occ.job_id, occ.scheduled_at,
+                                      occ.reason, now=now)
+
+        # 最近一次真实 run（含本 tick 未到期时的历史 run）铸站结果。
+        rows = store.query(
+            "SELECT * FROM scheduler_runs WHERE job_id=? "
+            "ORDER BY started_at DESC LIMIT 1", (PROD_JOB_ID,))
+        station_doc = None
+        if rows:
+            run_dict = JobRunner._row_to_record_dict(rows[0])
+            station_doc = build_station_result(paths, run_dict, now=now)
+            station_path = _os.path.join(
+                paths.station_results_dir,
+                f"{PROD_STATION_ID}.json")  # 同站覆盖=gate 只见最新
+            _atomic_write_json(station_path, station_doc)
+
+        gate = refresh_gate_aggregate(paths, now=now)
+        health = heartbeat_mon.check_health(now=now, notify=True)
+        dispatch = outbox.dispatch_due(now=now)
+        stats = outbox.stats()
+
+        payload = {
+            "label": PROD_LABEL,
+            "tick_at": _iso_utc(now),
+            "tick_epoch": now,
+            "job_id": PROD_JOB_ID,
+            "bootstrapped": bootstrapped,
+            "due": [{"scheduled_at": o.scheduled_at, "run": o.run,
+                     "reason": o.reason} for o in due],
+            "runs": [{"run_id": r["run_id"],
+                      "execution_status": r["execution_status"],
+                      "policy_verdict": r["policy_verdict"],
+                      "actual_exit_code": r["actual_exit_code"],
+                      "refreshed_heartbeat": r["refreshed_heartbeat"],
+                      "notifications_enqueued": r["notifications_enqueued"]}
+                     for r in runs],
+            "station_result": (None if station_doc is None else {
+                "policy_verdict": station_doc["policy_verdict"],
+                "coverage": station_doc["coverage"],
+                "execution_status": station_doc["execution_status"]}),
+            "gate": {"aggregate_outcome": gate.get("aggregate_outcome"),
+                     "policy_verdict": gate.get("policy_verdict"),
+                     "reason": gate.get("reason"),
+                     "cli_exit": gate.get("cli_exit")},
+            "health": [{"job_id": h.job_id, "state": h.state,
+                        "healthy": h.healthy, "severity": h.severity}
+                       for h in health],
+            "notifications": {"dispatch": dispatch, "outbox_stats": stats},
+            "paths": {"scheduler_db": paths.scheduler_db,
+                      "gate_aggregate": paths.gate_aggregate,
+                      "heartbeat": paths.heartbeat,
+                      "alerts_dir": paths.alerts_dir},
+            "tick_rc": 0,
+        }
+        _atomic_write_json(paths.heartbeat, payload)
+        log_path = _os.path.join(
+            paths.logs_dir,
+            "scheduler-" + datetime.fromtimestamp(now).strftime(
+                "%Y-%m-%d") + ".jsonl")
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return payload
+    finally:
+        store.close()
+
+
+def _prod_main(argv: Optional[List[str]] = None) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="wenqu-scheduler",
+        description="W4 生产调度 tick（launchd com.wenqu.scheduler 入口）")
+    parser.add_argument("command", nargs="?", default="tick",
+                        choices=["tick"],
+                        help="tick=执行一个生产周期（默认）")
+    args = parser.parse_args(argv)
+    try:
+        payload = production_tick()
+    except Exception as exc:  # tick 进程级失败：写错误心跳（可观测）后 rc=2
+        log.exception("production tick crashed")
+        try:
+            paths = ProductionPaths.from_env()
+            paths.ensure_dirs()
+            _atomic_write_json(paths.heartbeat, {
+                "label": PROD_LABEL,
+                "tick_at": _iso_utc(time.time()),
+                "tick_rc": 2,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+        except Exception:
+            log.exception("failed to write crash heartbeat")
+        return 2
+    print(json.dumps({
+        "tick_rc": payload["tick_rc"],
+        "tick_at": payload["tick_at"],
+        "gate": payload["gate"]["aggregate_outcome"],
+        "health": payload["health"],
+        "notifications": payload["notifications"]["dispatch"],
+    }, ensure_ascii=False))
+    return int(payload["tick_rc"])
+
+
+if __name__ == "__main__":  # python3 -m wenqu_core.scheduler tick
+    import sys as _sys
+    _sys.exit(_prod_main())

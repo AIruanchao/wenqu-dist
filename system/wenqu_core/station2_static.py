@@ -15,6 +15,11 @@
 - SupplyChainScanner     npm audit --json（经 TrustedRunner）→ 解析 vulnerabilities
                          列表；有效 JSON + HIGH/CRITICAL→FAIL；空输出/解析失败/
                          自报计数与解析列表不一致/超时→ERROR 类（绝非 PASS）。
+                         两个可选产品面（默认关闭）：SC-03 lockfile 变更差异
+                         （新增依赖单独计入 finding/分母；resolved/integrity/
+                         install script 变化→HIGH/P1→FAIL/人工审）；SC-05 离线
+                         快照签名+时效校验（build_snapshot_envelope 信封，
+                         验签失败/过期→该源数据不可用→BLOCKED，fail-closed）。
 - DuplicateCodeScanner   jscpd（经 TrustedRunner，钉版本口径）→ 读 jscpd-report.json
                          → 与 dupscan 基线（JSON）棘轮比对（只减不增，超基线=FAIL）。
 - EngineFiveTypesScanner 持续修复引擎五类（ENUM/CTX/MSG/DUALWRITE/DOMAIN）——
@@ -64,6 +69,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -71,7 +77,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -100,12 +106,15 @@ __all__ = [
     "DEFAULT_ENGINE_STATE_PATH",
     "JSCPD_PINNED_VERSION",
     "DEFAULT_JSCPD_MIN_TOKENS",
+    "SNAPSHOT_KIND",
+    "DEFAULT_SNAPSHOT_MAX_AGE_S",
     "Station2Error",
     "Station2ConfigError",
     "RawTrustedRunner",
     "CapturedRun",
     "ScanFinding",
     "ScannerReport",
+    "build_snapshot_envelope",
     "SupplyChainScanner",
     "DuplicateCodeScanner",
     "EngineFiveTypesScanner",
@@ -147,6 +156,7 @@ _EXIT_PASS, _EXIT_FAIL, _EXIT_ERROR, _EXIT_BLOCKED, _EXIT_TIMEOUT = 0, 1, 2, 3, 
 
 _RE_RUN_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
 _RE_SHA40 = re.compile(r"^[0-9a-f]{40}$")
+_RE_HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _RE_JSCPD_VER = re.compile(r"jscpd@([0-9][0-9A-Za-z.\-]*)")
 
 _ST2_IDENTITY_KEYS = frozenset({
@@ -188,6 +198,16 @@ _ROUTE_EXTS: Tuple[str, ...] = (".ts", ".tsx", ".js", ".jsx")
 #: finding 明细默认上限（防 2909 对级克隆洪泛账本；计数仍取全量解析列表）。
 DEFAULT_FINDING_DETAIL_CAP = 50
 
+#: 离线依赖快照信封 kind（SC-05：签名+时效校验的信封契约）。
+SNAPSHOT_KIND = "wenqu-npm-audit-snapshot/1"
+
+#: 快照默认新鲜度窗口（7 天——对齐站2 evidence_class=permission_vulnerability
+#: 的 TTL 严档；过期=依赖基线陈旧→fail-closed 该源数据不可用）。
+DEFAULT_SNAPSHOT_MAX_AGE_S = 7 * 86400
+
+#: 快照 captured_at 允许的时钟偏移容忍（未来时间戳超过该窗=回放/伪造迹象）。
+_SNAPSHOT_FUTURE_SKEW_S = 60.0
+
 
 # ---------------------------------------------------------------------------
 # 异常
@@ -203,6 +223,11 @@ class Station2ConfigError(Station2Error, ValueError):
 
 class _PayloadError(ValueError):
     """原始输出解析失败——一律映射 ERROR（空输出≠零发现，T-07）。"""
+
+
+class _SnapshotVerificationError(ValueError):
+    """离线快照验签/时效失败（SC-05）——该源数据不可用，fail-closed 映射
+    BLOCKED（§20.5 期望；绝不折算 PASS，也绝不采信未验签的载荷内容）。"""
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +262,67 @@ def _argv_digest(argv: Sequence[str]) -> str:
     """与 runner.TrustedRunner.argv_digest 同算法（canonical JSON of argv list）。"""
     canonical = json.dumps(list(argv), separators=(",", ":"), ensure_ascii=False)
     return _sha256_hex(canonical.encode("utf-8"))
+
+
+def _parse_iso_dt(value: Any) -> Optional[datetime]:
+    """宽松 ISO-8601 解析（接受 Z 后缀）；失败返回 None（不抛）。"""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:  # 无时区=不可比较——拒绝（fail-closed）
+        return None
+    return parsed
+
+
+def build_snapshot_envelope(
+    payload: Any,
+    *,
+    key: str,
+    captured_at: Any,
+) -> Dict[str, Any]:
+    """离线依赖快照信封生产端（与 SupplyChainScanner.verify_snapshot_envelope
+    对偶的签名通道，SC-05）。
+
+    信封契约::
+
+        {"snapshot": {"kind": SNAPSHOT_KIND,
+                      "captured_at": "…Z",
+                      "content_hash": sha256(canonical(payload)),
+                      "signature": hmac_sha256(key, "<content_hash>.<captured_at>")},
+         "payload": {…npm audit JSON…}}
+
+    content_hash 绑定 canonical JSON（键序无关），signature 再绑
+    hash+时间戳——载荷被签名后改动任何字节、换时间戳、换 hash 三者
+    任一都会在验签面失配。
+    """
+    if not isinstance(key, str) or not key:
+        raise Station2ConfigError("snapshot signing key must be a non-empty string")
+    captured_iso = (
+        captured_at if isinstance(captured_at, str) else _iso_z(captured_at)
+    )
+    if not isinstance(payload, Mapping):
+        raise Station2ConfigError(
+            f"snapshot payload must be a mapping, got {type(payload).__name__}"
+        )
+    content_hash = _sha256_hex(_canonical_json(dict(payload)).encode("utf-8"))
+    signature = hmac.new(
+        key.encode("utf-8"),
+        f"{content_hash}.{captured_iso}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return {
+        "snapshot": {
+            "kind": SNAPSHOT_KIND,
+            "captured_at": captured_iso,
+            "content_hash": content_hash,
+            "signature": signature,
+        },
+        "payload": dict(payload),
+    }
 
 
 def _attempt_id(run_id: str, tag: str) -> str:
@@ -695,6 +781,21 @@ class SupplyChainScanner(_Station2Scanner):
     - metadata 自报 HIGH+CRITICAL 计数 ≠ 解析列表计数 → ERROR（证据损坏，不猜）
     coverage：denominator=scanned=metadata.dependencies.total（动态，npm 自报依赖
     总数——这是分母的合法正源；漏洞「发现数」才必须取解析列表）。
+
+    两个可选产品面（默认关闭；开启时不影响上述基础矩阵）：
+    - SC-03 lockfile 变更差异（lockfile_baseline_path 给出即开启）：解析
+      package-lock.json（v2/v3 packages 面 + v1 dependencies 面兜底）与基线
+      lockfile 的依赖指纹（resolved/integrity/hasInstallScript）——新增依赖
+      每个单独计入 finding 与分母（denominator += 新增数）；resolved/integrity
+      变化与新增 install script 各落一条 HIGH/P1 finding（§20.3：install
+      script/resolved/integrity 变化→FAIL/人工审）。基线/当前 lockfile 缺失
+      或畸形=无锚点→ERROR（fail-closed，同 dupscan 基线纪律）。
+    - SC-05 快照签名/时效（snapshot_verify_key 给出即开启）：stdout 必须是
+      build_snapshot_envelope 信封（content_hash+captured_at+HMAC 签名）；
+      验签失败/内容哈希失配/时间戳非法或未来/过期（captured_at 距今超
+      snapshot_max_age_s）→ 该源数据不可用 → BLOCKED（§20.5；分母不采信
+      未验签载荷，0/0+原因入 note）。分页不全天性由 ADV-02 的自报计数
+      交叉核对机制覆盖（截断=证据损坏 ERROR）。
     """
 
     slug = "supply"
@@ -705,10 +806,30 @@ class SupplyChainScanner(_Station2Scanner):
         *,
         lockfile_name: str = "package-lock.json",
         npm_argv: Optional[Sequence[str]] = None,
+        lockfile_baseline_path: Optional[str] = None,
+        snapshot_verify_key: Optional[str] = None,
+        snapshot_max_age_s: float = DEFAULT_SNAPSHOT_MAX_AGE_S,
         **base_kwargs: Any,
     ) -> None:
         super().__init__(**base_kwargs)
         self._lockfile_name = lockfile_name or "package-lock.json"
+        self._lockfile_baseline_path = (
+            Path(lockfile_baseline_path) if lockfile_baseline_path else None
+        )
+        if snapshot_verify_key is not None and (
+            not isinstance(snapshot_verify_key, str) or not snapshot_verify_key
+        ):
+            raise Station2ConfigError(
+                "snapshot_verify_key must be a non-empty string when provided"
+            )
+        self._snapshot_verify_key = snapshot_verify_key
+        if not isinstance(snapshot_max_age_s, (int, float)) \
+                or isinstance(snapshot_max_age_s, bool) \
+                or snapshot_max_age_s <= 0:
+            raise Station2ConfigError(
+                f"snapshot_max_age_s must be a positive number, got {snapshot_max_age_s!r}"
+            )
+        self._snapshot_max_age_s = float(snapshot_max_age_s)
         argv = list(npm_argv) if npm_argv else list(DEFAULT_NPM_AUDIT_ARGV)
         if "--json" not in argv:  # 解析契约要求 JSON stdout（缺则补，禁裸文本）
             argv.append("--json")
@@ -727,6 +848,15 @@ class SupplyChainScanner(_Station2Scanner):
             payload = json.loads(text)
         except json.JSONDecodeError as exc:
             raise _PayloadError(f"npm audit stdout is not valid JSON: {exc}") from exc
+        return SupplyChainScanner.parse_audit_payload(payload)
+
+    @staticmethod
+    def parse_audit_payload(payload: Any) -> Dict[str, Any]:
+        """已解析的 npm audit JSON 对象 → {findings, dep_total, reported_high_plus}。
+
+        与 parse_audit_stdout 同契约，供快照信封通道复用（SC-05：载荷先验签
+        再解析，本函数只消费验签后的可信对象）。
+        """
         if not isinstance(payload, dict):
             raise _PayloadError(f"npm audit JSON must be an object, got {type(payload).__name__}")
         vulns = payload.get("vulnerabilities")
@@ -784,7 +914,220 @@ class SupplyChainScanner(_Station2Scanner):
             "reported_high_plus": reported_high_plus,
         }
 
+    # -- SC-03：lockfile 依赖指纹与 diff（纯函数） ---------------------------
+    @staticmethod
+    def parse_lockfile_dependencies(payload: Any) -> Dict[str, Dict[str, Any]]:
+        """package-lock.json → {name: {resolved, integrity, has_install_script}}。
+
+        - v2/v3 ``packages`` 面：键 ``node_modules/<name>``（嵌套
+          ``…/node_modules/b`` 取叶子包名）；键 ``""``（工程根包自述）跳过；
+          每条取 resolved/integrity/hasInstallScript 三指纹。
+        - v1 ``dependencies`` 面兜底（packages 面未覆盖的名字才补）。
+        - 结构不认识（两个面都缺失）/条目类型错 → _PayloadError（→ERROR，
+          fail-closed：无锚点不得声明通过）。
+        """
+        if not isinstance(payload, dict):
+            raise _PayloadError(
+                f"lockfile must be a JSON object, got {type(payload).__name__}"
+            )
+        deps: Dict[str, Dict[str, Any]] = {}
+        packages = payload.get("packages")
+        has_packages_face = packages is not None
+        if has_packages_face:
+            if not isinstance(packages, dict):
+                raise _PayloadError("lockfile.packages must be an object (npm lockfile v2/v3)")
+            for key, entry in packages.items():
+                if not isinstance(key, str) or not isinstance(entry, dict):
+                    raise _PayloadError(
+                        f"lockfile.packages[{key!r}] must be a str->object entry"
+                    )
+                name = key.rsplit("node_modules/", 1)[-1].strip()
+                if not name:  # ""=根包自述（工程本身，非依赖）——不入指纹表
+                    continue
+                deps[name] = {
+                    "resolved": str(entry.get("resolved") or ""),
+                    "integrity": str(entry.get("integrity") or ""),
+                    "has_install_script": entry.get("hasInstallScript") is True,
+                }
+        legacy = payload.get("dependencies")
+        has_legacy_face = isinstance(legacy, dict)
+        if has_legacy_face:
+            for name, entry in legacy.items():
+                if name in deps:  # packages 面优先，v1 面只补缺
+                    continue
+                if not isinstance(entry, dict):
+                    raise _PayloadError(
+                        f"lockfile.dependencies[{name!r}] must be an object"
+                    )
+                deps[name] = {
+                    "resolved": str(entry.get("resolved") or ""),
+                    "integrity": str(entry.get("integrity") or ""),
+                    "has_install_script": entry.get("hasInstallScript") is True,
+                }
+        if not has_packages_face and not has_legacy_face:
+            raise _PayloadError(
+                "lockfile format unrecognized: neither 'packages' (v2/v3) nor "
+                "'dependencies' (v1) present (no diff anchor -> ERROR)"
+            )
+        return deps
+
+    @staticmethod
+    def diff_lockfile_dependencies(
+        baseline: Mapping[str, Mapping[str, Any]],
+        current: Mapping[str, Mapping[str, Any]],
+    ) -> Dict[str, Any]:
+        """依赖指纹 diff：新增/删除名单 + 逐包 aspect 变化列表。
+
+        aspect ∈ {resolved, integrity, install_script}——§20.3 注入面的三个
+        语义位：resolved/integrity 任一变化即一条；install_script 只报
+        false→true（出现安装脚本=新攻击面）；true→false 是收敛，不报。
+        删除名单只入 note（移除依赖不新增供应链攻击面，不计分母）。
+        """
+        added = sorted(set(current) - set(baseline))
+        removed = sorted(set(baseline) - set(current))
+        changes: List[Dict[str, Any]] = []
+        for name in sorted(set(baseline) & set(current)):
+            before, after = baseline[name], current[name]
+            if before["resolved"] != after["resolved"]:
+                changes.append({
+                    "name": name, "aspect": "resolved",
+                    "before": before["resolved"], "after": after["resolved"],
+                })
+            if before["integrity"] != after["integrity"]:
+                changes.append({
+                    "name": name, "aspect": "integrity",
+                    "before": before["integrity"], "after": after["integrity"],
+                })
+            if not before["has_install_script"] and after["has_install_script"]:
+                changes.append({
+                    "name": name, "aspect": "install_script",
+                    "before": False, "after": True,
+                })
+        return {"added": added, "removed": removed, "changes": changes}
+
+    # -- SC-05：快照信封验签/时效（纯函数） ---------------------------------
+    @staticmethod
+    def verify_snapshot_envelope(
+        envelope: Any,
+        *,
+        key: str,
+        now: datetime,
+        max_age_s: float,
+    ) -> Dict[str, Any]:
+        """验签+时效+内容哈希三重校验；任一失配抛 _SnapshotVerificationError。
+
+        检查序（失败原因逐面可辨，供 note 审计）：
+        1. 信封结构/kind/payload 存在；
+        2. content_hash == sha256(canonical(payload))——签名后被改的载荷失配；
+        3. captured_at 可解析、带时区、不早于 now+偏移容忍窗（未来=回放迹象）；
+        4. 时效：now-captured_at ≤ max_age_s（过期=依赖基线陈旧）；
+        5. signature == HMAC-SHA256(key, "<content_hash>.<captured_at>")。
+        通过返回 {captured_at, age_s, content_hash}（审计元数据）。
+        """
+        if not isinstance(envelope, Mapping):
+            raise _SnapshotVerificationError(
+                f"snapshot envelope must be a JSON object, got "
+                f"{type(envelope).__name__} (unsigned source -> unusable, BLOCKED)"
+            )
+        snap = envelope.get("snapshot")
+        if not isinstance(snap, Mapping):
+            raise _SnapshotVerificationError(
+                "snapshot envelope missing 'snapshot' metadata "
+                "(unsigned source -> unusable, BLOCKED)"
+            )
+        if snap.get("kind") != SNAPSHOT_KIND:
+            raise _SnapshotVerificationError(
+                f"unknown snapshot kind {snap.get('kind')!r} "
+                f"(expected {SNAPSHOT_KIND!r}; unverified source -> BLOCKED)"
+            )
+        payload = envelope.get("payload")
+        if not isinstance(payload, Mapping):
+            raise _SnapshotVerificationError(
+                "snapshot envelope missing 'payload' object -> BLOCKED"
+            )
+        content_hash = snap.get("content_hash")
+        if not isinstance(content_hash, str) or not _RE_HEX64.match(content_hash):
+            raise _SnapshotVerificationError(
+                f"snapshot content_hash must be 64-char lowercase hex, "
+                f"got {content_hash!r} -> BLOCKED"
+            )
+        actual_hash = _sha256_hex(_canonical_json(dict(payload)).encode("utf-8"))
+        if content_hash != actual_hash:
+            raise _SnapshotVerificationError(
+                f"snapshot content_hash mismatch: envelope {content_hash} != "
+                f"payload sha256 {actual_hash} (payload tampered after signing "
+                "-> source unusable, BLOCKED)"
+            )
+        captured_raw = snap.get("captured_at")
+        captured_dt = _parse_iso_dt(captured_raw)
+        if captured_dt is None:
+            raise _SnapshotVerificationError(
+                f"snapshot captured_at missing/invalid/not timezone-aware: "
+                f"{captured_raw!r} -> BLOCKED"
+            )
+        if captured_dt > now + timedelta(seconds=_SNAPSHOT_FUTURE_SKEW_S):
+            raise _SnapshotVerificationError(
+                f"snapshot captured_at {captured_raw} is in the future "
+                "(clock skew or replay -> source unusable, BLOCKED)"
+            )
+        age_s = (now - captured_dt).total_seconds()
+        if age_s > max_age_s:
+            raise _SnapshotVerificationError(
+                f"snapshot expired: captured_at {captured_raw} age "
+                f"{int(age_s)}s > max {int(max_age_s)}s (stale dependency "
+                "baseline -> source unusable, fail-closed BLOCKED)"
+            )
+        signature = snap.get("signature")
+        if not isinstance(signature, str) or not signature:
+            raise _SnapshotVerificationError(
+                "snapshot signature missing (unsigned source -> unusable, BLOCKED)"
+            )
+        expected_sig = hmac.new(
+            str(key).encode("utf-8"),
+            f"{content_hash}.{captured_raw}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(signature, expected_sig):
+            raise _SnapshotVerificationError(
+                "snapshot signature verification failed (key mismatch or "
+                "tampered hash/timestamp -> source unusable, BLOCKED)"
+            )
+        return {
+            "captured_at": str(captured_raw),
+            "age_s": age_s,
+            "content_hash": content_hash,
+        }
+
     # -- 执行 ----------------------------------------------------------------
+    def _source_blocked_report(
+        self,
+        reason: str,
+        *,
+        argv: Sequence[str],
+        expected_exit_set: Sequence[int],
+        actual_exit_code: int,
+    ) -> ScannerReport:
+        """SC-05 fail-closed 出口：该源数据不可用 → BLOCKED（§20.5）。
+
+        分母刻意记 0/0——未通过验签的载荷内容一律不采信（连 metadata 自报
+        依赖总数都不进 coverage），失败原因入 note 供审计。
+        """
+        now_iso = _iso_z(_utc_now())
+        return self._finalize(
+            execution_status="BLOCKED",
+            policy_verdict="NOT_EVALUATED",
+            findings=[],
+            denominator=0,
+            scanned=0,
+            expected_exit_set=expected_exit_set,
+            actual_exit_code=_EXIT_BLOCKED,
+            argv_digest=_argv_digest(argv),
+            started_at=now_iso,
+            ended_at=now_iso,
+            tool_version="npm-audit/snapshot",
+            note=reason,
+        )
+
     def scan(self) -> ScannerReport:
         expected = (0, 1)  # npm audit：0=净 / 1=存在漏洞；≥2=环境错
         cap = self._execute_raw(self._argv)
@@ -808,15 +1151,46 @@ class SupplyChainScanner(_Station2Scanner):
                 actual_exit_code=rc if rc is not None else _EXIT_ERROR,
             )
 
+        stdout_text = cap.stdout_text() or ""
+        snapshot_note = ""
+        if self._snapshot_verify_key is not None:
+            # SC-05：快照模式——stdout 必须是验签信封；任何验签/时效失配都
+            # 让该源数据不可用（BLOCKED），绝不解析未验签内容。
+            try:
+                envelope = json.loads(stdout_text)
+            except json.JSONDecodeError as exc:
+                return self._source_blocked_report(
+                    f"snapshot envelope is not valid JSON: {exc} "
+                    "(fail-closed: unsigned/unusable source snapshot)",
+                    argv=self._argv, expected_exit_set=expected, actual_exit_code=rc,
+                )
+            try:
+                meta = self.verify_snapshot_envelope(
+                    envelope,
+                    key=self._snapshot_verify_key,
+                    now=_utc_now(),
+                    max_age_s=self._snapshot_max_age_s,
+                )
+            except _SnapshotVerificationError as exc:
+                return self._source_blocked_report(
+                    str(exc), argv=self._argv, expected_exit_set=expected,
+                    actual_exit_code=rc,
+                )
+            snapshot_note = (
+                f"verified snapshot: captured_at {meta['captured_at']} "
+                f"(age {int(meta['age_s'])}s, content sha256:{meta['content_hash'][:16]}…)"
+            )
+            stdout_text = _canonical_json(envelope["payload"])
+
         try:
-            parsed = self.parse_audit_stdout(cap.stdout_text() or "")
+            parsed = self.parse_audit_stdout(stdout_text)
         except _PayloadError as exc:
             return self._error_report(
                 str(exc), argv=self._argv, expected_exit_set=expected,
                 actual_exit_code=rc,
             )
 
-        findings: List[ScanFinding] = parsed["findings"]
+        findings: List[ScanFinding] = list(parsed["findings"])
         high_plus = sum(1 for f in findings if f.severity in ("CRITICAL", "HIGH"))
         # 不信任自报数字：metadata 计数与解析列表不一致=证据损坏→ERROR（宁可阻断不猜）
         if parsed["reported_high_plus"] >= 0 and parsed["reported_high_plus"] != high_plus:
@@ -829,20 +1203,93 @@ class SupplyChainScanner(_Station2Scanner):
                 actual_exit_code=rc,
             )
 
-        verdict = "FAIL" if high_plus else "PASS"
+        # SC-03：lockfile 变更差异分析（基线路径给出即开启）。
+        diff_added_count = 0
+        extra_notes: List[str] = ([snapshot_note] if snapshot_note else [])
+        if self._lockfile_baseline_path is not None:
+            try:
+                current_payload = json.loads(
+                    (self._repo_dir / self._lockfile_name).read_text(encoding="utf-8")
+                )
+                baseline_payload = json.loads(
+                    self._lockfile_baseline_path.read_text(encoding="utf-8")
+                )
+                current_deps = self.parse_lockfile_dependencies(current_payload)
+                baseline_deps = self.parse_lockfile_dependencies(baseline_payload)
+            except (OSError, json.JSONDecodeError, _PayloadError) as exc:
+                return self._error_report(
+                    f"lockfile diff anchor unavailable: {exc} "
+                    "(baseline/current lockfile missing or malformed = no "
+                    "ratchet anchor -> ERROR, not PASS)",
+                    argv=self._argv, expected_exit_set=expected,
+                    actual_exit_code=rc,
+                )
+            diff = self.diff_lockfile_dependencies(baseline_deps, current_deps)
+            for name in diff["added"]:
+                info = current_deps[name]
+                findings.append(
+                    _mk_finding(
+                        rule_id="supply/lockfile-diff-added",
+                        file_path=self._lockfile_name,
+                        line_start=0,
+                        severity="HIGH",
+                        priority="P1",
+                        snippet=(
+                            f"added|{name}|resolved={info['resolved']}"
+                            f"|integrity={info['integrity']}"
+                            f"|install_script={info['has_install_script']}"
+                        ),
+                        message=(
+                            f"lockfile diff: new dependency {name} "
+                            f"(resolved {info['resolved'] or '?'}, integrity "
+                            f"{info['integrity'] or 'MISSING'}, install script "
+                            f"{info['has_install_script']}) — FAIL/manual review"
+                        ),
+                    )
+                )
+            for change in diff["changes"]:
+                findings.append(
+                    _mk_finding(
+                        rule_id=f"supply/lockfile-diff-{change['aspect']}",
+                        file_path=self._lockfile_name,
+                        line_start=0,
+                        severity="HIGH",
+                        priority="P1",
+                        snippet=(
+                            f"{change['aspect']}|{change['name']}"
+                            f"|{change['before']}|{change['after']}"
+                        ),
+                        message=(
+                            f"lockfile diff: {change['name']} {change['aspect']} "
+                            f"changed ({change['before']!r} -> {change['after']!r})"
+                            " — FAIL/manual review"
+                        ),
+                    )
+                )
+            diff_added_count = len(diff["added"])
+            if diff["removed"]:
+                extra_notes.append(
+                    f"lockfile removed deps (note only, not counted): "
+                    f"{', '.join(diff['removed'])}"
+                )
+
+        verdict = "FAIL" if (high_plus or any(
+            f.rule_id.startswith("supply/lockfile-diff") for f in findings
+        )) else "PASS"
+        denominator = parsed["dep_total"] + diff_added_count  # 新增依赖单独计入分母
         return self._finalize(
             execution_status="COMPLETED",
             policy_verdict=verdict,
             findings=findings,
-            denominator=parsed["dep_total"],
-            scanned=parsed["dep_total"],  # audit 覆盖全部在账依赖（解析成功才有分母）
+            denominator=denominator,
+            scanned=denominator,  # audit 覆盖在账依赖 + diff 逐一分析了每个新增依赖
             expected_exit_set=expected,
             actual_exit_code=rc,
             argv_digest=evidence.argv_digest,
             started_at=_ts_to_iso(evidence.timestamp),
             ended_at=_ts_to_iso(evidence.timestamp),
             tool_version="npm-audit/json",
-            note="",
+            note="; ".join(extra_notes),
         )
 
 
@@ -1533,6 +1980,9 @@ class Station2Static:
         # -- supply --
         npm_argv: Optional[Sequence[str]] = None,
         lockfile_name: str = "package-lock.json",
+        supply_lockfile_baseline_path: Optional[str] = None,
+        supply_snapshot_verify_key: Optional[str] = None,
+        supply_snapshot_max_age_s: float = DEFAULT_SNAPSHOT_MAX_AGE_S,
         # -- dupscan --
         baseline_path: Optional[str] = None,
         jscpd_argv: Optional[Sequence[str]] = None,
@@ -1583,7 +2033,11 @@ class Station2Static:
         registry: Dict[str, _Station2Scanner] = {}
         if "supply" in requested:
             registry["supply"] = SupplyChainScanner(
-                npm_argv=npm_argv, lockfile_name=lockfile_name, **base
+                npm_argv=npm_argv, lockfile_name=lockfile_name,
+                lockfile_baseline_path=supply_lockfile_baseline_path,
+                snapshot_verify_key=supply_snapshot_verify_key,
+                snapshot_max_age_s=supply_snapshot_max_age_s,
+                **base
             )
         if "dupscan" in requested:
             registry["dupscan"] = DuplicateCodeScanner(

@@ -1,7 +1,47 @@
 [
   {
+    "id": "DEP-01",
+    "test": "test_DEP_01_concurrent_deployers_lease_at_most_one_wins",
+    "passed": true
+  },
+  {
+    "id": "DEP-02",
+    "test": "test_DEP_02_smoke_isolation_denies_production_db_state_access",
+    "passed": true
+  },
+  {
     "id": "DEP-03",
     "test": "test_DEP_03_rollback_compatible_binary_zero_event_loss",
+    "passed": true
+  },
+  {
+    "id": "DEP-04",
+    "test": "test_DEP_04_release_key_selfsign_replace_revoked_rejected",
+    "passed": true
+  },
+  {
+    "id": "DEP-05",
+    "test": "test_DEP_05_previous_release_schema_out_of_range_rollback_refused",
+    "passed": true
+  },
+  {
+    "id": "DEP-06",
+    "test": "test_DEP_06_migration_gate_lock_backup_expand_auth_blocked_before_activation",
+    "passed": true
+  },
+  {
+    "id": "DEP-07",
+    "test": "test_DEP_07_activating_failure_without_preauth_failed_blocked_no_auto_rollback",
+    "passed": true
+  },
+  {
+    "id": "DEP-08",
+    "test": "test_DEP_08_rollback_failed_fuses_releases_until_manual_resume",
+    "passed": true
+  },
+  {
+    "id": "DEP-09",
+    "test": "test_DEP_09_observation_window_contract_down_migration_rejected",
     "passed": true
   },
   {
