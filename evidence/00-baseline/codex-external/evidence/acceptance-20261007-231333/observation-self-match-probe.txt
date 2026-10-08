@@ -1,0 +1,3 @@
+pid=682
+ps_command=/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -c import time; marker="auto-merge.sh"; time.sleep(3)
+contains_auto_merge_literal=yes

@@ -1,0 +1,24 @@
+[
+  {
+    "file": "wenqu-20260928-batchu-finalization.json",
+    "data": {
+      "status": "WAITING",
+      "task_id": "wenqu-20260928-batchu-finalization",
+      "stage": "chain4",
+      "wait_reason": "node_repl 长会话解析劣化阻断换货深表单步骤序列——留待新会话续做（物理键盘通道已验证可行）",
+      "wait_since": "2026-09-28T00:14:42Z",
+      "notify_attempts": 0
+    }
+  },
+  {
+    "file": "wenqu-b3.json",
+    "data": {
+      "status": "WAITING",
+      "task_id": "wenqu-b3",
+      "stage": "gate7",
+      "wait_reason": "e2e dispatch 终态待确认（042e9902f）",
+      "wait_since": "2026-09-15T14:58:55Z",
+      "notify_attempts": 0
+    }
+  }
+]

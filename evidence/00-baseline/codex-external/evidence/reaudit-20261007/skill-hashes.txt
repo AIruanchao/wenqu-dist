@@ -1,0 +1,3 @@
+8f7d4b90b55280623a20ee7ae277744ec5c86dadaaf9c0598d04c5e37a6e56ab  /Users/maccc/.agents/skills/one-shot-fullchain/SKILL.md
+572a39665f570fec94baa127528429a381856f56a75841c340a6c698cd511b58  /Users/maccc/.agents/skills/bug-scan-pipeline/SKILL.md
+1849ba77b5255f592a91a4707937a96e6d448bf5e950086afb2a53e388aea3cf  /Users/maccc/.agents/skills/optimal-quality-process/SKILL.md

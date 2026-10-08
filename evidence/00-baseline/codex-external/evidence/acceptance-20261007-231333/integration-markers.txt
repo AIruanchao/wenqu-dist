@@ -1,0 +1,100 @@
+=== HEAD commit ===
+commit 4aeb199884af20f956b704e04dd61df8b39fa16e
+Author:     AIruanchao <AIruanchao@users.noreply.github.com>
+AuthorDate: Wed Oct 7 22:30:03 2026 +0800
+Commit:     AIruanchao <AIruanchao@users.noreply.github.com>
+CommitDate: Wed Oct 7 22:30:03 2026 +0800
+
+    release(system): v3.6.1——Codex 终审首轮修复：时区后缀剥离防 naive/aware 混算 TypeError+流转行更新 ts_of（陈账计时含流转）；余 6 条在册待下批（锁 finally/ACCEPTED 合规治理/XSS textContent/钻取补全/FIXING 趋势/SSE watcher）
+=== TODO/FIXME/security markers new surface ===
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:4:- 命令只接受显式 argv 列表，经 subprocess.run(list, shell=False) 执行；
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:9:- actual_exit_code 一律取自 subprocess 的 returncode，不推断、不美化。
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:18:import subprocess
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:64:    命令始终通过 subprocess.run(list(argv), shell=False) 执行；
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:127:            completed = subprocess.run(
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:135:        except subprocess.TimeoutExpired as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/deploy_framework.py:320:        except Exception as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/bugscan_orchestrator.py:1409:    except Exception as exc:  # noqa: BLE001——任何复核失败都不得静默
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py:24:- git 元数据命令经 subprocess.run(list, shell=False) 直接执行（需要 stdout 内容做解析），
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py:36:import subprocess
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py:313:            completed = subprocess.run(
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py:321:        except subprocess.TimeoutExpired:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py:70:import subprocess
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py:399:    - 执行同样是 subprocess.run(list, shell=False, capture_output=True)；
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py:429:            completed = subprocess.run(
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py:437:        except subprocess.TimeoutExpired as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py:1605:            except Exception as exc:  # noqa: BLE001——单件失败不得吞掉整站证据
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:944:                except Exception as exc:  # 通道实现任意异常=投递失败
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:1349:            except Exception as exc:  # provider 故障不阻断执行
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:1365:        except Exception as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:1387:            except Exception as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:1452:            except Exception as exc:
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py:1554:        except Exception:  # 告警失败绝不反向影响已提交的执行结果
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:21:import subprocess
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:207:        cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:209:    except (OSError, subprocess.SubprocessError):
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:295:                    r = subprocess.run(["tail", "-n", "20", os.path.join(logdir, f)],
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:298:                except (OSError, subprocess.SubprocessError):
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:479:        except Exception as e:  # 边缘兜底，不炸端点（fail-soft，返回稳定错误）
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:582:        except Exception:
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:787:    ck("app.js 零 innerHTML/insertAdjacentHTML/document.write（T-05 XSS 面）",
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py:788:       "innerHTML" not in js and "insertAdjacentHTML" not in js and "document.write" not in js)
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:12:import subprocess
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:231:function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:259:  const dk=document.getElementById('stdeck');dk.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:263:    d.innerHTML=`<div style="display:flex;align-items:center;margin-bottom:6px"><span class="sn">${s.n}</span><b style="font-size:13px;flex:1">${s.name}</b><span class="tier">${s.tier}</span></div>
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:268:  const tb=document.getElementById('tiers');tb.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:274:      document.getElementById('tierinfo').innerHTML=`<b style="color:var(--acc)">${t.k}</b> → 站点 {${t.s.join('、')}} · lane/N = ${t.lane}`;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:293:      document.getElementById('playmsg').innerHTML='走查完成——任何「干净/扫完」声明必过收敛环（递归清零 v2.2）';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:299:    document.getElementById('playmsg').innerHTML=`站${STATIONS[i].n} <b>${STATIONS[i].name}</b> · ${STATIONS[i].tier}`;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:359:    const dk=document.getElementById(dkid);dk.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:363:      d.innerHTML=fh(s);dk.appendChild(d);
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:377:  l6.innerHTML='<div class="lab" style="color:var(--dim);font-size:10px;margin:12px 0 6px;letter-spacing:.5px">v2.0 六层强化（SKILL §8 血统段 2026-10-03「我要最强」）</div>';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:382:  sp.innerHTML=PFCURVE.map(v=>`<i title="${v} 发现" style="height:${Math.max(3,v*2)}px;${v===0?'background:linear-gradient(180deg,#3fb950,#1f6feb)':''}"></i>`).join('');
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:397:      document.getElementById('pfmsg').innerHTML='走查完成——封环条件三条全满足才可宣言收敛';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:403:    document.getElementById('pfmsg').innerHTML=`第${POSTFIX[i].n}步 <b>${POSTFIX[i].name}</b> · ${POSTFIX[i].tier}`;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:411:  if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:427:  box.innerHTML=h;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:436:    el.innerHTML='<div class="dim" style="font-size:11px">载入中…</div>';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:442:    el.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:4px">${stt} 明细 ${d2.items_total||0} 条（严重度序${(d2.items_total||0)>items.length?`，仅列前 ${items.length} 条`:''}）· 再点 ${stt} 收起</div>`+
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:445:  const pb=document.getElementById('bglproj');pb.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:466:    document.getElementById('trendsvg').innerHTML=svg;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:476:  const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:486:  const d=await j('/api/daemons');const db=document.getElementById('daemon');db.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:488:  if(!ds.length)db.innerHTML='<span class="dim">无运行中守护（wenqu start）</span>';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:492:  rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:493:  if(r.available){rb.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:499:  rbox.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:501:  const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:502:  for(const[n,t]of Object.entries(lg)){lbox.appendChild(el(`<h2 style="margin-top:8px">${n}</h2>`));const p=document.createElement('pre');p.innerHTML=t.split(String.fromCharCode(10)).map(l=>/ERROR|FAIL/i.test(l)?`<span style="color:#f85149">${l}</span>`:(/WARN/i.test(l)?`<span style="color:#f0883e">${l}</span>`:(/OK|PASS/i.test(l)?`<span style="color:#3fb950">${l}</span>`:l))).join(String.fromCharCode(10));}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:511:    hbox.innerHTML=`<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:527:     bar.innerHTML=cells+`<span class="dim" style="font-size:10px;margin-left:6px">近 30 天轮次</span>`;
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:530:   if(sp){sp.innerHTML=window.__hist.map(v=>`<i class="${v<75?'hot':''}" style="height:${Math.max(3,v*0.3)}px" title="${v}"></i>`).join('');}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:534:     sc.insertAdjacentHTML('afterend',`<span class="${h.score>window.__scorePrev?'up':'down'}">${h.score>window.__scorePrev?'▲':'▼'}</span>`);}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:546:  if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:547:  else{dbox.innerHTML='';
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:728:        except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:917:                cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.count("wenqu/sentinels")
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:980:                cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout.count("wenqu/sentinels")
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:994:            except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:998:                    out_ = subprocess.run(["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", "root@cloud4",
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1004:                except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1046:            except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1053:            except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1060:                import subprocess as _sp2
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1066:            except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1089:            except Exception:
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1215:                            tail = subprocess.run(["tail", "-n", "20", os.path.join(logdir, f)], capture_output=True, text=True).stdout
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:1231:        import subprocess as _sp
+=== new core references outside itself ===
+/Users/maccc/Documents/wenqu-dist/.mimosa-ignore
+/Users/maccc/Documents/wenqu-dist/system/schemas/approval-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/schemas/station-result-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/__init__.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/bugscan_orchestrator.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/deploy_framework.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station3_contract.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station4_behavior.py
+/Users/maccc/Documents/wenqu-dist/system/wenqu_core/station7_runtime.py

@@ -1,0 +1,19 @@
+{
+  "cas_existing_corrupt": {
+    "claims_success": true,
+    "stored_matches": false
+  },
+  "cas_external_symlink_read": {
+    "accepted": true,
+    "target": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp8oombjxz/outside.json"
+  },
+  "cas_symlink_shard_write": {
+    "outside_written": true,
+    "returned_digest": true
+  },
+  "timeout_descendant": {
+    "actual_exit_code": null,
+    "descendant_wrote_after_timeout": true,
+    "timed_out": true
+  }
+}

@@ -1,0 +1,113 @@
+=== hostile Host read-only probe ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Wed, 07 Oct 2026 15:17:28 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 761
+
+=== POST/auth code ===
+20:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+539:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+850:    def do_POST(self):
+851:        if self.path == "/api/decide":
+   760	                for suf in ("+08:00", "+00:00", "Z"):
+   761	                    if t.endswith(suf):
+   762	                        t = t[: -len(suf)]
+   763	                        break
+   764	                t = t[:19]
+   765	                try:
+   766	                    if t:
+   767	                        dt = datetime.fromisoformat(t)
+   768	                        if (now - dt).days > STALE_DAYS:
+   769	                            stale = True
+   770	                            stale_open += 1
+   771	                except ValueError:
+   772	                    pass
+   773	            all_items.append({"st": stt, "id": fid, "sev": sv, "title": title_of.get(fid, "")[:90], "proj": key,
+   774	                              "stale": stale, "ts": str(ts_of.get(fid, ""))[:10]})
+   775	        n_find = len(cur)
+   776	        projects.append({"key": key, "findings": n_find, "by_status": by_status, "by_sev": by_sev, "last_ts": last[:16]})
+   777	        tot_findings += n_find
+   778	        for k, v in by_status.items():
+   779	            tot_status[k] = tot_status.get(k, 0) + v
+   780	        for k, v in by_sev.items():
+   781	            tot_sev[k] = tot_sev.get(k, 0) + v
+   782	        if last > tot_last:
+   783	            tot_last = last
+   784	    projects.sort(key=lambda p: -p["findings"])
+   785	    sev_rank = {"HIGH": 0, "MED": 1, "LOW": 2, "INFO": 3, "OTHER": 4}
+   786	    all_items.sort(key=lambda x: (sev_rank.get(x["sev"], 9), x["proj"]))
+   787	    return {"available": True, "projects": projects,
+   788	            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev, "last_ts": tot_last[:16]},
+   789	            "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
+   790	            "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],  # 兼容：OPEN 明细（前 60）
+   791	            "stale_open": stale_open,  # 陈账积压：OPEN 且 >14 天无活动（已修未销嫌疑）
+   792	            "_all_items": all_items,  # 内部全集（端点按 ?items=STATE 过滤；不下发无参请求）
+   793	            "_by_day": by_day}  # 趋势：按天状态流转计数（transition 行日期 → 目标态）
+   794	
+   795	
+   796	def ledger_trend():
+   797	    """趋势数据：近 30 天每日各状态流转计数（从 transition 行提取，无 transition 则跳过）。"""
+   798	    root = os.path.realpath(os.path.expanduser(
+   799	        os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
+   800	    if not os.path.isdir(root):
+   801	        return {"days": []}
+   802	    day_st = {}  # {(day, state): count}
+   803	    for name in sorted(os.listdir(root)):
+   804	        f = os.path.join(root, name, "findings.jsonl")
+   805	        if name != os.path.basename(name) or ".." in name or not os.path.isfile(f):
+   806	            continue
+   807	        for l in open(f, errors="ignore"):
+   808	            l = l.strip()
+   809	            if "record_type" not in l or "transition" not in l:
+   810	                continue
+   811	            try:
+   812	                d = json.loads(l)
+   813	            except ValueError:
+   814	                continue
+   815	            if not isinstance(d, dict) or d.get("record_type") != "state_transition":
+   816	                continue
+   817	            tr = str(d.get("transition", ""))
+   818	            if "->" not in tr:
+   819	                continue
+   820	            src, to = tr.split("->", 1)[0].strip().upper(), tr.rsplit(">", 1)[1].strip()
+   821	            if src.startswith("SEVERITY"):
+   822	                continue
+   823	            st = _norm_status(to)
+   824	            if st == "OTHER":
+   825	                continue
+   826	            t = str(d.get("time") or d.get("ts") or "")[:10]
+   827	            if len(t) == 10 and t.startswith("20"):
+   828	                day_st[(t, st)] = day_st.get((t, st), 0) + 1
+   829	    out_days = []
+   830	    today = datetime.now().strftime("%Y-%m-%d")
+   831	    for i in range(29, -1, -1):
+   832	        d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+   833	        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+   834	        out_days.append({"d": d[5:], **counts})
+   835	    return {"days": out_days}
+   836	
+   837	
+   838	class H(BaseHTTPRequestHandler):
+   839	    def log_message(self, *a):
+   840	        pass
+   841	
+   842	    def _send(self, code, body, ctype="application/json; charset=utf-8"):
+   843	        data = body if isinstance(body, bytes) else body.encode()
+   844	        self.send_response(code)
+   845	        self.send_header("Content-Type", ctype)
+   846	        self.send_header("Content-Length", str(len(data)))
+   847	        self.end_headers()
+   848	        self.wfile.write(data)
+   849	
+   850	    def do_POST(self):
+   851	        if self.path == "/api/decide":
+   852	            try:
+   853	                n = int(self.headers.get("Content-Length") or 0)
+   854	            except ValueError:
+   855	                return self._send(400, '{"error":"bad length"}')
+   856	            if n > 1048576:
+   857	                return self._send(413, '{"error":"body too large"}')
+   858	            try:
+   859	                body = json.loads(self.rfile.read(n).decode()) if n else {}
+   860	            except ValueError:

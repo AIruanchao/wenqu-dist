@@ -1,0 +1,52 @@
+{
+  "deploy_exec_mode": {
+    "executable": false,
+    "release_mode": "0o444",
+    "source_mode": "0755"
+  },
+  "deploy_first_selfcheck_failure": {
+    "current_exists": true,
+    "current_target_exists": true,
+    "error_mentions_stays_failed": true,
+    "raised": true
+  },
+  "gate_conditional": {
+    "aggregate_outcome": "CONDITIONAL",
+    "technical_eligible": true
+  },
+  "gate_empty_required": {
+    "aggregate_outcome": "PASS",
+    "reason": "vacuous pass: no required stations configured",
+    "technical_eligible": true
+  },
+  "schema_approval_cross_type_payload": {
+    "accepted": true,
+    "errors": []
+  },
+  "schema_approval_missing_payload": {
+    "accepted": true,
+    "errors": []
+  },
+  "schema_evidence_no_artifact_or_verdict": {
+    "accepted": true,
+    "errors": []
+  },
+  "schema_open_directly_closed": {
+    "accepted": true,
+    "errors": []
+  },
+  "schema_p0_accepted_risk": {
+    "accepted": true,
+    "errors": []
+  },
+  "schema_station_pass_no_coverage_or_artifacts": {
+    "accepted": true,
+    "errors": []
+  },
+  "store_retry": {
+    "chain_length": 2,
+    "first_inserted": true,
+    "hash_equal": false,
+    "second_inserted": true
+  }
+}

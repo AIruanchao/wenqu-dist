@@ -1,0 +1,13 @@
+{
+  "head_after_two": {
+    "count": 2,
+    "head_equals_first": false,
+    "head_equals_latest": true
+  },
+  "migrator_then_store": {
+    "error": "OperationalError: no such column: event_hash"
+  },
+  "store_then_migrator": {
+    "error": "OperationalError: no such column: status"
+  }
+}

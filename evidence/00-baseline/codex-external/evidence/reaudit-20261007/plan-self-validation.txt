@@ -1,0 +1,35 @@
+方案.md 自验证报告
+ok=true
+passed=29
+failed=0
+plan_sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+
+PASS	utf8	109072 bytes
+PASS	no_nul	NUL absent
+PASS	frontmatter	YAML delimiters
+PASS	code_fences	count=80
+PASS	markdown_tables	all table blocks consistent
+PASS	required_sections	present
+PASS	heading_uniqueness	headings=137, duplicate_headings=none, duplicate_sections=none
+PASS	section_references	refs=['12.1', '12.2', '12.3', '12.8', '20', '22', '25.1', '28', '6.1', '6.2.1', '8'], missing=[]
+PASS	no_placeholders	none
+PASS	blocked_boundary	current decision and boundary explicit
+PASS	work_package_refs	refs=W0,W1,W10,W2,W3,W3A,W3B,W4,W5,W6,W6A,W6B,W6C,W6D,W7,W7A,W7B,W8,W9; undefined=none
+PASS	dag_acyclic	topo=W0→W1→W2→W3A→W5→W7A→W6A→W6B→W6C→W6D→W3B→W4→W8→W7B→W9→W10
+PASS	dag_text_4c4c2e8f	W3A+W6A+W6B+W6C+W6D
+PASS	dag_text_d45fbbfe	W3B+W4+W5+W6A～W6D+W7A+W8
+PASS	dag_text_6fe74d08	W7B ──→ W9
+PASS	test_ids_unique	defined=131, duplicates=none
+PASS	test_traceability_set_equality	defined=131, mapped=131, missing=[], extra=[]
+PASS	fnd_ids	count=21, ids=['FND-001', 'FND-002', 'FND-003', 'FND-004', 'FND-005', 'FND-006', 'FND-007', 'FND-008', 'FND-009', 'FND-010', 'FND-011', 'FND-012', 'FND-013', 'FND-014', 'FND-015', 'FND-016', 'FND-017', 'FND-018', 'FND-019', 'FND-020', 'FND-021']
+PASS	fnd_rows_complete	all 21 rows complete
+PASS	legacy_reconcile_boundary	legacy 481 explicitly deferred to W5
+PASS	nine_stop_types	rows=9, missing=[], all_one_time=True
+PASS	invariant_technical_eligible	technical_eligible
+PASS	invariant_action_eligible	action_eligible
+PASS	invariant_valid_exact_action_authorization	valid_exact_action_authorization
+PASS	invariant_nostageadvancewithoutpriorstagepass	NoStageAdvanceWithoutPriorStagePass
+PASS	invariant_nomergeorreleaseunlessactioneligible	NoMergeOrReleaseUnlessActionEligible
+PASS	invariant_action_failed_unknown	ACTION_FAILED_UNKNOWN
+PASS	source_targets_exist	count=15, missing=[]
+PASS	evidence_manifest	entries=39, issues=[]

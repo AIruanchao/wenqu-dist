@@ -1,0 +1,15 @@
+{
+ "ok": true,
+ "lane": "FAST",
+ "n_required": 1,
+ "zero_streak": 1,
+ "rounds": 1,
+ "errors": [],
+ "warnings": [
+  "round 1: artifact r1.txt 全文零证据形痕迹（观测：tsc/JSON/中文输出形态亦合法，B型手写需人工判读）"
+ ],
+ "v2": {
+  "process_disposed_rounds": 0,
+  "flips_applied": 0
+ }
+}

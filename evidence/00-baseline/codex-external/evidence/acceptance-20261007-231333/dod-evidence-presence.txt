@@ -1,0 +1,44 @@
+=== top-level ===
+total 304
+drwxr-xr-x@ 40 maccc  staff   1280 Oct  7 22:27 .
+drwx------+ 69 maccc  staff   2208 Oct  7 22:27 ..
+drwxr-xr-x@ 14 maccc  staff    448 Oct  7 23:17 .git
+drwxr-xr-x@  3 maccc  staff     96 Oct  3 23:48 .github
+-rw-r--r--@  1 maccc  staff     42 Oct  2 20:32 .gitignore
+-rw-r--r--@  1 maccc  staff     19 Oct  7 18:59 .mimosa-ignore
+drwxr-xr-x@  6 maccc  staff    192 Oct  2 21:55 .pytest_cache
+-rw-r--r--@  1 maccc  staff  34084 Oct  7 22:12 CHANGELOG.md
+-rw-r--r--@  1 maccc  staff   3099 Oct  4 02:33 README.md
+-rw-r--r--@  1 maccc  staff     92 Oct  3 15:03 SHA256-v1.0.18.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 20:31 SHA256-v1.0.6.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 20:43 SHA256-v1.0.7.txt
+-rw-r--r--@  1 maccc  staff     91 Oct  2 21:11 SHA256-v1.0.8.txt
+-rw-r--r--@  1 maccc  staff     89 Oct  4 02:33 SHA256-v2.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 18:22 SHA256-v3.0.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 20:44 SHA256-v3.1.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 22:06 SHA256-v3.2.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  5 23:05 SHA256-v3.3.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:17 SHA256-v3.4.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:30 SHA256-v3.4.1.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:34 SHA256-v3.4.2.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:49 SHA256-v3.4.3.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 01:59 SHA256-v3.4.4.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 02:29 SHA256-v3.4.5.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 02:41 SHA256-v3.5.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:05 SHA256-v3.5.1.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:44 SHA256-v3.5.2.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 03:54 SHA256-v3.5.3.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:14 SHA256-v3.5.4.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:21 SHA256-v3.5.5.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:31 SHA256-v3.5.6.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 04:37 SHA256-v3.5.7.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 19:06 SHA256-v3.5.8.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 22:12 SHA256-v3.6.0.txt
+-rw-r--r--@  1 maccc  staff     85 Oct  7 22:27 SHA256-v3.6.1.txt
+drwxr-xr-x@  7 maccc  staff    224 Oct  4 02:25 cli
+drwxr-xr-x@  5 maccc  staff    160 Oct  4 02:33 docs
+drwxr-xr-x@  3 maccc  staff     96 Oct  2 19:37 probes
+drwxr-xr-x@ 18 maccc  staff    576 Oct  7 21:26 system
+drwxr-xr-x@  4 maccc  staff    128 Oct  3 14:57 tests
+=== evidence dirs ===
+=== W0-W10 evidence markers ===

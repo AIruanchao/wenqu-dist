@@ -1,0 +1,55 @@
+=== core modules ===
+      17 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/__init__.py
+    1711 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/bugscan_orchestrator.py
+     343 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/deploy_framework.py
+     283 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/gate_aggregator.py
+     302 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/ledger_migrator.py
+     223 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py
+    1555 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py
+     875 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/source_gate.py
+    2052 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/station2_static.py
+    1829 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/station3_contract.py
+    1312 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/station4_behavior.py
+    1292 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/station7_runtime.py
+     152 /Users/maccc/Documents/wenqu-dist/system/wenqu_core/store.py
+=== schemas ===
+/Users/maccc/Documents/wenqu-dist/system/schemas/approval-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/schemas/evidence-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/schemas/finding-event-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/schemas/run-event-v2.schema.json
+/Users/maccc/Documents/wenqu-dist/system/schemas/station-result-v2.schema.json
+=== docs ===
+/Users/maccc/Documents/wenqu-dist/system/docs/adr/ADR-001-event-store.md
+/Users/maccc/Documents/wenqu-dist/system/docs/adr/ADR-002-approval-security.md
+/Users/maccc/Documents/wenqu-dist/system/docs/adr/ADR-003-trusted-runner.md
+/Users/maccc/Documents/wenqu-dist/system/docs/constitution-template.md
+/Users/maccc/Documents/wenqu-dist/system/docs/security/threat-model.md
+/Users/maccc/Documents/wenqu-dist/system/docs/specs/wenqu-vNext-contract.md
+=== all repo tracked release hashes/tarballs ===
+SHA256-v1.0.18.txt
+SHA256-v1.0.6.txt
+SHA256-v1.0.7.txt
+SHA256-v1.0.8.txt
+SHA256-v2.0.txt
+SHA256-v3.0.0.txt
+SHA256-v3.1.0.txt
+SHA256-v3.2.0.txt
+SHA256-v3.3.0.txt
+SHA256-v3.4.0.txt
+SHA256-v3.4.1.txt
+SHA256-v3.4.2.txt
+SHA256-v3.4.3.txt
+SHA256-v3.4.4.txt
+SHA256-v3.4.5.txt
+SHA256-v3.5.0.txt
+SHA256-v3.5.1.txt
+SHA256-v3.5.2.txt
+SHA256-v3.5.3.txt
+SHA256-v3.5.4.txt
+SHA256-v3.5.5.txt
+SHA256-v3.5.6.txt
+SHA256-v3.5.7.txt
+SHA256-v3.5.8.txt
+SHA256-v3.6.0.txt
+SHA256-v3.6.1.txt
+=== referenced release artifacts and existence ===

@@ -3,6 +3,8 @@
 架构（ADR-001/002/003 实现）：
 - runner.py：不可伪造退出码的唯一来源
 - store.py：SQLite WAL append-only 事件正源
+- wenqu_pipeline.py：P0-2 七段状态机（S1..S7）+ 九类停等 +
+  approval-v2 一次性审批原子消费 + RunManager（事件正源重放推导）
 - evidence.py：Content-addressed store（sha256 寻址）
 - approvals.py：判别联合审批消费
 - source_gate.py：W3A 源闸基础件（fetch/merge-base diff/affected 范围/

@@ -1,0 +1,5 @@
+d20adef86d91d5583c861ac9123c0e44738d7f5a38d0047908b8cc6c1b63046c  /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+4ace32908266948f56a1ddef19376ff39b8369ae6dbe234b8ab6007830de6cc5  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+dd49536808c8c5cea7e1e30e79a899817365891af830be7060d71d8dd4ea108b  /Users/maccc/.zcode/quality-system/bin/pipeline-state.sh
+ca21cf7d82ba95318b85fc80cbae25903f59f2e35796ebd06573f1a5acb4f0af  /Users/maccc/.zcode/quality-system/bin/verify-convergence.py
+d0945bc9a940b4d2bbb71ba3614ed11ee027cbec16d7994e1aadf9af04c2c679  /Users/maccc/.wenqu/daemons/auto-merge.sh

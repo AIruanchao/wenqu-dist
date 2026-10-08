@@ -1,0 +1,26 @@
+--- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py	2026-10-07 04:37:03
++++ /Users/maccc/.wenqu/bin/wenqu-dashboard.py	2026-10-07 14:53:14
+@@ -212,6 +212,7 @@
+  <div class="pl" style="margin-top:6px"><h3>§7 盲区诚实声明（16 条）+ §5 收敛声明模板</h3><div class="src">季度复盘一次；命中且成事故→触发缺口决议重审。PASS=已知盲区外收敛，非零 Bug 承诺；最高标准=可证伪、可审计、不把未知说成安全</div>
+  <details style="margin-bottom:8px"><summary class="dim" style="cursor:pointer;font-size:12px">展开 16 条盲区清单</summary><div id="blindspots" style="margin-top:8px"></div></details>
+  <div class="src">收敛声明两版（禁自由发挥）：清零声明（零豁免时）／条件放行声明（有有效豁免时只能用此版——铁律 3：带有效豁免只能称「条件放行」不能称「清零」）；生产观察窗未跨过=候选收敛；两版均须附盲区清单作为附件</div></div>
++</div>
+ </div>
+ <div class="grid" id="ov">
+   <div class="card" style="grid-column:1/-1;border-color:#3fb950" id="healthcard"><h2>❤️ 系统健康度</h2><div id="health">载入中…</div></div>
+@@ -1069,6 +1070,15 @@
+ 
+ 
+ def main():
++    # 启动自检：HTML div 平衡+容器层级（fail-fast——2026-10-07 总览空白事故根治）
++    lint_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "html-balance-lint.py")
++    if os.path.isfile(lint_path):
++        import subprocess as _sp
++        rc = _sp.run(["python3", lint_path, os.path.abspath(__file__)],
++                     capture_output=True, text=True).returncode
++        if rc != 0:
++            print("::error::dashboard HTML 平衡自检 FAIL——拒绝启动（修复 div 嵌套后重试）", file=sys.stderr)
++            sys.exit(2)
+     srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
+     print(f"wenqu dashboard → http://127.0.0.1:{PORT}  (Ctrl-C 停)")
+     signal.signal(signal.SIGINT, lambda *a: sys.exit(0))

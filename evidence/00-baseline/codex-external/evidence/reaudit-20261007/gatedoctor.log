@@ -1,0 +1,32 @@
+-- 1) kill-switch (F6)
+[OK] no kill-switch lock
+-- 2) session-guard gate doctor (v2)
+[OK] gatedoctor exit 0
+-- 3) core scripts
+[OK] auto-close.sh
+[OK] verify-convergence.py
+[OK] check-ingestion.py
+[OK] war-lessons-lookup.sh
+[OK] pipeline-state.sh
+[OK] pipeline-stop-notify.sh
+-- 4) alert channel
+[OK] alert-send readable: /Users/maccc/argus-assemble/scripts/argus/alert-send.sh
+-- 5) orchestration skills
+[OK] eqs-dev-flow
+[OK] cursor-code-dispatch
+[OK] claude-dispatch-pipeline
+[OK] one-shot-fullchain
+[OK] tla-state-machine-audit
+[OK] bug-scan-pipeline
+[OK] post-delivery-adversarial-audit
+-- 6) EXM fuse
+[FAIL] EXM active=6 > 5 fuse -- stop new work, escalate to user (解除/合并/接受 three-way ruling)
+    ↳ L1 决策通道: 清账后经 http://127.0.0.1:3103/decide?d=pending_ack&t=<hmac> 确认（decision-matrix.yaml / decision-log.jsonl 落痕）
+-- 7) chain-states writable
+[OK] /Users/maccc/.zcode/quality-system/4c6665172cfd52c9/chain-states writable
+-- 8) known issues (non-blocking)
+[NOTE] CronList bad record (empty cronExpr) -- host-side, fix card F7
+-- 9) script integrity (H5 baseline)
+[FAIL] integrity: exm-next-id.sh hash mismatch (expected ecf932e8 got aa349c5a)
+================
+PIPELINE-GATEDOCTOR: REFUSE-TO-START (dead gates above)

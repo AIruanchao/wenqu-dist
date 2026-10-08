@@ -1,0 +1,50 @@
+evidence_dir=/private/tmp/wenqu-plan-reaudit-20261007-Yajnzu
+verify_nonzero-exit rc=0
+{
+ "ok": true,
+ "lane": "FAST",
+ "n_required": 1,
+ "zero_streak": 1,
+ "rounds": 1,
+ "errors": [],
+ "warnings": [
+  "round 1: artifact r1.txt 全文零证据形痕迹（观测：tsc/JSON/中文输出形态亦合法，B型手写需人工判读）"
+ ],
+ "v2": {
+  "process_disposed_rounds": 0,
+  "flips_applied": 0
+ }
+}
+verify_symlink rc=0
+{
+ "ok": true,
+ "lane": "FAST",
+ "n_required": 1,
+ "zero_streak": 1,
+ "rounds": 1,
+ "errors": [],
+ "warnings": [
+  "round 1: artifact r1.txt 全文零证据形痕迹（观测：tsc/JSON/中文输出形态亦合法，B型手写需人工判读）"
+ ],
+ "v2": {
+  "process_disposed_rounds": 0,
+  "flips_applied": 0
+ }
+}
+verify_negative-n rc=0
+{
+ "ok": true,
+ "lane": "FAST",
+ "n_required": -1,
+ "zero_streak": 0,
+ "rounds": 0,
+ "errors": [],
+ "warnings": [],
+ "v2": {
+  "process_disposed_rounds": 0,
+  "flips_applied": 0
+ }
+}
+state_arbitrary rc=0 ledger={"ts": "2026-10-07T07:01:12Z", "task_id": "t", "stage": "NOT_A_STAGE", "status": "COMPLETELY_FAKE", "evidence_ptr": "/does/not/exist"}
+state_traversal rc=0 escaped_exists=yes
+state_clear rc=0 victim_exists=no

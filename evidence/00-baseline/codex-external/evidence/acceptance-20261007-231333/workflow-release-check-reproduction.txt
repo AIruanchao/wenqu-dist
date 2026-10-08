@@ -1,0 +1,5 @@
+V=fork24
+DV=v1.0.18
+workflow_arg1=vv1.0.18
+release-check PASS（零旧版本残留+VERSION 对齐）
+RC=0

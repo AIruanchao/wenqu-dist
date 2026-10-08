@@ -1,0 +1,10 @@
+2026-10-07T23:23:40+08:00
+4aeb199884af20f956b704e04dd61df8b39fa16e
+## main...origin/main
+ M CHANGELOG.md
+ M system/VERSION
+ M system/bin/wenqu-dashboard.py
+?? SHA256-v3.6.2.txt
+4aeb199 (HEAD -> main, origin/main) release(system): v3.6.1——Codex 终审首轮修复：时区后缀剥离防 naive/aware 混算 TypeError+流转行更新 ts_of（陈账计时含流转）；余 6 条在册待下批（锁 finally/ACCEPTED 合规治理/XSS textContent/钻取补全/FIXING 趋势/SSE watcher）
+9919bcf feat(w6b+c+d): 站2静态供应链+站3契约数据+站4行为+站7运行时+站5/6占位——Codex W6B-D 全量落地（三子代理并行，8+11+11+22 自测全绿）
+77e837e release(system): v3.6.0——「能做的都做了」：自动 sweep（launchd 每小时）+流转趋势（SVG 五色面积）+SSE 实时推送

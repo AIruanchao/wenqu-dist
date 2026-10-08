@@ -1,0 +1,13 @@
+removed system/wenqu_core and system/schemas
+release-check PASS（零旧版本残留+VERSION 对齐）
+release_rc=0
+================================
+RESULT: PASS=53 FAIL=0
+ALL GREEN
+acceptance_rc=0
+....................                                                     [100%]
+20 passed in 5.66s
+pytest_rc=0
+FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）
+selftest_rc=0

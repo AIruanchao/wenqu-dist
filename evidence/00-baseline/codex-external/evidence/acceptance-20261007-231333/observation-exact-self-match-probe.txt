@@ -1,0 +1,3 @@
+own_pid= 10299
+own_row_contains= True
+['maccc            10299   3.6  0.0 435263952  10256   ??  S    11:23PM   0:00.04 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -c import os,subprocess; marker="auto-merge.sh"; ps=subprocess.run(["ps","aux"],capture_output=True,text=True).stdout; own=[x for x in ps.splitlines() if str(os.getpid()) in x and "auto-merge.sh" in x]; print("own_pid=",os.getpid()); print("own_row_contains=",bool(own)); print(own[:1])']

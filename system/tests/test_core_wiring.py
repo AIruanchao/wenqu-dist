@@ -31,6 +31,7 @@ def test_core_modules_importable():
     required = [
         "runner", "store", "source_gate", "bugscan_orchestrator",
         "scheduler", "gate_aggregator", "ledger_migrator", "deploy_framework",
+        "wenqu_pipeline",
     ]
     for mod in required:
         try:

@@ -1,0 +1,8 @@
+{
+ "status": "WAITING",
+ "task_id": "../escaped",
+ "stage": "gate",
+ "wait_reason": "reason",
+ "wait_since": "2026-10-07T07:01:12Z",
+ "notify_attempts": 0
+}

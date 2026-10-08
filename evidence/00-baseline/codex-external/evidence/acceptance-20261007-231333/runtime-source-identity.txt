@@ -1,0 +1,35 @@
+=== repo dashboard files ===
+/Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+/Users/maccc/Documents/wenqu-dist/system/dashboard/index.html
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /Users/maccc/Documents/wenqu-dist/system/dashboard/index.html
+/Users/maccc/Documents/wenqu-dist/system/dashboard/app.css
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /Users/maccc/Documents/wenqu-dist/system/dashboard/app.css
+/Users/maccc/Documents/wenqu-dist/system/dashboard/app.js
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /Users/maccc/Documents/wenqu-dist/system/dashboard/app.js
+=== runtime dashboard ===
+423736439c0c669849097d8186d4335602401c2770c22a82083ebe24acb458f0  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+2026-10-07T22:26:39+0800 88918 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+=== repo possible dashboard refs ===
+/Users/maccc/Documents/wenqu-dist/system/bin/__pycache__/wenqu-dashboard.cpython-314.pyc
+/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+=== runtime new-core presence ===
+MISSING /Users/maccc/.wenqu/wenqu_core
+MISSING /Users/maccc/.wenqu/system/wenqu_core
+MISSING /Users/maccc/.wenqu/schemas
+MISSING /Users/maccc/.wenqu/docs
+=== repo/runtime CLI hashes and versions ===
+f2aca310276b2e7e61cb33d9f90457b9cc93bd1190dcb1b77312686f9467f104  /Users/maccc/Documents/wenqu-dist/system/bin/wenqu
+af308373dbcaaa295960df528e384f7b97c240d7781932ec54bab77e610e2898  /Users/maccc/.wenqu/bin/wenqu
+wenqu v3.0 —— 问渠质量工程体系
+  wenqu init        初始化项目（配置模板+git 钩子）
+  wenqu verify      零返工验证管线（铁门→影响面→定向测试→风险分）
+  wenqu gate        快速铁门（20 规则，0.1s）
+  wenqu blast       影响面分析（依赖图 BFS）
+  wenqu preflight   部署前置五门（血统/指纹/形态/演练）
+  wenqu doctor      全组件体检
+  wenqu start|stop|status   守护进程管理
+  wenqu cron|uncron         哨兵 cron 安装/卸载
+  wenqu db triggers|selfheal DB 守恒组件安装
+  wenqu dashboard   Web 仪表盘（本机 7788 端口，零依赖）
+  wenqu tla|z3      形式化验证 / SMT 证明

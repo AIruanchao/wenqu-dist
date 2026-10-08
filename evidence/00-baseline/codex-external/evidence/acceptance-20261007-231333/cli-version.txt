@@ -1,0 +1,1 @@
+CLI_VERSION=wenqu 0.3.0-fork24-maccc

@@ -1,0 +1,13 @@
+{
+ "ok": true,
+ "lane": "FAST",
+ "n_required": -1,
+ "zero_streak": 0,
+ "rounds": 0,
+ "errors": [],
+ "warnings": [],
+ "v2": {
+  "process_disposed_rounds": 0,
+  "flips_applied": 0
+ }
+}

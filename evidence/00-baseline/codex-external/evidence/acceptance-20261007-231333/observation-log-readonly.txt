@@ -1,0 +1,5 @@
+path=/Users/maccc/Documents/ERP）Zcode/观察窗日志.jsonl
+MISSING
+drwxr-xr-x  612 maccc  staff  19584 Oct  7 15:51 /Users/maccc/Documents/ERP）Zcode
+--- /tmp/wenqu-obs.log ---
+MISSING

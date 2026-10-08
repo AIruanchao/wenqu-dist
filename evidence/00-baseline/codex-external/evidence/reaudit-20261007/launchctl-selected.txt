@@ -1,0 +1,28 @@
+-- com.erp.pendingwatch
+	state = not running
+	program = /bin/bash
+	runs = 83
+	last exit code = 0
+		state = active
+		state = active
+-- com.maccc.bugscan.weekly-watchdog
+	state = not running
+	program = /bin/bash
+	runs = 2
+	last exit code = 1
+		state = active
+		state = active
+-- com.wenqu.sentinel-pulse
+	state = not running
+	program = /bin/bash
+	runs = 84
+	last exit code = 1
+		state = active
+		state = active
+-- com.wenqu.dashboard
+	state = running
+	program = /opt/homebrew/bin/python3
+	runs = 4
+	pid = 8632
+		state = active
+		state = active

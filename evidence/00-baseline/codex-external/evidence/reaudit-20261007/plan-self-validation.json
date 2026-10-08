@@ -1,0 +1,155 @@
+{
+  "schema": "plan-validation-v1",
+  "plan": "/private/tmp/codex-test/方案.md",
+  "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "checks": [
+    {
+      "name": "utf8",
+      "ok": true,
+      "detail": "109072 bytes"
+    },
+    {
+      "name": "no_nul",
+      "ok": true,
+      "detail": "NUL absent"
+    },
+    {
+      "name": "frontmatter",
+      "ok": true,
+      "detail": "YAML delimiters"
+    },
+    {
+      "name": "code_fences",
+      "ok": true,
+      "detail": "count=80"
+    },
+    {
+      "name": "markdown_tables",
+      "ok": true,
+      "detail": "all table blocks consistent"
+    },
+    {
+      "name": "required_sections",
+      "ok": true,
+      "detail": "present"
+    },
+    {
+      "name": "heading_uniqueness",
+      "ok": true,
+      "detail": "headings=137, duplicate_headings=none, duplicate_sections=none"
+    },
+    {
+      "name": "section_references",
+      "ok": true,
+      "detail": "refs=['12.1', '12.2', '12.3', '12.8', '20', '22', '25.1', '28', '6.1', '6.2.1', '8'], missing=[]"
+    },
+    {
+      "name": "no_placeholders",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "blocked_boundary",
+      "ok": true,
+      "detail": "current decision and boundary explicit"
+    },
+    {
+      "name": "work_package_refs",
+      "ok": true,
+      "detail": "refs=W0,W1,W10,W2,W3,W3A,W3B,W4,W5,W6,W6A,W6B,W6C,W6D,W7,W7A,W7B,W8,W9; undefined=none"
+    },
+    {
+      "name": "dag_acyclic",
+      "ok": true,
+      "detail": "topo=W0→W1→W2→W3A→W5→W7A→W6A→W6B→W6C→W6D→W3B→W4→W8→W7B→W9→W10"
+    },
+    {
+      "name": "dag_text_4c4c2e8f",
+      "ok": true,
+      "detail": "W3A+W6A+W6B+W6C+W6D"
+    },
+    {
+      "name": "dag_text_d45fbbfe",
+      "ok": true,
+      "detail": "W3B+W4+W5+W6A～W6D+W7A+W8"
+    },
+    {
+      "name": "dag_text_6fe74d08",
+      "ok": true,
+      "detail": "W7B ──→ W9"
+    },
+    {
+      "name": "test_ids_unique",
+      "ok": true,
+      "detail": "defined=131, duplicates=none"
+    },
+    {
+      "name": "test_traceability_set_equality",
+      "ok": true,
+      "detail": "defined=131, mapped=131, missing=[], extra=[]"
+    },
+    {
+      "name": "fnd_ids",
+      "ok": true,
+      "detail": "count=21, ids=['FND-001', 'FND-002', 'FND-003', 'FND-004', 'FND-005', 'FND-006', 'FND-007', 'FND-008', 'FND-009', 'FND-010', 'FND-011', 'FND-012', 'FND-013', 'FND-014', 'FND-015', 'FND-016', 'FND-017', 'FND-018', 'FND-019', 'FND-020', 'FND-021']"
+    },
+    {
+      "name": "fnd_rows_complete",
+      "ok": true,
+      "detail": "all 21 rows complete"
+    },
+    {
+      "name": "legacy_reconcile_boundary",
+      "ok": true,
+      "detail": "legacy 481 explicitly deferred to W5"
+    },
+    {
+      "name": "nine_stop_types",
+      "ok": true,
+      "detail": "rows=9, missing=[], all_one_time=True"
+    },
+    {
+      "name": "invariant_technical_eligible",
+      "ok": true,
+      "detail": "technical_eligible"
+    },
+    {
+      "name": "invariant_action_eligible",
+      "ok": true,
+      "detail": "action_eligible"
+    },
+    {
+      "name": "invariant_valid_exact_action_authorization",
+      "ok": true,
+      "detail": "valid_exact_action_authorization"
+    },
+    {
+      "name": "invariant_nostageadvancewithoutpriorstagepass",
+      "ok": true,
+      "detail": "NoStageAdvanceWithoutPriorStagePass"
+    },
+    {
+      "name": "invariant_nomergeorreleaseunlessactioneligible",
+      "ok": true,
+      "detail": "NoMergeOrReleaseUnlessActionEligible"
+    },
+    {
+      "name": "invariant_action_failed_unknown",
+      "ok": true,
+      "detail": "ACTION_FAILED_UNKNOWN"
+    },
+    {
+      "name": "source_targets_exist",
+      "ok": true,
+      "detail": "count=15, missing=[]"
+    },
+    {
+      "name": "evidence_manifest",
+      "ok": true,
+      "detail": "entries=39, issues=[]"
+    }
+  ],
+  "passed": 29,
+  "failed": 0,
+  "ok": true
+}

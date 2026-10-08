@@ -1,0 +1,503 @@
+=== timestamp ===
+2026-10-07T23:15:16+08:00
+=== process scan ===
+35779     1 Wed Oct  7 22:27:40 2026     /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+47736     1 Wed Oct  7 07:29:26 2026     /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /opt/wenqu-app-relay/relay.py
+97231 18263 Wed Oct  7 23:15:16 2026     /bin/zsh -lc set -u\012E=$(cat /private/tmp/codex-test/.current_acceptance_evidence)\012OUT="$E/runtime-readonly.txt"\012{\012  echo "=== timestamp ==="; date -Iseconds\012  echo "=== process scan ==="\012  ps axww -o pid=,ppid=,lstart=,command= | grep -Ei '[w]enqu|[a]uto-merge|[b]ugscan|[o]bservation' || true\012  echo "=== launchctl list matching ==="\012  launchctl list 2>&1 | grep -Ei 'wenqu|auto.?merge|bugscan|observation|quality' || true\012  echo "=== launchctl disabled matching ==="\012  launchctl print-disabled "gui/$(id -u)" 2>&1 | grep -Ei 'wenqu|auto.?merge|bugscan|observation|quality' || true\012  echo "=== matching LaunchAgent files ==="\012  find "$HOME/Library/LaunchAgents" -maxdepth 1 -type f \( -iname '*wenqu*' -o -iname '*merge*' -o -iname '*bugscan*' -o -iname '*quality*' -o -iname '*observ*' \) -print 2>/dev/null | sort\012  echo "=== plist summaries ==="\012  while IFS= read -r f; do\012    [ -n "$f" ] || continue\012    echo "--- $f"\012    plutil -p "$f" 2>&1 || true\012  done < <(find "$HOME/Library/LaunchAgents" -maxdepth 1 -type f \( -iname '*wenqu*' -o -iname '*merge*' -o -iname '*bugscan*' -o -iname '*quality*' -o -iname '*observ*' \) -print 2>/dev/null | sort)\012  echo "=== cron matching ==="\012  crontab -l 2>&1 | grep -Ei 'wenqu|auto.?merge|bugscan|observation|quality' || true\012  echo "=== candidate runtime roots ==="\012  for d in "$HOME/.wenqu" "$HOME/.local/share/wenqu" "$HOME/.zcode/quality-system"; do\012    if [ -e "$d" ]; then\012      echo "--- $d"; ls -ld "$d"; find "$d" -maxdepth 3 -type f \( -iname '*observ*' -o -iname '*auto*merge*' -o -iname '*wenqu*' -o -iname '*.log' \) -print 2>/dev/null | head -100\012    else\012      echo "--- MISSING $d"\012    fi\012  done\012} >"$OUT" 2>&1\012cat "$OUT"\012
+=== launchctl list matching ===
+-	0	com.maccc.bugscan.perf-baseline-runner
+47736	-15	com.wenqu.app-relay
+-	1	com.maccc.bugscan.weekly-watchdog
+-	0	com.maccc.quality.hardening-doctor
+-	0	com.maccc.bugscan.export-tenant-audit
+-	0	com.wenqu.spec-reconcile.monthly
+-	0	com.maccc.bugscan.db-drift-weekly
+-	0	com.maccc.bugscan.advisory-watch
+-	1	com.wenqu.sentinel-pulse
+-	0	com.maccc.quality.conservation-sentinel
+-	0	com.maccc.bugscan.evidence-coldbackup
+-	0	com.argus.bugscan.bugbot-bridge
+-	0	com.wenqu.sweep
+-	0	com.maccc.bugscan.dupscan-weekly
+35779	-15	com.wenqu.dashboard
+-	0	com.maccc.bugscan.supply-chain-audit
+-	0	com.maccc.quality.ci-event-sentinel
+-	0	com.wenqu.observation-window
+-	0	com.maccc.quality.ssl-cert-sentinel
+=== launchctl disabled matching ===
+		"com.qisemi.quality-sync" => disabled
+=== matching LaunchAgent files ===
+/Users/maccc/Library/LaunchAgents/com.argus.bugscan.bugbot-bridge.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.advisory-watch.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.db-drift-weekly.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.dupscan-weekly.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.evidence-coldbackup.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.export-tenant-audit.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.perf-baseline-runner.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.supply-chain-audit.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.bugscan.weekly-watchdog.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.ci-event-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.conservation-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.hardening-doctor.plist
+/Users/maccc/Library/LaunchAgents/com.maccc.quality.ssl-cert-sentinel.plist
+/Users/maccc/Library/LaunchAgents/com.qisemi.quality-sync.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+/Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+=== plist summaries ===
+--- /Users/maccc/Library/LaunchAgents/com.argus.bugscan.bugbot-bridge.plist
+{
+  "EnvironmentVariables" => {
+    "HOME" => "/Users/maccc"
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  }
+  "Label" => "com.argus.bugscan.bugbot-bridge"
+  "ProgramArguments" => [
+    0 => "/usr/bin/python3"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/bugbot-findings-bridge.py"
+    2 => "--run"
+  ]
+  "RunAtLoad" => false
+  "StandardErrorPath" => "/Users/maccc/argus-assemble/scripts/bugscan/logs/bugbot-bridge.err.log"
+  "StandardOutPath" => "/Users/maccc/argus-assemble/scripts/bugscan/logs/bugbot-bridge.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 6
+    "Minute" => 30
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.advisory-watch.plist
+{
+  "Label" => "com.maccc.bugscan.advisory-watch"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-advisory-watch.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-advisory-watch.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 35
+    "Weekday" => 1
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.db-drift-weekly.plist
+{
+  "Label" => "com.maccc.bugscan.db-drift-weekly"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-db-drift-weekly.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-db-drift-weekly.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 0
+    "Weekday" => 1
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.dupscan-weekly.plist
+{
+  "Label" => "com.maccc.bugscan.dupscan-weekly"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/dupscan-weekly.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-dupscan-weekly.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-dupscan-weekly.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 4
+    "Minute" => 0
+    "Weekday" => 0
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.evidence-coldbackup.plist
+{
+  "Label" => "com.maccc.bugscan.evidence-coldbackup"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/evidence-coldbackup.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-evidence-coldbackup.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-evidence-coldbackup.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 7
+    "Minute" => 15
+    "Weekday" => 6
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.export-tenant-audit.plist
+{
+  "Label" => "com.maccc.bugscan.export-tenant-audit"
+  "ProgramArguments" => [
+    0 => "/Users/maccc/.local/bin/node"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/export-tenant-audit.mjs"
+    2 => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-export-tenant-audit.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-export-tenant-audit.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 4
+    "Minute" => 30
+    "Weekday" => 0
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.perf-baseline-runner.plist
+{
+  "Label" => "com.maccc.bugscan.perf-baseline-runner"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/perf-baseline-runner.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-perf.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-perf.out.log"
+  "StartCalendarInterval" => [
+    0 => {
+      "Day" => 1
+      "Hour" => 5
+      "Minute" => 0
+      "Month" => 1
+    }
+    1 => {
+      "Day" => 1
+      "Hour" => 5
+      "Minute" => 0
+      "Month" => 4
+    }
+    2 => {
+      "Day" => 1
+      "Hour" => 5
+      "Minute" => 0
+      "Month" => 7
+    }
+    3 => {
+      "Day" => 1
+      "Hour" => 5
+      "Minute" => 0
+      "Month" => 10
+    }
+  ]
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.supply-chain-audit.plist
+{
+  "Label" => "com.maccc.bugscan.supply-chain-audit"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-supply-chain-audit.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-supply-chain-audit.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 30
+    "Weekday" => 1
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.bugscan.weekly-watchdog.plist
+{
+  "Label" => "com.maccc.bugscan.weekly-watchdog"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/weekly-watchdog.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.config/argus/logs/bugscan-weekly-watchdog.err.log"
+  "StandardOutPath" => "/Users/maccc/.config/argus/logs/bugscan-weekly-watchdog.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 9
+    "Minute" => 5
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.quality.ci-event-sentinel.plist
+{
+  "Label" => "com.maccc.quality.ci-event-sentinel"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event-sentinel.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event-sentinel.err.log"
+  "StandardOutPath" => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event-sentinel.out.log"
+  "StartCalendarInterval" => [
+    0 => {
+      "Minute" => 8
+    }
+    1 => {
+      "Minute" => 38
+    }
+  ]
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.quality.conservation-sentinel.plist
+{
+  "Label" => "com.maccc.quality.conservation-sentinel"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation-sentinel.sh"
+  ]
+  "StandardErrorPath" => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation.err.log"
+  "StandardOutPath" => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation.out.log"
+  "StartCalendarInterval" => {
+    "Hour" => 5
+    "Minute" => 5
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.quality.hardening-doctor.plist
+{
+  "Label" => "com.maccc.quality.hardening-doctor"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/bin/hardening-doctor.sh"
+  ]
+  "StandardOutPath" => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/hardening-doctor.log"
+  "StartCalendarInterval" => {
+    "Hour" => 6
+    "Minute" => 6
+    "Weekday" => 1
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.maccc.quality.ssl-cert-sentinel.plist
+{
+  "Label" => "com.maccc.quality.ssl-cert-sentinel"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ssl-cert-sentinel.sh"
+  ]
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 8
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.qisemi.quality-sync.plist
+{
+  "Label" => "com.qisemi.quality-sync"
+  "ProgramArguments" => [
+    0 => "/usr/bin/rsync"
+    1 => "-az"
+    2 => "/Users/maccc/.zcode/quality-system/"
+    3 => "cloud4:/opt/erp-backups/mac-quality-system/"
+  ]
+  "StandardErrorPath" => "/tmp/quality-sync.log"
+  "StandardOutPath" => "/tmp/quality-sync.log"
+  "StartCalendarInterval" => {
+    "Hour" => 4
+    "Minute" => 20
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.wenqu.app-relay"
+  "ProgramArguments" => [
+    0 => "/usr/bin/python3"
+    1 => "/opt/wenqu-app-relay/relay.py"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/relay.err"
+  "WorkingDirectory" => "/opt/wenqu-app-relay"
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+{
+  "EnvironmentVariables" => {
+    "WENQU_REPO_DIR" => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  }
+  "KeepAlive" => true
+  "Label" => "com.wenqu.dashboard"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/wenqu-dashboard.py"
+    2 => "7789"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/dashboard-launchd.log"
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist
+{
+  "Label" => "com.wenqu.observation-window"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "-c"
+    2 => "
+import json, subprocess, os
+from datetime import datetime, timezone
+# 检查 auto-merge 未复活 + Gate CI 状态 + 健康分
+checks = {}
+ps = subprocess.run(["ps","aux"],capture_output=True,text=True).stdout
+checks["auto_merge_dead"] = "auto-merge.sh" not in ps
+try:
+    r = subprocess.run(["curl","-s","http://127.0.0.1:7789/api/health"],capture_output=True,text=True,timeout=10)
+    h = json.loads(r.stdout)
+    checks["health_score"] = h.get("score")
+    checks["gate_status"] = [p.get("详情","") for p in h.get("parts",[]) if "Gate" in p.get("项","")]
+except: checks["health_score"] = "UNREACHABLE"
+# 写日志
+log = os.path.expanduser("~/Documents/ERP）Zcode/观察窗日志.jsonl")
+with open(log,"a") as f:
+    f.write(json.dumps({"ts":datetime.now(timezone.utc).isoformat(),**checks})+"\n")
+    "
+  ]
+  "StandardOutPath" => "/tmp/wenqu-obs.log"
+  "StartCalendarInterval" => {
+    "Hour" => 8
+    "Minute" => 0
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+{
+  "Label" => "com.wenqu.sentinel-pulse"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/opt/wenqu-app-relay/watchdog.sh"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/watchdog.err"
+  "StartInterval" => 1800
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+{
+  "Label" => "com.wenqu.spec-reconcile.monthly"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "/Users/maccc/qisemi-research/qisemi-erp-fresh/scripts/gates/spec-reconcile.py"
+    2 => "--repo-root"
+    3 => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  ]
+  "StandardErrorPath" => "/tmp/spec-reconcile.err"
+  "StandardOutPath" => "/tmp/spec-reconcile.log"
+  "StartCalendarInterval" => {
+    "Day" => 1
+    "Hour" => 5
+    "Minute" => 0
+  }
+}
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+{
+  "Label" => "com.wenqu.sweep"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/sweep.py"
+    2 => "--days"
+    3 => "14"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StartInterval" => 3600
+}
+=== cron matching ===
+* * * * * bash /Users/maccc/Projects/ledger-quality-system/scripts/uptime_probe.sh >/dev/null 2>&1
+30 9 * * * /usr/bin/env -i HOME=/Users/maccc PATH=/usr/bin:/bin:/usr/sbin:/sbin EXM_PROBE_MODE=audit /bin/bash /Users/maccc/.zcode/quality-system/bin/exm-probe.sh --audit-only >> /Users/maccc/.zcode/quality-system/exm-probe.scheduler.log 2>&1 # EXM-PROBE-AUDIT-ONLY
+*/30 * * * * /Users/maccc/.wenqu/sentinels/ci-event-sentinel.sh >> /Users/maccc/.wenqu/logs/ci-event-sentinel.sh.log 2>&1
+5 5 * * * /Users/maccc/.wenqu/sentinels/conservation-sentinel.sh >> /Users/maccc/.wenqu/logs/conservation-sentinel.sh.log 2>&1
+0 8 * * 1 /Users/maccc/.wenqu/sentinels/ssl-cert-sentinel.sh >> /Users/maccc/.wenqu/logs/ssl-cert-sentinel.sh.log 2>&1
+=== candidate runtime roots ===
+--- /Users/maccc/.wenqu
+drwxr-xr-x@ 15 maccc  staff  480 Oct  7 02:20 /Users/maccc/.wenqu
+/Users/maccc/.wenqu/daemons/auto-merge.sh
+/Users/maccc/.wenqu/bin/wenqu
+/Users/maccc/.wenqu/bin/wenqu-env.sh
+/Users/maccc/.wenqu/bin/__pycache__/wenqu-dashboard.cpython-313.pyc
+/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+/Users/maccc/.wenqu/logs/dashboard-launchd.log
+/Users/maccc/.wenqu/logs/conservation-sentinel.sh.log
+/Users/maccc/.wenqu/logs/sweep.log
+/Users/maccc/.wenqu/logs/auto-merge.log
+/Users/maccc/.wenqu/logs/ci-event-sentinel.sh.log
+/Users/maccc/.wenqu/logs/dashboard-7788.log
+/Users/maccc/.wenqu/logs/dashboard-7789.log
+/Users/maccc/.wenqu/logs/sweep-launchd.log
+--- MISSING /Users/maccc/.local/share/wenqu
+--- /Users/maccc/.zcode/quality-system
+drwxr-xr-x@ 73 maccc  staff  2336 Oct  7 02:56 /Users/maccc/.zcode/quality-system
+/Users/maccc/.zcode/quality-system/unpushed-sentinel.log
+/Users/maccc/.zcode/quality-system/b6d0f27e810f1290eff9bac2a19c57926e5294a123abde5be05ae5f54a079f49/decision.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r4-five-d4.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r1-static.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r9-zero.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r5-final.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r8-final.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r6-contract.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b3-20260915/r7-rebase.log
+/Users/maccc/.zcode/quality-system/evidence/argus-wl-reuse-20260914/s2-runtime.log
+/Users/maccc/.zcode/quality-system/evidence/argus-wl-reuse-20260914/s1-static.log
+/Users/maccc/.zcode/quality-system/evidence/argus-wl-reuse-20260914/s4-contract.log
+/Users/maccc/.zcode/quality-system/evidence/argus-wl-reuse-20260914/s6-postfix-regression.log
+/Users/maccc/.zcode/quality-system/evidence/argus-wl-reuse-20260914/s3-adversarial.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s6s7-links.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s0-inventory.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s1-scripts.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s3s4-evidence-seals.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s5-tasks.log
+/Users/maccc/.zcode/quality-system/evidence/fullscan-20260916/s2-ledgers.log
+/Users/maccc/.zcode/quality-system/evidence/wl-v12-curation-20260915/r2-probe12.log
+/Users/maccc/.zcode/quality-system/evidence/wl-v12-curation-20260915/r5-contract.log
+/Users/maccc/.zcode/quality-system/evidence/wl-v12-curation-20260915/r3-probe12-postfix.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r1-run-timeout-test.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r1-lark-send.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r3-healthbeat-dry.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r5-postfix-contract.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r2-self-audit-test.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r4-postfix-static.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r2-self-audit-t2.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r2-self-audit-t3.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r1-lark-readback.log
+/Users/maccc/.zcode/quality-system/evidence/exm-governance-20260915/r2-self-audit-t1.log
+/Users/maccc/.zcode/quality-system/evidence/wl-phase23-20260915/r1-metrics-monthly.log
+/Users/maccc/.zcode/quality-system/evidence/wl-phase23-20260915/r2-wlcard-e2e.log
+/Users/maccc/.zcode/quality-system/evidence/wl-phase23-20260915/r1-metrics-first.log
+/Users/maccc/.zcode/quality-system/evidence/bug-hunt-20260915/probe.log
+/Users/maccc/.zcode/quality-system/evidence/bug-hunt-20260915/hunt1.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b4-20260916/r5-zero.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b4-20260916/r1-impl.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b4-20260916/r4-final.log
+/Users/maccc/.zcode/quality-system/evidence/wenqu-b4-20260916/r3-postfix.log
+/Users/maccc/.zcode/quality-system/bin/wenqu-preflight.sh
+/Users/maccc/.zcode/quality-system/bin/wenqu-duty-spec.md
+/Users/maccc/.zcode/quality-system/bin/d8-observation.py
+/Users/maccc/.zcode/quality-system/bin/wenqu-dh-evidence.sh
+/Users/maccc/.zcode/quality-system/bugscan-ledger/cb8e5f91d61b/run-wenqu-r7-final-20261001.jsonl.merged
+/Users/maccc/.zcode/quality-system/bugscan-ledger/cb8e5f91d61b/run-wenqu-r7cd-20260929.jsonl.merged
+/Users/maccc/.zcode/quality-system/bugscan-ledger/cb8e5f91d61b/run-wenqu-r7b-20260929.jsonl.merged
+/Users/maccc/.zcode/quality-system/bugscan-ledger/cb8e5f91d61b/run-wenqu-r7-20260929.jsonl.merged
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/bin/auto-merge.sh
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/auto-merge.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-campaign-r4.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-fixwave-e.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-batch-g.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-scripts-baseline.sha
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-hardening-final.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-all-done.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-b3-20260915.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-fixwave-high-batch.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-b4-20260916.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/seals/wenqu-campaign.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/hardening-doctor.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/version-readiness.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event-sentinel.err.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/auto-merge.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation.err.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ssl-cert.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/d8-observation.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/version-bump.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/z14-nightly.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/weekly.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/conservation.out.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/sentinel/ci-event-sentinel.out.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/chain-states/pending-watch.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/chain-states/wenqu-b3-master-gate-speedup.card.md
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/chain-states/wenqu-b4-guard-files-single-source.card.md
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9/decision.log
+/Users/maccc/.zcode/quality-system/sentinel-heartbeat.log
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9bb23b23294484351eca2f764a0b899f55be45731327b3ba4/seals/wenqu-fixwave-e.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9bb23b23294484351eca2f764a0b899f55be45731327b3ba4/seals/wenqu-batch-g.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9bb23b23294484351eca2f764a0b899f55be45731327b3ba4/seals/wenqu-all-done.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9bb23b23294484351eca2f764a0b899f55be45731327b3ba4/seals/wenqu-fixwave-high-batch.seal.json
+/Users/maccc/.zcode/quality-system/4c6665172cfd52c9bb23b23294484351eca2f764a0b899f55be45731327b3ba4/decision.log
+/Users/maccc/.zcode/quality-system/restructures.log
+/Users/maccc/.zcode/quality-system/decision.log
+/Users/maccc/.zcode/quality-system/unpushed-alerts.log
+/Users/maccc/.zcode/quality-system/042ed1adb2d958ca/decision.log
+/Users/maccc/.zcode/quality-system/3ebefe7b5b9b/decision.log
+/Users/maccc/.zcode/quality-system/exm-probe.log

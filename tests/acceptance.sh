@@ -347,6 +347,32 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
 fi
 
+echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+  PIPE_RC=$?
+  if [ $PIPE_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+fi
+
+echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红）=="
+if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+  python3 "$ROOT/tools/ac_traceability.py" >/dev/null 2>&1
+  AC_RC=$?
+  if [ $AC_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵生成 OK（evidence/traceability-matrix.json 刷新）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵生成失败（exit=$AC_RC）——evidence 目录或工具损坏"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+fi
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1

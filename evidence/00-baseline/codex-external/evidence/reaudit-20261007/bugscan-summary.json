@@ -1,0 +1,24 @@
+{
+  "available": true,
+  "total": {
+    "findings": 481,
+    "by_status": {
+      "VERIFIED": 67,
+      "FIXED": 172,
+      "CLOSED": 158,
+      "OTHER": 13,
+      "ACCEPTED": 43,
+      "FIXING": 4,
+      "OPEN": 24
+    },
+    "by_sev": {
+      "LOW": 129,
+      "MED": 159,
+      "INFO": 87,
+      "HIGH": 92,
+      "OTHER": 14
+    },
+    "last_ts": "2026-10-07T14:31"
+  },
+  "open_total": 24
+}

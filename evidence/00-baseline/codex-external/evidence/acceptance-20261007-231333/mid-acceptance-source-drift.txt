@@ -1,0 +1,208 @@
+timestamp=2026-10-07T23:23:35+08:00
+head=4aeb199884af20f956b704e04dd61df8b39fa16e
+branch=## main...origin/main
+status:
+ M CHANGELOG.md
+ M system/VERSION
+ M system/bin/wenqu-dashboard.py
+?? SHA256-v3.6.2.txt
+diff-stat:
+ CHANGELOG.md                  |  2 ++
+ system/VERSION                |  2 +-
+ system/bin/wenqu-dashboard.py | 83 ++++++++++++++++++++++++++++---------------
+ 3 files changed, 57 insertions(+), 30 deletions(-)
+diff-name-status:
+M	CHANGELOG.md
+M	system/VERSION
+M	system/bin/wenqu-dashboard.py
+untracked:
+SHA256-v3.6.2.txt
+file-stats:
+2026-10-07T23:23:19+0800 34972 /Users/maccc/Documents/wenqu-dist/CHANGELOG.md
+2026-10-07T23:23:00+0800 6 /Users/maccc/Documents/wenqu-dist/system/VERSION
+2026-10-07T23:22:47+0800 90507 /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+2026-10-07T23:23:00+0800 85 /Users/maccc/Documents/wenqu-dist/SHA256-v3.6.2.txt
+worktree hashes:
+3111438d9bcdc2ea0105073e3b198ca4a43442486ef7293fa3866e96b6a5d2d4  /Users/maccc/Documents/wenqu-dist/CHANGELOG.md
+bb8408e7188bc6e00f87159c1898e6bfee03926fb2c65b5af3f372a7abfbc7fb  /Users/maccc/Documents/wenqu-dist/system/VERSION
+b24a668982d46050be0fa3fb5e11a0287b81955993f09de62b82adab0176e30e  /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+d91cdfc5559bff4590d4eec1f56742ea06f4320e252dfc54fa20c84f4786021e  /Users/maccc/Documents/wenqu-dist/SHA256-v3.6.2.txt
+diff excerpt:
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e08c8de..17fe99d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,7 @@
+ # 三轴版本：发行版（本包）／CLI fork（cli/wenqu 的 VERSION）／规范（docs/ 文件名）。发行版号统摄全部。
+ 
++- **v3.6.2（2026-10-07 system 轴：「把能做到都做了」令·Codex 6 条代码发现全修）**：①**decide 锁 finally 化**（含 `[]` 非对象行的 AttributeError 防御——负验证：注入 `[]` 行+take 成功+二次 404=锁可再取）+写入改 `_decide_write` 原子方法（tmp+os.replace）②**决策卡 XSS 根修**（cat/q/opt 全 escD 转义+按钮改 addEventListener 防 id 注入 onclick）③**钻取补全**：状态机七节点全部可点（新增 ACCEPTED 43/OTHER 13 旁路钻取入口）④**趋势 FIXING**（SVG 六色面积+峰值公式+服务端 counts）⑤**SSE 连接数限制**（dict 计数器≤4 路，超 503 防线程放大；finally 减计）⑥**sweep realpath 边界**（basename+`..`+realpath 根校验，与 dashboard _ledger_files 同源）。余 1 条 H 级 ACCEPTED 存量治理（38 条缺结构化字段）待超哥裁定。
++
+ - **v3.6.0（2026-10-07 system 轴：「能做的都做了」令·防线自动化三件套）**：①**自动 sweep**（sweep.py+launchd 每小时——检测 >14 天 OPEN 陈账报告+日志，设计裁定=只报告不自动核销（修复证据链须人审，机器无法确证"真修了"）；首跑 stale=0 exit0）②**📈 流转趋势**（/api/bugscan-trend 近 30 天按天各状态流转计数——transition 行日期→目标态，TTL 60s 缓存；bug 管线页签新增 SVG 五色面积叠加曲线 绿=CLOSED/蓝=VERIFIED/紫=FIXED/橙=ACCEPTED/红=OPEN，今日波次 FIXED 23/CLOSED 4/ACCEPTED 9 可见）③**SSE 实时推送**（/api/bugscan-sse——账本 mtime 签名变化→推 ledger 事件（负验证：root 下写文件→2 秒内收到 event: ledger），前端 EventSource 替代盲轮询+断线自动重连+5 分钟服务端窗口+心跳保活）。第四族模型审：K3 通道 --model 不生效（实证 M3）/本地 Llama 不存在——**不可做，诚实标注**（Codex 终审由本条目同回合并规执行）。
+ 
+ - **v3.5.8（2026-10-07 system 轴：「全部要」令·陈账积压根治双件）**：①**⏳ 陈账指标**（超哥问「bug 管线修复能力不如问渠」触发的根治）——API `stale_open`（OPEN 且 >14 天无活动=已修未销嫌疑，负验证 OLD1 9-01=1 条/NEW1 10-05=0 精确）；页签徽标（>0 橙色虚线 ⏳ N）+钻取列表陈账行标记（橙左边条+日期）——修完不销账 14 天后仪表盘自动黄牌；②**销账硬关门条款**入 bug-scan-pipeline §3 第 6 步+§9 入账双闭环（修复波完成定义从「上站」改为「账本流转」——每卡 commit 必须同步写 OPEN->FIXED transition+波尾 sweep+陈账归零确认）；根因=9 月修的 24 条堆 13 天没销账（修复→销账最后一公里无人管）；③同步正源并行会话新增的 W0-FND007（CI Gate 第 7 维）到 dist+安装副本（rsync 全量同步替代逐段 Edit——三处一致性纪律）。
+diff --git a/system/VERSION b/system/VERSION
+index 9575d51..b727628 100644
+--- a/system/VERSION
++++ b/system/VERSION
+@@ -1 +1 @@
+-3.6.1
++3.6.2
+diff --git a/system/bin/wenqu-dashboard.py b/system/bin/wenqu-dashboard.py
+index 3e73962..7631c14 100755
+--- a/system/bin/wenqu-dashboard.py
++++ b/system/bin/wenqu-dashboard.py
+@@ -410,7 +410,7 @@ async function loadBGL(){
+   const box=document.getElementById('bglstate');
+   if(!d.available){box.innerHTML='<span class="dim">未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）</span>';document.getElementById('bglproj').innerHTML='';return}
+   const st=d.total.by_status||{};
+-  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭']];
++  const chain=[['OPEN','发现待修'],['FIXING','修复中'],['FIXED','已修待验·变体'],['VERIFIED','已验证'],['CLOSED','已关闭'],['ACCEPTED','有条件接受'],['OTHER','未归类']];
+   let h='<div class="frow">';
+   chain.forEach(([k,lab],ix)=>{
+     if(ix)h+='<div class="arrow">▸</div>';
+@@ -455,8 +455,8 @@ async function loadTrend(){
+     const d=(await j('/api/bugscan-trend')).days;
+     if(!d||!d.length)return;
+     document.getElementById('bgltrend').style.display='';
+-    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN));
+-    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
++    const W=880,H=140,pad=28,mx=Math.max(1,...d.map(x=>x.FIXED+x.CLOSED+x.VERIFIED+x.ACCEPTED+x.OPEN+x.FIXING));
++    const series=[['CLOSED','#3fb950'],['VERIFIED','#2f81f7'],['FIXED','#a371f7'],['FIXING','#d29922'],['ACCEPTED','#f0883e'],['OPEN','#f85149']];
+     const pts=(k)=>d.map((x,i)=>`${pad+i*(W-2*pad)/Math.max(d.length-1,1)},${H-24-(x[k]||0)*(H-48)/mx}`).join(' ');
+     const area=(k)=>pts(k)+` ${W-pad},${H-24} ${pad},${H-24}`;
+     let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="max-width:${W}px">`;
+@@ -545,15 +545,21 @@ async function refresh(){
+    window.__lastDec=dec.length;}
+   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+   else{dbox.innerHTML='';
++    const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     for(const d of dec){
+       const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
+       const overdue=days===0;
+-      dbox.appendChild(el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
+-        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${d.cat}${d.red?' 🔴':''}</span> ${d.q}</span>
++      const btn=document.createElement('button');btn.className='pbtn';btn.style.cssText='padding:1px 10px;font-size:11px';btn.textContent='✓ 采纳';
++      btn.onclick=()=>decide(d.id,'take');
++      const btn2=document.createElement('button');btn2.className='pbtn';btn2.style.cssText='padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)';btn2.textContent='✗ 驳回';
++      btn2.onclick=()=>decide(d.id,'reject');
++      const row=el(`<div class="row" style="align-items:flex-start;flex-direction:column;gap:2px;${overdue?'background:#f8514922;padding:4px 6px;border-radius:6px':''}">
++        <div style="display:flex;justify-content:space-between;width:100%"><span><span class="badge" style="background:${d.red?'#f8514933;color:#f85149':'#1f6feb33'}">${escD(d.cat)}${d.red?' 🔴':''}</span> ${escD(d.q)}</span>
+         <span class="${overdue?'bad':'dim'}" style="font-size:11px;white-space:nowrap">${overdue?'⏰ 已逾期':(days!=null?`TTL ${days}d`:'')}</span></div>
+-        <div class="dim" style="font-size:12px">💡 ${d.opt||''}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
+-        <div style="display:flex;gap:6px;margin-top:3px"><button class="pbtn" style="padding:1px 10px;font-size:11px" onclick="decide('${d.id}','take')">✓ 采纳</button><button class="pbtn" style="padding:1px 10px;font-size:11px;border-color:var(--bad);color:var(--bad)" onclick="decide('${d.id}','reject')">✗ 驳回</button></div>
+-      </div>`));
++        <div class="dim" style="font-size:12px">💡 ${escD(d.opt||'')}${d.intent?' <span class="ok">［已标记意向］</span>':''}</div>
++      </div>`);
++      const bar=document.createElement('div');bar.style.cssText='display:flex;gap:6px;margin-top:3px';bar.append(btn,btn2);row.appendChild(bar);
++      dbox.appendChild(row);
+     }
+   }
+   {const all=await j('/api/decisions?all=1').catch(()=>null);
+@@ -684,6 +690,7 @@ def _fold_project(f, by_day=None):
+ _LEDGER_CACHE = {"stamp": None, "data": None}
+ _LEDGER_LOCK = threading.Lock()
+ _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
++_SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
+ 
+ 
+ def _ledger_files(root):
+@@ -830,7 +837,7 @@ def ledger_trend():
+     today = datetime.now().strftime("%Y-%m-%d")
+     for i in range(29, -1, -1):
+         d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+-        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
++        counts = {st: day_st.get((d, st), 0) for st in ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED", "ACCEPTED")}
+         out_days.append({"d": d[5:], **counts})
+     return {"days": out_days}
+ 
+@@ -839,6 +846,15 @@ class H(BaseHTTPRequestHandler):
+     def log_message(self, *a):
+         pass
+ 
++    @staticmethod
++    def _decide_write(out_lines):
++        """写回决策台账（原子：先写 tmp 再 replace）。"""
++        p = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
++        tmp = p + ".tmp-decide"
++        with open(tmp, "w", encoding="utf-8") as f:
++            f.write("\n".join(out_lines) + "\n")
++        os.replace(tmp, p)
++
+     def _send(self, code, body, ctype="application/json; charset=utf-8"):
+         data = body if isinstance(body, bytes) else body.encode()
+         self.send_response(code)
+@@ -866,28 +882,30 @@ class H(BaseHTTPRequestHandler):
+                 return self._send(400, '{"error":"需要 id 与 action=take|reject"}')
+             path = os.path.expanduser(os.environ.get("WENQU_DECISIONS", "~/Documents/ERP）Zcode/决策台账.jsonl"))
+             try:
+-                _DECIDE_LOCK.acquire()  # 读改写整段互斥：并发清账不丢账（每出口恰好一次 release）
+-                lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
+-                out, hit = [], False
+-                for l in lines:
+-                    try:
+-                        d = json.loads(l)
+-                    except ValueError:
+-                        out.append(l); continue
+-                    if d.get("id") == dec_id and d.get("status") == "待拍":
+-                        d["status"] = "已拍"
+-                        d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
+-                        d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
+-                        hit = True
+-                    out.append(json.dumps(d, ensure_ascii=False))
+-                if not hit:
++                _DECIDE_LOCK.acquire()  # 读改写整段互斥（finally 统一释放——行级异常不再泄漏锁）
++                try:
++                    lines = [l for l in open(path, encoding="utf-8", errors="ignore") if l.strip()]
++                    out, hit = [], False
++                    for l in lines:
++                        try:
++                            d = json.loads(l)
++                        except ValueError:
++                            out.append(l); continue
++                        if not isinstance(d, dict):  # 合法 JSON 非对象（数组/null/数字）原样保留，防 AttributeError 泄漏锁
++                            out.append(l); continue
++                        if d.get("id") == dec_id and d.get("status") == "待拍":
++                            d["status"] = "已拍"
++                            d["verdict"] = ("采纳默认建议" if action == "take" else "驳回默认建议") + "（dashboard 一键·超哥点击）"
++                            d["executed"] = "点击时间 " + datetime.now().strftime("%m-%d %H:%M")
++                            hit = True
++                        out.append(json.dumps(d, ensure_ascii=False))
++                    if not hit:
++                        return self._send(404, '{"error":"id 不存在或非待拍"}')
++                    self._decide_write(out)
++                    return self._send(200, '{"ok":true}')
++                finally:
+                     _DECIDE_LOCK.release()
+-                    return self._send(404, '{"error":"id 不存在或非待拍"}')
+-                open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+-                _DECIDE_LOCK.release()
+-                return self._send(200, '{"ok":true}')
+             except OSError as e:
+-                _DECIDE_LOCK.release()
+                 return self._send(500, json.dumps({"error": str(e)}))
+         return self._send(404, '{"error":"not found"}')
+ 
+@@ -1155,6 +1173,11 @@ class H(BaseHTTPRequestHandler):
+             b["data"], b["ts"] = out, time.time()
+             return self._send(200, out)
+         if self.path == "/api/bugscan-sse":
++            # SSE 连接数限制（单用户面 4 路足够；超出 503 防线程放大——dict 计数器免 global）
++            _SSE_COUNT["n"] = _SSE_COUNT.get("n", 0) + 1
++            if _SSE_COUNT["n"] > 4:
++                _SSE_COUNT["n"] -= 1
++                return self._send(503, '{"error":"sse connections full"}')
+             # SSE：账本 mtime 签名变化→推事件（前端 EventSource 替代盲轮询；30s 心跳保活）
+             self.send_response(200)
+             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+@@ -1182,6 +1205,8 @@ class H(BaseHTTPRequestHandler):
+                     time.sleep(10)
+             except (BrokenPipeError, ConnectionResetError):
+                 pass  # 客户端断开
++            finally:
++                _SSE_COUNT["n"] = _SSE_COUNT.get("n", 1) - 1
+             return
+         if self.path.startswith("/api/decisions"):
+             want_all = "all=1" in self.path
+untracked content:
+wenqu-v3.6.2.tar.gz
+c9d2c1e629ef9fb9683555243f4005d518cafadee13ec5bcaa6245b940fc5d6b
