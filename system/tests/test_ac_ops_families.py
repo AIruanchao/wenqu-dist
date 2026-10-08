@@ -259,15 +259,22 @@ class _DashboardServer:
                    WENQU_AGGREGATE_TTL=str(self.ttl),
                    WENQU_HOME=str(self.sandbox / "wenqu-home"),
                    WENQU_HEALTH_HISTORY=str(self.history))
+        self.err_path = self.sandbox / "server.err.log"
         self.proc = subprocess.Popen(
             [sys.executable, str(SYSTEM / "dashboard" / "server.py"),
              "--port", str(self.port)],
-            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        deadline = time.monotonic() + 15.0
+            env=env, stdout=subprocess.DEVNULL,
+            stderr=open(self.err_path, "w"))
+        def _err_tail():
+            try:
+                return self.err_path.read_text(errors="replace")[-300:]
+            except OSError:
+                return "(unreadable)"
+        deadline = time.monotonic() + 60.0  # CI 冷 runner 就绪窗放宽（macOS 实测>15s）
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 raise AssertionError(
-                    f"dashboard server 提前退出 rc={self.proc.returncode}")
+                    f"dashboard server 提前退出 rc={self.proc.returncode}; stderr: {_err_tail()}")
             try:
                 status, _ = _http_get(self.port, "/api/v1/ping")
                 if status == 200:
@@ -275,7 +282,7 @@ class _DashboardServer:
             except OSError:
                 pass
             time.sleep(0.15)
-        raise AssertionError("dashboard server 15s 内未就绪")
+        raise AssertionError(f"dashboard server 60s 内未就绪; stderr: {_err_tail()}")
 
     def __exit__(self, *exc) -> None:
         if self.proc is None:

@@ -180,14 +180,16 @@ class _Dash:
                    WENQU_DECISIONS=str(self.sandbox / "decisions.jsonl"),
                    WENQU_LEDGER=str(self.sandbox / "rounds.jsonl"),
                    WENQU_REPO_DIR=str(self.sandbox))
+        self.err_path = self.sandbox / "server.err.log"
         self.proc = subprocess.Popen(
             [sys.executable, str(DASH / "server.py"), "--port", str(self.port)],
-            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env, stdout=subprocess.DEVNULL,
+            stderr=open(self.err_path, "w"),
             cwd=str(self.sandbox))
-        deadline = time.monotonic() + 15.0
+        deadline = time.monotonic() + 60.0  # CI 冷 runner 就绪窗放宽（macOS 实测>15s）
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
-                raise AssertionError(f"dashboard server 提前退出 rc={self.proc.returncode}")
+                raise AssertionError(f"dashboard server 提前退出 rc={self.proc.returncode}; stderr: {self._err_tail()}")
             try:
                 st, _, _ = raw_request("127.0.0.1", self.port, "GET", "/api/v1/ping")
                 if st == 200:
@@ -195,7 +197,13 @@ class _Dash:
             except OSError:
                 pass
             time.sleep(0.15)
-        raise AssertionError("dashboard server 15s 内未就绪")
+        raise AssertionError(f"dashboard server 60s 内未就绪; stderr: {self._err_tail()}")
+
+    def _err_tail(self) -> str:
+        try:
+            return self.err_path.read_text(errors="replace")[-400:]
+        except OSError:
+            return "(unreadable)"
 
     def __exit__(self, *exc) -> None:
         if self.proc is None:
@@ -324,6 +332,12 @@ class _VulnServer:
     def __enter__(self) -> "_VulnServer":
         self.th.start()
         return self
+
+    def _err_tail(self) -> str:
+        try:
+            return self.err_path.read_text(errors="replace")[-400:]
+        except OSError:
+            return "(unreadable)"
 
     def __exit__(self, *exc) -> None:
         self.srv.shutdown()

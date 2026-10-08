@@ -707,8 +707,12 @@ class _CacheEntry:
     def __init__(self):
         self.data = None
         self.ts = 0.0
-        self.stamp = None  # mtime 签名（可选）
+        self.stamp = None
         self.lock = threading.Lock()
+    def __getitem__(self, key):  # dict 兼容（渐进迁移期旧 b["data"] 语法不停改）
+        return getattr(self, key)
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
 _CACHE = {}  # name → _CacheEntry
 _CACHE_GUARD = threading.Lock()
@@ -1034,7 +1038,7 @@ class H(BaseHTTPRequestHandler):
                     pass
             return self._send(200, json.dumps({"rounds": rounds}, ensure_ascii=False))
         if self.path == "/api/health":
-            b = _EP_CACHE.setdefault("health", {"ts": 0.0, "data": None})
+            b = _CACHE.setdefault("health", _CacheEntry())
             if b["data"] is not None and time.time() - b["ts"] < 30:  # TTL 30s：走势本身 10min 粒度
                 return self._send(200, b["data"])
             def sub(name, got, full, weight, detail=""):
@@ -1173,7 +1177,7 @@ class H(BaseHTTPRequestHandler):
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
         if self.path == "/api/health-history":
-            b = _EP_CACHE.setdefault("hh", {"ts": 0.0, "data": None})
+            b = _CACHE.setdefault("hh", _CacheEntry())
             if b["data"] is not None and time.time() - b["ts"] < 30:
                 return self._send(200, b["data"])
             out = []
@@ -1229,7 +1233,7 @@ class H(BaseHTTPRequestHandler):
                     d["items"] = [x for x in full if x["st"] == want][:60]
             return self._send(200, json.dumps(d, ensure_ascii=False))
         if self.path == "/api/bugscan-trend":
-            b = _EP_CACHE.setdefault("trend", {"ts": 0.0, "data": None})
+            b = _CACHE.setdefault("trend", _CacheEntry())
             if b["data"] is not None and time.time() - b["ts"] < 60:
                 return self._send(200, b["data"])
             out = json.dumps(ledger_trend(), ensure_ascii=False)
@@ -1292,7 +1296,7 @@ class H(BaseHTTPRequestHandler):
                 pass
             return self._send(200, json.dumps(out, ensure_ascii=False))
         if self.path == "/api/logs":
-            b = _EP_CACHE.setdefault("logs", {"ts": 0.0, "data": None})
+            b = _CACHE.setdefault("logs", _CacheEntry())
             if b["data"] is not None and time.time() - b["ts"] < 15:  # 日志尾 15s 滞后可接受
                 return self._send(200, b["data"])
             out, logdir = {}, os.path.join(WQ, "logs")
@@ -1310,7 +1314,7 @@ class H(BaseHTTPRequestHandler):
             b["data"], b["ts"] = out, time.time()
             return self._send(200, out)
         if self.path == "/api/orchestrator":
-            b = _EP_CACHE.setdefault("orch", {"ts": 0.0, "data": None, "lock": threading.Lock()})
+            b = _CACHE.setdefault("orch", _CacheEntry())
             if b["data"] is not None and time.time() - b["ts"] < 30:
                 return self._send(200, b["data"])
             with b["lock"]:  # singleflight：并发只一路执行子进程
