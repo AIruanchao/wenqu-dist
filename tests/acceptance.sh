@@ -387,13 +387,14 @@ P1F_COUNT=0
 P1F_FAIL=0
 for tf in $P1F_FILES; do
   if [ -f "$ROOT/system/tests/$tf.py" ]; then
-    python3 "$ROOT/system/tests/$tf.py" >/dev/null 2>&1
+    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
     TF_RC=$?
     NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
     if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
       P1F_COUNT=$((P1F_COUNT+NF))
     else
       P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
     fi
   else
     P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
