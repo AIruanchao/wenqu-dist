@@ -470,6 +470,9 @@ loadTrend();setInterval(()=>loadTrend().catch(()=>{}),120000);
 try{
   const es=new EventSource('/api/bugscan-sse');
   es.addEventListener('ledger',()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{})});
+  // W11 SSE 断线对账：重连后拉 REST Snapshot 校验一致性（事件可能丢失→全量刷新兜底）
+  es.onopen=()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{});refresh().catch(()=>{})};
+  es.onerror=()=>{/* EventSource 自动重连；重连成功走 onopen 对账 */};
 }catch(e){}
 async function refresh(){
   const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -696,6 +699,59 @@ def _fold_project(f, by_day=None):
 
 _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
+
+# ── CacheRegistry（W10 统一缓存：mtime+TTL+singleflight 合一）──
+class _CacheEntry:
+    __slots__ = ("data", "ts", "stamp", "lock")
+    def __init__(self):
+        self.data = None
+        self.ts = 0.0
+        self.stamp = None  # mtime 签名（可选）
+        self.lock = threading.Lock()
+
+_CACHE = {}  # name → _CacheEntry
+_CACHE_GUARD = threading.Lock()
+
+def cache_get(name, ttl=None, stamp=None, loader=None):
+    """统一缓存入口——W10 CacheRegistry。
+    ttl=None → 纯 mtime 签名模式（stamp 不变返回缓存）
+    stamp=None → 纯 TTL 模式（ttl 秒内返回缓存）
+    loader() → 缓存 miss 时加载函数（singleflight：并发只一路执行）
+    """
+    with _CACHE_GUARD:
+        e = _CACHE.setdefault(name, _CacheEntry())
+    # 快路径（无锁）
+    if e.data is not None:
+        if ttl is None and stamp is not None and e.stamp == stamp:
+            return e.data
+        if ttl is not None and stamp is None and time.time() - e.ts < ttl:
+            return e.data
+    # 慢路径（singleflight）
+    with e.lock:
+        if e.data is not None:
+            if ttl is None and stamp is not None and e.stamp == stamp:
+                return e.data
+            if ttl is not None and stamp is None and time.time() - e.ts < ttl:
+                return e.data
+        data = loader() if loader else None
+        if data is not None:
+            e.data = data
+            e.ts = time.time()
+            e.stamp = stamp
+        return data
+
+def cache_invalidate(*names):
+    """指定缓存失效（写操作后调用）。"""
+    for n in names:
+        with _CACHE_GUARD:
+            e = _CACHE.get(n)
+        if e:
+            with e.lock:
+                e.data = None
+                e.ts = 0.0
+                e.stamp = None
+
+_SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
 _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
 _SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
 _SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）

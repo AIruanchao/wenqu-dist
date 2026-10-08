@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ops-families",
-    "generated_at": "2026-10-08T07:36:57+00:00",
-    "repo_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "generated_at": "2026-10-08T08:37:09+00:00",
+    "repo_head": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
     "test_file": "system/tests/test_ac_ops_families.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
     "scope": "SCH-01~07, ALT-01~02, HLT-01, DOC-01~04（14 ID）",
@@ -25,7 +25,7 @@
     },
     "DOC-02": {
       "pass": true,
-      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 64 vs 实测 66 漂移（观察项，已如实上报）"
+      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 64 vs 实测 67 漂移（观察项，已如实上报）"
     },
     "DOC-03": {
       "pass": true,
