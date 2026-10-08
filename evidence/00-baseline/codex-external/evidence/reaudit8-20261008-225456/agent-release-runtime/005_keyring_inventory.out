@@ -1,0 +1,23 @@
+=== id=005_keyring_inventory ===
+=== started_utc=2026-10-08T14:56:09Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+python3 - <<'PY'
+import os,stat,json
+p=os.path.expanduser('~/.wenqu-dist-release/release-keyring.json')
+print('path',p,'exists',os.path.exists(p))
+if os.path.exists(p):
+ s=os.stat(p); print('mode',oct(stat.S_IMODE(s.st_mode)),'uid',s.st_uid,'gid',s.st_gid,'size',s.st_size)
+ d=json.load(open(p)); print('schema',d.get('schema'),'keys',[(x.get('key_id'),x.get('status'),sorted(x.keys())) for x in d.get('keys',[])])
+ print('parent',oct(stat.S_IMODE(os.stat(os.path.dirname(p)).st_mode)))
+PY
+=== output ===
+path /Users/maccc/.wenqu-dist-release/release-keyring.json exists True
+mode 0o600 uid 502 gid 20 size 354
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+  File "<stdin>", line 6, in <listcomp>
+AttributeError: 'str' object has no attribute 'get'
+
+=== exit_code=1 ===
+=== ended_utc=2026-10-08T14:56:09Z ===

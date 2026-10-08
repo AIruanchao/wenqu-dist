@@ -1,0 +1,425 @@
+=== id=002_release_inventory ===
+=== started_utc=2026-10-08T14:56:05Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && find dist evidence/09-release-manifest-attestation system -maxdepth 3 -type f \( -iname '*release*' -o -iname '*manifest*' -o -iname '*sbom*' -o -iname '*verify*' -o -iname '*install*' \) -print | sort && printf '\nrefs in scripts\n' && rg -n '2bd59ab|verify-report|release.sig|plan.hash|plan_hash|manifest|SBOM|2886|current|chmod' tools system tests evidence/09-release-manifest-attestation .github/workflows | head -400
+=== output ===
+dist/wenqu-dist-2bd59ab.manifest.json
+dist/wenqu-dist-2bd59ab.release.sig
+dist/wenqu-dist-2bd59ab.sbom.spdx.json
+dist/wenqu-dist-2bd59ab.verify-report.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+system/bin/cursor-auto-verify.sh
+system/install-release.sh
+system/install.sh
+system/tests/test_ac_deploy_release.py
+system/tests/test_cli_install_ci.py
+system/tests/test_gate_manifest_trust.py
+system/tests/test_release_attest.py
+
+refs in scripts
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:5:  "task_context": "Codex 多轮缺口：制品无签名/SBOM。本记录为独立打包工具（tools/release_attest.py v1.0.0）首次全链落档；部署侧 DEP-04 签名字段由并行工作流在 system/wenqu_core/deploy_framework.py 接线，两轨独立。",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:20:    {"path": "dist/wenqu-dist-1620c7c.manifest.json", "size": 155696, "sha256": "6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560"},
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:21:    {"path": "dist/wenqu-dist-1620c7c.release.sig", "size": 620, "sha256": "8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3"},
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:24:  "manifest_facts": {
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:25:    "schema": "wenqu-release-manifest/1",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:43:    "checks": ["manifest-schema", "artifact-hash", "files-reconcile(642/642)", "signature(key_release_w6p1f)", "sbom-reconcile", "build-identity"],
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:44:    "report": "evidence/09-release-manifest-attestation/verify-report-1620c7c.json",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:45:    "console_log": "evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log"
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:53:    "result": "8 PASS / 0 FAIL（含：篡改 tar 一字节必拒/重打包+自洽改 manifest 被签名拦截/换 key 必拒/SBOM 字段完整性+篡改必拒/manifest+sig 篡改必拒/rotated 不得签发+revoked 验签即拒/确定性构建）"
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:56:    "HMAC 对称签名与审批体系同根：防篡改/防伪造，不提供非否认（non-repudiation）；未建独立 release signer 前按方案 §21.4 只可宣称 tamper-evident",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:63:    "python3 tools/release_attest.py sign --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring> --key-id key_release_w6p1f",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:64:    "python3 tools/release_attest.py sbom --manifest dist/wenqu-dist-1620c7c.manifest.json",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:65:    "python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring>"
+tools/release_attest.py:3:"""release_attest.py —— release 制品 manifest / 签名 / SBOM / 验证独立打包工具。
+tools/release_attest.py:6:但制品**无签名、无 SBOM、无 build identity 绑定**（evidence/09 README 建档时
+tools/release_attest.py:8:与 system/wenqu_core/deploy_framework.py 的部署侧 manifest 校验相互独立——
+tools/release_attest.py:21:  未建立独立 release signer 前不得声称「签名证明来源」。
+tools/release_attest.py:22:- SBOM = SPDX 2.3 JSON（最简合法文档）：根包=发行版（versionInfo 取自
+tools/release_attest.py:26:- verify = tar 重算逐文件 hash 对 manifest + 验签 + SBOM 三方对账，
+tools/release_attest.py:28:  另含 plan-hash 绑定检查（R7-REL-POLICY-HASH-011 根修）：实算 tar 内方案
+tools/release_attest.py:29:  快照 sha256 与 manifest.policy_hash.plan_sha256 等值校验 + 64hex 格式
+tools/release_attest.py:35:  python3 tools/release_attest.py sign  --manifest PATH --keyring PATH
+tools/release_attest.py:37:  python3 tools/release_attest.py sbom  --manifest PATH [--out PATH]
+tools/release_attest.py:38:  python3 tools/release_attest.py verify --manifest PATH --keyring PATH
+tools/release_attest.py:44:  <name>.manifest.json    逐文件清单（路径/类型/权限/大小/sha256 + build identity）
+tools/release_attest.py:45:  <name>.release.sig      detached HMAC-SHA256 签名（含 key_id）
+tools/release_attest.py:46:  <name>.sbom.spdx.json   SPDX 2.3 SBOM
+tools/release_attest.py:48:exit 约定：0=通过；1=verify 判 FAIL（制品/签名/SBOM 任一不符）；2=用法/环境错。
+tools/release_attest.py:77:MANIFEST_SCHEMA = "wenqu-release-manifest/1"
+tools/release_attest.py:78:SIG_SCHEMA = "wenqu-release-sig/1"
+tools/release_attest.py:79:SBOM_SPDX_VERSION = "SPDX-2.3"
+tools/release_attest.py:87:#: 烤进 manifest，verify 又不实算校验 → 绑定形同虚设。现改为运行时从
+tools/release_attest.py:98:#: SBOM 依赖提取的自述文件清单（归档内按 basename 精确匹配；无网络）。
+tools/release_attest.py:160:    """枚举 tar 内全部实体成员 → manifest 记录（含目录标记），返回 (记录, 意外成员)。"""
+tools/release_attest.py:262:    # 方案快照**的 sha256（完整 64hex）落 manifest——并在 build 期对冻结值
+tools/release_attest.py:276:    manifest = {
+tools/release_attest.py:311:    manifest_path = os.path.join(dist_dir, f"{name}.manifest.json")
+tools/release_attest.py:312:    with open(manifest_path, "w", encoding="utf-8") as fh:
+tools/release_attest.py:313:        json.dump(manifest, fh, ensure_ascii=False, indent=1, sort_keys=True)
+tools/release_attest.py:322:    print(f"             sha256={manifest['artifact']['sha256']} "
+tools/release_attest.py:323:          f"size={manifest['artifact']['size']}")
+tools/release_attest.py:324:    print(f"  manifest : {manifest_path}")
+tools/release_attest.py:331:def _load_manifest(manifest_path: str) -> Dict[str, Any]:
+tools/release_attest.py:333:        with open(manifest_path, "r", encoding="utf-8") as fh:
+tools/release_attest.py:336:        _die(f"manifest 不可读/非 JSON: {manifest_path!r} ({exc})")
+tools/release_attest.py:338:        _die(f"manifest schema 不符（期望 {MANIFEST_SCHEMA}）: {manifest_path!r}")
+tools/release_attest.py:343:    manifest_path = os.path.abspath(args.manifest)
+tools/release_attest.py:344:    manifest = _load_manifest(manifest_path)
+tools/release_attest.py:362:    # 被签信封 = manifest + key_id 绑定（与 verify 侧 ApprovalKeyring.verify
+tools/release_attest.py:365:    envelope = dict(manifest)
+tools/release_attest.py:376:        "signed_object": "manifest",
+tools/release_attest.py:377:        "signed_manifest_build_id": manifest.get("build_id"),
+tools/release_attest.py:378:        "signed_manifest_canonical_sha256": hashlib.sha256(
+tools/release_attest.py:388:        stem = manifest_path[: -len(".manifest.json")] \
+tools/release_attest.py:389:            if manifest_path.endswith(".manifest.json") else manifest_path
+tools/release_attest.py:390:        out = stem + ".release.sig"
+tools/release_attest.py:400:# SBOM（SPDX 2.3 JSON，最简合法文档；依赖只从归档内自述文件提取）
+tools/release_attest.py:454:    manifest_path = os.path.abspath(args.manifest)
+tools/release_attest.py:455:    manifest = _load_manifest(manifest_path)
+tools/release_attest.py:456:    base_dir = os.path.dirname(manifest_path)
+tools/release_attest.py:458:        args.tar or os.path.join(base_dir, manifest["artifact"]["path"]))
+tools/release_attest.py:463:    version = manifest.get("version", "NOASSERTION")
+tools/release_attest.py:464:    artifact_sha = manifest["artifact"]["sha256"]
+tools/release_attest.py:465:    name = manifest["artifact"]["path"][: -len(".tar.gz")]
+tools/release_attest.py:468:    for i, rec in enumerate(manifest["files"]):
+tools/release_attest.py:495:                    f"source_commit {manifest['source_commit']}"),
+tools/release_attest.py:503:    for i, rec in enumerate(manifest["files"]):
+tools/release_attest.py:528:        f"in-repo dependency manifests scanned (basename match, no network): "
+tools/release_attest.py:536:        "spdxVersion": SBOM_SPDX_VERSION,
+tools/release_attest.py:541:            f"https://wenqu-dist.invalid/spdx/{manifest['build_id']}/"
+tools/release_attest.py:556:        stem = manifest_path[: -len(".manifest.json")] \
+tools/release_attest.py:557:            if manifest_path.endswith(".manifest.json") else manifest_path
+tools/release_attest.py:562:    print(f"SBOM OK  →  {out}")
+tools/release_attest.py:563:    print(f"  spdxVersion={SBOM_SPDX_VERSION}  root=wenqu-dist@{version}  "
+tools/release_attest.py:571:# verify（tar ↔ manifest ↔ sig ↔ sbom 三方对账；任一不符 exit 1）
+tools/release_attest.py:591:    manifest_path = os.path.abspath(args.manifest)
+tools/release_attest.py:592:    base_dir = os.path.dirname(manifest_path)
+tools/release_attest.py:602:        manifest = _load_json(manifest_path, "manifest")
+tools/release_attest.py:603:        if manifest.get("schema") != MANIFEST_SCHEMA:
+tools/release_attest.py:604:            raise VerifyFail(f"manifest schema 不符: {manifest.get('schema')!r}")
+tools/release_attest.py:605:        record(True, "manifest-schema", f"build_id={manifest.get('build_id')}")
+tools/release_attest.py:608:        stem = manifest_path[: -len(".manifest.json")] \
+tools/release_attest.py:609:            if manifest_path.endswith(".manifest.json") else manifest_path
+tools/release_attest.py:611:            args.tar or os.path.join(base_dir, manifest["artifact"]["path"]))
+tools/release_attest.py:612:        sig_path = os.path.abspath(args.sig or stem + ".release.sig")
+tools/release_attest.py:615:        # --- 1) 制品 hash/size 对 manifest ---
+tools/release_attest.py:620:        exp_sha = str(manifest["artifact"]["sha256"])
+tools/release_attest.py:621:        exp_size = manifest["artifact"]["size"]
+tools/release_attest.py:629:        # --- 2) tar 逐文件重算 ↔ manifest.files（缺件/多件/漂移全拒）---
+tools/release_attest.py:633:        by_path_m = {r["path"]: r for r in manifest["files"]}
+tools/release_attest.py:646:        record(True, "files-reconcile", f"{len(records)}/{len(manifest['files'])} "
+tools/release_attest.py:650:        # 旧洞：manifest.policy_hash.plan_sha256 是烤死的（且曾为 61hex 截损
+tools/release_attest.py:654:        ph = manifest.get("policy_hash")
+tools/release_attest.py:656:            raise VerifyFail("manifest.policy_hash 缺失/非对象——方案绑定断裂")
+tools/release_attest.py:671:                f"方案快照 sha256 与 manifest.policy_hash.plan_sha256 不符: "
+tools/release_attest.py:673:        record(True, "plan-hash",
+tools/release_attest.py:677:        sig = _load_json(sig_path, "release.sig")
+tools/release_attest.py:686:        envelope = dict(manifest)
+tools/release_attest.py:696:        # --- 4) SBOM 对账 ---
+tools/release_attest.py:698:        sbom_problems = _check_sbom(sbom, manifest, actual_sha, records)
+tools/release_attest.py:700:            raise VerifyFail("SBOM 对账失败: " + "; ".join(sbom_problems[:5]))
+tools/release_attest.py:708:               f"commit={manifest['source_commit'][:12]}… "
+tools/release_attest.py:709:               f"built_at={manifest.get('built_at')} tool="
+tools/release_attest.py:710:               f"{manifest.get('tool')}@{manifest.get('tool_version')}")
+tools/release_attest.py:714:        record(False, "verify", f"manifest/sig/sbom 结构缺字段: {exc!r}")
+tools/release_attest.py:719:            "schema": "wenqu-release-verify-report/1",
+tools/release_attest.py:723:            "manifest": manifest_path,
+tools/release_attest.py:740:def _check_sbom(sbom: Dict[str, Any], manifest: Dict[str, Any],
+tools/release_attest.py:744:    if sbom.get("spdxVersion") != SBOM_SPDX_VERSION:
+tools/release_attest.py:745:        problems.append(f"spdxVersion 应为 {SBOM_SPDX_VERSION}: "
+tools/release_attest.py:762:    if root.get("versionInfo") != manifest.get("version"):
+tools/release_attest.py:764:                        f"manifest.version {manifest.get('version')!r}")
+tools/release_attest.py:772:    # SBOM files ↔ tar 实算逐文件对账
+tools/release_attest.py:789:        problems.append(f"SBOM 文件集不符: 仅SBOM={only_sbom} 仅TAR={only_tar}")
+tools/release_attest.py:793:        problems.append(f"SBOM 文件 hash 漂移: {sorted(mismatch)[:3]}")
+tools/release_attest.py:795:    # packageVerificationCode 内部一致性（防 SBOM 自身被局部篡改）
+tools/release_attest.py:819:        description="release 制品 manifest/签名/SBOM/verify 独立打包工具（纯标准库）")
+tools/release_attest.py:822:    p_build = sub.add_parser("build", help="git archive 干净树→tar.gz+manifest")
+tools/release_attest.py:829:    p_sign = sub.add_parser("sign", help="对 manifest 做 detached HMAC-SHA256 签名")
+tools/release_attest.py:830:    p_sign.add_argument("--manifest", required=True)
+tools/release_attest.py:836:    p_sbom = sub.add_parser("sbom", help="生成 SPDX 2.3 JSON SBOM")
+tools/release_attest.py:837:    p_sbom.add_argument("--manifest", required=True)
+tools/release_attest.py:842:    p_verify = sub.add_parser("verify", help="tar+manifest+sig+sbom 四件套对账")
+tools/release_attest.py:843:    p_verify.add_argument("--manifest", required=True)
+evidence/09-release-manifest-attestation/README.md:1:# 09-release-manifest-attestation — 发布清单与签名证据
+evidence/09-release-manifest-attestation/README.md:5:- Release manifest（§16.2）：制品清单、逐项 SHA256、build identity（在哪个 commit/环境构建）；
+evidence/09-release-manifest-attestation/README.md:7:- runtime/source 身份对账：部署后运行体 hash 与 manifest 逐项一致（消灭 FND-008 热补漂移）；
+evidence/09-release-manifest-attestation/README.md:16:## 当前状态（2026-10-08 签名/SBOM 能力落档）
+evidence/09-release-manifest-attestation/README.md:19:本日新增独立打包工具四件套（manifest+签名+SBOM+verify）；部署侧接线（DEP-04
+evidence/09-release-manifest-attestation/README.md:25:| `system/wenqu_core/deploy_framework.py`（原子部署骨架） | 存在；P0-6+7 修复 exec bit/首败 current link（be50cb8） |
+evidence/09-release-manifest-attestation/README.md:27:| 签名/attestation（**2026-10-08 新增，工具侧**） | `tools/release_attest.py` v1.0.0（纯标准库）：build/sign/sbom/verify 四命令；detached HMAC-SHA256（wenqu_core.approval_keys keyring 只读复用，含 key_id、revoked fail-closed）；SPDX 2.3 SBOM；verify 对 tar+manifest+sig+sbom 四件套对账，任一不符 exit 1 |
+evidence/09-release-manifest-attestation/README.md:28:| DEP-04（部署侧运行时验签） | **并行工作流进行中**（deploy_framework.py 签名字段）——工具侧契约已冻结可对接：manifest schema `wenqu-release-manifest/1`、sig schema `wenqu-release-sig/1` |
+evidence/09-release-manifest-attestation/README.md:29:| build identity / runtime 对账 | 工具侧已含（manifest 带 commit/argv/builder/时间戳）；外部 reaudit 的 runtime-source-hashes/diff 未固化 |
+evidence/09-release-manifest-attestation/README.md:35:- `verify-report-1620c7c.json` —— verify 机器可读报告（六检查项全 PASS）。
+evidence/09-release-manifest-attestation/README.md:42:| `dist/wenqu-dist-1620c7c.manifest.json` | `6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560` |
+evidence/09-release-manifest-attestation/README.md:43:| `dist/wenqu-dist-1620c7c.release.sig`（key_release_w6p1f） | `8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3` |
+evidence/09-release-manifest-attestation/README.md:46:复验：`python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring ~/.wenqu-dist-release/release-keyring.json`
+evidence/09-release-manifest-attestation/README.md:47:测试：`python3 system/tests/test_release_attest.py`（8 PASS：篡改 tar 一字节必拒／重打包+自洽改 manifest 被签名拦截／换 key 必拒／SBOM 字段完整性+篡改必拒／manifest+sig 篡改必拒／rotated 不得签发+revoked 验签即拒／确定性构建／verify 报告工件）。
+evidence/09-release-manifest-attestation/README.md:52:  提供 tamper-evident／防伪造；持有 secret 者可重签——未建立独立 release signer
+evidence/09-release-manifest-attestation/README.md:57:- SBOM 依赖信息只从归档内自述文件提取（无网络、无猜测）：本仓归档内无
+evidence/09-release-manifest-attestation/README.md:63:1. manifest 必须机器生成，含生成 argv、commit、环境；人工编辑即作废。
+evidence/09-release-manifest-attestation/README.md:64:2. 每次发布后追加 runtime 对账记录（部署体 hash vs manifest），任何漂移即事件。
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json:4:   "check": "manifest-schema",
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json:35: "manifest": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json",
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json:38: "schema": "wenqu-release-verify-report/1",
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json:39: "sig": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig",
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:10:  manifest : /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:13:SIGN OK  key_id=key_release_w6p1f  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:17:SBOM OK  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.sbom.spdx.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:21:$ python3 tools/release_attest.py verify --report evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:22:  PASS  manifest-schema  build_id=rel-1620c7c-20261008T094952Z
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:28:  report → evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+tools/ac_traceability.py:58:    "SC": ("REQ-SC-001", "AC-SC-FAIL-CLOSED", "W6B", "audit JSON、SBOM、signature"),
+tools/ac_traceability.py:65:    "REL": ("REQ-RELEASE-001", "AC-RELEASE-MANIFEST", "W7A/W7B", "manifest/build identity"),
+tools/ac_traceability.py:153:    ("REL", 1): ("manifest 缺件/多件/错 hash", "部署失败"),
+tools/ac_traceability.py:154:    ("REL", 2): ("部署中 kill -9", "保持旧 current 或完整新 current"),
+tools/ac_traceability.py:209:    ("DEP", 6): ("无迁移锁/未验证备份/expand 超授权", "激活前 BLOCKED，旧 current 不变"),
+tools/ac_traceability.py:222:    ("CAP", 1): ("峰值空间超过安全余量或磁盘满", "切换 BLOCKED，旧证据和 current 均完整"),
+system/install.sh:88:chmod +x "$PREFIX"/bin/* "$PREFIX"/sentinels/* "$PREFIX"/daemons/* 2>/dev/null || true
+system/sentinels/backup-restore-drill.sh:197:  chmod +x "$FAULT_BIN/tar" || exit 1
+tests/acceptance.sh:184:printf '#!/usr/bin/env bash\ndocker exec -e PGPASSWORD=l db sh\n' > "$RO/lock.sh" && chmod 000 "$RO/lock.sh"
+tests/acceptance.sh:192:chmod 644 "$RO/lock.sh"
+tests/acceptance.sh:210:chmod 555 "$HP/runs" 2>/dev/null || { mkdir -p "$HP/runs"; chmod 555 "$HP/runs"; }
+tests/acceptance.sh:212:chmod 755 "$HP/runs"
+tests/acceptance.sh:230:chmod 555 "$HP/runs"
+tests/acceptance.sh:232:chmod 755 "$HP/runs"
+tests/acceptance.sh:279:# CX15（Codex 三审#3 修）：先 init 成功再锁子目录——原 chmod 000 仓根导致 init 也挂，测试从未走到 CX12 分支
+tests/acceptance.sh:282:  chmod 000 "$RS/rs" 2>/dev/null
+tests/acceptance.sh:293:  chmod 755 "$RS/rs" 2>/dev/null
+tests/acceptance.sh:448:    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+system/install-release.sh:11:#     → verify 在部署位复验 → chmod a-w（不可变）
+system/install-release.sh:12:#     → ~/.wenqu/current 原子切换（临时 symlink + rename(2)，无中间态）
+system/install-release.sh:28:#     --rollback        切回 .last-current 记录的上一个激活目标
+system/install-release.sh:68:CURRENT="$INSTALL_ROOT/current"
+system/install-release.sh:69:LAST_CURRENT="$RELROOT/.last-current"
+system/install-release.sh:71:trap 'rm -f "$INSTALL_ROOT/.current.new.$$" \
+system/install-release.sh:72:      "$INSTALL_ROOT/.current.rollback.$$" 2>/dev/null || true' EXIT
+system/install-release.sh:76:  [ -f "$LAST_CURRENT" ] || die "无 .last-current 记录，无法回滚"
+system/install-release.sh:79:  ln -s "$PREV" "$INSTALL_ROOT/.current.rollback.$$"
+system/install-release.sh:81:    "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT"
+system/install-release.sh:82:  log "ROLLBACK OK  current → $PREV"
+system/install-release.sh:106:  --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING"
+system/install-release.sh:107:"$PY" tools/release_attest.py sbom --manifest "$DIST_DIR/$NAME.manifest.json"
+system/install-release.sh:109:  --manifest "$DIST_DIR/$NAME.manifest.json" --keyring "$KEYRING" \
+system/install-release.sh:110:  --report "$DIST_DIR/$NAME.verify-report.json" \
+system/install-release.sh:124:      --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+system/install-release.sh:129:    chmod -R u+w "$RELDIR" 2>/dev/null || true
+system/install-release.sh:139:  for ext in tar.gz manifest.json release.sig sbom.spdx.json; do
+system/install-release.sh:145:    || { chmod -R u+w "$RELDIR" 2>/dev/null || true; rm -rf "$RELDIR"; \
+system/install-release.sh:152:    --manifest "$RELDIR/$NAME.manifest.json" --keyring "$KEYRING" \
+system/install-release.sh:153:    --report "$RELDIR/verify-report.json" \
+system/install-release.sh:154:    || { chmod -R u+w "$RELDIR" 2>/dev/null || true; \
+system/install-release.sh:157:  "$PY" - "$RELDIR" "$NAME" <<'PYEOF' || { chmod -R u+w "$RELDIR" 2>/dev/null || true; \
+system/install-release.sh:158:         die "解出树与 manifest 逐文件对账失败"; }
+system/install-release.sh:161:m = json.load(open(os.path.join(reldir, name + ".manifest.json"),
+system/install-release.sh:180:print("  tree 与 manifest 逐文件 sha256 全符（%d files）" % len(m["files"]))
+system/install-release.sh:189:  chmod -R a-w "$RELDIR" 2>/dev/null || log "（警告）chmod a-w 未完全生效"
+system/install-release.sh:201:ln -s "$RELDIR/tree" "$INSTALL_ROOT/.current.new.$$"
+system/install-release.sh:203:  "$INSTALL_ROOT/.current.new.$$" "$CURRENT"
+system/install-release.sh:204:log "current → $(readlink "$CURRENT")"
+system/install-release.sh:206:  || die "激活后 current/system 不可达"
+system/install-release.sh:229:echo "  四件套    : $DIST_DIR/$NAME.{tar.gz,manifest.json,release.sig,sbom.spdx.json}"
+system/install-release.sh:230:echo "  不可变位  : ${RELDIR}（chmod a-w）"
+system/schemas/approval-v2.schema.json:124:        "required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"],
+system/schemas/approval-v2.schema.json:128:          "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+system/schemas/approval-v2.schema.json:139:        "required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"],
+system/schemas/approval-v2.schema.json:146:          "rollback_plan_hash": {"type": "string", "minLength": 1}
+system/wenqu_core/approval_keys.py:590:    os.chmod(path, _SECRET_FILE_MODE)  # 掩盖既有宽权限文件
+system/wenqu_core/approval_keys.py:596:    os.chmod(path, _KEYRING_DIR_MODE)
+system/wenqu_core/approval_keys.py:638:    os.chmod(event_log_path, _SECRET_FILE_MODE)
+system/wenqu_core/station7_runtime.py:171:def _require_manifest(manifest: RunManifest) -> RunManifest:
+system/wenqu_core/station7_runtime.py:172:    if not isinstance(manifest, RunManifest):
+system/wenqu_core/station7_runtime.py:174:            f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station7_runtime.py:176:    return manifest
+system/wenqu_core/station7_runtime.py:179:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:180:    """身份三源一律取冻结 manifest 正源，绝不采信探针/通道自报身份。"""
+system/wenqu_core/station7_runtime.py:182:        "project_id": manifest.project_id,
+system/wenqu_core/station7_runtime.py:183:        "commit_sha": manifest.commit_sha,
+system/wenqu_core/station7_runtime.py:184:        "environment": manifest.environment,
+system/wenqu_core/station7_runtime.py:185:        "scope_hash": manifest.scope_hash,
+system/wenqu_core/station7_runtime.py:186:        "ruleset_hash": manifest.ruleset_hash,
+system/wenqu_core/station7_runtime.py:187:        "data_config_hash": manifest.data_config_hash,
+system/wenqu_core/station7_runtime.py:189:    if manifest.lockfile_hash:
+system/wenqu_core/station7_runtime.py:190:        identity["lockfile_hash"] = manifest.lockfile_hash
+system/wenqu_core/station7_runtime.py:281:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:287:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:288:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:421:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:423:            attempt_id=_attempt_id(self._manifest.run_id, "st7-sentinel"),
+system/wenqu_core/station7_runtime.py:426:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:467:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:474:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:477:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:584:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:586:            attempt_id=_attempt_id(self._manifest.run_id, "st7-slo"),
+system/wenqu_core/station7_runtime.py:589:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:642:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:649:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:650:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:770:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:772:            attempt_id=_attempt_id(self._manifest.run_id, "st7-alert"),
+system/wenqu_core/station7_runtime.py:775:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:953:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:954:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:955:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:965:                self._manifest.run_id]
+system/wenqu_core/station7_runtime.py:967:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:969:            attempt_id=_attempt_id(self._manifest.run_id, "st5-placeholder"),
+system/wenqu_core/station7_runtime.py:972:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:1007:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:1008:        _require_manifest(manifest)
+system/wenqu_core/station7_runtime.py:1009:        self._manifest = manifest
+system/wenqu_core/station7_runtime.py:1019:                self._manifest.run_id]
+system/wenqu_core/station7_runtime.py:1021:            run_id=self._manifest.run_id,
+system/wenqu_core/station7_runtime.py:1023:            attempt_id=_attempt_id(self._manifest.run_id, "st6-placeholder"),
+system/wenqu_core/station7_runtime.py:1026:            identity=_manifest_identity(self._manifest),
+system/wenqu_core/station7_runtime.py:1061:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station7_runtime.py:1093:            manifest,
+system/wenqu_core/station7_runtime.py:1107:            manifest,
+system/wenqu_core/station7_runtime.py:1125:            manifest,
+system/wenqu_core/station7_runtime.py:1135:            manifest,
+system/wenqu_core/station7_runtime.py:1150:            manifest,
+system/wenqu_core/station7_runtime.py:1160:            manifest,
+system/wenqu_core/station7_runtime.py:1204:            manifest,
+system/wenqu_core/station7_runtime.py:1215:            manifest,
+system/wenqu_core/station7_runtime.py:1233:            manifest,
+system/wenqu_core/station7_runtime.py:1248:                manifest,
+system/wenqu_core/station7_runtime.py:1255:                manifest,
+system/wenqu_core/station7_runtime.py:1260:                manifest,
+system/wenqu_core/station7_runtime.py:1274:        st5 = Station5LiveFirePlaceholder(manifest).scan(
+system/wenqu_core/station7_runtime.py:1279:        st6 = Station6AdversarialPlaceholder(manifest).scan(
+system/docs/specs/wenqu-vNext-contract.md:62:| 3 | release | 一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案 |
+system/docs/specs/wenqu-vNext-contract.md:97:| 可执行核心 | wenqu-dist（唯一实现，manifest 校验，不得热改） |
+system/wenqu_core/wenqu_pipeline.py:299:    RELEASE = "release"            # 发布：exact release/SHA/env 授权 + Gate/manifest/回滚预案
+system/wenqu_core/wenqu_pipeline.py:340:        "description": "一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案",
+system/wenqu_core/wenqu_pipeline.py:343:            ("gate_reference", "manifest_sha256", "rollback_plan"),
+system/wenqu_core/wenqu_pipeline.py:421:    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+system/wenqu_core/wenqu_pipeline.py:424:            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+system/wenqu_core/wenqu_pipeline.py:618:    def __init__(self, kind: str, current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:620:            f"illegal {kind} transition: {current} -> {new} "
+system/wenqu_core/wenqu_pipeline.py:623:        self.kind, self.current, self.new = kind, current, new
+system/wenqu_core/wenqu_pipeline.py:844:    def current_attempt(self) -> Optional[StageAttempt]:
+system/wenqu_core/wenqu_pipeline.py:850:        cur = self.current_attempt
+system/wenqu_core/wenqu_pipeline.py:910:    def current_stage(self) -> Optional[str]:
+system/wenqu_core/wenqu_pipeline.py:964:    def validate_run_transition(current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:965:        if current not in RUN_TRANSITIONS:
+system/wenqu_core/wenqu_pipeline.py:966:            raise InvalidTransitionError("run", current, new)
+system/wenqu_core/wenqu_pipeline.py:967:        if new not in RUN_TRANSITIONS[current]:
+system/wenqu_core/wenqu_pipeline.py:968:            raise InvalidTransitionError("run", current, new)
+system/wenqu_core/wenqu_pipeline.py:971:    def validate_attempt_transition(current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:972:        if current not in ATTEMPT_TRANSITIONS:
+system/wenqu_core/wenqu_pipeline.py:973:            raise InvalidTransitionError("attempt", current, new)
+system/wenqu_core/wenqu_pipeline.py:974:        if new not in ATTEMPT_TRANSITIONS[current]:
+system/wenqu_core/wenqu_pipeline.py:975:            raise InvalidTransitionError("attempt", current, new)
+system/wenqu_core/wenqu_pipeline.py:1893:            anchor_stage = (state.current_stage if state.current_stage is not None
+system/wenqu_core/wenqu_pipeline.py:2285:                    f"state_version {observed_version!r} != current "
+system/wenqu_core/wenqu_pipeline.py:2386:            cur = ss.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2406:            cur = ss.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2410:                    f" on {stage}（current={cur.status if cur else None}）")
+system/wenqu_core/wenqu_pipeline.py:2431:            cur = ss.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2459:            prior = rs.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2529:        current = state.actions.get(action_id)
+system/wenqu_core/wenqu_pipeline.py:2531:            if current is not None:
+system/wenqu_core/wenqu_pipeline.py:2569:        if current is None:
+system/wenqu_core/wenqu_pipeline.py:2572:        if target_state not in ACTION_TRANSITIONS.get(current["action_state"],
+system/wenqu_core/wenqu_pipeline.py:2576:                f"{current['action_state']} -> {target_state}")
+system/wenqu_core/wenqu_pipeline.py:2586:                current["receipt"] = receipt
+system/wenqu_core/wenqu_pipeline.py:2587:                current["receipt_status"] = RECEIPT_PROVISIONAL
+system/wenqu_core/wenqu_pipeline.py:2597:            current["receipt"] = receipt
+system/wenqu_core/wenqu_pipeline.py:2598:            current["receipt_status"] = RECEIPT_RECONCILED
+system/wenqu_core/wenqu_pipeline.py:2599:        current["action_state"] = target_state
+system/wenqu_core/wenqu_pipeline.py:2600:        current[f"{target_state.lower()}_at"] = ev.get("ts")
+system/wenqu_core/wenqu_pipeline.py:2752:            cur = ss.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2774:            stage = state.current_stage
+system/wenqu_core/wenqu_pipeline.py:2779:            cur = ss.current_attempt
+system/wenqu_core/wenqu_pipeline.py:2793:                    state.current_stage is None and not state.terminal)
+system/wenqu_core/wenqu_pipeline.py:2811:                state.current_stage is None and not state.terminal)
+system/wenqu_core/wenqu_pipeline.py:2832:            stage = state.current_stage
+system/wenqu_core/wenqu_pipeline.py:2835:            cur = state.stages[stage].current_attempt
+system/wenqu_core/wenqu_pipeline.py:2900:        cur_stage = state.current_stage
+system/wenqu_core/wenqu_pipeline.py:2902:            state.stages[cur_stage].current_attempt.attempt_id
+system/wenqu_core/wenqu_pipeline.py:3444:    def validate_transition(current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:3445:        if new not in ACTION_TRANSITIONS.get(current, frozenset()):
+system/wenqu_core/wenqu_pipeline.py:3447:                f"illegal action transition: {current} -> {new} "
+system/wenqu_core/gate_aggregator.py:5:（attempt_id+scope_hash+coverage+artifact 摘要全等）、manifest 范围绑定
+system/wenqu_core/gate_aggregator.py:62:    C6 manifest 范围绑定（F6-GATE-SCOPE-001）：expected_scope_hash/
+system/wenqu_core/gate_aggregator.py:65:       （≠ manifest 冻结分母）、legacy 结果（无法证明 scope 绑定）一律
+system/wenqu_core/gate_aggregator.py:410:    manifest 范围绑定（F6-GATE-SCOPE-001，正门路径）::
+system/wenqu_core/gate_aggregator.py:412:        agg = GateAggregator(required_stations=manifest_required_set,
+system/wenqu_core/gate_aggregator.py:413:                             target_sha=manifest.commit_sha,
+system/wenqu_core/gate_aggregator.py:414:                             environment=manifest.environment,
+system/wenqu_core/gate_aggregator.py:415:                             expected_scope_hash=manifest.identity.scope_hash,
+system/wenqu_core/gate_aggregator.py:416:                             expected_denominator=manifest.scope.denominator)
+system/wenqu_core/gate_aggregator.py:420:    run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
+system/wenqu_core/gate_aggregator.py:435:                "（manifest 范围绑定——F6-GATE-SCOPE-001）")
+system/wenqu_core/gate_aggregator.py:445:                             "(manifest scope denominator)")
+system/wenqu_core/gate_aggregator.py:670:            # outcome+sha+environment（历史语义），manifest 绑定下记 C6 违规
+system/wenqu_core/gate_aggregator.py:720:    def _reconcile_manifest_binding(self, station: str,
+system/wenqu_core/gate_aggregator.py:722:        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
+system/wenqu_core/gate_aggregator.py:725:        必须等于冻结值；coverage.denominator 必须等于 manifest 冻结分母
+system/wenqu_core/gate_aggregator.py:732:                "reason": "legacy_result_not_manifest_bound",
+system/wenqu_core/gate_aggregator.py:733:                "detail": "manifest 正门只接受 station-result-v2"
+system/wenqu_core/gate_aggregator.py:811:        # C6：manifest 范围绑定逐站对账（正门路径激活时）
+system/wenqu_core/gate_aggregator.py:813:            self._reconcile_manifest_binding(station, entry)
+system/wenqu_core/gate_aggregator.py:851:                  "必须对账冻结 manifest)")
+system/wenqu_core/gate_aggregator.py:934:                "mode": "manifest",
+system/templates/adversarial.spec.ts:11:describe("adversarial: concurrent same-order collection", () => {
+system/templates/adversarial.spec.ts:17:        async (total, concurrentCount) => {
+system/templates/adversarial.spec.ts:20:            Array.from({ length: concurrentCount }, (_, i) =>
+system/templates/adversarial.spec.ts:21:              simulateConcurrentCollect(order, D(Math.floor(total / concurrentCount)), i)
+system/templates/adversarial.spec.ts:128:async function simulateConcurrentCollect(order: any, amount: any, _index: number) {
+system/wenqu_core/approval_issue.py:265:        os.chmod(self.path, _AUDIT_FILE_MODE)
+system/wenqu_core/station3_contract.py:238:    """载荷携带的 data_config 与冻结 manifest.data_config_hash 不一致。"""
+system/wenqu_core/station3_contract.py:476:    """站3 四件套共同纪律：manifest 身份正源 + TTL 时效 + 统一结果构造。
+system/wenqu_core/station3_contract.py:491:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:496:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:498:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:502:        self._manifest = manifest
+system/wenqu_core/station3_contract.py:509:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:510:        return self._manifest
+system/wenqu_core/station3_contract.py:517:    def _manifest_identity(self) -> Dict[str, Any]:
+system/wenqu_core/station3_contract.py:518:        m = self._manifest
+system/wenqu_core/station3_contract.py:616:                or _argv_digest([tool["name"], self._manifest.run_id, self.tag])
+system/wenqu_core/station3_contract.py:638:            run_id=self._manifest.run_id,
+system/wenqu_core/station3_contract.py:640:            attempt_id=_make_attempt_id(self._manifest.run_id, self.tag),
+system/wenqu_core/station3_contract.py:643:            identity=self._manifest_identity(),
+system/wenqu_core/station3_contract.py:684:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:690:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:825:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:831:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1127:                                                 # manifest.data_config_hash
+system/wenqu_core/station3_contract.py:1151:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1157:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1228:        # data_config 绑定：载荷自带的数据配置必须与冻结 manifest 同哈希。
+system/wenqu_core/station3_contract.py:1233:            if _hash_obj(dict(data_config)) != self._manifest.data_config_hash:
+system/wenqu_core/station3_contract.py:1235:                    "db_drift payload 的 data_config 哈希与冻结 manifest."
+system/wenqu_core/station3_contract.py:1412:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1418:        super().__init__(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1659:        contract = Station3Contract(manifest)          # 冻结 run 的 manifest
+system/wenqu_core/station3_contract.py:1671:    - 身份一律取自冻结 manifest；工具 digest=四组件结果 canonical 哈希。
+system/wenqu_core/station3_contract.py:1690:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1695:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:1697:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:1701:        self._manifest = manifest
+system/wenqu_core/station3_contract.py:1709:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:1710:        return self._manifest
+system/wenqu_core/station3_contract.py:1716:    # -- 四件套工厂（共享 manifest/registry/now 身份正源） -------------------
+system/wenqu_core/station3_contract.py:1719:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1724:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1729:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1734:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1744:            self._manifest, registry=self._registry, now=self._now, **kwargs
+system/wenqu_core/station3_contract.py:1869:            run_id=self._manifest.run_id,
+system/wenqu_core/station3_contract.py:1871:            attempt_id=_make_attempt_id(self._manifest.run_id, "st3"),
+system/wenqu_core/station3_contract.py:1882:                    ["wenqu_core.station3_contract", self._manifest.run_id]
+system/wenqu_core/station3_contract.py:1927:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station3_contract.py:1938:    contract = Station3Contract(manifest, registry=registry, now=now)
+system/wenqu_core/station3_contract.py:1939:    ts = manifest.frozen_at
+system/wenqu_core/station3_contract.py:1940:    print(f"[1] manifest frozen: run={manifest.run_id} ttl={contract.ttl_days}d "
+system/wenqu_core/deploy_framework.py:11:    D3 rename 原子性：release 目录发布（os.rename）与 current symlink 切换
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:05Z ===

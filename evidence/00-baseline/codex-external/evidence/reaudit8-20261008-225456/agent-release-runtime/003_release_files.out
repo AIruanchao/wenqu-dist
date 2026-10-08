@@ -1,0 +1,570 @@
+=== id=003_release_files ===
+=== started_utc=2026-10-08T14:56:05Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && for f in dist/SHA256-vNext-candidate-2bd59ab.txt dist/wenqu-dist-2bd59ab.manifest.json dist/wenqu-dist-2bd59ab.release.sig dist/wenqu-dist-2bd59ab.sbom.spdx.json dist/wenqu-dist-2bd59ab.verify-report.json; do echo ===$f===; ls -lOe "$f"; file "$f"; case "$f" in *.json|*.sig) python3 -m json.tool "$f" 2>/dev/null | head -240 || sed -n '1,240p' "$f";; *) cat "$f";; esac; done
+=== output ===
+===dist/SHA256-vNext-candidate-2bd59ab.txt===
+-rw-r--r--@ 1 maccc  wheel  - 408 Oct  8 22:55 dist/SHA256-vNext-candidate-2bd59ab.txt
+dist/SHA256-vNext-candidate-2bd59ab.txt: ASCII text
+b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236  dist/wenqu-dist-2bd59ab.tar.gz
+cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7  dist/wenqu-dist-2bd59ab.manifest.json
+f47d8469c506f96828ac66a7f5895c481997acdc381fe2f9abc77bce2eb96205  dist/wenqu-dist-2bd59ab.release.sig
+398c015ff13d716933812922768e4019f04c47b454cc524e3194a674453544b5  dist/wenqu-dist-2bd59ab.sbom.spdx.json
+===dist/wenqu-dist-2bd59ab.manifest.json===
+-rw-r--r--@ 1 maccc  wheel  - 838017 Oct  8 22:55 dist/wenqu-dist-2bd59ab.manifest.json
+dist/wenqu-dist-2bd59ab.manifest.json: JSON data
+{
+    "argv": [
+        "release_attest.py",
+        "build",
+        "--commit",
+        "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+        "--prefix",
+        "wenqu-dist"
+    ],
+    "artifact": {
+        "deterministic_gzip": "mtime=0, level=9 \u2014\u2014 \u540c commit \u91cd\u5efa\u5b57\u8282\u4e00\u81f4",
+        "path": "wenqu-dist-2bd59ab.tar.gz",
+        "sha256": "b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236",
+        "size": 33139660,
+        "source": "git archive 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551 (clean tree from commit object)"
+    },
+    "build_id": "rel-2bd59ab-20261008T142740Z",
+    "builder": {
+        "host": "M2Pro-Agent",
+        "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.13",
+        "user": "maccc"
+    },
+    "built_at": "2026-10-08T14:27:40Z",
+    "files": [
+        {
+            "mode": 436,
+            "path": "\"\"",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "size": 0,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": ".github/workflows/acceptance.yml",
+            "sha256": "df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592",
+            "size": 865,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": ".gitignore",
+            "sha256": "c2f339fc3070732f7d1d7a7284dbae456803cc0c9d250946c68c93b6f80745a4",
+            "size": 679,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": ".mimosa-ignore",
+            "sha256": "5517fe4eea4a68dc3d4bfe6456acdaf51d84ec18755394c503f50a0a27e24175",
+            "size": 19,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "CHANGELOG.md",
+            "sha256": "3111438d9bcdc2ea0105073e3b198ca4a43442486ef7293fa3866e96b6a5d2d4",
+            "size": 34972,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "README.md",
+            "sha256": "45f87d6a5dfe9fc5772a062b212aa07f917fe7de73bdb73e05477a146a229f8d",
+            "size": 3150,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v1.0.18.txt",
+            "sha256": "db01aeae80b55a7ed6f06cb1dddbf7998c0752d8fc6abbfd5f879be578e54a37",
+            "size": 92,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v1.0.6.txt",
+            "sha256": "22685e0b68e1aa90e4a0ce9fd500c4de2b40b8deec77e3055dc0d5b4ec2ecb5d",
+            "size": 91,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v1.0.7.txt",
+            "sha256": "8cd68f8100ae5977cf5b1c7039c7cfeed4ccb1256e3855d6fbc824d09c83abac",
+            "size": 91,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v1.0.8.txt",
+            "sha256": "2cf81e82f3838c3c7206758381237f92d68bb95e2405ee522d0c8fc89ec4afab",
+            "size": 91,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v2.0.txt",
+            "sha256": "29762dbe5f15ddfe5b6d471c30003c90462000b699a14f2a3d3981d9b8f9d20f",
+            "size": 89,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.0.0.txt",
+            "sha256": "aebdd939f4562c3f159764ef7a14c08bd3064b011ac54a9bd044005606d978e2",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.1.0.txt",
+            "sha256": "9e0cf39fc2a5eaac942a4fead83738c270c583259e88c52f4663a1d03e86d07b",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.2.0.txt",
+            "sha256": "388a97a97fc1ca4a8c73d7f56acc4c1d13c33b573ac0145898348141debded50",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.3.0.txt",
+            "sha256": "04e1330c9ebcdb9cdfaa4e8ecac3b5369e7b77eb3ac18a8c1b0e2d83f835a819",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.0.txt",
+            "sha256": "2b66dda41412fa8f5e01206fed76d4db3f9bbb8fa57edd0df13793826676b194",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.1.txt",
+            "sha256": "1047eb6d6879a0b9f60ca87d34f5f8741ab30b79dd351768cde6c57a22b9b3e2",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.2.txt",
+            "sha256": "c9f9f3bdc9d514faf8f44c561b8c2cb1bea9f499c4dfe36a7756e23de6591190",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.3.txt",
+            "sha256": "5129c3de466a3053ba20226e1338ca5ad84a5be232ee1c72bf7c310322384662",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.4.txt",
+            "sha256": "84eadc1cbdaf3393d4414911a3472a784fdd5c09b3b6a560fdf67c373a8da9af",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.4.5.txt",
+            "sha256": "8aaebd22631fc071eff77ad81c03865fd975f0a66f5f6f2d6ea4d5441e82b46b",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.0.txt",
+            "sha256": "efc1107a5ebea23a8a777056b0885a1fd19483439b85feb1b15f8322a76e9b98",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.1.txt",
+            "sha256": "659bf3d6eae605bf9799348cb8d03843044a00ac0a7c289fe65f114c1b541b66",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.2.txt",
+            "sha256": "8eaa3d7373df7c673cfb2d4ae6a69952beb9f50a31a8836a1e67b0b361532d90",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.3.txt",
+            "sha256": "1c5d70f6b1673a361e705f2ca4bcc2abaefd1b2cf6dd2791a48fe8c2e2604c7a",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.4.txt",
+            "sha256": "ec7359cd440b2d5b864916c46fb7ebbb2898f75b30e2bd3e81d4597cdccec93f",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.5.txt",
+            "sha256": "0093cf06e63b882889290a9ce0f5043d4fffe2411211140d2e161bbde8b91f68",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.6.txt",
+            "sha256": "7ca383ef2552b5953176a3a872fbfc437b911c6e57e2b03cbd0a54283796bd09",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.7.txt",
+            "sha256": "8abad2e7adf92937c6b59c6391090e093415246d5a453176b26499e4e6267fa7",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.5.8.txt",
+            "sha256": "dc63928f80e7d8bb4c51e5a203688e8bb9dc54e6e272b485b1b5777d23d12cd6",
+            "size": 85,
+            "type": "file"
+        },
+        {
+            "mode": 436,
+            "path": "SHA256-v3.6.0.txt",
+            "sha256": "73ffd64f67a37833455803d832249f8202d7843db4cdbbb928eff16991078bd1",
+            "size": 85,
+===dist/wenqu-dist-2bd59ab.release.sig===
+-rw-r--r--@ 1 maccc  wheel  - 620 Oct  8 22:55 dist/wenqu-dist-2bd59ab.release.sig
+dist/wenqu-dist-2bd59ab.release.sig: JSON data
+{
+    "algorithm": "HMAC-SHA256",
+    "honesty": "HMAC-SHA256 symmetric key (same trust root as approval keyring): tamper-evident / anti-forgery only, NOT non-repudiation (plan \u00a721.4)",
+    "key_id": "key_release_w6p1f",
+    "schema": "wenqu-release-sig/1",
+    "signature": "ef46be8114e23723e272c9f888d8e6dd0e4e96e502fd127b1e4d06868cf267e8",
+    "signed_at": "2026-10-08T14:27:40Z",
+    "signed_manifest_build_id": "rel-2bd59ab-20261008T142740Z",
+    "signed_manifest_canonical_sha256": "095c2c610e456dffc316cc46ac741ff312c088b0b53b5a10f677c6890f8a452d",
+    "signed_object": "manifest",
+    "tool": "release_attest.py",
+    "tool_version": "1.1.0"
+}
+===dist/wenqu-dist-2bd59ab.sbom.spdx.json===
+-rw-r--r--@ 1 maccc  wheel  - 1754383 Oct  8 22:55 dist/wenqu-dist-2bd59ab.sbom.spdx.json
+dist/wenqu-dist-2bd59ab.sbom.spdx.json: Unicode text, UTF-8 text, with very long lines (365)
+{
+    "SPDXID": "SPDXRef-DOCUMENT",
+    "creationInfo": {
+        "comment": "in-repo dependency manifests scanned (basename match, no network): ['Cargo.toml', 'Gemfile', 'Pipfile', 'go.mod', 'package.json', 'pyproject.toml', 'requirements-dev.txt', 'requirements.txt', 'requirements_test.txt', 'setup.py']; found in archive: NONE; parsed deps: 0\u3002\u5f52\u6863\u5185\u65e0 requirements/package.json \u65f6\uff0c\u672c\u53d1\u884c\u7248\u6309\u4ed3\u5185\u81ea\u8ff0\uff08README\uff1acli \u4e0e\u5de5\u5177\u5747 stdlib-only\uff09\u8bb0\u4e3a\u96f6\u7b2c\u4e09\u65b9\u4f9d\u8d56\u3002",
+        "created": "2026-10-08T14:27:40Z",
+        "creators": [
+            "Tool: release_attest-1.1.0",
+            "Person: maccc"
+        ]
+    },
+    "dataLicense": "CC0-1.0",
+    "documentDescribes": [
+        "SPDXRef-Package-Root"
+    ],
+    "documentNamespace": "https://wenqu-dist.invalid/spdx/rel-2bd59ab-20261008T142740Z/b4e3d5fce24f2cd5",
+    "files": [
+        {
+            "SPDXID": "SPDXRef-File-0000",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./\"\"",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0001",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./.github/workflows/acceptance.yml",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0002",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "c2f339fc3070732f7d1d7a7284dbae456803cc0c9d250946c68c93b6f80745a4"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./.gitignore",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0003",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "5517fe4eea4a68dc3d4bfe6456acdaf51d84ec18755394c503f50a0a27e24175"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./.mimosa-ignore",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0004",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "3111438d9bcdc2ea0105073e3b198ca4a43442486ef7293fa3866e96b6a5d2d4"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./CHANGELOG.md",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0005",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "45f87d6a5dfe9fc5772a062b212aa07f917fe7de73bdb73e05477a146a229f8d"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./README.md",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0006",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "db01aeae80b55a7ed6f06cb1dddbf7998c0752d8fc6abbfd5f879be578e54a37"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v1.0.18.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0007",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "22685e0b68e1aa90e4a0ce9fd500c4de2b40b8deec77e3055dc0d5b4ec2ecb5d"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v1.0.6.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0008",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "8cd68f8100ae5977cf5b1c7039c7cfeed4ccb1256e3855d6fbc824d09c83abac"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v1.0.7.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0009",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "2cf81e82f3838c3c7206758381237f92d68bb95e2405ee522d0c8fc89ec4afab"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v1.0.8.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0010",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "29762dbe5f15ddfe5b6d471c30003c90462000b699a14f2a3d3981d9b8f9d20f"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v2.0.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0011",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "aebdd939f4562c3f159764ef7a14c08bd3064b011ac54a9bd044005606d978e2"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v3.0.0.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0012",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "9e0cf39fc2a5eaac942a4fead83738c270c583259e88c52f4663a1d03e86d07b"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v3.1.0.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0013",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "388a97a97fc1ca4a8c73d7f56acc4c1d13c33b573ac0145898348141debded50"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v3.2.0.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+        },
+        {
+            "SPDXID": "SPDXRef-File-0014",
+            "checksums": [
+                {
+                    "algorithm": "SHA256",
+                    "checksumValue": "04e1330c9ebcdb9cdfaa4e8ecac3b5369e7b77eb3ac18a8c1b0e2d83f835a819"
+                }
+            ],
+            "copyrightText": "NOASSERTION",
+            "fileName": "./SHA256-v3.3.0.txt",
+            "licenseConcluded": "NOASSERTION",
+            "licenseInfoInFiles": [
+                "NOASSERTION"
+            ]
+===dist/wenqu-dist-2bd59ab.verify-report.json===
+-rw-r--r--@ 1 maccc  wheel  - 1494 Oct  8 22:55 dist/wenqu-dist-2bd59ab.verify-report.json
+dist/wenqu-dist-2bd59ab.verify-report.json: JSON data
+{
+    "checks": [
+        {
+            "check": "manifest-schema",
+            "detail": "build_id=rel-2bd59ab-20261008T142740Z",
+            "ok": true
+        },
+        {
+            "check": "artifact-hash",
+            "detail": "sha256=b4e3d5fce24f2cd5\u2026 size=33139660",
+            "ok": true
+        },
+        {
+            "check": "files-reconcile",
+            "detail": "2886/2886 path+type+mode+size+sha256 \u5168\u7b26",
+            "ok": true
+        },
+        {
+            "check": "plan-hash",
+            "detail": "evidence/00-baseline/codex-external/\u65b9\u6848.md sha256=96b8646f6f08fd5f\u2026\uff08\u5b9e\u7b97\u7b49\u503c\uff0c64hex\uff09",
+            "ok": true
+        },
+        {
+            "check": "signature",
+            "detail": "key_id=key_release_w6p1f algorithm=HMAC-SHA256\uff08HMAC \u5bf9\u79f0\uff1atamper-evident\uff0c\u975e\u975e\u5426\u8ba4\uff09",
+            "ok": true
+        },
+        {
+            "check": "sbom-reconcile",
+            "detail": "spdxVersion=SPDX-2.3 files=2886 root=3.8.4",
+            "ok": true
+        },
+        {
+            "check": "build-identity",
+            "detail": "commit=2bd59ab73aab\u2026 built_at=2026-10-08T14:27:40Z tool=release_attest.py@1.1.0",
+            "ok": true
+        }
+    ],
+    "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+    "manifest": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-2bd59ab.manifest.json",
+    "result": "PASS",
+    "sbom": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-2bd59ab.sbom.spdx.json",
+    "schema": "wenqu-release-verify-report/1",
+    "sig": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-2bd59ab.release.sig",
+    "tar": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-2bd59ab.tar.gz",
+    "tool": "release_attest.py",
+    "tool_version": "1.1.0",
+    "verified_at": "2026-10-08T14:27:41Z"
+}
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:05Z ===

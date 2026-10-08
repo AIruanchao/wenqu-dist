@@ -1,0 +1,49 @@
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-2bd59ab-20261008T142740Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=b4e3d5fce24f2cd5… size=33139660",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "2886/2886 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "plan-hash",
+   "detail": "evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）",
+   "ok": true
+  },
+  {
+   "check": "signature",
+   "detail": "key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）",
+   "ok": true
+  },
+  {
+   "check": "sbom-reconcile",
+   "detail": "spdxVersion=SPDX-2.3 files=2886 root=3.8.4",
+   "ok": true
+  },
+  {
+   "check": "build-identity",
+   "detail": "commit=2bd59ab73aab… built_at=2026-10-08T14:27:40Z tool=release_attest.py@1.1.0",
+   "ok": true
+  }
+ ],
+ "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+ "manifest": "/private/tmp/wenqu-reaudit8-20261008-225456/dist/wenqu-dist-2bd59ab.manifest.json",
+ "result": "PASS",
+ "sbom": "/private/tmp/wenqu-reaudit8-20261008-225456/dist/wenqu-dist-2bd59ab.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/private/tmp/wenqu-reaudit8-20261008-225456/dist/wenqu-dist-2bd59ab.release.sig",
+ "tar": "/private/tmp/wenqu-reaudit8-20261008-225456/dist/wenqu-dist-2bd59ab.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.1.0",
+ "verified_at": "2026-10-08T14:56:23Z"
+}

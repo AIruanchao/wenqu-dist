@@ -1,0 +1,135 @@
+=== id=001_baseline ===
+=== started_utc=2026-10-08T14:56:00Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && printf 'HEAD=' && git rev-parse HEAD && printf 'status=' && git status --porcelain=v1 && printf 'remote=' && git remote -v && printf 'time=' && date -Ins && printf 'uname=' && uname -a && printf 'python=' && python3 --version && printf 'gh=' && (gh --version | head -1 || true) && printf 'tree top\n' && find . -maxdepth 2 -mindepth 1 -print | sort | sed -n '1,240p'
+=== output ===
+HEAD=67f9aa7370430d2be689c2d217513107c642b4a6
+status=remote=origin	/Users/maccc/Documents/wenqu-dist (fetch)
+origin	/Users/maccc/Documents/wenqu-dist (push)
+time=2026-10-08T22:56:01,002770000+08:00
+uname=Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64
+python=Python 3.9.6
+gh=gh version 2.96.0 (2026-07-02)
+tree top
+./""
+./.git
+./.git/HEAD
+./.git/config
+./.git/description
+./.git/hooks
+./.git/index
+./.git/info
+./.git/logs
+./.git/objects
+./.git/packed-refs
+./.git/refs
+./.github
+./.github/workflows
+./.gitignore
+./.mimosa-ignore
+./CHANGELOG.md
+./README.md
+./SHA256-v1.0.18.txt
+./SHA256-v1.0.6.txt
+./SHA256-v1.0.7.txt
+./SHA256-v1.0.8.txt
+./SHA256-v2.0.txt
+./SHA256-v3.0.0.txt
+./SHA256-v3.1.0.txt
+./SHA256-v3.2.0.txt
+./SHA256-v3.3.0.txt
+./SHA256-v3.4.0.txt
+./SHA256-v3.4.1.txt
+./SHA256-v3.4.2.txt
+./SHA256-v3.4.3.txt
+./SHA256-v3.4.4.txt
+./SHA256-v3.4.5.txt
+./SHA256-v3.5.0.txt
+./SHA256-v3.5.1.txt
+./SHA256-v3.5.2.txt
+./SHA256-v3.5.3.txt
+./SHA256-v3.5.4.txt
+./SHA256-v3.5.5.txt
+./SHA256-v3.5.6.txt
+./SHA256-v3.5.7.txt
+./SHA256-v3.5.8.txt
+./SHA256-v3.6.0.txt
+./SHA256-v3.6.1.txt
+./SHA256-v3.6.2.txt
+./SHA256-v3.6.3.txt
+./SHA256-v3.7.0.txt
+./SHA256-v3.7.1.txt
+./SHA256-v3.8.1.txt
+./SHA256-v3.8.2.txt
+./SHA256-v3.8.3.txt
+./SHA256-v3.8.4.txt
+./cli
+./cli/README.md
+./cli/test_wenqu.py
+./cli/wenqu
+./dist
+./dist/SHA256-vNext-candidate-2bd59ab.txt
+./dist/SHA256-vNext-candidate-f2b8fc3.txt
+./dist/wenqu-dist-2bd59ab.manifest.json
+./dist/wenqu-dist-2bd59ab.release.sig
+./dist/wenqu-dist-2bd59ab.sbom.spdx.json
+./dist/wenqu-dist-2bd59ab.tar.gz
+./dist/wenqu-dist-2bd59ab.verify-report.json
+./dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+./docs
+./docs/条件放行声明-v1.0.18.md
+./docs/问渠轨道规范-发行版-v2.0.md
+./docs/首跑报告-market-monitor-20261003.md
+./evidence
+./evidence/00-baseline
+./evidence/01-threat-model-and-contracts
+./evidence/02-schemas-and-tla
+./evidence/03-red-probes-before
+./evidence/04-unit-property-mutation
+./evidence/05-concurrency-crash-chaos
+./evidence/06-scanner-goldens
+./evidence/07-migration-reconcile
+./evidence/08-ci-and-branch-rules
+./evidence/09-release-manifest-attestation
+./evidence/10-ui-launchd-alert-backup
+./evidence/11-shadow-canary
+./evidence/12-rollback-drill
+./evidence/13-observation-window
+./evidence/README.md
+./evidence/evidence-index.json
+./evidence/traceability-matrix.json
+./probes
+./probes/stations.json
+./specs
+./specs/tla
+./system
+./system/README.md
+./system/VERSION
+./system/bin
+./system/ci
+./system/config
+./system/daemons
+./system/dashboard
+./system/db
+./system/docs
+./system/install-release.sh
+./system/install.sh
+./system/schemas
+./system/sentinels
+./system/specs
+./system/templates
+./system/tests
+./system/wenqu_core
+./tests
+./tests/acceptance.sh
+./tests/p1f-assert-baseline.txt
+./tests/release-check.sh
+./tools
+./tools/ac_traceability.py
+./tools/observation_daily.py
+./tools/release_attest.py
+./tools/w5_reconcile.py
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:01Z ===

@@ -1,0 +1,18 @@
+=== id=007_release_verify_official ===
+=== started_utc=2026-10-08T14:56:23Z ===
+=== cwd=/private/tmp/wenqu-reaudit8-20261008-225456 ===
+=== command ===
+cd /private/tmp/wenqu-reaudit8-20261008-225456 && PYTHONPATH=system python3 tools/release_attest.py verify --manifest dist/wenqu-dist-2bd59ab.manifest.json --keyring /Users/maccc/.wenqu-dist-release/release-keyring.json --report /private/tmp/codex-test/evidence/reaudit8-20261008-225456/agent-release-runtime/official-verify-report.json
+=== output ===
+  PASS  manifest-schema  build_id=rel-2bd59ab-20261008T142740Z
+  PASS  artifact-hash  sha256=b4e3d5fce24f2cd5… size=33139660
+  PASS  files-reconcile  2886/2886 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=2886 root=3.8.4
+  PASS  build-identity  commit=2bd59ab73aab… built_at=2026-10-08T14:27:40Z tool=release_attest.py@1.1.0
+  report → /private/tmp/codex-test/evidence/reaudit8-20261008-225456/agent-release-runtime/official-verify-report.json
+VERIFY OK
+
+=== exit_code=0 ===
+=== ended_utc=2026-10-08T14:56:23Z ===
