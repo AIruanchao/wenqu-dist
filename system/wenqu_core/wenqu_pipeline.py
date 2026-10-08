@@ -72,6 +72,24 @@ P0-2/P0-4 加固（Codex 第三轮 38/100 BLOCKED 对抗实锤 → 全 fail-clos
   #9 自产事件不过 schema → run-event-v2 正式声明全部扩展字段；
   #10 action saga 缺失 → ``ActionSaga`` 最小可用实现（RESERVED→STARTED→
       COMMITTED / FAILED_UNKNOWN；control_outbox 事件；receipt 对账占位）。
+
+F4-AUTH-001 根修（Codex 第四轮验收实锤：``approval_consumptions=0`` 时
+reserve→start→commit 对 release/production 照样走通、receipt 为调用方
+自报字符串）：
+  - ``reserve_action`` 必传 approval——消费 action 类型 HMAC 审批（复用
+    ``ApprovalBroker.consume_authorization`` 路径：结构/验签/envelope 绑定/
+    payload 判别（merge/release/ddl/prod_write/fund_auth/rollback 封闭
+    映射）+ expected_state_version CAS），无授权/验签失败/类型不符一律拒。
+    授权消费（APPROVAL_CONSUMED）与 ACTION_AUTH_RESERVED 同事务原子成对；
+  - receipt 分级：调用方自报 receipt 只能记 PROVISIONAL（事件 receipt
+    字符串带内前缀 ``PROVISIONAL|…``，不扩 schema），start 后停在该态；
+    COMMITTED 必须凭外部正源回执（action-execution-receipt：键集封闭 +
+    HMAC-SHA256 keyring 验签 + 与 ACTION_STARTED 事件的水印/动作一致性），
+    事件 receipt 记 ``RECONCILED|<sha256>|<外部引用>``；对账不了/外部声明
+    失败的动作走 fail_action → FAILED_UNKNOWN 终态；
+  - 重放一致：ACTION_* 折叠校验授权消费链（RESERVED 必须有对应
+    APPROVAL_CONSUMED 且 approval_type 与 action_type 匹配）与 receipt
+    分级（COMMITTED 出现非 RECONCILED 分级回执即 Corruption）。
 """
 
 from __future__ import annotations
@@ -114,6 +132,8 @@ __all__ = [
     "ApprovalReuseError",
     "ApprovalPreconditionError",
     "ActionError",
+    "RECEIPT_PROVISIONAL",
+    "RECEIPT_RECONCILED",
 ]
 
 # ====================================================================== #
@@ -437,6 +457,47 @@ ACTION_TRANSITIONS: Dict[str, frozenset] = {
     ACTION_STARTED: frozenset({ACTION_COMMITTED, ACTION_FAILED_UNKNOWN}),
 }
 
+# ----------------------------------------------------------------------
+# F4-AUTH-001：action 预留的审批消费封闭映射与 receipt 分级
+# ----------------------------------------------------------------------
+#: action_type → 必须消费的 approval-v2 审批类型（封闭映射）。resume/risk
+#: 走 consume()/consume_authorization(risk) 专属 API 通道，不得用于 action
+#: 预留；未知 action_type（如 "deploy"）无对应审批类型——一律拒绝。
+_ACTION_APPROVAL_TYPE: Dict[str, str] = {
+    "merge": "merge",
+    "release": "release",
+    "ddl": "ddl",
+    "prod-write": "prod_write",
+    "prod_write": "prod_write",
+    "fund-auth": "fund_auth",
+    "fund_auth": "fund_auth",
+    "rollback": "rollback",
+}
+
+#: receipt 分级（F4-AUTH-001）：run-event-v2 的 receipt 是 string 字段——
+#: 分级以带内前缀自证（不扩 schema）：
+#:   ``PROVISIONAL|<调用方自报文本>``    ACTION_STARTED 携带的自报回执；
+#:   ``RECONCILED|<sha256>|<外部引用>``  ACTION_COMMITTED 携带的外部正源
+#:   已验签对账回执（commit_action 验签+一致性通过后落账）。
+#: 重放按前缀强校验：COMMITTED 出现非 RECONCILED 分级的回执即 Corruption。
+RECEIPT_PROVISIONAL = "PROVISIONAL"
+RECEIPT_RECONCILED = "RECONCILED"
+
+#: 外部正源回执（action-execution-receipt v1.0）——执行系统对动作结果的
+#: 签名声明。键集封闭；signature = HMAC-SHA256(keyring[key_id],
+#: canonical_json(除 signature 外全字段))，与审批验签同一 keyring 体系。
+#: watermark 必须等于 run identity.commit_sha（与 ACTION_STARTED 事件的
+#: 水印一致——回执不得跨 SHA/跨 run 移花接木）。
+_EXTERNAL_RECEIPT_REQUIRED = (
+    "schema_version", "receipt_type", "action_id", "run_id", "action_type",
+    "action_target", "watermark", "outcome", "external_ref", "ts", "key_id",
+    "signature",
+)
+_EXTERNAL_RECEIPT_ALLOWED = frozenset(_EXTERNAL_RECEIPT_REQUIRED)
+_EXTERNAL_RECEIPT_SCHEMA_VERSION = "1.0"
+_EXTERNAL_RECEIPT_TYPE = "action-execution-receipt"
+_EXTERNAL_RECEIPT_OUTCOMES = frozenset({"COMMITTED", "FAILED"})
+
 #: 观察类控制事件：登记面事件（不改状态机、不递增 state_version），
 #: 重放时要求 state_version == 当前值（一致性），侧记入 run 聚合状态。
 OBSERVATION_EVENT_TYPES = frozenset({
@@ -576,6 +637,66 @@ def _is_sha256_hex(value: Any) -> bool:
             and all(c in _HEX64 for c in value.lower()) and value == value.lower())
 
 
+def _validate_external_receipt_structure(receipt: Any) -> Dict[str, Any]:
+    """action-execution-receipt v1.0 结构校验（键集封闭，全字段 required）。
+
+    纯结构校验（无验签、无一致性比较）——验签在
+    ``RunManager._verify_external_receipt``（keyring），一致性比对同处。
+    """
+    if not isinstance(receipt, Mapping):
+        raise ActionError("external receipt must be a JSON object")
+    rc = dict(receipt)
+    missing = [k for k in _EXTERNAL_RECEIPT_REQUIRED if k not in rc]
+    if missing:
+        raise ActionError(f"external receipt missing fields: {missing}")
+    stray = sorted(set(rc) - _EXTERNAL_RECEIPT_ALLOWED)
+    if stray:
+        raise ActionError(f"external receipt forbidden fields: {stray}（键集封闭）")
+    if rc["schema_version"] != _EXTERNAL_RECEIPT_SCHEMA_VERSION:
+        raise ActionError(
+            f"external receipt schema_version must be "
+            f"{_EXTERNAL_RECEIPT_SCHEMA_VERSION!r}, got {rc['schema_version']!r}")
+    if rc["receipt_type"] != _EXTERNAL_RECEIPT_TYPE:
+        raise ActionError(
+            f"external receipt receipt_type must be {_EXTERNAL_RECEIPT_TYPE!r}")
+    if not (isinstance(rc["action_id"], str) and rc["action_id"].startswith("act_")):
+        raise ActionError("external receipt action_id must match ^act_*")
+    if not (isinstance(rc["run_id"], str) and rc["run_id"].strip()):
+        raise ActionError("external receipt run_id must be a non-empty string")
+    for key in ("action_type", "action_target", "external_ref"):
+        if not (isinstance(rc[key], str) and rc[key].strip()):
+            raise ActionError(
+                f"external receipt {key} must be a non-empty string")
+    if not _is_sha1_hex(rc["watermark"]):
+        raise ActionError(
+            "external receipt watermark must be a 40-hex git sha（强制绑定）")
+    if rc["outcome"] not in _EXTERNAL_RECEIPT_OUTCOMES:
+        raise ActionError(
+            f"external receipt outcome must be one of "
+            f"{sorted(_EXTERNAL_RECEIPT_OUTCOMES)}, got {rc['outcome']!r}")
+    if not (isinstance(rc["ts"], str) and rc["ts"].strip()):
+        raise ActionError("external receipt ts must be a non-empty string")
+    try:
+        _parse_iso_ts(rc["ts"])
+    except ValueError as exc:
+        raise ActionError(f"external receipt ts invalid: {exc}") from None
+    if not (isinstance(rc["key_id"], str) and rc["key_id"].startswith("key_")):
+        raise ActionError("external receipt key_id must match ^key_*（验签必填）")
+    if not (isinstance(rc["signature"], str) and len(rc["signature"]) == 64
+            and all(c in _HEX64 for c in rc["signature"].lower())
+            and rc["signature"] == rc["signature"].lower()):
+        raise ActionError(
+            "external receipt signature must be a lowercase 64-hex HMAC-SHA256")
+    return rc
+
+
+def _reconciled_receipt_str(rc: Mapping[str, Any]) -> str:
+    """外部回执 → 事件流登记的 RECONCILED 分级 receipt 字符串。"""
+    return "{0}|{1}|{2}".format(
+        RECEIPT_RECONCILED, _sha256_hex(_canonical_json(dict(rc))),
+        rc["external_ref"])
+
+
 # ====================================================================== #
 # 状态数据结构（重放产物，只读快照）
 # ====================================================================== #
@@ -655,6 +776,9 @@ class RunState:
     terminal_reason: Optional[str] = None
     findings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     consumed_nonce_digests: set = field(default_factory=set)
+    # F4-AUTH-001：nonce_digest → 已消费 approval_type（ACTION_AUTH_RESERVED
+    # 重放校验授权消费链的类型匹配半边）
+    consumed_nonce_types: Dict[str, str] = field(default_factory=dict)
     risk_authorizations: List[Dict[str, Any]] = field(default_factory=list)
     actions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
@@ -1467,6 +1591,26 @@ class ApprovalBroker:
                 f"authorization route mismatch: expected approval_type="
                 f"{expected_approval_type!r}, got {ap['approval_type']!r}")
         now = now_epoch if now_epoch is not None else _utc_now_epoch()
+        return self._db.transact(
+            lambda conn: self._consume_authorization_txn(
+                conn, ap, run_loader, now, expected_approval_type))
+
+    # ------------------------------------------------------------------ #
+    def _consume_authorization_txn(
+        self,
+        conn: sqlite3.Connection,
+        ap: Mapping[str, Any],
+        run_loader: Callable[[sqlite3.Connection], RunState],
+        now: float,
+        expected_approval_type: str,
+    ) -> Dict[str, Any]:
+        """consume_authorization 的事务体（在已开启的 BEGIN IMMEDIATE 内执行）。
+
+        F4-AUTH-001：暴露给同文件 ``RunManager.reserve_action`` 在**同一**
+        事务内复用——授权消费（旁表 + APPROVAL_CONSUMED 正源事件）与
+        ACTION_AUTH_RESERVED 原子成对，中途失败整体回滚。
+        调用方须已完成结构校验、验签与 approval_type 路由判定。
+        """
 
         def _binding(ap: Mapping[str, Any], state: RunState) -> None:
             if ap["decision"] != "approve":
@@ -1586,7 +1730,7 @@ class ApprovalBroker:
                 "consumed": True,
             }
 
-        return self._db.transact(_body)
+        return _body(conn)
 
     # ------------------------------------------------------------------ #
     def consumed_approvals(self, run_id: Optional[str] = None,
@@ -1775,7 +1919,15 @@ class RunManager:
                     raise PipelineCorruptionError(
                         f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
                         f"nonce_digest（消费正源事件损坏）")
+                atype = ev.get("approval_type")
+                if not (isinstance(atype, str) and atype):
+                    raise PipelineCorruptionError(
+                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+                        f"approval_type（F4-AUTH-001 授权消费链损坏）")
                 state.consumed_nonce_digests.add(digest)
+                # F4-AUTH-001：记录 nonce→审批类型，供 ACTION_AUTH_RESERVED
+                # 重放校验「授权消费类型与 action_type 匹配」。
+                state.consumed_nonce_types[digest] = atype
                 if ev.get("approval_type") == "risk":
                     state.risk_authorizations.append({
                         "approval_id": ev.get("approval_id"),
@@ -1956,7 +2108,15 @@ class RunManager:
     @staticmethod
     def _replay_fold_action(state: RunState, etype: str,
                             ev: Mapping[str, Any]) -> None:
-        """ACTION_* control_outbox 事件的 saga 折叠（非法转换即 Corruption）。"""
+        """ACTION_* control_outbox 事件的 saga 折叠（非法转换即 Corruption）。
+
+        F4-AUTH-001：折叠含授权消费链与 receipt 分级校验——
+        - RESERVED 必须携带 approval_id + nonce_digest，且事件流中此前存在
+          对应 APPROVAL_CONSUMED（其 approval_type 与 action_type 匹配）；
+        - STARTED 的自报 receipt 必须是 PROVISIONAL 分级（带内前缀）；
+        - COMMITTED 的 receipt 必须是 RECONCILED|<sha256>|<外部引用> 分级
+          ——自报裸串/PROVISIONAL 分级出现在 COMMITTED 即 Corruption。
+        """
         action_id = ev["action_id"]
         target_state = {
             "ACTION_AUTH_RESERVED": ACTION_RESERVED,
@@ -1969,12 +2129,38 @@ class RunManager:
             if current is not None:
                 raise PipelineCorruptionError(
                     f"run {state.run_id}: action {action_id} 重复 RESERVED")
+            approval_id = ev.get("approval_id")
+            nonce_digest = ev.get("nonce_digest")
+            action_type = ev.get("action_type", "")
+            if not (isinstance(approval_id, str)
+                    and approval_id.startswith("apr_")):
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: ACTION_AUTH_RESERVED {action_id} "
+                    f"缺合法 approval_id（无授权预留——F4-AUTH-001）")
+            if not _is_sha256_hex(nonce_digest):
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: ACTION_AUTH_RESERVED {action_id} "
+                    f"缺合法 nonce_digest（授权消费链断链——F4-AUTH-001）")
+            consumed_type = state.consumed_nonce_types.get(nonce_digest)
+            if consumed_type is None:
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: action {action_id} RESERVED 无对应 "
+                    f"APPROVAL_CONSUMED（授权消费链缺失——F4-AUTH-001）")
+            expected = _ACTION_APPROVAL_TYPE.get(action_type)
+            if expected is None or consumed_type != expected:
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: action {action_id} 的授权消费类型 "
+                    f"{consumed_type!r} 与 action_type {action_type!r} 不匹配"
+                    f"（F4-AUTH-001 授权消费链）")
             state.actions[action_id] = {
                 "action_id": action_id,
-                "action_type": ev.get("action_type", ""),
+                "action_type": action_type,
                 "action_target": ev.get("action_target", ""),
                 "action_state": ACTION_RESERVED,
+                "approval_id": approval_id,
+                "nonce_digest": nonce_digest,
                 "receipt": None,
+                "receipt_status": None,
                 "reserved_at": ev.get("ts"),
             }
             return
@@ -1986,9 +2172,29 @@ class RunManager:
             raise PipelineCorruptionError(
                 f"run {state.run_id}: action {action_id} 非法转换 "
                 f"{current['action_state']} -> {target_state}")
+        if target_state == ACTION_STARTED:
+            receipt = ev.get("receipt")
+            if receipt is not None:
+                if not (isinstance(receipt, str) and receipt.startswith(
+                        RECEIPT_PROVISIONAL + "|")):
+                    raise PipelineCorruptionError(
+                        f"run {state.run_id}: action {action_id} STARTED 携带"
+                        f"非 PROVISIONAL 分级 receipt（自报分级越权"
+                        f"——F4-AUTH-001）")
+                current["receipt"] = receipt
+                current["receipt_status"] = RECEIPT_PROVISIONAL
+        elif target_state == ACTION_COMMITTED:
+            receipt = ev.get("receipt")
+            parts = receipt.split("|") if isinstance(receipt, str) else []
+            if (len(parts) != 3 or parts[0] != RECEIPT_RECONCILED
+                    or not _is_sha256_hex(parts[1]) or not parts[2].strip()):
+                raise PipelineCorruptionError(
+                    f"run {state.run_id}: action {action_id} COMMITTED receipt "
+                    f"非外部正源对账分级（RECONCILED|<sha256>|<外部引用>）"
+                    f"——自报回执不可 COMMITTED（F4-AUTH-001）")
+            current["receipt"] = receipt
+            current["receipt_status"] = RECEIPT_RECONCILED
         current["action_state"] = target_state
-        if target_state == ACTION_COMMITTED:
-            current["receipt"] = ev.get("receipt")
         current[f"{target_state.lower()}_at"] = ev.get("ts")
 
     def _load_state(self, run_id: str,
@@ -2462,25 +2668,65 @@ class RunManager:
     # ------------------------------------------------------------------ #
     # P0-4：ActionSaga（Codex 实锤 #10）——action 编排最小 saga
     # RESERVED → STARTED → COMMITTED / FAILED_UNKNOWN（终态）
+    # F4-AUTH-001：预留强制审批消费 + receipt 分级 + 外部正源对账
     # ------------------------------------------------------------------ #
     def reserve_action(self, run_id: str, action_type: str, target: str,
-                       *, actor: str = "system") -> Dict[str, Any]:
-        """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。"""
+                       approval: Optional[Mapping[str, Any]] = None, *,
+                       actor: str = "system") -> Dict[str, Any]:
+        """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。
+
+        F4-AUTH-001 根修：预留必须消费一份 action 类型 HMAC 审批
+        （approval-v2：结构校验 → HMAC 验签 → approval_type 与 action_type
+        封闭映射匹配 → ``consume_authorization`` 路径的 envelope 绑定
+        （run_id/task_id/environment/scope/policy/ruleset/watermark/stage
+        全 exact）+ expected_state_version CAS + TTL + 一次性 nonce）。
+        无授权 / 验签失败 / 类型不符 / nonce 复用一律拒绝，绝不落事件。
+
+        授权消费（APPROVAL_CONSUMED 正源事件）与 ACTION_AUTH_RESERVED 在
+        **同一** BEGIN IMMEDIATE 事务内原子成对；重放侧校验授权消费链
+        （reserved 必须有对应 APPROVAL_CONSUMED 且类型匹配）。
+        """
         ActionSaga.validate_descriptor(action_type, target)
+        if approval is None:
+            raise ActionError(
+                "reserve_action requires 对应 action 类型的 HMAC 审批"
+                "（approval 参数，F4-AUTH-001）——无授权预留一律拒绝")
+        expected = _ACTION_APPROVAL_TYPE.get(action_type)
+        if expected is None:
+            raise ActionError(
+                f"unknown action_type {action_type!r}：必须是 "
+                f"{sorted(set(_ACTION_APPROVAL_TYPE))} 之一（带连字符/下划线"
+                f"等价变体）且携带匹配类型的审批")
+        ap = self.broker.validate_structure(approval)
+        self.broker._verify_signature(ap)  # noqa: SLF001 —— 同模块受管复用
+        if ap["approval_type"] != expected:
+            raise ApprovalRejected(
+                f"action_type={action_type!r} 要求 approval_type="
+                f"{expected!r}，got {ap['approval_type']!r}（类型不符拒绝）")
+        now = _utc_now_epoch()
 
         def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
             state = self._load_state(run_id, conn)
             self._require_mutable(state)
+            # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
+            # 任一步失败整体回滚，授权与预留绝不成单只
+            self.broker._consume_authorization_txn(  # noqa: SLF001
+                conn, ap, lambda c: self._load_state(run_id, c), now, expected)
+            state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
             action_id = f"act_{uuid.uuid4().hex[:12]}"
             event = self._base_event(
                 "ACTION_AUTH_RESERVED", state, "COMPLETED", "NOT_EVALUATED",
                 actor=actor, state_version=state.state_version,
                 action_id=action_id, action_type=action_type,
-                action_target=target)
+                action_target=target,
+                approval_id=ap["approval_id"],
+                nonce_digest=_sha256_hex(ap["nonce"]))
             event_hash = self._emit(conn, state, event)
             return {"run_id": run_id, "action_id": action_id,
                     "action_state": ACTION_RESERVED,
                     "action_type": action_type, "action_target": target,
+                    "approval_id": ap["approval_id"],
+                    "nonce_digest": _sha256_hex(ap["nonce"]),
                     "event_hash": event_hash}
 
         return self._db.transact(_body)
@@ -2507,37 +2753,137 @@ class RunManager:
 
         return self._db.transact(_body)
 
-    def start_action(self, run_id: str, action_id: str,
-                     *, actor: str = "system") -> Dict[str, Any]:
-        """启动已预留的动作（RESERVED → STARTED）。"""
-        return self._advance_action(run_id, action_id, ACTION_STARTED,
-                                    event_type="ACTION_STARTED", actor=actor)
+    def start_action(self, run_id: str, action_id: str, *,
+                     receipt: Optional[str] = None,
+                     actor: str = "system") -> Dict[str, Any]:
+        """启动已预留的动作（RESERVED → STARTED）。
 
-    def commit_action(self, run_id: str, action_id: str, receipt: str,
-                      *, actor: str = "system") -> Dict[str, Any]:
-        """提交动作并登记回执（STARTED → COMMITTED）。"""
-        if not (isinstance(receipt, str) and receipt.strip()):
-            raise ActionError("receipt must be a non-empty string")
-        return self._advance_action(run_id, action_id, ACTION_COMMITTED,
-                                    event_type="ACTION_COMMITTED", actor=actor,
-                                    receipt=receipt)
+        F4-AUTH-001 receipt 分级：调用方可附带自报 receipt——但只能以
+        PROVISIONAL 分级登记（事件 receipt 记 ``PROVISIONAL|<自报文本>``），
+        start 后停在该态；COMMITTED 必须另行通过外部正源回执对账
+        （commit_action）。自报文本不得自带分级前缀（分级由管线落账）。
+        """
+        extra: Dict[str, Any] = {}
+        if receipt is not None:
+            if not (isinstance(receipt, str) and receipt.strip()):
+                raise ActionError("receipt must be a non-empty string")
+            if receipt.startswith((RECEIPT_PROVISIONAL + "|",
+                                   RECEIPT_RECONCILED + "|")):
+                raise ActionError(
+                    "自报 receipt 不得自带分级前缀（分级由管线落账，"
+                    "非调用方声明）")
+            extra["receipt"] = f"{RECEIPT_PROVISIONAL}|{receipt}"
+        return self._advance_action(run_id, action_id, ACTION_STARTED,
+                                    event_type="ACTION_STARTED", actor=actor,
+                                    **extra)
+
+    def commit_action(self, run_id: str, action_id: str,
+                      receipt: Mapping[str, Any], *,
+                      actor: str = "system") -> Dict[str, Any]:
+        """提交动作——必须凭外部正源已对账回执（STARTED → COMMITTED）。
+
+        F4-AUTH-001 根修：调用方自报回执（裸字符串）只能停在 PROVISIONAL
+        （start_action 登记），本方法一律拒绝；COMMITTED 必须凭外部
+        action-execution-receipt 通过对账：结构（键集封闭）→ HMAC-SHA256
+        验签（keyring；伪回执拒绝）→ 与 ACTION_STARTED 事件的一致性
+        （run_id/action_id/action_type/action_target/watermark=commit_sha）。
+        对账不了 / 外部声明 FAILED 的动作走 fail_action → FAILED_UNKNOWN
+        终态。事件 receipt 记 ``RECONCILED|<sha256>|<外部引用>``（重放强校验）。
+        """
+        if not isinstance(receipt, Mapping):
+            raise ActionError(
+                "commit_action requires 外部正源回执（action-execution-"
+                "receipt JSON 对象）；调用方自报字符串回执不可 COMMITTED"
+                "（只能 PROVISIONAL——F4-AUTH-001）")
+
+        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+            state = self._load_state(run_id, conn)
+            self._require_mutable(state)
+            action = state.actions.get(action_id)
+            if action is None:
+                raise ActionError(f"unknown action_id {action_id!r} on {run_id}")
+            ActionSaga.validate_transition(action["action_state"],
+                                           ACTION_COMMITTED)
+            rc = self._verify_external_receipt(state, action, receipt)
+            if rc["outcome"] != "COMMITTED":
+                raise ActionError(
+                    f"外部回执 outcome={rc['outcome']!r} 非 COMMITTED——"
+                    f"对账为失败：动作应 fail_action → FAILED_UNKNOWN 终态")
+            receipt_str = _reconciled_receipt_str(rc)
+            event = self._base_event(
+                "ACTION_COMMITTED", state, "COMPLETED", "NOT_EVALUATED",
+                actor=actor, state_version=state.state_version,
+                action_id=action_id, action_type=action["action_type"],
+                receipt=receipt_str)
+            event_hash = self._emit(conn, state, event)
+            return {"run_id": run_id, "action_id": action_id,
+                    "action_state": ACTION_COMMITTED,
+                    "receipt": receipt_str,
+                    "receipt_status": RECEIPT_RECONCILED,
+                    "event_hash": event_hash}
+
+        return self._db.transact(_body)
 
     def fail_action(self, run_id: str, action_id: str, detail: str = "",
                     *, actor: str = "system") -> Dict[str, Any]:
-        """动作结果未知（RESERVED/STARTED → FAILED_UNKNOWN 终态）——
-        交由 receipt 对账收口。"""
+        """动作结果未知（RESERVED/STARTED → FAILED_UNKNOWN 终态）。
+
+        F4-AUTH-001：对账不了（拿不到可验签的外部回执）或外部正源声明
+        FAILED 的动作走本方法收口——终态不可再变更。"""
         return self._advance_action(run_id, action_id, ACTION_FAILED_UNKNOWN,
                                     event_type="ACTION_FAILED_UNKNOWN",
                                     actor=actor, action_detail=detail or
                                     "outcome unknown; pending reconcile")
 
-    def reconcile_receipt(self, run_id: str, action_id: str,
-                          receipt: str) -> Dict[str, Any]:
-        """receipt 对账占位接口（Codex 实锤 #10）。
+    # ------------------------------------------------------------------ #
+    # F4-AUTH-001：外部正源回执验签 + 一致性对账
+    # ------------------------------------------------------------------ #
+    def _verify_external_receipt(self, state: RunState,
+                                 action: Mapping[str, Any],
+                                 receipt: Mapping[str, Any]) -> Dict[str, Any]:
+        """外部正源回执对账校验链（与 commit_action 完全一致）：
+        结构（键集封闭）→ HMAC-SHA256 验签（keyring）→ 与 ACTION_STARTED
+        事件的水印/动作一致性。任一失败即 ActionError（fail-closed）。"""
+        rc = _validate_external_receipt_structure(receipt)
+        key_id = rc["key_id"]
+        keyring = self.broker._keyring  # noqa: SLF001 —— 同模块受管复用
+        if not keyring.has(key_id):
+            raise ActionError(
+                f"external receipt unknown signing key_id {key_id!r}"
+                f"（未登记密钥的回执一律拒——fail-closed）")
+        if not keyring.verify(rc):
+            raise ActionError(
+                "external receipt HMAC-SHA256 signature verification failed"
+                f"（伪回执/篡改回执拒绝：action {action['action_id']}）")
+        if rc["run_id"] != state.run_id:
+            raise ActionError("receipt.run_id 与动作所属 run 不一致（回执不得跨 run）")
+        if rc["action_id"] != action["action_id"]:
+            raise ActionError("receipt.action_id 与目标动作不一致")
+        if rc["action_type"] != action["action_type"]:
+            raise ActionError(
+                f"receipt.action_type {rc['action_type']!r} 与预留动作类型 "
+                f"{action['action_type']!r} 不一致")
+        if rc["action_target"] != action["action_target"]:
+            raise ActionError(
+                f"receipt.action_target 与预留动作目标不一致"
+                f"（{rc['action_target']!r} != {action['action_target']!r}）")
+        if rc["watermark"] != state.identity.get("commit_sha"):
+            raise ActionError(
+                "receipt.watermark 与 run commit_sha 不一致（须与 "
+                "ACTION_STARTED 事件水印一致——回执不得跨 SHA）")
+        return rc
 
-        当前语义：对 COMMITTED 动作做回执精确比对（外部系统回执须与
-        commit 时登记的回执一致）；FAILED_UNKNOWN 动作返回待收口标记。
-        生产对账应接外部回执正源——本占位保持只读，不修改事件流。
+    def reconcile_receipt(self, run_id: str, action_id: str,
+                          receipt: Mapping[str, Any]) -> Dict[str, Any]:
+        """外部正源回执对账（F4-AUTH-001 实装；只读，不修改事件流）。
+
+        - 校验链与 commit_action 完全一致：结构 → HMAC 验签（keyring）→
+          与 ACTION_STARTED 事件的水印/动作一致性；
+        - 对账通过（outcome=COMMITTED）→ reconciled=True——同回执可经
+          commit_action 落 COMMITTED；
+        - 验签/一致性失败或 outcome=FAILED → reconciled=False——对账不了
+          的动作走 fail_action → FAILED_UNKNOWN 终态；
+        - FAILED_UNKNOWN 终态动作 → reconciled=None（终态不可再裁决）。
         """
         state = self.get_run(run_id)
         action = state.actions.get(action_id)
@@ -2546,19 +2892,27 @@ class RunManager:
         if action["action_state"] == ACTION_FAILED_UNKNOWN:
             return {"run_id": run_id, "action_id": action_id,
                     "reconciled": None,
-                    "note": "FAILED_UNKNOWN——占位对账不裁决，须人工/外部正源收口"}
-        if action["action_state"] != ACTION_COMMITTED:
+                    "note": "FAILED_UNKNOWN 终态——不可再对账，须外部正源/"
+                            "人工收口"}
+        if action["action_state"] != ACTION_STARTED:
             raise ActionError(
-                f"action {action_id} 状态 {action['action_state']} 未提交——"
-                f"无回执可对账")
-        recorded = action.get("receipt")
-        return {
-            "run_id": run_id, "action_id": action_id,
-            "reconciled": isinstance(receipt, str) and receipt == recorded,
-            "recorded_receipt": recorded,
-            "note": "占位对账接口：精确比对 commit 登记的回执；生产环境应"
-                    "对接外部回执正源（重放/超时/冲正裁决）",
-        }
+                f"action {action_id} 状态 {action['action_state']} 非 STARTED"
+                f"——无在途动作可对账")
+        try:
+            rc = self._verify_external_receipt(state, action, receipt)
+        except ActionError as exc:
+            return {"run_id": run_id, "action_id": action_id,
+                    "reconciled": False, "reason": str(exc),
+                    "note": "对账失败：fail_action → FAILED_UNKNOWN 终态"}
+        if rc["outcome"] != "COMMITTED":
+            return {"run_id": run_id, "action_id": action_id,
+                    "reconciled": False, "outcome": rc["outcome"],
+                    "note": "外部正源声明非 COMMITTED：fail_action → "
+                            "FAILED_UNKNOWN 终态"}
+        return {"run_id": run_id, "action_id": action_id,
+                "reconciled": True, "outcome": "COMMITTED",
+                "receipt_ref": _reconciled_receipt_str(rc),
+                "note": "对账通过：同回执经 commit_action 可 COMMITTED"}
 
     def close(self) -> None:
         self._db.close()

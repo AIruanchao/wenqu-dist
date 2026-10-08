@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 # wenquctl——P0-2 七段管线 CLI 壳（P0-1 残余接线）。
-# 实体在 system/wenqu_core/cli.py（纯标准库）；本壳只负责定位 python3。
+# 实体在 wenqu_core/cli.py（纯标准库）；本壳只负责定位 python3。
+# F4-CLI-001 修：双布局解析（源树/安装体）——
+#   源树     system/bin/wenquctl   -> ../wenqu_core/cli.py
+#   安装体   <prefix>/bin/wenquctl -> ../lib/wenqu_core/cli.py（install.sh 落点）
+# cli.py 自身的 sys.path 引导以 __file__ 为锚（包目录的父目录），两种布局下
+# import wenqu_core 均成立，无需额外 PYTHONPATH。两处都找不到时显式报错
+# exit 2（不再交给 python3 抛模糊的 can't open file）。
 set -uo pipefail
-SYS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec python3 "$SYS_DIR/wenqu_core/cli.py" "$@"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYS_DIR="$(cd "$SELF_DIR/.." && pwd)"
+if [ -f "${SYS_DIR}/wenqu_core/cli.py" ]; then
+  exec python3 "${SYS_DIR}/wenqu_core/cli.py" "$@"
+fi
+if [ -f "${SYS_DIR}/lib/wenqu_core/cli.py" ]; then
+  exec python3 "${SYS_DIR}/lib/wenqu_core/cli.py" "$@"
+fi
+echo "wenquctl: wenqu_core/cli.py not found (tried ${SYS_DIR}/wenqu_core/cli.py and ${SYS_DIR}/lib/wenqu_core/cli.py)" >&2
+exit 2

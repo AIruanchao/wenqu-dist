@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
-"""统一 Gate 聚合器（Codex W3B；P0-3 二次加固：双契约消费 + dashboard 输出对齐）。
+"""统一 Gate 聚合器（Codex W3B；P0-3 二次加固：双契约消费 + dashboard 输出对齐；
+F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验）。
 
 消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
 
 ## 输入契约一（station-result-v2，正式契约——schemas/station-result-v2.schema.json）
 
-`schema_version == "2.0"` 或出现 v2 正式字段（station_id/execution_status/
-policy_verdict/identity）时按 v2 消费（宽松读+严格出：字段类型尽量容忍，
-任何缺失/畸形一律计入 malformed/violation，聚合输出 fail-closed BLOCKED）::
+判别为 v2（`schema_version == "2.0"`，或出现 v2 正式字段组合 station_id/
+execution_status/policy_verdict）时，**结构必须严格**：add() 先经
+:func:`mirror_validate_station_result_v2`（schema 的无外部依赖镜像校验器）
+全量校验 required/类型/enum/pattern/const/allOf-if-then 跨字段语义——
+任何 schema-invalid 输入一律记 malformed、该站强制 BLOCKED、
+technical_eligible=false（Codex 第四轮实锤：残缺 v2 曾被判 PASS）。
+字段语义保持双契约：v2 正式字段 + legacy 兼容字段并存消费。
 
     {
       "schema_version":     "2.0",
@@ -70,10 +75,15 @@ GitHub 状态映射（to_github_status）：
 
 from __future__ import annotations
 
+import re
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Set
 
-__all__ = ["GateAggregator", "PASS", "CONDITIONAL", "BLOCKED"]
+__all__ = [
+    "GateAggregator", "PASS", "CONDITIONAL", "BLOCKED",
+    "mirror_validate_station_result_v2",
+]
 
 PASS = "PASS"
 CONDITIONAL = "CONDITIONAL"
@@ -104,6 +114,258 @@ _GITHUB_STATE = {
     CONDITIONAL: ("failure", "action_required"),
     BLOCKED: ("failure", "failure"),
 }
+
+
+# ====================================================================== #
+# station-result-v2 镜像校验器（F4-GATE-001 根修，2026-10-08）
+# ====================================================================== #
+# schemas/station-result-v2.schema.json 的无外部依赖结构镜像——语义必须与
+# schema 文件逐条同步（required/类型/enum/pattern/const/additionalProperties/
+# allOf-if-then 跨字段）。system/tests/test_gate_schema_hardening.py 内置
+# 一致性自测：对正负样例组，本镜像与 jsonschema+FormatChecker（严格
+# date-time 检查注册后）结论必须一致。改 schema 文件时必须同步改这里。
+#
+# 与 jsonschema 的两处刻意差异（均有一致性自测护栏）：
+#   1. date-time：镜像无条件做严格 ISO-8601 解析（jsonschema 的 FormatChecker
+#      在未安装 rfc3339-validator 时对 date-time 空转——自测按仓内既有惯例
+#      注册严格检查后对齐）；
+#   2. PASS 的 scanned==denominator：schema 侧以 const 级联（1..64）机器判定
+#      （draft-07 无法表达跨字段数值比较），分母>64 时不误拒合法全扫；镜像
+#      侧做全量无界等式判定（缩水无论多大必拒）。
+_MIRROR_TOP_KEYS = frozenset({
+    "schema_version", "run_id", "station_id", "attempt_id",
+    "execution_status", "policy_verdict", "identity", "tool", "execution",
+    "coverage", "finding_ids", "artifacts",
+})
+_MIRROR_TOP_REQUIRED = (
+    "schema_version", "run_id", "station_id", "attempt_id",
+    "execution_status", "policy_verdict", "identity", "tool", "execution",
+)
+_MIRROR_IDENTITY_REQUIRED = ("commit_sha", "environment", "scope_hash")
+_MIRROR_IDENTITY_OPTIONAL = (
+    "project_id", "ruleset_hash", "data_config_hash", "lockfile_hash",
+)
+_MIRROR_EXEC_REQUIRED = (
+    "argv_digest", "started_at", "ended_at", "actual_exit_code",
+    "expected_exit_set", "assertion_verdict",
+)
+_MIRROR_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_MIRROR_SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+_MIRROR_CAS_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_MIRROR_EXEC_STATUS = frozenset(
+    {"COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+_MIRROR_VERDICTS = frozenset(
+    {"PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"})
+_MIRROR_ASSERTION = frozenset({"PASS", "FAIL", "ERROR"})
+_MIRROR_EXEC_HARD = frozenset({"ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+# F4-SCHEMA-001 #5（station 侧）：执行非完成态只允许阻断类裁决
+_MIRROR_HARD_EXEC_VERDICTS = frozenset({"FAIL", "NOT_EVALUATED", "NOT_APPLICABLE"})
+
+
+def _mirror_int(value: Any) -> bool:
+    """schema "integer"：bool 不是 integer（JSON Schema 语义）。"""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _mirror_iso_datetime(value: Any) -> bool:
+    """format: date-time（严格 ISO-8601；Z/z 后缀按 UTC 接受）。"""
+    if not isinstance(value, str):
+        return False
+    text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    try:
+        datetime.fromisoformat(text)
+        return True
+    except ValueError:
+        return False
+
+
+def mirror_validate_station_result_v2(result: Any) -> List[str]:
+    """station-result-v2.schema.json 的镜像校验；返回违例清单（空 == 合法）。
+
+    无外部依赖（纯标准库）；GateAggregator.add() 对每个 v2 条目前置调用，
+    schema-invalid 一律记 malformed 并强制该站 BLOCKED（fail-closed）。
+    """
+    errors: List[str] = []
+
+    def _err(msg: str) -> None:
+        errors.append(msg)
+
+    if not isinstance(result, Mapping):
+        return ["station result must be a JSON object"]
+
+    # -- 顶层 required / additionalProperties:false ------------------------
+    for key in _MIRROR_TOP_REQUIRED:
+        if key not in result:
+            _err(f"required: {key}")
+    extra = sorted(set(result) - _MIRROR_TOP_KEYS)
+    if extra:
+        _err(f"additionalProperties not allowed: {extra}")
+
+    # -- 顶层标量 -----------------------------------------------------------
+    if result.get("schema_version") != "2.0":
+        _err("schema_version must be const '2.0'")
+    run_id = result.get("run_id")
+    if not isinstance(run_id, str) or not _MIRROR_RUN_ID_RE.match(run_id):
+        _err("run_id must be a string matching ^[a-zA-Z0-9_-]+$")
+    sid = result.get("station_id")
+    if not _mirror_int(sid) or not 0 <= sid <= 7:
+        _err("station_id must be an integer in [0,7]")
+    if not isinstance(result.get("attempt_id"), str):
+        _err("attempt_id must be a string")
+    if result.get("execution_status") not in _MIRROR_EXEC_STATUS:
+        _err("execution_status must be one of "
+             f"{sorted(_MIRROR_EXEC_STATUS)}")
+    if result.get("policy_verdict") not in _MIRROR_VERDICTS:
+        _err("policy_verdict must be one of "
+             f"{sorted(_MIRROR_VERDICTS)}")
+
+    # -- identity -----------------------------------------------------------
+    identity = result.get("identity")
+    if not isinstance(identity, Mapping):
+        _err("identity must be an object")
+    else:
+        for key in _MIRROR_IDENTITY_REQUIRED:
+            if key not in identity:
+                _err(f"identity.required: {key}")
+        sha = identity.get("commit_sha")
+        if not isinstance(sha, str) or not _MIRROR_SHA40_RE.match(sha):
+            _err("identity.commit_sha must be a string matching "
+                 "^[0-9a-f]{40}$")
+        if not isinstance(identity.get("environment"), str):
+            _err("identity.environment must be a string")
+        if not isinstance(identity.get("scope_hash"), str):
+            _err("identity.scope_hash must be a string")
+        for key in _MIRROR_IDENTITY_OPTIONAL:
+            if key in identity and not isinstance(identity[key], str):
+                _err(f"identity.{key} must be a string")
+
+    # -- tool ----------------------------------------------------------------
+    tool = result.get("tool")
+    if not isinstance(tool, Mapping):
+        _err("tool must be an object")
+    else:
+        for key in ("name", "version"):
+            if key not in tool:
+                _err(f"tool.required: {key}")
+            elif not isinstance(tool[key], str):
+                _err(f"tool.{key} must be a string")
+        if "digest" in tool and not isinstance(tool["digest"], str):
+            _err("tool.digest must be a string")
+
+    # -- execution -----------------------------------------------------------
+    execution = result.get("execution")
+    if not isinstance(execution, Mapping):
+        _err("execution must be an object")
+    else:
+        for key in _MIRROR_EXEC_REQUIRED:
+            if key not in execution:
+                _err(f"execution.required: {key}")
+        if not isinstance(execution.get("argv_digest"), str):
+            _err("execution.argv_digest must be a string")
+        for key in ("started_at", "ended_at"):
+            if key in execution and not _mirror_iso_datetime(execution[key]):
+                _err(f"execution.{key} must be an ISO-8601 date-time")
+        if "timeout_s" in execution and (
+                not _mirror_int(execution["timeout_s"])
+                or execution["timeout_s"] < 1):
+            _err("execution.timeout_s must be an integer >= 1")
+        if not _mirror_int(execution.get("actual_exit_code")):
+            _err("execution.actual_exit_code must be an integer")
+        expected = execution.get("expected_exit_set")
+        if not isinstance(expected, list) or not all(
+                _mirror_int(x) for x in expected):
+            _err("execution.expected_exit_set must be an array of integers")
+        if execution.get("assertion_verdict") not in _MIRROR_ASSERTION:
+            _err("execution.assertion_verdict must be one of "
+                 f"{sorted(_MIRROR_ASSERTION)}")
+        if "cwd_digest" in execution and not isinstance(
+                execution["cwd_digest"], str):
+            _err("execution.cwd_digest must be a string")
+
+    # -- coverage（可选；PASS 时必填并升级约束）------------------------------
+    coverage = result.get("coverage") if "coverage" in result else None
+    if "coverage" in result:
+        if not isinstance(coverage, Mapping):
+            _err("coverage must be an object")
+        else:
+            for key in ("denominator", "scanned"):
+                if key not in coverage:
+                    _err(f"coverage.required: {key}")
+                elif not _mirror_int(coverage[key]) or coverage[key] < 0:
+                    _err(f"coverage.{key} must be an integer >= 0")
+            if "exclusions" in coverage and (
+                    not isinstance(coverage["exclusions"], list)
+                    or not all(isinstance(x, str)
+                               for x in coverage["exclusions"])):
+                _err("coverage.exclusions must be an array of strings")
+
+    # -- finding_ids / artifacts ---------------------------------------------
+    if "finding_ids" in result and (
+            not isinstance(result["finding_ids"], list)
+            or not all(isinstance(x, str) for x in result["finding_ids"])):
+        _err("finding_ids must be an array of strings")
+    artifacts = result.get("artifacts") if "artifacts" in result else None
+    if "artifacts" in result:
+        if not isinstance(artifacts, list):
+            _err("artifacts must be an array")
+        else:
+            for idx, item in enumerate(artifacts):
+                if not isinstance(item, Mapping):
+                    _err(f"artifacts[{idx}] must be an object")
+                    continue
+                for key in ("cas_digest", "size"):
+                    if key not in item:
+                        _err(f"artifacts[{idx}].required: {key}")
+                digest = item.get("cas_digest")
+                if not isinstance(digest, str) or not _MIRROR_CAS_RE.match(digest):
+                    _err(f"artifacts[{idx}].cas_digest must match "
+                         "^sha256:[0-9a-f]{64}$")
+                if not _mirror_int(item.get("size")) or item["size"] < 1:
+                    _err(f"artifacts[{idx}].size must be an integer >= 1")
+
+    # -- allOf 跨字段 #1：PASS 分支（schema PASS if-then 的全量镜像）----------
+    if result.get("policy_verdict") == "PASS":
+        if "coverage" not in result:
+            _err("PASS requires coverage")
+        if "artifacts" not in result:
+            _err("PASS requires artifacts")
+        if isinstance(coverage, Mapping) and _mirror_int(
+                coverage.get("denominator")) and _mirror_int(
+                coverage.get("scanned")):
+            if coverage["denominator"] < 1:
+                _err("PASS coverage.denominator must be >= 1")
+            if coverage["scanned"] < 1:
+                _err("PASS coverage.scanned must be >= 1")
+            # F4-SCHEMA-001 #2（分母缩水）：PASS 必须 scanned == denominator
+            # （schema 侧 const 级联 1..64 的无界镜像）
+            if coverage["scanned"] != coverage["denominator"]:
+                _err("PASS coverage.scanned("
+                     f"{coverage['scanned']}) != denominator("
+                     f"{coverage['denominator']}) — denominator shrinkage")
+        if isinstance(artifacts, list) and len(artifacts) < 1:
+            _err("PASS requires non-empty artifacts (minItems 1)")
+        if isinstance(execution, Mapping):
+            if "actual_exit_code" in execution and (
+                    execution["actual_exit_code"] != 0):
+                _err("PASS requires execution.actual_exit_code == 0")
+            if "assertion_verdict" in execution and (
+                    execution["assertion_verdict"] != "PASS"):
+                _err("PASS requires execution.assertion_verdict == PASS")
+        # F4-SCHEMA-001 #5（station 侧）：PASS 必须执行完成
+        if result.get("execution_status") != "COMPLETED":
+            _err("PASS requires execution_status COMPLETED")
+
+    # -- allOf 跨字段 #2：执行非完成态只允许阻断类裁决 ------------------------
+    # （F4-SCHEMA-001 #5：TIMEOUT+CONDITIONAL / TIMEOUT+PASS 等双轴洗白全拒）
+    if result.get("execution_status") in _MIRROR_EXEC_HARD and (
+            result.get("policy_verdict") is not None
+            and result.get("policy_verdict")
+            not in _MIRROR_HARD_EXEC_VERDICTS):
+        _err(f"execution_status {result['execution_status']} forbids "
+             f"policy_verdict {result.get('policy_verdict')} "
+             "(only FAIL/NOT_EVALUATED allowed)")
+
+    return errors
 
 
 class GateAggregator:
@@ -165,7 +427,14 @@ class GateAggregator:
         )
 
     def _parse_v2(self, station_result: Mapping) -> Dict[str, Any]:
-        """解析 v2 条目为内部登记结构；畸形处记 malformed（宽松读），不抛异常。"""
+        """解析 v2 条目为内部登记结构；结构必须严格（F4-GATE-001 根修）。
+
+        先过 mirror_validate_station_result_v2（schema 全量镜像）：schema-invalid
+        记一条 consolidated malformed（含违例明细），该站 outcome 强制 BLOCKED；
+        identity/sha/environment 仍按现有方式尽力提取，供 C2/C5 证据绑定裁决
+        （缺什么补什么违规——绝不因结构残缺而漏记账）。
+        """
+        schema_errors = mirror_validate_station_result_v2(station_result)
         sid = station_result.get("station_id")
         if not isinstance(sid, int) or isinstance(sid, bool):
             self._malformed.append({
@@ -174,6 +443,14 @@ class GateAggregator:
             })
             return {}
         station = str(sid)
+
+        if schema_errors:
+            self._malformed.append({
+                "reason": "schema_invalid: " + schema_errors[0],
+                "station": station,
+                "schema_violations": schema_errors[:8],
+                "schema_violation_count": len(schema_errors),
+            })
 
         execution_status = str(station_result.get("execution_status") or "").strip().upper()
         policy_verdict = str(station_result.get("policy_verdict") or "").strip().upper()
@@ -189,15 +466,21 @@ class GateAggregator:
             if isinstance(env_raw, str):
                 environment = env_raw
         else:
-            # identity 缺失/非对象——C5 结构残缺（宽松读不炸，聚合时 BLOCKED）
-            self._malformed.append({
-                "reason": "missing_field:identity" if identity is None
-                else "malformed_field:identity",
-                "station": station,
-            })
+            # identity 缺失/非对象——schema_invalid 已记账（镜像 required:identity），
+            # 这里继续提取其余字段并保持 C5 记账（宽松读不炸，聚合时 BLOCKED）
+            if not schema_errors:
+                self._malformed.append({
+                    "reason": "missing_field:identity" if identity is None
+                    else "malformed_field:identity",
+                    "station": station,
+                })
 
         # 铁律 2：执行未完成（ERROR/BLOCKED/TIMEOUT/CANCELLED）→ 整站硬失败
-        if execution_status in _V2_EXEC_HARD_FAIL:
+        if schema_errors:
+            # F4-GATE-001：schema-invalid 输入不具可信形态——该站一律硬失败
+            outcome = BLOCKED
+            outcome_raw = "SCHEMA_INVALID"
+        elif execution_status in _V2_EXEC_HARD_FAIL:
             outcome = BLOCKED
             outcome_raw = f"{execution_status}/{policy_verdict or '-'}"
         elif execution_status == "COMPLETED":
@@ -208,16 +491,18 @@ class GateAggregator:
             outcome = BLOCKED
             outcome_raw = f"{execution_status or '-'}/{policy_verdict or '-'}"
 
-        if execution_status and execution_status not in _V2_EXECUTION_STATUS:
-            self._malformed.append({
-                "reason": f"invalid_field:execution_status:{execution_status}",
-                "station": station,
-            })
-        if policy_verdict and policy_verdict not in _V2_POLICY_VERDICTS:
-            self._malformed.append({
-                "reason": f"invalid_field:policy_verdict:{policy_verdict}",
-                "station": station,
-            })
+        if not schema_errors:
+            # 枚举合法性已由镜像覆盖（schema_invalid 时不再重复记账，避免噪声）
+            if execution_status and execution_status not in _V2_EXECUTION_STATUS:
+                self._malformed.append({
+                    "reason": f"invalid_field:execution_status:{execution_status}",
+                    "station": station,
+                })
+            if policy_verdict and policy_verdict not in _V2_POLICY_VERDICTS:
+                self._malformed.append({
+                    "reason": f"invalid_field:policy_verdict:{policy_verdict}",
+                    "station": station,
+                })
 
         return {
             "station": station,
@@ -229,6 +514,7 @@ class GateAggregator:
             "input_version": "v2",
             "execution_status": execution_status or None,
             "policy_verdict_raw": policy_verdict or None,
+            "schema_valid": not schema_errors,
         }
 
     def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
@@ -261,10 +547,14 @@ class GateAggregator:
             "input_version": "legacy",
             "execution_status": None,
             "policy_verdict_raw": None,
+            "schema_valid": True,
         }
 
     def add(self, station_result: dict) -> "GateAggregator":
         """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
+
+        v2 条目先过镜像校验器（F4-GATE-001）：schema-invalid 一律记 malformed
+        并强制该站 BLOCKED——聚合输出必为 BLOCKED、technical_eligible=false。
 
         重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
         两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
@@ -387,6 +677,7 @@ class GateAggregator:
                 "sha_bound": e["sha"] == self.target_sha,
                 "environment_ok": e["environment"] == self.environment,
                 "input_version": e["input_version"],
+                "schema_valid": e.get("schema_valid", True),
             }
             for s, e in sorted(self._stations.items())
         }

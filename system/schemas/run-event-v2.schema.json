@@ -92,6 +92,14 @@
   "additionalProperties": false,
   "allOf": [
     {
+      "if": {"properties": {"execution_status": {"enum": ["ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]}}, "required": ["execution_status"]},
+      "then": {
+        "properties": {
+          "policy_verdict": {"enum": ["FAIL", "NOT_EVALUATED"]}
+        }
+      }
+    },
+    {
       "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
       "then": {
         "properties": {
@@ -102,5 +110,5 @@
       }
     }
   ],
-  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）；P0-4 双轴根修：execution 非 COMPLETED 不得产出任何完成态（含 CONDITIONAL）——RUN_COMPLETED 层由重放强制，attempt 层由 outcome 映射强制；观察类事件（APPROVAL_CONSUMED/FINDING_REGISTERED/ACTION_*）不递增 state_version，须锚定当前版本"
+  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）；P0-4 双轴根修：execution 非 COMPLETED 不得产出任何完成态（含 CONDITIONAL）——RUN_COMPLETED 层由重放强制，attempt 层由 outcome 映射强制；观察类事件（APPROVAL_CONSUMED/FINDING_REGISTERED/ACTION_*）不递增 state_version，须锚定当前版本。F4-SCHEMA-001 #5（2026-10-08 Codex 第四轮根修）：schema 层机器可判——execution_status ∈ {ERROR,BLOCKED,TIMEOUT,CANCELLED} 时 policy_verdict 只允许 FAIL/NOT_EVALUATED，TIMEOUT+CONDITIONAL / TIMEOUT+PASS 等双轴洗白在 schema 层直接拒绝（此前仅由状态机代码强制，schema 无此约束）；station-result-v2.schema.json 与 gate_aggregator.mirror_validate_station_result_v2 已同步同款规则"
 }

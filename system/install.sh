@@ -87,6 +87,15 @@ tar_copy "$SRC/specs" "$PREFIX/specs"
 [ -f "$SRC/config/wenqu.env.example" ] && cp "$SRC/config/wenqu.env.example" "$PREFIX/env.example"
 chmod +x "$PREFIX"/bin/* "$PREFIX"/sentinels/* "$PREFIX"/daemons/* 2>/dev/null || true
 
+# F4-CLI-001 修：安装体验证——<prefix>/bin/wenquctl --help 必须 rc=0。
+# wenqu_core/cli.py 缺失（源树被删后枚举不再覆盖它）或 bin 壳断链（找不到
+# lib 落点）时 fail-closed：安装中止 rc=1，绝不留一个跑不起来的安装体。
+if ! "$PREFIX/bin/wenquctl" --help >/dev/null 2>&1; then
+  echo "✗ 安装自检失败：安装体 bin/wenquctl 断链（--help rc≠0）——wenqu_core/cli.py 缺失或壳路径解析损坏，安装中止" >&2
+  exit 1
+fi
+echo "✓ 安装体 wenquctl 验证通过（$PREFIX/bin/wenquctl --help rc=0）"
+
 # 3. PATH 注入（幂等）
 case ":$PATH:" in
   *":$PREFIX/bin:"*) : ;;

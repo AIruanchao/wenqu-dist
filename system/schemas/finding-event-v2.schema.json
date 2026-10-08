@@ -121,6 +121,35 @@
       }
     },
     {
+      "if": {"properties": {"event_type": {"const": "RISK_INVALIDATED"}}},
+      "then": {
+        "properties": {
+          "state_from": {"const": "ACCEPTED_RISK"},
+          "state_to": {"const": "OPEN"}
+        },
+        "required": ["state_from", "state_to"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "SUPERSEDED"}}},
+      "then": {
+        "properties": {
+          "state_from": {"enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "ACCEPTED_RISK"]}
+        },
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"state_from": {"const": "CLOSED"}}, "required": ["state_from"]},
+      "then": {
+        "properties": {
+          "event_type": {"const": "FINDING_REOPENED"},
+          "state_to": {"const": "OPEN"}
+        },
+        "required": ["state_to"]
+      }
+    },
+    {
       "if": {"properties": {"event_type": {"const": "FINDING_REOPENED"}}},
       "then": {
         "properties": {"state_from": {"enum": ["CLOSED", "ACCEPTED_RISK"]}},
@@ -128,5 +157,5 @@
       }
     }
   ],
-  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；状态机非法转换全拒：FIX_STARTED←OPEN、FIX_COMPLETED←FIXING、VERIFY_STARTED/VERIFIED←FIXED_PENDING_VERIFY、CLOSED←VERIFIED、ACCEPTED_RISK←OPEN（须 compensating_controls 非空+expiry）、RISK_REVOKED←ACCEPTED_RISK、FINDING_REOPENED←CLOSED/ACCEPTED_RISK；revoke 后立即重开"
+  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；状态机非法转换全拒：FIX_STARTED←OPEN、FIX_COMPLETED←FIXING、VERIFY_STARTED/VERIFIED←FIXED_PENDING_VERIFY、CLOSED←VERIFIED、ACCEPTED_RISK←OPEN（须 compensating_controls 非空+expiry）、RISK_REVOKED←ACCEPTED_RISK、FINDING_REOPENED←CLOSED/ACCEPTED_RISK；revoke 后立即重开。F4-SCHEMA-001 #3/#4（2026-10-08 Codex 第四轮根修）：(a) CLOSED 的合法后继唯一——只能经 FINDING_REOPENED 回 OPEN；携带 state_from=CLOSED 的任何其他事件类型（FINDING_CREATED/SUPERSEDED/RISK_INVALIDATED 等伪造 CLOSED→OPEN 转换）全拒；(b) 全部转移事件 state_from 必填——RISK_INVALIDATED 补 state_from（const ACCEPTED_RISK）+ state_to（const OPEN，§6.3 立即重开），SUPERSEDED 补 state_from（活跃态枚举；FINDING_CREATED 为创建事件无先态，豁免）"
 }

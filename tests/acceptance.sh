@@ -375,6 +375,32 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
 fi
 
+echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+  python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+  ADV_RC=$?
+  if [ ${ADV_RC} -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 对抗自测失败（exit=${ADV_RC}）——洞修复行为回归"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_adversarial.py 不存在——对抗测试被移出验收面（F4-CI-001 复发）"
+fi
+
+echo "== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
+  python3 "$ROOT/system/tests/test_infra_hardening.py" >/dev/null 2>&1
+  INF_RC=$?
+  if [ ${INF_RC} -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
+fi
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
