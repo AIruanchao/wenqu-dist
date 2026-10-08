@@ -1333,7 +1333,9 @@ def test_CAP_01_peak_budget_over_margin_or_disk_full_switches_blocked():
         assert real.basis == "real", "采集样本必须标记 real 基准"
         assert real.total_bytes == direct.total, \
             f"total 必须与 statvfs 真值一致: {real.total_bytes} vs {direct.total}"
-        assert real.total_bytes == real.used_bytes + real.free_bytes, "used+free==total 不变量"
+        # 跨平台不变量：used+free ≤ total（Linux 保留块使 used+free 可小于 total；macOS 相等）
+        assert real.total_bytes >= real.used_bytes + real.free_bytes, \
+            "used+free<=total 不变量（Linux 保留块）"
         assert abs(real.used_bytes - direct.used) <= 64 * 1024 * 1024, \
             "真实采集应与直连 disk_usage 同源（±64MiB 活动盘容差）"
         assert 0.0 <= real.used_ratio <= 1.0

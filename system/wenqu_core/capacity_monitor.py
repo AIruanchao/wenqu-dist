@@ -163,7 +163,11 @@ def _parse_ts(value: Union[str, float, int, datetime]) -> datetime:
 
 @dataclass(frozen=True)
 class DiskSample:
-    """磁盘采样值。不变量：total == used + free，三者非负。
+    """磁盘采样值。不变量：used + free ≤ total，三者非负。
+
+    跨平台注：Linux 上 shutil.disk_usage 的 free 取 f_bavail（非特权可用），
+    used 取 total - f_bfree——保留块使 used+free 可以小于 total（差=保留块）；
+    macOS 两者恰好相等。故正确的不变量是 ≤ 而非 ==（CI Ubuntu 实证）。
 
     ``basis`` 区分数据来源：``real``=shutil.disk_usage 真实采集；
     ``injected``=故障注入数字（磁盘满/超阈值演练，不真塞盘）。
@@ -183,10 +187,10 @@ class DiskSample:
                 raise CapacityMonitorError(
                     f"{name} must be a non-negative int, got {value!r}"
                 )
-        if self.total_bytes != self.used_bytes + self.free_bytes:
+        if self.total_bytes < self.used_bytes + self.free_bytes:
             raise CapacityMonitorError(
-                f"total_bytes must equal used+free: "
-                f"{self.total_bytes} != {self.used_bytes}+{self.free_bytes}"
+                f"total_bytes must be >= used+free (Linux 保留块可使不等): "
+                f"{self.total_bytes} < {self.used_bytes}+{self.free_bytes}"
             )
         if not isinstance(self.path, str) or not self.path:
             raise CapacityMonitorError("path must be a non-empty string")
