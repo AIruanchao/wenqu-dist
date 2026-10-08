@@ -1,0 +1,30 @@
+CAPTURED_AT=2026-10-08T15:57:08,812264000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_auth_cond.py 
+--- OUTPUT ---
+========================================================================
+§20 AUTH/STOP/RISK/COND 四族专属验收测试（16 条；不可实现 0 条）
+  NOTE AUTH-06: 「无 user-presence」映射为 decision!=approve（approval-v2 无独立 UV 位）
+  NOTE RISK-01: REVOKED/INVALIDATED/立即重开/修复链半边以冻结 finding-event-v2.schema.json （jsonschema 真实验证）断言；管线半边验证 finding 面改变使已消费授权失效且 run 可修复
+  NOTE COND-01: 「技术 context failure」= gate_aggregator technical_eligible=False+GitHub failure ＋ complete_run 无 risk 授权 fail-closed
+  NOTE COND-03: 「success/AUTHORIZED_CONDITIONAL」产品落地面 = COMPLETED_CONDITIONAL 终态（verdict 仍 CONDITIONAL，terminal_reason 记授权在案）
+------------------------------------------------------------------------
+  PASS AUTH-01  test_AUTH_01_resume_without_authorization_rejected
+  PASS AUTH-02  test_AUTH_02_expired_replay_scope_widening_stale_version_rejected
+  PASS AUTH-03  test_AUTH_03_ai_self_issued_high_risk_approval_rejected
+  PASS AUTH-04  test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails
+  PASS AUTH-05  test_AUTH_05_concurrent_double_consume_exactly_one_wins
+  PASS AUTH-06  test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected
+  PASS COND-01  test_COND_01_conditional_without_risk_authorization_not_eligible
+  PASS COND-02  test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected
+  PASS COND-03  test_COND_03_authorized_conditional_action_gate_exactly_once
+  PASS COND-04  test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked
+  PASS COND-05  test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated
+  PASS COND-06  test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once
+  PASS RISK-01  test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs
+  PASS STOP-01  test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected
+  PASS STOP-02  test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked
+  PASS STOP-03  test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected
+------------------------------------------------------------------------
+结果: 16/16 passed
+========================================================================
+--- EXIT_CODE=0 ---

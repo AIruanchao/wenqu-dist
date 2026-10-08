@@ -1,0 +1,18 @@
+$ launchctl print gui/UID/com.wenqu.observation selected
+	active count = 0
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.observation.plist
+	state = not running
+	program = /opt/homebrew/bin/python3
+	arguments = {
+	stdout path = /Users/maccc/.wenqu/observation/logs/out.log
+	stderr path = /Users/maccc/.wenqu/observation/logs/err.log
+	domain = gui/502 [100002]
+	minimum runtime = 10
+	runs = 2
+	last exit code = 0
+		state = active
+		active count = 1
+		state = active
+		active count = 1
+	properties = inferred program
+pipeline_rc=0 0

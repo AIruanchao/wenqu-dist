@@ -1,0 +1,17 @@
+TIMESTAMP_UTC: 2026-10-08T12:59:41Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: python3 system/tests/test_events_unified.py 
+OUTPUT_BEGIN
+统一事件正源专属测试（P0-6 第六轮：单一事件表+单一写入 API）
+被测体: system/wenqu_core/ledger_migrator.py + system/wenqu_core/store.py
+
+  ok   UE-01  单一事件表+单一写入 API（同表同幂等键）
+  ok   UE-02  内容寻址幂等+逐行 sidecar 映射（跨文件同内容=duplicate）
+  ok   UE-03  坏行隔离语义在统一表上不回退（ERROR→BLOCKED fail-closed）
+  ok   UE-04  混合流单链：迁移行+EventStore 直写行交错 verify_chain 贯穿
+  ok   UE-05  旧 events 表残留一次性收编（合成旧表 fixture，幂等+只读兼容）
+  ok   UE-06  控制事件守卫不回退（统一表上伪造 RUN_*/SUPERSEDED 全拒）
+
+结果: 6 PASS / 0 FAIL；exit=0
+OUTPUT_END
+EXIT_CODE: 0

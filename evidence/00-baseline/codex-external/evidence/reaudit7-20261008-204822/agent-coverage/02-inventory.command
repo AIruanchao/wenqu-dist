@@ -1,0 +1,1 @@
+set -o pipefail; echo SECTION20; sed -n "1545,1688p" evidence/00-baseline/codex-external/方案.md; echo SECTION251; sed -n "1879,1920p" evidence/00-baseline/codex-external/方案.md; echo TESTS; find system/tests tests -maxdepth 2 -type f -print | sort; echo GATE_FILES; find system -maxdepth 3 -type f \( -name "*gate*" -o -name "*manifest*" -o -name "*trace*" \) -print | sort

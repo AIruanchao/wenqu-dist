@@ -1,0 +1,135 @@
+UTC_START=2026-10-08T12:58:45Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-observation-binding.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+F=/private/tmp/reaudit7-d32c859-runtime
+echo '=== tracked observation evidence ==='
+git -C /private/tmp/reaudit7-release-d32c859 ls-tree -r --name-only d32c859 -- evidence/13-observation-window
+find "$F/evidence/13-observation-window" -maxdepth 3 -type f -print -exec shasum -a 256 {} \;
+sed -n '1,260p' "$F/evidence/13-observation-window/README.md"
+echo '=== tracked references to claimed clean SHA c9de6a4 / sample path ==='
+rg -n --hidden 'c9de6a4|samples/2026-10-08.json|observation/samples' "$F/evidence" "$F/tools" "$F/system" | head -n 300
+echo '=== active sample selected identity ==='
+python3 - <<'PY'
+import json,pathlib,hashlib
+p=pathlib.Path.home()/'.wenqu/observation/samples/2026-10-08.json'
+x=json.loads(p.read_text())
+print('path',p)
+print('sha256',hashlib.sha256(p.read_bytes()).hexdigest())
+print('collected_at',x.get('collected_at'))
+print('repo',json.dumps(x.get('repo'),ensure_ascii=False,sort_keys=True))
+print('ci',json.dumps(x.get('ci_latest_main'),ensure_ascii=False,sort_keys=True))
+PY
+echo '=== active files containing c9de prefix ==='
+rg -l 'c9de6a4' "$HOME/.wenqu/observation" 2>/dev/null | sort
+echo '=== observation file inventory timestamp/hash ==='
+find "$HOME/.wenqu/observation" -maxdepth 3 -type f -print0 | while IFS= read -r -d '' f; do stat -f 'path=%N size=%z mtime=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; done | sort
+--- OUTPUT ---
+=== tracked observation evidence ===
+evidence/13-observation-window/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window/README.md
+b1fffe3d1b93989fa910e13213ca0746689879e67c3388000d679cabb35a3f86  /private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window/README.md
+# 13-observation-window — W10 观察窗证据
+
+## 证据类型
+
+- 14 天观察窗（§19.1）硬指标逐日记录：CI 通过率、假绿/假红计数、告警送达率、
+  磁盘水位、调度心跳、dashboard 与 Gate 同水位对照（FND-007 消灭证明）；
+- 观察窗内变更纪律证据：contract/down migration 被拒记录（DEP-09）；
+- 战训回流（§19.3）与最终出口评审（§19.4）记录。
+
+## 关联测试 ID
+
+DEP-09、CAP-01（持续水位）、DOC-04（文档宣称与 registry/Gate 一致性）、DR-01（若窗内含灾备演练）。
+
+## 当前状态（2026-10-08 建档时点）
+
+**NOT STARTED——launchd 观察窗 job 已装载但零指标收集**：
+
+| 项 | 状态 |
+|---|---|
+| com.wenqu.observation-window（每日 08:00） | 外部 Codex 复审证实已装载 launchd（2026-10-07 §3.3）；回读未固化入本目录 |
+| 观察窗指标收集 | **无**（装载 ≠ 窗口运行；无任何日指标落档） |
+| 14 天窗起点 | 未宣布；上游 shadow/canary（W9）未开始，观察窗依序未生效 |
+
+## 填写规则
+
+1. 每日一个指标文件（JSON，机器生成），缺日即窗口中断重计。
+2. 窗口结束评审必须含「未覆盖威胁与生产边界」清单，不得以全绿话术收尾。
+
+## F6-OBS-001 处置说明（2026-10-08 追加）
+
+- **首样本作废**：观察窗首个样本（`~/.wenqu/observation/samples/2026-10-08.json`）
+  绑定 HEAD `b08fa7afd492ceb413419518b066bb456ad5f70c` 且 `dirty=true`
+  （样本自记 6 个未提交改动文件，含采样器自身 `tools/observation_daily.py` 当时
+  尚未入仓）。污染树样本不具「干净 SHA 时点」代表性，判**作废**，不计入
+  14 天窗口进度；同日 shadow 快照（`shadow/2026-10-08.json`）为结构化空态，
+  一并只作启动留痕。
+- **窗口起算**：有效观察窗自**下一个干净 SHA 样本**起算——每日 09:05 采样中
+  首个满足 `repo.dirty=false` 且 `repo.head` 为已合入 main 提交的样本，
+  方计为窗口第 1 天；此前样本一律归「启动留痕」类。
+- **波间快照入仓**：每日样本存于仓外（`~/.wenqu/observation/`，防脏树），须在
+  **波间**（非整改进行时）将样本快照提交入本目录 `samples/` 子目录并索引于本
+  README，防止本机丢失导致窗口证据断链；未入仓样本不具窗口计数效力（同填写
+  规则 1：缺日即中断重计）。
+=== tracked references to claimed clean SHA c9de6a4 / sample path ===
+/private/tmp/reaudit7-d32c859-runtime/system/sentinels/backup-restore-drill.sh:6:#   observation/heartbeat.json、observation/samples 与 shadow 的最新 JSON）。
+/private/tmp/reaudit7-d32c859-runtime/system/sentinels/backup-restore-drill.sh:117:for rel in "$(latest_json observation/samples)" "$(latest_json observation/shadow)"; do
+/private/tmp/reaudit7-d32c859-runtime/tools/observation_daily.py:4:W10 观察窗样本（~/.wenqu/observation/samples/YYYY-MM-DD.json）：
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window/README.md:31:- **首样本作废**：观察窗首个样本（`~/.wenqu/observation/samples/2026-10-08.json`）
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_ac_ops_families.py:1524:            "observation/heartbeat.json", "observation/samples/2026-10-08.json",
+=== active sample selected identity ===
+path /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+sha256 246c73ff41b8fcc92fa837704c76a3789e303bb111aeb16438a0d41021bbe161
+collected_at 2026-10-08T12:56:22.863406+00:00
+repo {"dirty": true, "dirty_error": null, "dirty_files": ["M evidence/04-unit-property-mutation/ac-ops-families.json", " M evidence/04-unit-property-mutation/ac-ui-family.json", " M system/VERSION", " M system/bin/wenqu-dashboard.py", " D system/schemas/approval-v2.schema.json", " D system/wenqu_core/wenqu_pipeline.py", "?? \"\\\"\\\"\"", "?? SHA256-v3.8.4.txt"], "head": "1495913085eae13155f977fcebc8400b9789e04c", "head_error": null, "path": "/Users/maccc/Documents/wenqu-dist"}
+ci {"conclusion": "success", "createdAt": "2026-10-08T12:37:51Z", "databaseId": 37778240376, "displayTitle": "Merge pull request #9 from AIruanchao/wave6/p1f-gate", "headSha": "d32c859f9043798d9e8a4984e8f57aa64567e33c", "status": "completed", "workflowName": "acceptance"}
+=== active files containing c9de prefix ===
+=== observation file inventory timestamp/hash ===
+074d74ec98e443fe381864be85fd01faa08dd039255fc0a229a1b4da9c5dc10a  /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json
+0f2d9521850fb922a2d8317104c65ea8ee36c45314a48cc4fcf608051d2b210f  /Users/maccc/.wenqu/observation/alerts/receipts.jsonl
+17721d28d4fd506bf56b7feaa7b0625a5a5f85570c3a20ef1d08c65578d02f4d  /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl
+1fb68dde53e5c456378d9809cb1c7b4e4cf2b22ba84d5038dcfac3ce4f0fdee3  /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+246c73ff41b8fcc92fa837704c76a3789e303bb111aeb16438a0d41021bbe161  /Users/maccc/.wenqu/observation/samples/2026-10-08.json
+5789ea231917972d4f5a85a74fcd080530e8830ad585623b0ffb0d8049262b4a  /Users/maccc/.wenqu/observation/logs/scheduler-2026-10-08.jsonl
+64d327124a904a3742e6e14ab29fa6ccb3b32432f8ed0745eb20014e9df73e87  /Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json
+6578cabfa21605d507eb5425b49bfd8d02d9fa80c598422368b19e3bc6d69c7e  /Users/maccc/.wenqu/observation/shadow/2026-10-08.json
+77be3d23352d8cb0e9cbde33f44d688a79738888fa164ae38eaa65ffa3e16ec1  /Users/maccc/.wenqu/observation/logs/ttest-result.json
+81a0d9d20d09ff520436c427b83e2166cf1c8765ddd16b938edc4250f6fca7df  /Users/maccc/.wenqu/observation/logs/err.log
+8f48bc5718b1b0334d951dc5a6237aa9174dd8888484b3433bdecfcd359eea98  /Users/maccc/.wenqu/observation/logs/out.log
+a40ade033f83272b7d441a1ac771e41e26a0923bb4478834f13487f3de3d412b  /Users/maccc/.wenqu/observation/logs/ttest2-result.json
+afadddfd4fc0aa2cb795769405322fde336fb424f310adf1318c06e586673752  /Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt
+cb86fed87675322d7cc50b4cb7f1afd613bbd9476addc8e0763242e67c529c44  /Users/maccc/.wenqu/observation/heartbeat.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/ttest-err.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/ttest-out.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/ttest2-err.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /Users/maccc/.wenqu/observation/logs/ttest2-out.log
+ed5b8120601641c516d02ed9dc643a59648524248d5e2af877da39ea253c723e  /Users/maccc/.wenqu/observation/logs/ttest.marker
+path=/Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt size=390 mtime=2026-10-08T17:18:09+0800
+path=/Users/maccc/.wenqu/observation/alerts/receipts.jsonl size=239 mtime=2026-10-08T17:18:09+0800
+path=/Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json size=2208 mtime=2026-10-08T17:18:43+0800
+path=/Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json size=2707 mtime=2026-10-08T17:58:02+0800
+path=/Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl size=4764 mtime=2026-10-08T17:58:02+0800
+path=/Users/maccc/.wenqu/observation/heartbeat.json size=1679 mtime=2026-10-08T20:56:26+0800
+path=/Users/maccc/.wenqu/observation/logs/err.log size=167 mtime=2026-10-08T14:51:46+0800
+path=/Users/maccc/.wenqu/observation/logs/out.log size=1226 mtime=2026-10-08T14:56:14+0800
+path=/Users/maccc/.wenqu/observation/logs/scheduler-2026-10-08.jsonl size=53952 mtime=2026-10-08T20:56:26+0800
+path=/Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log size=0 mtime=2026-10-08T17:16:48+0800
+path=/Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log size=11032 mtime=2026-10-08T20:56:26+0800
+path=/Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log size=0 mtime=2026-10-08T14:51:08+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest-err.log size=0 mtime=2026-10-08T14:53:45+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest-out.log size=0 mtime=2026-10-08T14:53:45+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest-result.json size=240 mtime=2026-10-08T14:53:45+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest.marker size=6 mtime=2026-10-08T14:53:45+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest2-err.log size=0 mtime=2026-10-08T14:54:47+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest2-out.log size=0 mtime=2026-10-08T14:54:47+0800
+path=/Users/maccc/.wenqu/observation/logs/ttest2-result.json size=72 mtime=2026-10-08T14:54:47+0800
+path=/Users/maccc/.wenqu/observation/samples/2026-10-08.json size=1676 mtime=2026-10-08T20:56:25+0800
+path=/Users/maccc/.wenqu/observation/shadow/2026-10-08.json size=2121 mtime=2026-10-08T20:56:25+0800
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:58:45Z

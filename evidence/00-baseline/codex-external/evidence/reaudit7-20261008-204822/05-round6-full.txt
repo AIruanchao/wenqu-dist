@@ -1,0 +1,419 @@
+# 问渠质量工程管线验收报告（第六轮独立复审）
+
+- 验收对象：`/Users/maccc/Documents/wenqu-dist`
+- 指定目标：`main@b259dac4248b14af6ec05e1b3fc7f61401aba6b6`
+- 第四轮基线：`main@e4aba84c1dabe1342ea234321eea3d300bea24a5`，`49/100 BLOCKED`
+- 冻结方案 SHA256：`96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306`
+- 验收日期：2026-10-08（Asia/Shanghai）
+- 证据根：`/private/tmp/codex-test/evidence/reaudit6-20261008-155511/`
+- 方法：源仓只读；目标开始时立即以 `git archive` 冻结；删除、篡改、故障注入均在 `/tmp` 隔离副本执行
+
+---
+
+## 1. 最终判定
+
+# **BLOCKED — 52/100**
+
+| 完成层 | 判定 | 证据化结论 |
+|---|---|---|
+| 候选代码修复 | **部分通过** | Runner、action 授权“必须存在”与回执分级、安装体 CLI、原残缺 station 输入等修复确实生效；但授权 payload 未与实际 action target 精确绑定。12 项旧探针在 b259 冻结副本达到 12/12 PASS。 |
+| P0 契约与 Gate | **不通过** | Gate 的 required/scope/coverage 可自报并缩水；RFC3339 非法时间可上绿；正式 station schema 在 64 以上整数域仍可接受 `PASS 65/66`。 |
+| required CI | **不通过** | 12+66 两套已接入且 PR#4/#5 经现行保护门；但七个 99 条专属文件全删后 acceptance 与 trace `--check` 仍双绿。Ubuntu acceptance 还忽略了 `mktemp` 错误。 |
+| 证据/追踪 | **不通过** | 99/131 是词法命中，不是不可绕过语义 Gate；证据索引严格合格 0/20；20 条中只有 1 条为“路径所指文件与裸 64hex hash 精确相等”。 |
+| 受控部署/运行 | **不通过** | 验收期间共享源仓、远端 main 和 7789 被外部 writer 推进到 PR#6/`07a94945`；b259 的运行身份失效。现役仍为 legacy 单文件写版。 |
+| 发布后观察 | **不通过** | 观察文件存在，但首样本绑定 `b08fa7a` 且 dirty，shadow modular health=503、比较字段为 null；W9/W10 时钟未形成 b259 有效第 1 天证据。 |
+| production-ready | **禁止声明** | P0 十项只有 P0-1（限冻结候选）与 P0-8 完整通过；其余均 FAIL/PARTIAL。 |
+
+本轮相对第四轮的真实进步：Runner 重挂接后台收拢、action 审批存在性/回执分级、安装体 CLI、原 Schema 五类反例、残缺 station 拦截、12+66 required 接线，以及 99 条专属测试代码均有实跑正证。
+
+但验收新用例证明仍存在多个 P0 假绿通道，且审计期间目标身份漂移。因此 **52 分只是 b259 冻结快照的候选代码评分，不是当前 main、当前 7789、发布制品或生产闭环认证**。
+
+---
+
+## 2. 身份、隔离与审计期间漂移
+
+### 2.1 起点与冻结副本
+
+15:55:11 取证时：
+
+- 本地为 clean `main@b259dac...`，与当时 `origin/main` 一致；
+- 外部方案与仓内快照 SHA256 均为冻结值；
+- 三个子审与主审分别从该 clean SHA 创建 `/tmp` 隔离副本；
+- 后续破坏性测试只使用隔离副本。
+
+证据：`root/00-baseline.txt`、各子审 `00/01/02` 基线文件。
+
+### 2.2 审计中发生的源与运行体漂移
+
+15:58:37 起，共享仓被本审计团队之外的 writer 从 b259 切到 `release/v3.7.1` 并生成 `419e778...`；随后 PR#6 合入，最终本地与远端 main 均为：
+
+```text
+07a94945ba8defe65d3f9ce5a3b7118a38e40328
+```
+
+7789 PID 也在 15:58 后重启，active 文件 hash 精确等于 419e778/07a94945，而不等于 b259。三个子审均留有零源仓写入声明；主审未执行 checkout/merge/deploy。
+
+处理原则：
+
+1. b259 的代码实跑证据冻结有效；
+2. 任何验收后取得的 current-main/7789 绿灯不得回填给 b259；
+3. W0、P0-9 和“当前已部署”声明硬阻断；
+4. 本报告不认证 PR#6 的新增代码。
+
+证据：`root/05-source-drift.txt`、`root/06-ci-branch/post-drift-state.txt`、`root/12-final-source-state.txt`、`agents/trace-ci-runtime/runtime/17-runtime-vs-remote-branch.json`。
+
+---
+
+## 3. 独立命令与退出码摘要
+
+完整 stdout/stderr 均已落证据；以下只列关键入口。
+
+| 验证 | 代表命令 | rc / 输出摘要 | 结论 |
+|---|---|---|---|
+| action 授权基础链 | `WQ_FROZEN_REPO=<b259副本> python3 auth_chain_probe.py` | rc=0；无审批、payload 混型、CAS、TTL、nonce 重放、自报 commit 均拒；故障注入后授权消费与 reserve 同事务回滚；合法回执 COMMITTED；未知结果 FAILED_UNKNOWN | 基础链 PASS |
+| exact action 绑定 | `... python3 auth_exact_target_bypass_probe.py` | rc=1（发现漏洞）；签名 payload 授权 rel-independent-6，但任意 `UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD` 仍可 RESERVED→COMMITTED；消费事件不保存 payload | **BLOCKED** |
+| Runner 重挂接后台 | `... python3 runner_reparent_probe.py` | rc=0；3/3 `timed_out=true`、worker 不存活、延迟 marker 不落盘 | PASS（Darwin） |
+| Gate/Schema 独立 56 断言 | `python3 independent_gate_schema_probe.py <b259副本>` | rc=1；48 PASS / 8 finding | BLOCKED |
+| 深层相对链接回滚 | `python3 independent_rollback_probe.py <b259副本>` | rc=0；bad-v2 失败后 current 精确回 v1 并重验 | PASS |
+| 安装体 CLI | `install.sh --prefix <tmp>` 后 `<prefix>/bin/wenquctl gate ...` | rc=0；删 `cli.py` 后安装 rc=1 | PASS |
+| 本地 acceptance | 隔离 HOME 下 `bash tests/acceptance.sh` | `PASS=64 FAIL=0`，rc=0 | 基线 PASS |
+| 两关键测试移除 | 分别删 adversarial / infra 后 acceptance | 各 `PASS=63 FAIL=1`，rc=1 | F4-CI 原缺口关闭 |
+| 七专属文件全删 | 删七个 `test_ac_*` 后 trace + acceptance | trace rc=0；acceptance `64/64` rc=0 | **假绿** |
+| 空断言 | DOC-03 测试体改为 `assert True` | 专属 14/14 rc=0；trace 仍 99、rc=0 | **假绿** |
+| §20 语义变异 | 改 ID/注入/期望/Unicode/列序 | 应红项均 rc=2 | 直接修复有效 |
+| trace parser 反例 | 重复 poison-first 行、缺失 `--plan` | 均 rc=0 | **假绿** |
+| CI 真实性 | `gh run view 37745638008 ...` | rc=0；b259、push/main、双平台 success | 真实性通过，覆盖不充分 |
+| 证据索引 | 独立逐路径/逐 hash 严格审计 | rc=1；严格 0/20 | FAIL |
+
+主审新探针：`root/11-independent-probes/`；Gate/Schema：`agents/gate-schema-cli/`；追踪/CI/运行时：`agents/trace-ci-runtime/`。
+
+---
+
+## 4. 第四轮 12 项旧探针终态
+
+| # | 旧问题 | 第六轮异源结果 | 终态 | 证据 |
+|---:|---|---|---|---|
+| 01 | 伪签名/缺 exact binding | 跨信封、缺绑定均拒；正控通过 | PASS | `agents/runner-auth/logs/probe-01.log` |
+| 02 | risk 冒充 resume | 路由/判别拒绝且不消费 | PASS | `probe-02.log` |
+| 03 | 字符串假布尔 | 假布尔拒绝，真 bool 正控通过 | PASS | `probe-03.log` |
+| 04 | 非 resume 无 CAS | stale version 拒绝 | PASS | `probe-04.log` |
+| 05 | TIMEOUT/P1 洗白 | 非完成态和 P1 风险接受均不能上绿 | PASS | `probe-05.log` |
+| 06 | 控制事件直写 | 公共写入和绕过重放均 fail-closed | PASS | `probe-06.log` |
+| 07 | 仅事件重放丢 nonce | 只复制事件后仍拒 nonce 重放 | PASS | `probe-07.log` |
+| 08 | 合法 station-v2 全链 | 0/3/6 三站经 Schema→Aggregator→Dashboard/CLI PASS | PASS | `agents/gate-schema-cli/03-independent-gate-schema-probe.log` |
+| 09 | EventStore duplicate hash/head | 重试、键序、reopen 后链头正确 | PASS | `agents/runner-auth/logs/probe-09.log` |
+| 10 | CAS 父目录 TOCTOU | 替换 shard/root 的变体被拒或仍写原 dirfd | PASS | `probe-10.log` |
+| 11 | Runner reparent 逃逸 | 新变体用 detached `Popen(start_new_session)` 重挂接；3/3 无存活、无 marker | PASS（Darwin） | `root/11-independent-probes/runner_reparent_probe.log` |
+| 12 | 升级失败回滚 | 空格路径、三层相对链接、cwd=/ 均精确回滚并重验 | PASS | `agents/gate-schema-cli/04-independent-rollback-probe.log` |
+
+**汇总：12/12 在 b259 的本机候选面关闭。** 这不扩张为 Linux、容器级隔离或生产部署通过。
+
+---
+
+## 5. 第四轮六项新发现逐条闭环判定
+
+| 编号 | 本轮判定 | 已证实修复 | 仍存在的边界/新反例 |
+|---|---|---|---|
+| F4-AUTH-001 | **PARTIAL / BLOCKED** | reserve 已强制 action 类 HMAC；类型、payload 形状、envelope、CAS、TTL、nonce 均校验；消费与 reserve 同事务；自报回执仅 PROVISIONAL；外部签名回执才可 COMMITTED；FAILED_UNKNOWN 终态 | 签名 payload 的 release_id/artifact/manifest/previous_release 未与调用方传入 `action_target` 等值绑定；任意目标仍可提交；消费事件又不保存 payload，重放无法证明 exact action authorization |
+| F4-GATE-001 | **PARTIAL / BLOCKED** | 原“残缺 v2 直接 PASS”已关闭；缺站、空 required、冲突与四态退出码正确 | required 可由当前报告自举；coverage/scope 自报；非法时间可 PASS；语义不同重复站被吞 |
+| F4-SCHEMA-001 | **PARTIAL / BLOCKED** | 指定的 evidence exit、station 分母、finding state_from、非完成态 CONDITIONAL 等五类已拒 | 正式 schema 对 `PASS scanned=65/denominator=66` 仍合法；镜像补拦不能代替 Schema 自身不变量 |
+| F4-CLI-001 | **PASS / CLOSED** | 双布局安装；安装体 `wenquctl --help` 与真实 `gate` 可运行；删 CLI 模块安装必红 | 不等于受控制品已部署 |
+| F4-CI-001 | **PASS-DIRECT / PARTIAL-OVERALL** | adversarial 12 与 infra 66 已进入 acceptance；删任一文件必红；PR#4/#5 经 required checks | 七个 99 条专属文件未进入 required；全删仍双绿，形成新的覆盖 Gate 缺口 |
+| F4-TRC-001 | **CLOSED-DIRECT / PARTIAL-OVERALL** | 保留 ID 而修改注入/期望文本已 rc=2；§20/§25.1 常规语义变异有效 | 重复行后写覆盖、缺 plan、冻结 SHA 不实算、空断言与删测试均可 rc=0 |
+
+六项中完整关闭 1 项（CLI）；3 项关闭原始反例但总体仍 partial（AUTH、CI、TRC）；2 项仍有同层 P0 绕过（GATE、SCHEMA）。
+
+---
+
+## 6. 第六轮新增实证发现
+
+### F6-AUTH-EXACT-001（P0）— 签名 action payload 未绑定实际 target
+
+独立探针签发 release 审批，payload 精确写入：
+
+```text
+release_id=rel-independent-6
+artifact_sha256=aaaa...
+manifest_sha256=bbbb...
+previous_release_id=rel-independent-5
+```
+
+随后调用 `reserve_action(..., target="prod://release/UNAUTHORIZED-TARGET-NOT-IN-PAYLOAD")`，系统仍成功 RESERVED→STARTED→COMMITTED，receipt 只与这个事后自选 target 对账。`APPROVAL_CONSUMED` 事件不保留签名 payload，`ACTION_AUTH_RESERVED` 只保存任意 target，重放也无法恢复两者等值关系。
+
+这证明当前只是“存在同类型审批”，不是冻结方案要求的 `valid_exact_action_authorization`。证据：`root/11-independent-probes/auth_exact_target_bypass_probe.{py,log}`。
+
+### F6-BASELINE-DRIFT-001（P0）— 审计目标与运行体在验收中漂移
+
+b259 clean 起点被外部 writer 推进到 07a949，7789 同步变为新 SHA。b259 的 current-runtime 认证不可成立。见第 2.2 节。
+
+### F6-GATE-SCOPE-001（P0）— required、scope 与 coverage 未绑定冻结 manifest
+
+- 仅交 station 0 且省略 `--required`：CLI 以 `{0}` 自举完整集合，rc=0/PASS；
+- 显式 station 0、`coverage=1/1`、任意 `scope_hash`：即使权威分母声明为 99，仍 rc=0/PASS；
+- 没有 run manifest/planner 的冻结 required 集与 coverage 证据绑定。
+
+这是分母缩水假绿，直接阻断 P0-3。
+
+### F6-GATE-FORMAT-DUP-002（P0/P1）— 镜像并非 Draft-07 全量等价
+
+- 正式 schema+严格 FormatChecker 拒绝纯日期及无时区时间；镜像、Aggregator、CLI 均 rc=0/PASS；
+- 同站两份 PASS 的 attempt、scope、coverage、artifact 全不同，只因 outcome/SHA/environment 相同就被记作 `duplicates_ignored=1` 并 PASS；
+- 正式 schema 允许的嵌套扩展又被 CLI 私有校验误拒，存在双向不等价。
+
+### F6-SCHEMA-BOUND-001（P0）— PASS 分母等值规则只生成至 64
+
+`station-result-v2.schema.json` 对 1..64 生成等值条件，但整数无对应上限，故 `PASS 65/66` 通过正式 Draft-07。Aggregator 镜像会 BLOCKED，只是补偿，不满足“Schema 自身具备不变量”。
+
+### F6-TRC-GATE-001（P0）— 99/131 不是 required coverage Gate
+
+- 七专属文件全删：dedicated 99→2；trace `--check` rc=0；acceptance 64/64 rc=0；
+- DOC-03 测试体置为恒真：专属套件与 trace 均 rc=0，仍计 99；
+- acceptance/workflow 根本未运行七文件。
+
+这直接证伪“文件/名字存在即语义实现”和“99 条已形成不可绕过门”。
+
+### F6-TRC-PARSER-002（P1）— trace parser/冻结 SHA fail-open
+
+- 重复相同行、先 poisoned 后正确的重复 ID 行：rc=0；
+- `--plan` 指向不存在文件：rc=0/跳过；
+- `PLAN_SHA256` 常量没有对方案全文件实算；§20/§25 外修改仍 rc=0；
+- 应红输出中 `meta.catalog_integrity` 仍可显示 `OK`。
+
+### F6-EVID-001（P0）— 20 条证据索引未达到严格合同
+
+- 严格合格：0/20；
+- 必填值全非空：4/20；
+- artifact hash 是裸 64hex：4/20；
+- 裸 hash 与 `evidence_path` 所指具体文件实算一致：1/20；
+- 4 条路径只指目录；完整 40hex commit 仅 3/20；
+- `repo_head_at_filing=f2b8fc3`，未绑定 b259/CI 37745638008；
+- `EV-W5-001` hash 错，`EV-REL-002` 路径指 checksum 文件却填 tar hash。
+
+因此“20 条全量 SHA 达标整改”被实物证伪。
+
+### F6-CI-PORT-001（P1）— Ubuntu required acceptance 忽略 `mktemp` 错误
+
+run 37745638008 的 Ubuntu 日志出现：
+
+```text
+mktemp: too few X's in template ‘wq_matrix’
+```
+
+acceptance 仍继续并绿；两平台该步骤实际 `PASS=63`（pytest 在该步骤 skip），而不是 64。随后独立 pytest step 的 20 passed 属实，但不能抹掉 acceptance 对命令失败非 fail-closed 的问题。
+
+### F6-COVERAGE-AUTH-001（P1）— 逐 ID 内容与登记声明不实
+
+21 条跨七族抽查：11 完整、8 部分、2 不匹配（MIG-04、DOC-03）。32 个 known missing 中仅 22 个有模块级整 ID 登记；BAK-01、CAP-01、DR-01、UI-01..07 共 10 个没有声称的逐 ID 登记。
+
+本项不把“32 ID 产品面缺口”重复记为新发现，只记录“均已模块登记”与实物不符。
+
+### F6-OBS-001（P1）— 首日样本不能计入 b259 观察窗
+
+样本文件虽存在，但 head=`b08fa7a`、dirty=true、CI 为旧 run 37738717793；shadow modular=503，`key_sets_equal`/`score_equal` 均 null。更严重的是采样器仍输出顶层 `"ok": true`，launchd last exit=0。W9/W10 未到期是已知缺口；“首样本无效且失败比较未传播为非零/非 ok”是本轮新增事实。
+
+---
+
+## 7. P0 十项同口径重判
+
+| P0 | 第六轮状态 | 通过事实 | 未关闭事实 |
+|---|---|---|---|
+| P0-1 核心接线 | **PASS（仅 b259 候选）** | 双布局 CLI、安装体真实 gate、三移除锚点、12+66 required 接线均有实跑 | 不代表当前 main/7789 已部署；七专属 required 缺口计 P0-10/W3 |
+| P0-2 七段状态机与审批 | **FAIL / PARTIAL** | 审批存在性、类型、envelope、CAS/TTL/nonce、事务原子性与 receipt 分级有独立正证；01–07 旧探针通过 | signed payload 未与实际 action target 等值绑定；消费事件不保留 payload；审批签发端未建；生产 issuer/receipt 未实弹 |
+| P0-3 契约链/Gate | **FAIL / PARTIAL** | 残缺 v2、缺站、空 required、冲突、四态等直接修复有效 | required/scope/coverage 自举；非法时间假绿；弱重复等价键 |
+| P0-4 Schema 不变量 | **FAIL / PARTIAL** | 第四轮五类指定反例已关闭 | 正式 schema `PASS 65/66` 漏洞；FINDING_REOPENED 目标态仍有解释/约束残差 |
+| P0-5 Runner/CAS | **FAIL / PARTIAL** | Darwin 重挂接后台 3/3 收拢；环境哨兵、CAS 竞态回归通过 | Linux 通路未实测；主动清空环境仍是实现自述边界；无容器/低权限/网络/资源强隔离 |
+| P0-6 EventStore | **FAIL / PARTIAL** | 事件重放 nonce、并发幂等、链头通过 | `pipeline_events` 与 migrator `events` 唯一正源未统一；W5 未完成 |
+| P0-7 部署/回滚 | **FAIL / PARTIAL** | 安装体 CLI、深层相对链接回滚、候选 tar/hash 有效 | 无签名/SBOM/attestation；candidate 名义绑定 f2；现役 direct-file/非 immutable release |
+| P0-8 auto-merge | **PASS / 保持关闭** | GitHub allow=false；PR autoMerge=null；b259 源码 `system/daemons/auto-merge.sh` 为单行 fail-closed stub、实跑 rc=1；live 正确安装路径 absent；精确复核无 active writer/launchd/cron 进程 | stub 仍存在是刻意封存，不等于自动合流方案已建；证据 `root/13-auto-merge-*` |
+| P0-9 7789 控制面 | **FAIL / PARTIAL** | 只监听回环；health 如实显示 Gate=failure | active 非 b259、仍 legacy 单文件 POST 写版；无模块化只读部署/真实 UI 验收 |
+| P0-10 证据/追踪/制品 | **FAIL** | §20/§25 基础集合、直接文本变异与七文件实跑有正证 | coverage 可全删/空断言；parser fail-open；索引 0/20；矩阵 stale；无签名/SBOM |
+
+完整通过 2/10；其余 8 项均未满足生产级关闭标准。
+
+---
+
+## 8. W0–W10 同口径评分
+
+| 工作包 | 权重 | 四轮 | 六轮 | 变化依据 |
+|---|---:|---:|---:|---|
+| W0 快照与危险面隔离 | 8 | 3 | **2** | -1：有 clean b259 与冻结副本，但共享源、远端 main、运行体在验收中漂移，目标身份不能持续冻结。 |
+| W1 契约/Schema/威胁/TLA/红探针 | 10 | 7 | **7** | 不升：指定不变量/语义变异有进步；但 formal schema >64、format 镜像不等价、trace parser fail-open，且仍无 Wenqu TLA/TLC 完整证明。 |
+| W2 Runner/事件/授权/CAS | 15 | 10 | **12** | +2：Runner reparent、授权存在性/receipt/原子消费、旧探针均有异源正证；但 signed payload 未绑定实际 target，另扣 Linux/容器隔离、issuer 和 EventStore 正源边界。 |
+| W3 Gate/CI/合流控制 | 15 | 6 | **8** | +2：真实 CLI gate、12+66 required、双平台 CI/保护门属实；扣 Gate 自举假绿、七专属未 required、无 review/CODEOWNERS/merge_group/action SHA pin。 |
+| W4 调度/Outbox/通知/备份 | 10 | 3 | **3** | 不升：局部测试不能替代统一 scheduler/outbox/receipt/备份恢复生产闭环。 |
+| W5 旧账迁移 | 8 | 1 | **1** | 不升：未到期且唯一正源/逐项对账未完成；MIG-04 抽查与冻结注入不匹配。 |
+| W6 Bug 八站 | 15 | 8 | **9** | +1：七文件 99/99 实跑且部分为真实现；但 21 抽查仅 11 完整，站5/6 placeholder，32 产品缺口，七文件不在 required；station4 首次正确运行还出现一次超时断言抖动，后续六次通过。 |
+| W7 制品/安装/部署/回滚 | 8 | 5 | **6** | +1：安装 CLI、回滚和 candidate tar/hash 成立；扣无签名/SBOM、索引错绑、非不可变现役部署。 |
+| W8 Dashboard/健康/控制面 | 7 | 5 | **4** | -1：回环与 fail-closed health 保留；但 b259 运行身份在验收中失效，仍 legacy POST 写版且无真实 UI 证据。 |
+| W9 Shadow/Canary/切换 | 2 | 0 | **0** | 不升：shadow 启动但 modular=503、比较为 null，未形成有效同 SHA shadow 证据。 |
+| W10 观察窗/演练/收官 | 2 | 1 | **0** | -1：首样本错 SHA+dirty，modular=503/比较 null 时采样器仍 `ok=true`、launchd exit0；该时钟不是 fail-closed，有文件不计有效观察。 |
+| **总分** | **100** | **49** | **52** | **BLOCKED** |
+
+---
+
+## 9. 99/131 专属覆盖真实性抽查
+
+### 9.1 实跑
+
+七文件在 b259 隔离副本结果：
+
+```text
+20 + 16 + 9 + 11 + 24 + 14 + 5 = 99/99 PASS
+```
+
+这证明文件内存在并可运行 99 个命名测试，不证明 99 个均完整兑现冻结 §20。
+
+### 9.2 逐 ID 抽查（21 条，跨七文件）
+
+| 结果 | 数量 | 代表 ID |
+|---|---:|---|
+| 完整 | 11 | GATE-01、AUTH-04、STOP-02、RUN-02、STATE-03、DB-02、PERF-01、STA-01、SCH-04、REL-02、RB-01 |
+| 部分 | 8 | MRG-03、CI-09、COND-03、ACT-01、ACT-04、TEN-06、ALT-02、DEP-03 |
+| 不匹配 | 2 | MIG-04、DOC-03 |
+
+关键不匹配：
+
+- `MIG-04` 冻结要求“源行数不守恒→迁移失败”，实际删目标行后迁移会补齐并成功；失败腿是其他不可写场景；
+- `DOC-03` detector 只定义在测试函数内部，未产品化、未进入 acceptance/workflow。
+
+完整行号、冻结注入、期望与实际断言：`agents/trace-ci-runtime/25-id-sample-audit.md`。
+
+### 9.3 不可实现登记
+
+- matrix missing=32（按用户约束，产品面缺口不重复记为新发现）；
+- 模块级整 ID 登记实际为 22；另 10 个未找到逐 ID 登记；
+- 因此可接受的表述是“32 个缺失，其中 22 个有模块级明确登记”，不是“32 个均已登记”。
+
+---
+
+## 10. 常规核验
+
+### 10.1 三移除锚点
+
+隔离副本分别删除：
+
+- `system/wenqu_core/wenqu_pipeline.py` → acceptance rc=1（58/6）；
+- `system/schemas/approval-v2.schema.json` → rc=1（61/3）；
+- `tools/ac_traceability.py` → rc=1（63/1）。
+
+判定：三锚点均 **PASS（必红）**。证据：`agents/gate-schema-cli/10-removal-anchor-*`。
+
+### 10.2 Schema 变异
+
+已通过：evidence PASS 必须 exit0；station PASS 必须分母相等、exit0、assertion PASS、分母非零；RISK_INVALIDATED/SUPERSEDED 的指定 state_from；TIMEOUT 不得 CONDITIONAL；NOT_APPLICABLE 不上绿。
+
+未通过：formal station schema 的 65/66 边界；严格 date-time 与生产镜像差分；`FINDING_REOPENED` 的显式 `state_to=OPEN` 尚有待裁定残差。
+
+### 10.3 §20 ID 集合与语义文本
+
+- 基线 131/131 集合一致、`--check` rc=0；
+- ID、注入、期望、Unicode、列错位、§25.1 映射变异均 rc=2；
+- benign 格式归一化 rc=0，符合设计；
+- 重复行、poison-first、缺 plan、全文件 SHA 漂移可 rc=0；
+- 空断言或删除七文件不影响 `--check`。
+
+判定：集合和直接文本校验通过；真实性/唯一性/coverage Gate **FAIL**。
+
+### 10.4 本地回归与 acceptance
+
+14 套声明测试均在 b259 副本 rc=0：pipeline 10、adversarial 12、infra 66、core 8、runner 13、gate/schema 20、CLI/install 19、七专属 99。完整 acceptance 为 `64/64 ALL GREEN`、rc=0。
+
+五模块自测：bugscan、station2、station3、station7 通过；station4 首次以正确模块方式运行时在 timeout sentinel 断言 rc=1，随后立即重跑及五轮重复均 rc=0。故功能正控充分，但“单次稳定全绿”未严格复现。
+
+证据：`root/regression/`。
+
+### 10.5 CI 37745638008 与分支保护
+
+- run：push/main、head=b259、completed/success；macOS/Ubuntu 两 job success；
+- PR#4、PR#5 均在双 required check success 后合入；
+- protection：`strict=true`、`enforce_admins=true`、required 为双 matrix、force push/delete 禁止；
+- 无 required review、CODEOWNERS/conversation resolution、ruleset、merge_group；Actions 使用浮动 `@v4/@v5`；
+- acceptance 日志两端为 63，不是声明的 64；Ubuntu 有被忽略的 `mktemp` 错误；随后 pytest step 20 passed。
+
+判定：CI/SHA/正门真实性 **PASS**；覆盖与 fail-closed 充分性 **FAIL/PARTIAL**。
+
+### 10.6 证据索引 20 条
+
+数量和路径存在性为 20/20；严格合同为 0/20。详见 F6-EVID-001。候选 tar 实算 SHA256：
+
+```text
+0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00
+```
+
+与同目录清单一致，451 项可列；但无签名/SBOM，索引路径/hash 错绑。
+
+### 10.7 7789 身份
+
+- launchd running，PID 42242，`127.0.0.1:7789`；
+- `/api/health` HTTP 200 但正文 score=40、Gate=failure；
+- active hash=`675603caca01317029f5cd208c2ebfc62f3c8272caa74491db05426d56dc1b2a`；
+- b259 dashboard hash=`1cdb3a49...`，不相等；active 等于 419e778/07a949；
+- active 仍存在 `do_POST` 和 `/api/decide`。本轮仅发无效 body 验证 400，未执行有效生产写。
+- `GET /api/decide` 返回空响应，curl rc=52；`OPTIONS /api/decide` 返回 501。该异常未被 HTTP 200 health 表达，进一步阻断控制面可用性认证。
+
+判定：回环/fail-closed health 属实；b259 当前运行身份 **FAIL**。
+
+### 10.8 时钟样本
+
+指定文件 `~/.wenqu/observation/samples/2026-10-08.json` 存在；launchd runs=2、last exit=0。但样本和 shadow 语义无效，见 F6-OBS-001。判定：存在性 PASS，b259 观察有效性 FAIL。
+
+---
+
+## 11. 已知诚实缺口（不重复升格为本轮新发现）
+
+| 已知缺口 | 第六轮状态 |
+|---|---|
+| 32 ID 产品语义不存在 | 仍缺；本轮只另行指出其中 10 条没有声称的模块级逐 ID 登记 |
+| W5/W9/W10 时序未到期 | 仍未到期；且首样本不能计入 b259 |
+| 7789 legacy 单文件 | 仍是 legacy；本轮新增的是目标 SHA 漂移 |
+| 制品无签名/SBOM | 候选 tar/hash 可验，但缺口未关 |
+| 审批签发端未建 | F4-AUTH 候选链已修，系统端到端仍 partial |
+| Runner 容器隔离/Linux 未实测 | Darwin 新变体通过；不外推 |
+
+---
+
+## 12. 剩余整改顺序
+
+1. **冻结唯一 writer epoch**：停止验收期间改源/改运行体；以新 SHA 重新生成 clean archive、CI、制品、运行身份与观察窗，不复用本轮 b259 运行证据。
+2. **补 exact action binding**：对每类判别 payload 建立到实际 action descriptor 的规范化等值规则；消费事件持久化 payload digest/授权对象；receipt 必须同时绑定 signed payload 与实际 target。
+3. **Gate 必须吃权威 run manifest**：required stations、scope hash、coverage universe、attempt 与 artifact digest 均由冻结 manifest 绑定；省略 manifest/required 一律 ERROR/BLOCKED。
+4. **统一 Schema 与生产校验器**：严格 RFC3339；消除 64 上限枚举漏洞；重复站以完整语义/证据身份判等；用差分测试证明与正式 schema 等价。
+5. **把 99 专属测试接入 required**：建立 coverage floor/棘轮，删文件、删函数、恒真断言、missing plan、重复 ID 都必须红；不允许方案快照本身充当执行证据。
+6. **修 evidence index**：每条绑定 run_id、40hex SHA、environment、scope、ruleset、时间、argv、real_rc、具体文件路径、文件实算 SHA256、fresh_until；禁止目录路径和说明文字 hash。
+7. **CI fail-closed**：修 GNU/BSD `mktemp`，启用 `set -euo pipefail`/显式 rc，固定 acceptance 计数口径；加 CODEOWNERS/review、merge_group 与 action commit pin。
+8. **完成现役迁移**：以不可变 release/manifest 部署模块化只读 7789；再做真实浏览器、授权写面、回滚和 runtime hash 验收。
+9. **从有效样本重启 W9/W10**：样本必须 clean、绑定同一 SHA/CI/制品；shadow 任一端非 200/不可比时采样器必须非零并 `ok=false`；两端可比后才能计第 1 天。
+
+---
+
+## 13. 第六轮证据索引
+
+| 路径 | 内容 |
+|---|---|
+| `root/00-baseline.txt` | b259 clean 起点、方案 hash |
+| `root/05-source-drift.txt`、`12-final-source-state.txt` | 验收中漂移与最终 main 身份 |
+| `root/11-independent-probes/` | F4-AUTH 基础链、exact-target 绕过与 Runner 重挂接独立探针、命令、输出、rc |
+| `agents/runner-auth/` | 旧探针 01–07、09–10 独立日志 |
+| `agents/gate-schema-cli/` | Gate/Schema 56 断言、CLI、回滚、三锚点、acceptance |
+| `agents/trace-ci-runtime/16-*`、`mutations/` | §20/§25.1 语义与 parser 变异 |
+| `agents/trace-ci-runtime/18-*`、`25-id-sample-audit.md` | 99 实跑与 21 条逐 ID 抽查 |
+| `agents/trace-ci-runtime/19-*`、`20-*` | 恒真测试与删除七文件双假绿 |
+| `agents/trace-ci-runtime/evidence-index/strict-audit.json` | 20 条索引逐字段/路径/hash 对账 |
+| `root/06-ci-branch/`、`agents/trace-ci-runtime/github/` | run 37745638008、jobs/logs、保护门、PR#4/#5 |
+| `root/08-runtime/`、`agents/trace-ci-runtime/runtime/` | 7789 PID/listener/hash/API、观察样本与 shadow |
+| `root/regression/` | 14 套回归、五模块自测、acceptance、station4 重复 |
+| `agents/*/MANIFEST.sha256` | 三个子审清单，均已复算 |
+| `EVIDENCE-INDEX.md` | 本轮总入口与关键判定 |
+| `MANIFEST.sha256` | 证据根总清单（排除自身） |
+
+---
+
+## 14. 最终结论
+
+第五波修复不是“没有生效”：第四轮 12 项旧探针现已在 b259 候选面全部关闭，action 审批存在性/回执分级、Runner、安装体、原 Schema/Gate 反例与 12+66 CI 接线均有独立实证。
+
+但第五波也没有达到生产级闭环：action 审批 payload 可被用于任意实际 target；Gate 仍可自举分母并接受 schema-invalid 时间；formal schema 仍有 65/66 漏洞；99 专属覆盖可被整体删除或空断言绕过；证据索引 0/20；现役 b259 身份在验收中漂移；首日观察失败仍被采样器报 ok。
+
+# **最终固定判定：52/100 — BLOCKED**
+
+禁止将本报告解释为当前 main 通过、b259 已部署、required CI 覆盖完整、release 可发布或 W9/W10 已开始有效计时。

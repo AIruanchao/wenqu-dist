@@ -1,0 +1,21 @@
+=== final timestamp ===
+2026-10-08T16:06:31,354140000+08:00
+=== shared repo final ===
+## main...origin/main
+07a94945ba8defe65d3f9ce5a3b7118a38e40328
+main
+=== origin main ===
+07a94945ba8defe65d3f9ce5a3b7118a38e40328	refs/heads/main
+=== target frozen identity ===
+commit
+b259dac4248b14af6ec05e1b3fc7f61401aba6b6 2026-10-08T15:47:32+08:00 Merge pull request #5 from AIruanchao/wave5/evidence-final
+=== target plan hashes ===
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /tmp/wenqu-reaudit6-root-1791446155/evidence/00-baseline/codex-external/方案.md
+=== target archive selected hashes ===
+3343dc9537f7daeab1ad984601371ee1c024a761f02067fb6209dbfb8b318001  system/wenqu_core/runner.py
+e77479fe1d5c51c714b57bf84114a127501db4c83ee62b5becd7cefa9cf9f55d  system/wenqu_core/wenqu_pipeline.py
+45a86a6f8d55b04bccfdc5916273662dccc8ec560ff7518363de6c1eebdd59ef  system/wenqu_core/gate_aggregator.py
+331f5c1115038e5388382e2d5cbe01adbb10cb93a34afe122adc71964d040c90  system/schemas/station-result-v2.schema.json
+80f69511eb879398f505f0a5758bfad26d0ad293802cd50a65c896ec17afb3f6  tools/ac_traceability.py
+dc4e5254a33bcec601518e3bdbfe574ce478b72136f1237f1a9daf9746b87f5c  tests/acceptance.sh

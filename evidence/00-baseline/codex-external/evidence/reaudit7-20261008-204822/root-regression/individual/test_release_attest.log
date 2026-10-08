@@ -1,0 +1,19 @@
+release_attest 全链自测  tool=/private/tmp/wenqu-reaudit7-20261008-204822/tools/release_attest.py
+  ---- 全链绿（build+sign+sbom+verify）+ 确定性构建
+    ✅
+  ---- 篡改 tar 一字节 → verify 必拒
+    ✅
+  ---- 重打包攻击（自洽改 manifest）→ 签名拦截
+    ✅
+  ---- 换 key 验签必拒（未知 key_id/同 id 异 secret/改 sig key_id）
+    ✅
+  ---- SBOM 字段完整性（SPDX 2.3 必填面+逐文件对账+验证码）+ 篡改必拒
+    ✅
+  ---- 篡改 manifest/sig/缺件 → verify 必拒
+    ✅
+  ---- key 生命周期：rotated 不得签发/revoked 验签即拒
+    ✅
+  ---- verify --report 机器可读报告工件
+    ✅
+
+release_attest: 8 PASS / 0 FAIL

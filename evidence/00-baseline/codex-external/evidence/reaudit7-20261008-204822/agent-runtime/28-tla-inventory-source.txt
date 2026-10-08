@@ -1,0 +1,308 @@
+UTC_START=2026-10-08T12:53:34Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /private/tmp/reaudit7-d32c859-runtime && echo JAVA; java -version 2>&1 || true; echo FILES; find . -type f \( -iname "*tla*" -o -iname "*tlc*" -o -iname "*.cfg" -o -iname "*.jar" \) -print | sort; echo README; cat specs/tla/README.md; echo TEST; sed -n "1,360p" system/tests/test_tla_spec.py; echo SPEC_HEADINGS; rg -n "^(MODULE|VARIABLES?|Init|Next|TypeOK|Inv|No|Approval|Stage|StageOrder|Action|THEOREM|====)|INVARIANT|PROPERTY|CONSTANT" specs/tla/wenqu_pipeline.tla specs/tla/wenqu_pipeline.cfg | head -500
+--- OUTPUT ---
+JAVA
+openjdk version "17.0.20.1" 2026-08-18
+OpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)
+OpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)
+FILES
+./evidence/02-schemas-and-tla/tla-wenqu-pipeline-run-2026-10-08.md
+./evidence/02-schemas-and-tla/tlc-wenqu-pipeline-2026-10-08.log
+./evidence/02-schemas-and-tla/tlc-wenqu-pipeline-mutation-probes-2026-10-08.log
+./specs/tla/wenqu_pipeline.cfg
+./specs/tla/wenqu_pipeline.tla
+./system/bin/tla2tools.jar
+./system/bin/ts-to-tla.py
+./system/specs/PaymentConservation.cfg
+./system/specs/PaymentConservation.tla
+./system/tests/test_tla_spec.py
+README
+# specs/tla — 问渠七段状态机 + 审批消费 TLA+ 形式化规约
+
+W1 缺口（Codex 多轮指出：无 Wenqu TLA/TLC）闭环件。规约对象是
+`system/wenqu_core/wenqu_pipeline.py` 的：
+
+- **SevenStageStateMachine**——七段枚举 / 8 态 run 转换表 / 7 态 attempt
+  转换表 / 前段非 PASSED 不得启动后段 / 双轴结果映射；
+- **ApprovalBroker**——nonce 一次性 / state_version CAS / API 路由判别 /
+  同事务原子消费；
+- **RunManager** 公开 API（事件折叠 `_replay_fold` 的可产生行为）。
+
+## 文件
+
+| 文件 | 内容 |
+|---|---|
+| `wenqu_pipeline.tla` | 规约正本：正典常量表 + Next 关系 + 7 不变量，每个定义注明代码行号映射 |
+| `wenqu_pipeline.cfg` | TLC 小模型配置：`StageIds={1,2}`、`MaxHistLen=4`（2 段 × 2 attempt 界）、审批原子 r1/r2/k1/k2 |
+
+## 运行 TLC（真实命令）
+
+```bash
+java -Xmx2g -XX:+UseParallelGC \
+  -cp system/bin/tla2tools.jar tlc2.TLC -workers 4 \
+  specs/tla/wenqu_pipeline.tla
+```
+
+最近结果（2026-10-08，TLC 2.15，Temurin 17.0.20.1，
+`system/bin/tla2tools.jar` sha256 `8cce75ca…`，原始输出见
+`evidence/02-schemas-and-tla/tlc-wenqu-pipeline-2026-10-08.log`）：
+
+```
+Model checking completed. No error has been found.
+2442 states generated, 834 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 12.
+```
+
+覆盖统计（-coverage 1）证实全部 10 个动作在可达状态中真实发生：
+StartStage 31 / CompleteStage 129 / RaiseWaiting 43 / ConsumeResume 2 /
+ConsumeRisk 14 / FinishSucceeded 38 / FinishConditional 28 / FinishFailed 109 /
+CancelRun 220 / SupersedeRun 220（数字为产生不同后继的发现次数）。
+
+## 不变量（与代码逐条对应，详见 .tla 内映射总表）
+
+| 不变量 | 守的契约 | 代码锚点（wenqu_pipeline.py） |
+|---|---|---|
+| `TypeOK` | 变量类型域 + 停等一致性 | `:816 RunState` / `:791 StageState.status` |
+| `NoSkipStages` | 后段启动 ⟹ 前段全部启动过 | `:176 STAGES`（契约 §1 段序） |
+| `PriorPassedGate` | 前段非 PASSED 不得启动后段 | `:922 ensure_prior_stages_passed` |
+| `AttemptImmutable` | attempt 终态不可变；历史形状 RUNNING/终态交替 | `:765/:2504`，折叠 `:2138/:2211` |
+| `NonceOnceConsumed` | nonce 至多消费一次；risk 先消费后可用 | `:1479/:1557`（事件正源） |
+| `TerminalFinal` | 终态与 complete_run 三分支一致（fail-closed） | `:2663 complete_run` + 折叠 `:2220` |
+| `DoubleAxisNoWash` | 双轴洗白不可能（PASS/CC 不得出自非 COMPLETED 执行） | `:1017/:1053` 双锁 |
+
+变异探针（6 个守卫/映射破坏全部被 TLC 当场抓住，含 DoubleAxisNoWash
+单独归因）证明上述检查非空转；`system/tests/test_tla_spec.py` 把正典
+常量表与 Python 正源逐项比对，防规约漂移（任何一侧改动不同步即红）。
+
+## 诚实边界
+
+1. **有界模型**：TLC 检查的是 2 段 × 2 attempt × 4 审批原子 × ver≤14 的
+   有界实例（穷举 834 可达状态）；正典常量表（7 段、全部转换表、25 对
+   双轴映射）全量收录且由结构测试钉死，但 7 段满配实例未做 TLC 穷举
+   （状态空间超本机预算；性质结构对段数参数化）。
+2. **API 级语义**：规约建模 RunManager 公开 API 可产生的行为
+   （advance_stage 只推进 `current_stage`）。`_replay_fold` 的
+   STAGE_STARTED 守卫（`ensure_prior_stages_passed`）比 API 更宽
+   （折叠层容忍"重启已 PASSED 的更前段"，公开 API 永不产生该事件）；
+   该差异不影响折叠层自身的不变量（折叠仍逐事件校验段序）。
+3. **审批抽象**：结构/HMAC 验签/TTL/绑定六元组（consume 校验链 1-6 步）
+   抽象为"预审通过的审批原子"；保留可证伪的 nonce 一次性、CAS、
+   API 路由三轴。risk 授权的未过期/指纹精确匹配抽象为"已消费即可用"，
+   complete_run 的 fail-closed 半边（无授权不得 COMPLETED_CONDITIONAL）
+   完整保留并被变异探针 mutD 验证。
+4. **findings 维度恒空**："PASS 不得携带 findings"（validate_outcome
+   `:1022`）半边在模型中以恒空 findings 抽象，其代码行为由 Python
+   测试面覆盖、文本由结构测试对照。
+5. **安全性规约**：不主张活性/无死锁（终态以 NoOp 原地踏步）。
+6. **观察类事件**（FINDING_REGISTERED / ACTION_* saga）未建模——它们
+   不推进状态机（折叠 `:2059-2123` 登记面侧记），留待后续规约扩展。
+TEST
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""specs/tla/wenqu_pipeline.tla ↔ wenqu_core/wenqu_pipeline.py 规约漂移对照。
+
+W1 缺口闭环（Codex 多轮指出：无 Wenqu TLA/TLC）：TLA+ 规约已建立并经 TLC
+模型检查（evidence/02-schemas-and-tla/）。本测试把规约中的正典常量表与
+Python 正源逐项比对——任何一侧漂移（改 STAGES/转换表/双轴映射而未同步
+规约，或反之）在此必红，防止"规约证明的不再是正在运行的系统"。
+
+比对锚点（与 .tla 内"规约-代码映射总表"一致）：
+  StageOrder ↔ STAGES；RunStates/RunTrans ↔ RUN_STATES/RUN_TRANSITIONS；
+  AttemptStatuses/AttemptTrans ↔ ATTEMPT_STATES/ATTEMPT_TRANSITIONS；
+  TerminalRun/TerminalAttempt ↔ TERMINAL_*_STATES；
+  ExecStatuses/PolicyVerdicts ↔ EXECUTION_STATUSES/POLICY_VERDICTS；
+  VerdictToStatus/OutcomeStatus ↔ verdict/outcome_to_attempt_status（25 对全积）；
+  ValidOutcome ↔ validate_outcome 的 PASS-需-COMPLETED 半边；
+  7 不变量 + 全部动作名在规约/配置中齐备。
+
+运行：cd system && python3 -m pytest tests/test_tla_spec.py -q
+（acceptance.sh 不跑本件——它守护 dist CLI 面；本件守护规约面。）
+"""
+import os
+import re
+import sys
+
+import pytest
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
+sys.path.insert(0, REPO)
+
+from wenqu_core import wenqu_pipeline as wqp               # noqa: E402
+from wenqu_core.wenqu_pipeline import (                    # noqa: E402
+    SevenStageStateMachine,
+    InvalidOutcomeError,
+)
+
+TLA_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline.tla")
+CFG_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline.cfg")
+
+
+def _tla_text() -> str:
+    if not os.path.isfile(TLA_PATH):
+        pytest.fail(f"TLA 规约缺失：{os.path.normpath(TLA_PATH)}（W1 缺口回退）")
+    with open(TLA_PATH, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _quoted(value: str):
+    return frozenset(m.group(1) for m in re.finditer(r'"([A-Z_]+)"', value))
+
+
+def _definition_block(text: str, name: str) -> str:
+    """取 `name ==` / `name(args) ==` 定义体（续行缩进；
+    到下一个顶格定义或文件尾为止）。"""
+    m = re.search(rf"^{name}(?:\([^)]*\))?\s*==(.*?)(?=^\S|\Z)", text, re.M | re.S)
+    assert m, f"规约缺定义 {name}"
+    return m.group(1)
+
+
+def _table_rows(block: str):
+    """解析记录表行：KEY |-> { "V1", "V2" } 或 KEY |-> "V"。
+    返回 dict[str, frozenset[str]] / dict[str, str]。"""
+    rows: dict = {}
+    for m in re.finditer(r"(\w+)\s*\|->\s*(\{[^}]*\}|\"[A-Z_]+\")", block):
+        key, val = m.group(1), m.group(2)
+        rows[key] = _quoted(val) if val.startswith("{") else val.strip('"')
+    return rows
+
+
+# ---------------------------------------------------------------- 常量表 #
+def test_stage_order_matches_stages():
+    block = _definition_block(_tla_text(), "StageOrder")
+    stages = tuple(re.findall(r'"(S\d_[A-Z_]+)"', block))
+    assert stages == tuple(wqp.STAGES), (
+        f"StageOrder 漂移：TLA {stages} != 代码 {tuple(wqp.STAGES)}")
+
+
+def test_run_states_and_terminal():
+    text = _tla_text()
+    tla_run = _quoted(_definition_block(text, "RunStates"))
+    tla_term = _quoted(_definition_block(text, "TerminalRun"))
+    assert tla_run == frozenset(wqp.RUN_STATES)
+    assert tla_term == frozenset(wqp.TERMINAL_RUN_STATES)
+
+
+def test_run_transitions_table():
+    rows = _table_rows(_definition_block(_tla_text(), "RunTrans"))
+    code = {k: frozenset(v) for k, v in wqp.RUN_TRANSITIONS.items()}
+    assert rows == code, f"RunTrans 漂移：TLA {rows} != 代码 {code}"
+
+
+def test_attempt_states_terminal_and_transitions():
+    text = _tla_text()
+    assert _quoted(_definition_block(text, "AttemptStatuses")) \
+        == frozenset(wqp.ATTEMPT_STATES)
+    assert _quoted(_definition_block(text, "TerminalAttempt")) \
+        == frozenset(wqp.TERMINAL_ATTEMPT_STATES)
+    rows = _table_rows(_definition_block(text, "AttemptTrans"))
+    code = {k: frozenset(v) for k, v in wqp.ATTEMPT_TRANSITIONS.items()}
+    assert rows == code, f"AttemptTrans 漂移：TLA {rows} != 代码 {code}"
+
+
+def test_double_axis_domains():
+    text = _tla_text()
+    assert _quoted(_definition_block(text, "ExecStatuses")) \
+        == frozenset(wqp.EXECUTION_STATUSES)
+    assert _quoted(_definition_block(text, "PolicyVerdicts")) \
+        == frozenset(wqp.POLICY_VERDICTS)
+
+
+# ------------------------------------------------------------ 双轴映射 #
+def test_verdict_map_rows():
+    rows = _table_rows(_definition_block(_tla_text(), "VerdictToStatus"))
+    for verdict in wqp.POLICY_VERDICTS:
+        expected = SevenStageStateMachine.verdict_to_attempt_status(verdict)
+        assert rows[verdict] == expected, (
+            f"VerdictToStatus[{verdict!r}] 漂移：TLA {rows[verdict]!r}"
+            f" != 代码 {expected!r}")
+
+
+def test_outcome_mapping_full_cross_product():
+    """OutcomeStatus = IF e≠COMPLETED THEN FAILED ELSE VerdictToStatus[v]
+    ——按规约文本逐字断言该结构，并对其全部 25 对双轴组合与代码
+    outcome_to_attempt_status 语义比对。"""
+    text = _tla_text()
+    assert re.search(
+        r'OutcomeStatus\(e,\s*v\)\s*==\s*IF e # "COMPLETED"'
+        r'\s*THEN "FAILED"\s*ELSE VerdictToStatus\[v\]', text), (
+        "OutcomeStatus 结构漂移：须为 e≠COMPLETED→FAILED，否则查 VerdictToStatus")
+    verdict_rows = _table_rows(_definition_block(text, "VerdictToStatus"))
+    for e in sorted(wqp.EXECUTION_STATUSES):
+        for v in sorted(wqp.POLICY_VERDICTS):
+            tla = "FAILED" if e != "COMPLETED" else verdict_rows[v]
+            code = SevenStageStateMachine.outcome_to_attempt_status(e, v)
+            assert tla == code, (
+                f"双轴映射漂移 ({e},{v})：TLA {tla!r} != 代码 {code!r}")
+
+
+def test_valid_outcome_pass_requires_completed():
+    text = _tla_text()
+    block = _definition_block(text, "ValidOutcome")
+    assert '~(v = "PASS" /\\ e # "COMPLETED")' in block, (
+        "ValidOutcome 漂移：缺 PASS-需-COMPLETED 半边（validate_outcome :1017）")
+    with pytest.raises(InvalidOutcomeError):
+        SevenStageStateMachine.validate_outcome("ERROR", "PASS")
+    with pytest.raises(InvalidOutcomeError):
+        SevenStageStateMachine.validate_outcome("TIMEOUT", "PASS")
+    SevenStageStateMachine.validate_outcome("COMPLETED", "PASS")
+    SevenStageStateMachine.validate_outcome("TIMEOUT", "CONDITIONAL")  # 折叠层容忍
+
+
+# --------------------------------------------------- 规约结构与检查配置 #
+REQUIRED_INVARIANTS = (
+    "TypeOK", "NoSkipStages", "PriorPassedGate", "AttemptImmutable",
+    "NonceOnceConsumed", "TerminalFinal", "DoubleAxisNoWash",
+)
+REQUIRED_ACTIONS = (
+    "StartStage", "CompleteStage", "RaiseWaiting", "ConsumeResume",
+    "ConsumeRisk", "FinishSucceeded", "FinishConditional", "FinishFailed",
+    "CancelRun", "SupersedeRun", "NoOp",
+)
+
+
+def test_invariants_and_actions_defined():
+    text = _tla_text()
+    for inv in REQUIRED_INVARIANTS:
+        assert re.search(rf"^{inv}\s*==", text, re.M), f"规约缺不变量 {inv}"
+    for act in REQUIRED_ACTIONS:
+        assert re.search(rf"^{act}\s*(\(|==)", text, re.M), f"规约缺动作 {act}"
+    for act in REQUIRED_ACTIONS[:-1]:  # NoOp 也应在 Next 中
+        assert re.search(rf"\\/\s*.*\b{act}\b", text), f"动作 {act} 未接入 Next"
+    assert re.search(r"^Next\s*==", text, re.M)
+
+
+def test_cfg_checks_all_invariants_and_bounds():
+    if not os.path.isfile(CFG_PATH):
+        pytest.fail(f"TLC 配置缺失：{os.path.normpath(CFG_PATH)}")
+    with open(CFG_PATH, encoding="utf-8") as fh:
+        cfg = fh.read()
+    for inv in REQUIRED_INVARIANTS:
+        assert re.search(rf"^\s+{inv}\s*$", cfg, re.M), f"cfg 未检查 {inv}"
+    assert re.search(r"SPECIFICATION\s+Spec", cfg)
+    assert re.search(r"CONSTRAINT\s+Bounded", cfg)
+    # 小模型口径：2 段 × 2 attempt 界（MaxHistLen=4：RUNNING+终态 ×2）
+    assert re.search(r"StageIds\s*=\s*\{\s*1,\s*2\s*\}", cfg)
+    assert re.search(r"MaxHistLen\s*=\s*4", cfg)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(pytest.main([__file__, "-v"]))
+SPEC_HEADINGS
+specs/tla/wenqu_pipeline.cfg:12:CONSTANTS
+specs/tla/wenqu_pipeline.cfg:22:INVARIANT
+specs/tla/wenqu_pipeline.tla:41:CONSTANTS
+specs/tla/wenqu_pipeline.tla:53:Approvals == ResumeApprovals \union RiskApprovals
+specs/tla/wenqu_pipeline.tla:62:VARIABLES
+specs/tla/wenqu_pipeline.tla:79:StageOrder ==
+specs/tla/wenqu_pipeline.tla:195:Init ==
+specs/tla/wenqu_pipeline.tla:354:NoOp == UNCHANGED vars
+specs/tla/wenqu_pipeline.tla:356:Next ==
+specs/tla/wenqu_pipeline.tla:385:TypeOK ==
+specs/tla/wenqu_pipeline.tla:398:NoSkipStages ==
+specs/tla/wenqu_pipeline.tla:426:NonceOnceConsumed ==
+specs/tla/wenqu_pipeline.tla:459:=============================================================================
+specs/tla/wenqu_pipeline.tla:493:=============================================================================
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:53:34Z

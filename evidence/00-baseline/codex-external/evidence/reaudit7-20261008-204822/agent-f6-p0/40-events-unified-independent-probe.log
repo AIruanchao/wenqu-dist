@@ -1,0 +1,78 @@
+TIMESTAMP_UTC: 2026-10-08T12:59:37Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/events_unified_independent_probe.py 
+OUTPUT_BEGIN
+{
+  "after_insert_counts": {
+    "legacy_events": 2,
+    "pipeline_events": 1
+  },
+  "after_mutations_counts": {
+    "legacy_events": 1,
+    "pipeline_events": 1
+  },
+  "chain_after_second": {
+    "head": "a5800404dcaa7f5e3ef7afab109f829e22d2e9d4064c16e7cee4214a11c54b27",
+    "length": 2,
+    "ok": true
+  },
+  "first_migration": {
+    "counts": {
+      "legacy_events": 1,
+      "pipeline_events": 1
+    },
+    "duplicates": 0,
+    "imported": 1,
+    "rows_seen": 1,
+    "write_api": "EventStore.append"
+  },
+  "legacy_readonly_enforced": false,
+  "legacy_rows_after_mutation": [
+    [
+      2,
+      "MUTATED_AFTER_MIGRATION",
+      "/legacy/late.jsonl",
+      2
+    ]
+  ],
+  "pipeline_statuses": [
+    "PASS",
+    "MUTATED_AFTER_MIGRATION"
+  ],
+  "post_migration_delete": {
+    "error": null,
+    "succeeded": true
+  },
+  "post_migration_insert": {
+    "error": null,
+    "succeeded": true
+  },
+  "post_migration_update": {
+    "error": null,
+    "succeeded": true
+  },
+  "probe": "events-unified-independent-v1",
+  "second_migration_after_late_write": {
+    "counts": {
+      "legacy_events": 1,
+      "pipeline_events": 2
+    },
+    "duplicates": 0,
+    "imported": 1,
+    "rows_seen": 1
+  },
+  "triggers": [
+    {
+      "guards_legacy_events": false,
+      "name": "pipeline_events_append_only_no_delete",
+      "table": "pipeline_events"
+    },
+    {
+      "guards_legacy_events": false,
+      "name": "pipeline_events_append_only_no_update",
+      "table": "pipeline_events"
+    }
+  ]
+}
+OUTPUT_END
+EXIT_CODE: 0

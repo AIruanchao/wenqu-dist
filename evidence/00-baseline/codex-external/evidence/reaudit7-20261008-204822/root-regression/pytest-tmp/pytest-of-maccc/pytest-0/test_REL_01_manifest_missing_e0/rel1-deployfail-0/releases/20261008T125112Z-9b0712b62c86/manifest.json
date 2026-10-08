@@ -1,0 +1,27 @@
+{
+  "content_digest": "9b0712b62c86e06a4e4273e4b8294726371d5f5bbd9f43a559957310bc2c1ccd",
+  "created_at": "2026-10-08T12:51:12Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "85256d32e4b27f75a696f88eebf07574b0fbf075962bc444353e574d638b86a3",
+      "size": 28
+    },
+    {
+      "mode": "0444",
+      "path": "flag-rel1.txt",
+      "sha256": "9c44988d3fadab2c88d1ce6963f90c07787d79325a7a505d915bb9b4f70acea1",
+      "size": 5
+    }
+  ],
+  "release_id": "20261008T125112Z-9b0712b62c86",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_REL_01_manifest_missing_e0/src-v1"
+}

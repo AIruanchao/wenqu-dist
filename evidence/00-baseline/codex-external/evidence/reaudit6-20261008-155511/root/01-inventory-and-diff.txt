@@ -1,0 +1,759 @@
+=== commits e4aba84..HEAD ===
+*   b259dac (HEAD -> main, origin/main) Merge pull request #5 from AIruanchao/wave5/evidence-final
+|\  
+| * 6b859cd (origin/wave5/evidence-final, wave5/evidence-final) evidence(wave5): 索引 20 条达标整改（全量 SHA+当前 run/HEAD）+四轮报告 248 文件快照+release 制品入仓
+|/  
+*   f2b8fc3 Merge pull request #4 from AIruanchao/wave5/one-shot
+|\  
+| * 3c0b0c0 (origin/wave5/one-shot, wave5/one-shot) feat(wave5): 一步到位波——四轮 12 探针全闭+专属覆盖 0→99/131+时钟启动
+|/  
+* b08fa7a Merge pull request #3 from AIruanchao/release/v3.7.0
+* 44762fd (origin/release/v3.7.0) release(system): v3.7.0——全流程智能编排：orchestrator.sh（发现→Agent修→Codex审→销账一条龙）+launchd 每小时+dashboard 编排器状态卡+sweep 1h 在岗
+=== diff stat ===
+ README.md                                          |    4 +-
+ SHA256-v3.7.0.txt                                  |    2 +
+ dist/SHA256-vNext-candidate-f2b8fc3.txt            |    1 +
+ dist/wenqu-vNext-candidate-f2b8fc3.tar.gz          |  Bin 0 -> 3356318 bytes
+ .../00-baseline/archive-head.txt                   |    6 +
+ .../00-baseline/diff-stat-ff050bb-head.txt         |  169 ++
+ .../00-baseline/environment.txt                    |   14 +
+ .../00-baseline/git-log-be50cb8-e4aba84.txt        |    7 +
+ .../00-baseline/mid-audit-source-integrity.txt     |    4 +
+ .../00-baseline/post-root-regression-worktree.txt  |    3 +
+ .../00-baseline/root-isolation-path.txt            |    1 +
+ .../00-baseline/root-isolation-tree.txt            |   48 +
+ .../00-baseline/\346\226\271\346\241\210.md"       | 2003 +++++++++++++++++++
+ ...21\212-\347\254\254\344\270\211\350\275\256.md" |  483 +++++
+ .../01-probes/00-isolation-copy.txt                |   12 +
+ .../01-probes/00-isolation-path.txt                |    1 +
+ .../01-probes/00-mid-git-status.txt                |    4 +
+ .../01-probes/00-start-git-status.txt              |   11 +
+ .../01-probes/00-third-round-12-source.txt         |   18 +
+ .../01-probes/01-results-rollup.txt                |   58 +
+ .../01-probes/02-code-line-evidence.txt            | 1424 ++++++++++++++
+ .../01-probes/99-end-git-status-and-cleanup.txt    |   11 +
+ .../01-probes/MANIFEST.sha256                      |   25 +
+ .../reaudit4-20261008-141341/01-probes/findings.md |   90 +
+ .../probe-01-forged-signature-missing-bindings.log |   12 +
+ .../logs/probe-02-risk-masquerade-resume.log       |   14 +
+ .../logs/probe-03-false-preconditions.log          |   11 +
+ .../01-probes/logs/probe-04-nonresume-cas.log      |   11 +
+ .../01-probes/logs/probe-05-timeout-p1-launder.log |   14 +
+ .../logs/probe-06-control-event-direct-write.log   |   11 +
+ .../01-probes/logs/probe-07-events-only-replay.log |   12 +
+ .../01-probes/logs/probe-08-station-v2-chain.log   |   11 +
+ .../01-probes/logs/probe-09-eventstore-retry.log   |   13 +
+ .../01-probes/logs/probe-10-cas-parent-race.log    |   12 +
+ .../logs/probe-11-runner-escape-initial.log        |   28 +
+ .../logs/probe-11-runner-escape-repeat.log         |   30 +
+ .../01-probes/logs/probe-11-runner-escape.log      |   30 +
+ .../01-probes/logs/probe-12-upgrade-rollback.log   |   12 +
+ .../01-probes/scripts/capture.sh                   |   21 +
+ .../01-probes/scripts/reaudit4_probe_suite.py      |  821 ++++++++
+ .../03-workpackages/inventory.txt                  |   53 +
+ .../04-mutations/00-source-identity.log            |   12 +
+ .../04-mutations/01-module-path.txt                |    1 +
+ .../04-mutations/01-module-remove.log              |   10 +
+ .../04-mutations/02-module-core-wiring.log         |   12 +
+ .../04-mutations/03-module-pipeline.log            |    8 +
+ .../04-mutations/04-module-acceptance.log          |   90 +
+ .../04-mutations/04-module-wrapper-summary.txt     |    3 +
+ .../04-mutations/05-schema-remove-path.txt         |    1 +
+ .../04-mutations/05-schema-remove.log              |   10 +
+ .../04-mutations/06-schema-core-wiring.log         |   12 +
+ .../04-mutations/07-schema-pipeline.log            |   14 +
+ .../04-mutations/08-schema-acceptance.log          |   90 +
+ .../04-mutations/08-schema-summary.txt             |    3 +
+ .../04-mutations/09-tool-remove-path.txt           |    1 +
+ .../04-mutations/09-tool-remove.log                |   10 +
+ .../04-mutations/10-tool-direct.log                |    3 +
+ .../04-mutations/11-tool-acceptance.log            |   90 +
+ .../04-mutations/11-tool-summary.txt               |    2 +
+ .../04-mutations/12-schema-tamper-path.txt         |    1 +
+ .../04-mutations/12-schema-tamper.log              |   22 +
+ .../13-schema-independent-crosscheck.log           |    4 +
+ .../04-mutations/14-schema-pipeline-crosscheck.log |   14 +
+ .../04-mutations/15-schema-tamper-acceptance.log   |   90 +
+ .../04-mutations/15-schema-tamper-summary.txt      |    3 +
+ .../04-mutations/99-source-postcondition.log       |    7 +
+ .../04-mutations/MANIFEST.sha256                   |   27 +
+ .../04-mutations/findings.md                       |   24 +
+ .../04-mutations/independent-schema-crosscheck.py  |   36 +
+ .../05-trace/01-section20-id-mutation.log          |   22 +
+ .../05-trace/01-section20-id-path.txt              |    1 +
+ .../05-trace/02-section20-id-check.log             |   50 +
+ .../05-trace/03-section20-id-acceptance.log        |   90 +
+ .../05-trace/04-section251-meta-mutation.log       |   22 +
+ .../05-trace/04-section251-meta-path.txt           |    1 +
+ .../05-trace/05-section251-meta-check.log          |   50 +
+ .../05-trace/06-section251-meta-acceptance.log     |   90 +
+ .../05-trace/07-section20-semantic-mutation.log    |   22 +
+ .../05-trace/07-section20-semantic-path.txt        |    1 +
+ .../05-trace/08-section20-semantic-check.log       |   48 +
+ .../05-trace/09-section20-semantic-acceptance.log  |   91 +
+ .../05-trace/10-independent-trace-audit.log        |   10 +
+ .../05-trace/11-live-tool-check.log                |   50 +
+ .../12-independent-trace-audit-source-live.log     |   10 +
+ .../05-trace/13-code-slice-runtime-check.log       |  102 +
+ .../05-trace/MANIFEST.sha256                       |   21 +
+ .../reaudit4-20261008-141341/05-trace/findings.md  |   35 +
+ .../05-trace/independent-trace-audit.py            |  206 ++
+ .../05-trace/independent-trace-results.json        |  256 +++
+ .../05-trace/section20-semantic-live.json          | 2041 ++++++++++++++++++++
+ .../05-trace/traceability-live-source.json         | 2041 ++++++++++++++++++++
+ .../06-ci-branch/00-gh-environment.log             |   12 +
+ .../06-ci-branch/01-gh-run-view.command.txt        |    1 +
+ .../06-ci-branch/01-gh-run-view.exit.txt           |    1 +
+ .../06-ci-branch/01-gh-run-view.json               |    1 +
+ .../06-ci-branch/01-gh-run-view.stderr.txt         |    0
+ .../06-ci-branch/02-run-jobs.command.txt           |    1 +
+ .../06-ci-branch/02-run-jobs.exit.txt              |    1 +
+ .../06-ci-branch/02-run-jobs.json                  |    0
+ .../06-ci-branch/02-run-jobs.stderr.txt            |    1 +
+ .../06-ci-branch/02b-run-jobs.command.txt          |    1 +
+ .../06-ci-branch/02b-run-jobs.exit.txt             |    1 +
+ .../06-ci-branch/02b-run-jobs.json                 |    1 +
+ .../06-ci-branch/02b-run-jobs.stderr.txt           |    0
+ .../06-ci-branch/03-check-runs.command.txt         |    1 +
+ .../06-ci-branch/03-check-runs.exit.txt            |    1 +
+ .../06-ci-branch/03-check-runs.json                |    1 +
+ .../06-ci-branch/03-check-runs.stderr.txt          |    0
+ .../06-ci-branch/04-gh-run-log.command.txt         |    1 +
+ .../06-ci-branch/04-gh-run.exit.txt                |    1 +
+ .../06-ci-branch/04-gh-run.log                     |  628 ++++++
+ .../06-ci-branch/04-gh-run.stderr.txt              |    0
+ .../06-ci-branch/05-branch-main.command.txt        |    1 +
+ .../06-ci-branch/05-branch-main.exit.txt           |    1 +
+ .../06-ci-branch/05-branch-main.json               |   28 +
+ .../06-ci-branch/05-branch-main.stderr.txt         |    0
+ .../06-ci-branch/06-branch-protection.command.txt  |    1 +
+ .../06-ci-branch/06-branch-protection.exit.txt     |    1 +
+ .../06-ci-branch/06-branch-protection.json         |    1 +
+ .../06-ci-branch/06-branch-protection.stderr.txt   |    0
+ .../07-required-status-checks.command.txt          |    1 +
+ .../07-required-status-checks.exit.txt             |    1 +
+ .../06-ci-branch/07-required-status-checks.json    |    1 +
+ .../07-required-status-checks.stderr.txt           |    0
+ .../06-ci-branch/08-enforce-admins.command.txt     |    1 +
+ .../06-ci-branch/08-enforce-admins.exit.txt        |    1 +
+ .../06-ci-branch/08-enforce-admins.json            |    1 +
+ .../06-ci-branch/08-enforce-admins.stderr.txt      |    0
+ .../06-ci-branch/09-rulesets.command.txt           |    1 +
+ .../06-ci-branch/09-rulesets.exit.txt              |    1 +
+ .../06-ci-branch/09-rulesets.json                  |    1 +
+ .../06-ci-branch/09-rulesets.stderr.txt            |    0
+ .../06-ci-branch/10-branch-evidence-reconcile.log  |   20 +
+ .../06-ci-branch/11-pr1-view.command.txt           |    1 +
+ .../06-ci-branch/11-pr1-view.exit.txt              |    1 +
+ .../06-ci-branch/11-pr1-view.json                  |   62 +
+ .../06-ci-branch/11-pr1-view.stderr.txt            |    0
+ .../06-ci-branch/11-pr2-view.command.txt           |    1 +
+ .../06-ci-branch/11-pr2-view.exit.txt              |    1 +
+ .../06-ci-branch/11-pr2-view.json                  |   62 +
+ .../06-ci-branch/11-pr2-view.stderr.txt            |    0
+ .../06-ci-branch/12-run-api.command.txt            |    1 +
+ .../06-ci-branch/12-run-api.exit.txt               |    1 +
+ .../06-ci-branch/12-run-api.json                   |   21 +
+ .../06-ci-branch/12-run-api.stderr.txt             |    0
+ .../06-ci-branch/13-workflow-source.log            |   29 +
+ .../06-ci-branch/14-required-check-coverage.log    |   50 +
+ .../06-ci-branch/15-all-workflow-suite-search.log  |    6 +
+ .../06-ci-branch/15b-suite-wiring-search.log       |    5 +
+ .../06-ci-branch/16-run-artifacts.command.txt      |    1 +
+ .../06-ci-branch/16-run-artifacts.exit.txt         |    1 +
+ .../06-ci-branch/16-run-artifacts.json             |    1 +
+ .../06-ci-branch/16-run-artifacts.stderr.txt       |    0
+ .../06-ci-branch/17-pr-check-runs-timeline.log     |   12 +
+ .../06-ci-branch/17-run-37732624290.json           |   15 +
+ .../06-ci-branch/17-run-37732624290.stderr.txt     |    0
+ .../06-ci-branch/17-run-37732630449.json           |   15 +
+ .../06-ci-branch/17-run-37732630449.stderr.txt     |    0
+ .../06-ci-branch/17-run-37733093290.json           |   15 +
+ .../06-ci-branch/17-run-37733093290.stderr.txt     |    0
+ .../06-ci-branch/17-run-37733100994.json           |   15 +
+ .../06-ci-branch/17-run-37733100994.stderr.txt     |    0
+ .../18-pr-merge-required-check-timeline.txt        |   16 +
+ .../06-ci-branch/19-plan-vs-live-gate.log          |   86 +
+ .../06-ci-branch/CAPTURED_AT.txt                   |    1 +
+ .../06-ci-branch/MANIFEST.sha256                   |   76 +
+ .../06-ci-branch/REDACTION-NOTE.txt                |    1 +
+ .../06-ci-branch/REDACTION-SCAN.txt                |    1 +
+ .../07-runtime/00-runtime-path-discovery.log       |   47 +
+ .../07-runtime/01-launchctl-print.log              |   87 +
+ .../07-runtime/01-launchctl-redaction-note.txt     |    1 +
+ .../07-runtime/02-listener-process.log             |   37 +
+ .../07-runtime/03-runtime-hash.log                 |   17 +
+ .../07-runtime/04-health.body                      |    1 +
+ .../07-runtime/04-health.headers                   |    6 +
+ .../07-runtime/04-health.log                       |   12 +
+ .../07-runtime/05-deploy-evidence-reconcile.log    |   30 +
+ .../07-runtime/06-control-path-static-readonly.log |   64 +
+ .../07-runtime/07-plan-vs-active-dashboard.log     |   86 +
+ .../07-runtime/08-release-deployment-boundary.log  |  100 +
+ .../07-runtime/09-auto-merge-readonly.log          |   16 +
+ .../09b-auto-merge-process-correction.log          |    4 +
+ .../07-runtime/CAPTURED_AT.txt                     |    1 +
+ .../07-runtime/MANIFEST.sha256                     |   17 +
+ .../07-runtime/head-wenqu-dashboard.py             | 1289 ++++++++++++
+ .../07-runtime/merge540-dashboard.py               | 1289 ++++++++++++
+ .../08-acceptance/00-isolated-path.txt             |    1 +
+ .../08-acceptance/01-clone.log                     |    2 +
+ .../08-acceptance/02-before.log                    |   10 +
+ .../08-acceptance/03-acceptance-full.log           |   91 +
+ .../08-acceptance/04-after-readonly.log            |   13 +
+ .../08-acceptance/05-p1c-readonly.log              |   62 +
+ .../08-acceptance/MANIFEST.sha256                  |    8 +
+ .../08-acceptance/findings.md                      |   23 +
+ .../08-acceptance/traceability-live.json           | 2041 ++++++++++++++++++++
+ .../09-review/00-inventory.log                     |   79 +
+ .../09-review/01-third-report-and-index.log        |  695 +++++++
+ .../09-review/02-third-w-scores.log                |  208 ++
+ .../09-review/03-index-entry-summary.log           |   28 +
+ .../09-review/04-evidence-file-inventory.log       |   47 +
+ .../09-review/05-sidecar-manifest-verification.log |  317 +++
+ .../09-review/06-evidence-index-audit.log          |   43 +
+ .../09-review/07-declared-hash-reconcile.log       |   12 +
+ .../09-review/08-trace-matrix-metadata.log         |  113 ++
+ .../09-review/09-timing-evidence-audit.log         |   25 +
+ .../09-review/10-repo-integrity-mid.log            |    9 +
+ .../09-review/11-plan-w-p0-excerpts.log            |   64 +
+ .../09-review/12-final-repo-integrity.log          |   12 +
+ .../09-review/13-redaction-scan-result.txt         |    2 +
+ .../09-review/CAPTURED_AT.txt                      |    1 +
+ .../09-review/MANIFEST.sha256                      |   46 +
+ .../action-without-authorization-probe.py          |   18 +
+ .../action-without-authorization-probe.txt         |    7 +
+ .../09-review/aggregator-invalid-v2-probe.py       |   20 +
+ .../09-review/aggregator-invalid-v2-probe.txt      |    7 +
+ .../09-review/audit_evidence_index.py              |   71 +
+ .../ci-critical-tests-removed-acceptance.txt       |   95 +
+ .../ci-critical-tests-removed-summary.txt          |   11 +
+ .../09-review/dashboard-active-static.txt          |   44 +
+ .../reaudit4-20261008-141341/09-review/findings.md |  233 +++
+ .../install-host-side-effect-restored.txt          |    4 +
+ .../09-review/install-normal.txt                   |   30 +
+ .../09-review/install-prefix.txt                   |    1 +
+ .../09-review/installed-wenquctl-help.txt          |    7 +
+ .../09-review/regression-test-core-wiring.txt      |   16 +
+ .../09-review/regression-test-infra-hardening.txt  |   94 +
+ .../regression-test-wenqu-adversarial.txt          |   21 +
+ .../09-review/regression-test-wenqu-pipeline.txt   |   18 +
+ .../09-review/root-source-callsites.txt            |  441 +++++
+ .../09-review/runner-doublefork-probe.py           |   24 +
+ .../09-review/runner-doublefork-probe.txt          |    7 +
+ .../09-review/schema-residual-probe.py             |   30 +
+ .../09-review/schema-residual-probe.txt            |   12 +
+ .../09-review/selftest-bugscan_orchestrator.txt    |   13 +
+ .../09-review/selftest-station2_static.txt         |   19 +
+ .../09-review/selftest-station3_contract.txt       |   14 +
+ .../09-review/selftest-station4_behavior.txt       |   19 +
+ .../09-review/selftest-station7_runtime.txt        |   18 +
+ .../09-review/source-outlines.txt                  |  283 +++
+ .../09-review/source-wenquctl-help.txt             |   24 +
+ .../09-review/test_core_wiring-1858a75.py          |  131 ++
+ .../09-review/wave4-claims-and-index.txt           |  556 ++++++
+ .../10-final/MANIFEST.sha256                       |    4 +
+ .../10-final/final-source-integrity.txt            |   16 +
+ .../10-final/manifest-method.txt                   |    5 +
+ ...21\212-\347\254\254\345\233\233\350\275\256.md" |  403 ++++
+ ...\347\254\254\345\233\233\350\275\256.md.sha256" |    1 +
+ .../reaudit4-20261008-141341/EVIDENCE-INDEX.md     |   33 +
+ .../MANIFEST-external-runtime-verify.txt           |  145 ++
+ .../MANIFEST-external-runtime.sha256               |    3 +
+ .../reaudit4-20261008-141341/MANIFEST.sha256       |  247 +++
+ .../evidence/reaudit4-20261008-141341/capture.sh   |   18 +
+ ...21\212-\347\254\254\345\233\233\350\275\256.md" |  403 ++++
+ ...\347\254\254\345\233\233\350\275\256.md.sha256" |    1 +
+ evidence/04-unit-property-mutation/ac-act-run.json |   51 +
+ .../04-unit-property-mutation/ac-auth-cond.json    |   82 +
+ .../ac-deploy-release.json                         |   27 +
+ .../04-unit-property-mutation/ac-gate-family.json  |  102 +
+ .../04-unit-property-mutation/ac-ops-families.json |   97 +
+ .../04-unit-property-mutation/ac-state-mig.json    |  264 +++
+ .../ac-station-families.json                       |  299 +++
+ evidence/evidence-index.json                       |  150 +-
+ evidence/traceability-matrix.json                  | 1177 ++++++-----
+ system/VERSION                                     |    2 +-
+ system/bin/wenqu-dashboard.py                      |   66 +-
+ system/bin/wenquctl                                |   20 +-
+ system/install.sh                                  |    9 +
+ system/schemas/evidence-v2.schema.json             |   18 +-
+ system/schemas/finding-event-v2.schema.json        |   31 +-
+ system/schemas/run-event-v2.schema.json            |   10 +-
+ system/schemas/station-result-v2.schema.json       |   86 +-
+ system/tests/test_ac_act_run.py                    | 1041 ++++++++++
+ system/tests/test_ac_auth_cond.py                  | 1277 ++++++++++++
+ system/tests/test_ac_deploy_release.py             |  717 +++++++
+ system/tests/test_ac_gate_family.py                |  835 ++++++++
+ system/tests/test_ac_ops_families.py               | 1311 +++++++++++++
+ system/tests/test_ac_state_mig.py                  | 1097 +++++++++++
+ system/tests/test_ac_station_families.py           | 1467 ++++++++++++++
+ system/tests/test_cli_install_ci.py                |  274 +++
+ system/tests/test_gate_schema_hardening.py         |  543 ++++++
+ system/tests/test_runner_daemon.py                 |  227 +++
+ system/tests/test_wenqu_adversarial.py             |  293 ++-
+ system/wenqu_core/cli.py                           |  208 +-
+ system/wenqu_core/gate_aggregator.py               |  337 +++-
+ system/wenqu_core/runner.py                        |  124 +-
+ system/wenqu_core/wenqu_pipeline.py                |  434 ++++-
+ tests/acceptance.sh                                |   26 +
+ tools/ac_traceability.py                           |   74 +-
+ tools/observation_daily.py                         |  461 +++++
+ 289 files changed, 35765 insertions(+), 683 deletions(-)
+=== changed files ===
+M	README.md
+A	SHA256-v3.7.0.txt
+A	dist/SHA256-vNext-candidate-f2b8fc3.txt
+A	dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/archive-head.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/diff-stat-ff050bb-head.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/environment.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/git-log-be50cb8-e4aba84.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/mid-audit-source-integrity.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/post-root-regression-worktree.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-tree.txt
+A	"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\346\226\271\346\241\210.md"
+A	"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\344\270\211\350\275\256.md"
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-copy.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-mid-git-status.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-start-git-status.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-third-round-12-source.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/01-results-rollup.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/99-end-git-status-and-cleanup.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/findings.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-01-forged-signature-missing-bindings.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-02-risk-masquerade-resume.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-03-false-preconditions.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-04-nonresume-cas.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-05-timeout-p1-launder.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-06-control-event-direct-write.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-07-events-only-replay.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-08-station-v2-chain.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-09-eventstore-retry.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-10-cas-parent-race.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-initial.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-repeat.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-12-upgrade-rollback.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/capture.sh
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/03-workpackages/inventory.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/00-source-identity.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-remove.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/02-module-core-wiring.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/03-module-pipeline.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-wrapper-summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/06-schema-core-wiring.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/07-schema-pipeline.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/10-tool-direct.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/13-schema-independent-crosscheck.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/14-schema-pipeline-crosscheck.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/99-source-postcondition.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/independent-schema-crosscheck.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-mutation.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/03-section20-id-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/06-section251-meta-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-mutation.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/08-section20-semantic-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/09-section20-semantic-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/10-independent-trace-audit.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/12-independent-trace-audit-source-live.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-audit.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-results.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/traceability-live-source.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/00-gh-environment.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run-log.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/10-branch-evidence-reconcile.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/13-workflow-source.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/14-required-check-coverage.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15-all-workflow-suite-search.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15b-suite-wiring-search.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.command.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.exit.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-pr-check-runs-timeline.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.stderr.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/18-pr-merge-required-check-timeline.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/19-plan-vs-live-gate.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/CAPTURED_AT.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-NOTE.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-SCAN.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/00-runtime-path-discovery.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-print.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-redaction-note.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/02-listener-process.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/03-runtime-hash.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.body
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.headers
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/05-deploy-evidence-reconcile.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/06-control-path-static-readonly.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/07-plan-vs-active-dashboard.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/08-release-deployment-boundary.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09-auto-merge-readonly.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09b-auto-merge-process-correction.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/CAPTURED_AT.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/head-wenqu-dashboard.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/merge540-dashboard.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/00-isolated-path.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/01-clone.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/02-before.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/03-acceptance-full.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/04-after-readonly.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/findings.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/00-inventory.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/01-third-report-and-index.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/02-third-w-scores.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/03-index-entry-summary.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/04-evidence-file-inventory.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/05-sidecar-manifest-verification.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/06-evidence-index-audit.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/07-declared-hash-reconcile.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/08-trace-matrix-metadata.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/10-repo-integrity-mid.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/11-plan-w-p0-excerpts.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/12-final-repo-integrity.log
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/13-redaction-scan-result.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/CAPTURED_AT.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/audit_evidence_index.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-acceptance.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/dashboard-active-static.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/findings.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-host-side-effect-restored.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-normal.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-prefix.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/installed-wenquctl-help.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-core-wiring.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-infra-hardening.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-adversarial.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-pipeline.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/root-source-callsites.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-bugscan_orchestrator.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station2_static.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station3_contract.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station4_behavior.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station7_runtime.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-outlines.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-wenquctl-help.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/test_core_wiring-1858a75.py
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/wave4-claims-and-index.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/final-source-integrity.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/manifest-method.txt
+A	"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md"
+A	"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md.sha256"
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/EVIDENCE-INDEX.md
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime-verify.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/capture.sh
+A	"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md"
+A	"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md.sha256"
+A	evidence/04-unit-property-mutation/ac-act-run.json
+A	evidence/04-unit-property-mutation/ac-auth-cond.json
+A	evidence/04-unit-property-mutation/ac-deploy-release.json
+A	evidence/04-unit-property-mutation/ac-gate-family.json
+A	evidence/04-unit-property-mutation/ac-ops-families.json
+A	evidence/04-unit-property-mutation/ac-state-mig.json
+A	evidence/04-unit-property-mutation/ac-station-families.json
+M	evidence/evidence-index.json
+M	evidence/traceability-matrix.json
+M	system/VERSION
+M	system/bin/wenqu-dashboard.py
+M	system/bin/wenquctl
+M	system/install.sh
+M	system/schemas/evidence-v2.schema.json
+M	system/schemas/finding-event-v2.schema.json
+M	system/schemas/run-event-v2.schema.json
+M	system/schemas/station-result-v2.schema.json
+A	system/tests/test_ac_act_run.py
+A	system/tests/test_ac_auth_cond.py
+A	system/tests/test_ac_deploy_release.py
+A	system/tests/test_ac_gate_family.py
+A	system/tests/test_ac_ops_families.py
+A	system/tests/test_ac_state_mig.py
+A	system/tests/test_ac_station_families.py
+A	system/tests/test_cli_install_ci.py
+A	system/tests/test_gate_schema_hardening.py
+A	system/tests/test_runner_daemon.py
+M	system/tests/test_wenqu_adversarial.py
+M	system/wenqu_core/cli.py
+M	system/wenqu_core/gate_aggregator.py
+M	system/wenqu_core/runner.py
+M	system/wenqu_core/wenqu_pipeline.py
+M	tests/acceptance.sh
+M	tools/ac_traceability.py
+A	tools/observation_daily.py
+=== workflows ===
+.github/workflows/acceptance.yml
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
+        run: bash tests/acceptance.sh
+      - name: pytest 契约
+        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: selftest
+        run: python cli/wenqu selftest
+=== tests inventory ===
+system/README.md
+system/VERSION
+system/bin/__pycache__/blast-radius.cpython-314.pyc
+system/bin/__pycache__/check-openapi-compat.cpython-314.pyc
+system/bin/__pycache__/coverage-ratchet.cpython-314.pyc
+system/bin/__pycache__/gate-learner.cpython-314.pyc
+system/bin/__pycache__/risk-scorer.cpython-314.pyc
+system/bin/__pycache__/same-name-census.cpython-314.pyc
+system/bin/__pycache__/spec-reconcile.cpython-314.pyc
+system/bin/__pycache__/ts-to-tla.cpython-314.pyc
+system/bin/__pycache__/wenqu-dashboard.cpython-313.pyc
+system/bin/__pycache__/wenqu-dashboard.cpython-314.pyc
+system/bin/blast-radius.py
+system/bin/check-openapi-compat.py
+system/bin/coverage-ratchet.py
+system/bin/cursor-auto-verify.sh
+system/bin/deploy-preflight.sh
+system/bin/gate-learner.py
+system/bin/hardening-doctor.sh
+system/bin/iron-gate.sh
+system/bin/relay-push.sh
+system/bin/risk-scorer.py
+system/bin/same-name-census.py
+system/bin/spec-reconcile.py
+system/bin/tla2tools.jar
+system/bin/ts-to-tla.py
+system/bin/wenqu
+system/bin/wenqu-dashboard.py
+system/bin/wenqu-env.sh
+system/bin/wenquctl
+system/bin/workorder-precheck.sh
+system/bin/zero-rework.sh
+system/ci/ci-fast.yml
+system/ci/nightly.yml
+system/config/wenqu.env.example
+system/daemons/__pycache__/cdc-conservation-stream.cpython-314.pyc
+system/daemons/__pycache__/conservation-daemon.cpython-314.pyc
+system/daemons/auto-merge.sh
+system/daemons/cdc-conservation-stream.py
+system/daemons/conservation-daemon.py
+system/dashboard/__pycache__/server.cpython-313.pyc
+system/dashboard/app.css
+system/dashboard/app.js
+system/dashboard/index.html
+system/dashboard/server.py
+system/db/conservation-triggers.sql
+system/db/self-heal.sql
+system/docs/adr/ADR-001-event-store.md
+system/docs/adr/ADR-002-approval-security.md
+system/docs/adr/ADR-003-trusted-runner.md
+system/docs/constitution-template.md
+system/docs/security/threat-model.md
+system/docs/specs/wenqu-vNext-contract.md
+system/install.sh
+system/schemas/approval-v2.schema.json
+system/schemas/evidence-v2.schema.json
+system/schemas/finding-event-v2.schema.json
+system/schemas/run-event-v2.schema.json
+system/schemas/station-result-v2.schema.json
+system/sentinels/ci-event-sentinel.sh
+system/sentinels/conservation-sentinel.sh
+system/sentinels/ssl-cert-sentinel.sh
+system/sentinels/weekly-watchdog.sh
+system/specs/PaymentConservation.cfg
+system/specs/PaymentConservation.tla
+system/specs/z3/payment_invariants.smt2
+system/templates/adversarial.spec.ts
+system/templates/user-guide-template.md
+system/templates/work-order-template.md
+system/tests/__pycache__/test_ac_auth_cond.cpython-313.pyc
+system/tests/__pycache__/test_ac_gate_family.cpython-313.pyc
+system/tests/__pycache__/test_ac_ops_families.cpython-313.pyc
+system/tests/__pycache__/test_ac_station_families.cpython-313.pyc
+system/tests/__pycache__/test_cli_install_ci.cpython-313.pyc
+system/tests/__pycache__/test_gate_schema_hardening.cpython-313.pyc
+system/tests/__pycache__/test_runner_daemon.cpython-313.pyc
+system/tests/__pycache__/test_wenqu_adversarial.cpython-313.pyc
+system/tests/__pycache__/test_wenqu_pipeline.cpython-313.pyc
+system/tests/fixtures/approval-keys.json
+system/tests/test_ac_act_run.py
+system/tests/test_ac_auth_cond.py
+system/tests/test_ac_deploy_release.py
+system/tests/test_ac_gate_family.py
+system/tests/test_ac_ops_families.py
+system/tests/test_ac_state_mig.py
+system/tests/test_ac_station_families.py
+system/tests/test_cli_install_ci.py
+system/tests/test_core_wiring.py
+system/tests/test_gate_schema_hardening.py
+system/tests/test_infra_hardening.py
+system/tests/test_runner_daemon.py
+system/tests/test_wenqu_adversarial.py
+system/tests/test_wenqu_pipeline.py
+system/wenqu_core/__init__.py
+system/wenqu_core/__pycache__/__init__.cpython-313.pyc
+system/wenqu_core/__pycache__/__init__.cpython-314.pyc
+system/wenqu_core/__pycache__/approval_keys.cpython-313.pyc
+system/wenqu_core/__pycache__/bugscan_orchestrator.cpython-313.pyc
+system/wenqu_core/__pycache__/bugscan_orchestrator.cpython-314.pyc
+system/wenqu_core/__pycache__/cli.cpython-313.pyc
+system/wenqu_core/__pycache__/deploy_framework.cpython-313.pyc
+system/wenqu_core/__pycache__/deploy_framework.cpython-314.pyc
+system/wenqu_core/__pycache__/gate_aggregator.cpython-313.pyc
+system/wenqu_core/__pycache__/gate_aggregator.cpython-314.pyc
+system/wenqu_core/__pycache__/ledger_migrator.cpython-313.pyc
+system/wenqu_core/__pycache__/ledger_migrator.cpython-314.pyc
+system/wenqu_core/__pycache__/runner.cpython-313.pyc
+system/wenqu_core/__pycache__/runner.cpython-314.pyc
+system/wenqu_core/__pycache__/scheduler.cpython-313.pyc
+system/wenqu_core/__pycache__/scheduler.cpython-314.pyc
+system/wenqu_core/__pycache__/source_gate.cpython-313.pyc
+system/wenqu_core/__pycache__/source_gate.cpython-314.pyc
+system/wenqu_core/__pycache__/station2_static.cpython-313.pyc
+system/wenqu_core/__pycache__/station2_static.cpython-314.pyc
+system/wenqu_core/__pycache__/station3_contract.cpython-313.pyc
+system/wenqu_core/__pycache__/station3_contract.cpython-314.pyc
+system/wenqu_core/__pycache__/station4_behavior.cpython-313.pyc
+system/wenqu_core/__pycache__/station4_behavior.cpython-314.pyc
+system/wenqu_core/__pycache__/station7_runtime.cpython-313.pyc
+system/wenqu_core/__pycache__/station7_runtime.cpython-314.pyc
+system/wenqu_core/__pycache__/store.cpython-313.pyc
+system/wenqu_core/__pycache__/store.cpython-314.pyc
+system/wenqu_core/__pycache__/wenqu_pipeline.cpython-313.pyc
+system/wenqu_core/approval_keys.py
+system/wenqu_core/bugscan_orchestrator.py
+system/wenqu_core/cli.py
+system/wenqu_core/deploy_framework.py
+system/wenqu_core/gate_aggregator.py
+system/wenqu_core/ledger_migrator.py
+system/wenqu_core/runner.py
+system/wenqu_core/scheduler.py
+system/wenqu_core/source_gate.py
+system/wenqu_core/station2_static.py
+system/wenqu_core/station3_contract.py
+system/wenqu_core/station4_behavior.py
+system/wenqu_core/station7_runtime.py
+system/wenqu_core/store.py
+system/wenqu_core/wenqu_pipeline.py
+tests/acceptance.sh
+tests/release-check.sh

@@ -1,0 +1,10 @@
+CAPTURED_AT=2026-10-08T15:57:37,456129000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/wenqu_core/station7_runtime.py 
+--- OUTPUT ---
+Traceback (most recent call last):
+  File "/private/tmp/wenqu-reaudit6-root-1791446155/system/wenqu_core/station7_runtime.py", line 65, in <module>
+    from .bugscan_orchestrator import (
+    ...<4 lines>...
+    )
+ImportError: attempted relative import with no known parent package
+--- EXIT_CODE=1 ---

@@ -1,0 +1,22 @@
+$ git rev-parse HEAD
+b259dac4248b14af6ec05e1b3fc7f61401aba6b6
+rc=0
+$ git branch --show-current
+main
+rc=0
+$ git status --porcelain=v1
+rc=0
+$ git log -8 --oneline --decorate
+b259dac (HEAD -> main, origin/main) Merge pull request #5 from AIruanchao/wave5/evidence-final
+6b859cd (origin/wave5/evidence-final, wave5/evidence-final) evidence(wave5): 索引 20 条达标整改（全量 SHA+当前 run/HEAD）+四轮报告 248 文件快照+release 制品入仓
+f2b8fc3 Merge pull request #4 from AIruanchao/wave5/one-shot
+3c0b0c0 (origin/wave5/one-shot, wave5/one-shot) feat(wave5): 一步到位波——四轮 12 探针全闭+专属覆盖 0→99/131+时钟启动
+b08fa7a Merge pull request #3 from AIruanchao/release/v3.7.0
+44762fd (origin/release/v3.7.0) release(system): v3.7.0——全流程智能编排：orchestrator.sh（发现→Agent修→Codex审→销账一条龙）+launchd 每小时+dashboard 编排器状态卡+sweep 1h 在岗
+e4aba84 Merge pull request #2 from AIruanchao/wave4/evidence-deploy
+c345b7b (origin/wave4/evidence-deploy, wave4/evidence-deploy) evidence(wave4): 7789 部署存证+索引 14 条（P0-9 运行时收口记录）
+rc=0
+$ git remote -v
+origin	git@github.com:AIruanchao/wenqu-dist.git (fetch)
+origin	git@github.com:AIruanchao/wenqu-dist.git (push)
+rc=0

@@ -1,0 +1,7 @@
+id-drift: replacements=1 sha256=e61b02518b16a7fac73af33060f3dd7cd1e8159d42ca14dd4d0589b757b418df path=/tmp/reaudit7-trace-mutations-b-45894/id-drift.md
+semantic-injection-drift: replacements=1 sha256=c5de1e4639893d1cc37424673f66346e5e289546950a9295e0aeb25436c342a9 path=/tmp/reaudit7-trace-mutations-b-45894/semantic-injection-drift.md
+semantic-expectation-drift: replacements=1 sha256=d47aaf2b7ebcf7cd0e54b19b8886405270c6d0af6c9bf78cab5d1db75035311d path=/tmp/reaudit7-trace-mutations-b-45894/semantic-expectation-drift.md
+section251-metadata-drift: replacements=1 sha256=866c145800422deac41263f76d360f03793ed61ba0a6b52accd6138fac228206 path=/tmp/reaudit7-trace-mutations-b-45894/section251-metadata-drift.md
+duplicate-identical-row: replacements=1 sha256=fbb059cc7990f0eef22fd160fcc7dae77a1fa0936670b0fbe917f726c359cd50 path=/tmp/reaudit7-trace-mutations-b-45894/duplicate-identical-row.md
+poison-first-row: replacements=1 sha256=60cf3117a0386edee0cf8fe5c49ced38b2cb7960879ba42a08e25889c4cc65c7 path=/tmp/reaudit7-trace-mutations-b-45894/poison-first-row.md
+outside-sections-byte-drift: append=1 sha256=defccae4706fa2f6f8d6bcf176b78e93d6e580c405c00bd1fb6b1d8069bd0c66 path=/tmp/reaudit7-trace-mutations-b-45894/outside-sections-byte-drift.md

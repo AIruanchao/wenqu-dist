@@ -1,0 +1,21 @@
+UTC_START=2026-10-08T12:49:26Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=set -e; SRC=/Users/maccc/Documents/wenqu-dist; DST=/private/tmp/reaudit7-d32c859-runtime; rm -rf "$DST"; mkdir -p "$DST"; cd "$SRC"; git cat-file -e d32c859^{commit}; echo COMMIT_FULL=$(git rev-parse d32c859^{commit}); echo TREE=$(git rev-parse d32c859^{tree}); git show -s --format="COMMIT=%H%nPARENTS=%P%nAUTHOR_DATE=%aI%nCOMMIT_DATE=%cI%nSUBJECT=%s" d32c859; git archive d32c859 | tar -x -C "$DST"; echo FILE_COUNT=$(find "$DST" -type f | wc -l | tr -d " "); echo SYMLINK_COUNT=$(find "$DST" -type l | wc -l | tr -d " "); echo ARCHIVE_SHA256=$(git archive --format=tar d32c859 | shasum -a 256 | awk "{print \\$1}"); find "$DST" -maxdepth 2 -name AGENTS.md -print
+--- OUTPUT ---
+COMMIT_FULL=d32c859f9043798d9e8a4984e8f57aa64567e33c
+TREE=88d730b6ca7a73a8ed1014ee2361929ddc46be83
+COMMIT=d32c859f9043798d9e8a4984e8f57aa64567e33c
+PARENTS=c9de6a488a983e86380ca207463941a8490b08ce 1495913085eae13155f977fcebc8400b9789e04c
+AUTHOR_DATE=2026-10-08T20:37:48+08:00
+COMMIT_DATE=2026-10-08T20:37:48+08:00
+SUBJECT=Merge pull request #9 from AIruanchao/wave6/p1f-gate
+FILE_COUNT=683
+SYMLINK_COUNT=1
+awk: syntax error at source line 1
+ context is
+	{print >>>  \ <<< }
+awk: illegal statement at source line 1
+ARCHIVE_SHA256=
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:49:26Z

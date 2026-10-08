@@ -1,0 +1,11 @@
+$ WQ_FROZEN_REPO=/tmp/wenqu-reaudit6-root-1791446155 PYTHONDONTWRITEBYTECODE=1 python3 auth_chain_probe.py
+PASS reject 无审批 reserve: ActionError: reserve_action requires 对应 action 类型的 HMAC 审批（approval 参数，F4-AUTH-001）——无授权预留一律拒绝
+PASS reject release payload 混入 prod_write 字段: ApprovalRejected: approval rejected: payload not closed for approval_type='release': foreign/unknown fields ['operation_digest']（判别联合互斥封闭）
+PASS reject state_version CAS 错位: ApprovalRejected: approval rejected: state_version CAS failure（action 类授权同样不得跨状态版本）
+PASS reject 过期授权: ApprovalRejected: approval rejected: approval outside TTL window
+PASS reject 授权消费后预留写故障: RuntimeError: reaudit6 injected failure after approval consume
+PASS reject nonce 重放: ApprovalReuseError: nonce already consumed (approval apr_reaudit6_tomic_04 不可复用——不变量 #5, 事件正源已登记)
+PASS reject 调用方字符串回执直接 commit: ActionError: commit_action requires 外部正源回执（action-execution-receipt JSON 对象）；调用方自报字符串回执不可 COMMITTED（只能 PROVISIONAL——F4-AUTH-001）
+PASS reject FAILED_UNKNOWN 后再启动: ActionError: illegal action transition: FAILED_UNKNOWN -> STARTED (allowed: RESERVED→STARTED|FAILED_UNKNOWN, STARTED→COMMITTED|FAILED_UNKNOWN)
+{"consumed_count": 2, "event_types": ["RUN_CREATED", "STAGE_STARTED", "APPROVAL_CONSUMED", "ACTION_AUTH_RESERVED", "ACTION_STARTED", "ACTION_COMMITTED", "APPROVAL_CONSUMED", "ACTION_AUTH_RESERVED", "ACTION_STARTED", "ACTION_FAILED_UNKNOWN"], "final_actions": {"act_2da106e2e81f": "COMMITTED", "act_8653300ee141": "FAILED_UNKNOWN"}, "result": "PASS", "run_id": "run_20261008T160450Z_c0cf3a95", "temp_db_dir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-auth-co6b4src"}
+exit_code=0

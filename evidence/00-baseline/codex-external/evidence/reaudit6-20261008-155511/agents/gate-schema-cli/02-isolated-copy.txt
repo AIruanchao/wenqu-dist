@@ -1,0 +1,30 @@
+$ ISO=$(mktemp -d /tmp/wenqu-reaudit6-gate-schema-cli-b259dac.XXXXXX)
+/tmp/wenqu-reaudit6-gate-schema-cli-b259dac.6p9i8M
+$ git archive --format=tar HEAD | tar -xf - -C "$ISO"
+rc=0
+$ git rev-parse HEAD
+b259dac4248b14af6ec05e1b3fc7f61401aba6b6
+$ git status --porcelain=v1
+$ sha256 source critical files vs isolated
+45a86a6f8d55b04bccfdc5916273662dccc8ec560ff7518363de6c1eebdd59ef  system/wenqu_core/gate_aggregator.py source
+45a86a6f8d55b04bccfdc5916273662dccc8ec560ff7518363de6c1eebdd59ef  system/wenqu_core/gate_aggregator.py isolated
+20f32ff21819af79f60269378cb12426781ecb73f5e4254d53ed254f91bcdc8b  system/wenqu_core/cli.py source
+20f32ff21819af79f60269378cb12426781ecb73f5e4254d53ed254f91bcdc8b  system/wenqu_core/cli.py isolated
+f309dc26bcf33491de2d1d33b6c09958cb7d70dbc937b89c760be3121f2a4190  system/wenqu_core/deploy_framework.py source
+f309dc26bcf33491de2d1d33b6c09958cb7d70dbc937b89c760be3121f2a4190  system/wenqu_core/deploy_framework.py isolated
+331f5c1115038e5388382e2d5cbe01adbb10cb93a34afe122adc71964d040c90  system/schemas/station-result-v2.schema.json source
+331f5c1115038e5388382e2d5cbe01adbb10cb93a34afe122adc71964d040c90  system/schemas/station-result-v2.schema.json isolated
+05d34f5cd45024a1504b7901ae1df837f81653bd60ac1f4f8bf9cc29ab050efc  system/schemas/evidence-v2.schema.json source
+05d34f5cd45024a1504b7901ae1df837f81653bd60ac1f4f8bf9cc29ab050efc  system/schemas/evidence-v2.schema.json isolated
+c47bc5a5bf2d9ee9082ac80f0f8f677e132ddfe410b8bd97b8f45b0d720e8406  system/schemas/finding-event-v2.schema.json source
+c47bc5a5bf2d9ee9082ac80f0f8f677e132ddfe410b8bd97b8f45b0d720e8406  system/schemas/finding-event-v2.schema.json isolated
+a2e4e0c3859a0611ebccea85ee6dee67bc2e80c754e19d72753ed4fd09365f1d  system/schemas/run-event-v2.schema.json source
+a2e4e0c3859a0611ebccea85ee6dee67bc2e80c754e19d72753ed4fd09365f1d  system/schemas/run-event-v2.schema.json isolated
+6147a7b393b6cec49d44fbe2e3f83f300e436928544f8b6e5567c18be06f255a  system/install.sh source
+6147a7b393b6cec49d44fbe2e3f83f300e436928544f8b6e5567c18be06f255a  system/install.sh isolated
+e36f61adf3f116a55624fc91c5ea5de9bf603a9e0fa26bf269c40deca51202ec  system/bin/wenquctl source
+e36f61adf3f116a55624fc91c5ea5de9bf603a9e0fa26bf269c40deca51202ec  system/bin/wenquctl isolated
+dc4e5254a33bcec601518e3bdbfe574ce478b72136f1237f1a9daf9746b87f5c  tests/acceptance.sh source
+dc4e5254a33bcec601518e3bdbfe574ce478b72136f1237f1a9daf9746b87f5c  tests/acceptance.sh isolated
+df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592  .github/workflows/acceptance.yml source
+df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592  .github/workflows/acceptance.yml isolated

@@ -1,0 +1,28 @@
+UTC_START=2026-10-08T12:53:04Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd /private/tmp/reaudit7-d32c859-runtime && python3 - <<"PY"
+import json
+s=json.load(open("dist/wenqu-dist-1620c7c.release.sig"))
+def redact(x,k=""):
+ if isinstance(x,dict): return {kk:("<redacted-signature>" if "signature" in kk.lower() else redact(v,kk)) for kk,v in x.items()}
+ if isinstance(x,list): return [redact(v,k) for v in x]
+ return x
+print(json.dumps(redact(s),indent=2,ensure_ascii=False,sort_keys=True))
+PY
+--- OUTPUT ---
+{
+  "algorithm": "HMAC-SHA256",
+  "honesty": "HMAC-SHA256 symmetric key (same trust root as approval keyring): tamper-evident / anti-forgery only, NOT non-repudiation (plan §21.4)",
+  "key_id": "key_release_w6p1f",
+  "schema": "wenqu-release-sig/1",
+  "signature": "<redacted-signature>",
+  "signed_at": "2026-10-08T09:49:52Z",
+  "signed_manifest_build_id": "rel-1620c7c-20261008T094952Z",
+  "signed_manifest_canonical_sha256": "66addcd648e220ff9225822fb2dbc73b6cf1efae5b96361aa7753db57b045499",
+  "signed_object": "manifest",
+  "tool": "release_attest.py",
+  "tool_version": "1.0.0"
+}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:53:04Z

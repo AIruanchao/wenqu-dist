@@ -1,0 +1,29 @@
+{
+  "content_digest": "a390547c3759f47d83f94d5d9ec7f4a9f998a6a34f1003c2f87d24870b407990",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "2391e5017051327757ac90c7a70b31e8754fb437260eb653e8b7f9ba06f48dd1",
+      "size": 28
+    },
+    {
+      "mode": "0444",
+      "path": "flag-dead.txt",
+      "sha256": "9edc05076fb5a5921c7e8ffe2cc79cc5d711d9612e138d09572f76df4530d870",
+      "size": 5
+    }
+  ],
+  "key_id": "key_release_dead",
+  "release_id": "20261008T125114Z-a390547c3759",
+  "schema_version": 1,
+  "signature": "e4de5b2794a01ceecba380594095df090dc37ad28b1c753cedce9a8e8d7ff6c8",
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_04_release_key_selfsi0/dep4-dead-src"
+}

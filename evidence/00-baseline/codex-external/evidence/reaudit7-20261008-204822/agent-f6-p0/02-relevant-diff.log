@@ -1,0 +1,3317 @@
+TIMESTAMP_UTC: 2026-10-08T12:49:24Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: bash -lc $'\ncd "$1"\nfor f in system/wenqu_core/gate_aggregator.py system/schemas/station-result-v2.schema.json tools/ac_traceability.py evidence/evidence-index.json system/wenqu_core/approval_issue.py system/wenqu_core/approval_keys.py system/wenqu_core/wenqu_pipeline.py system/wenqu_core/store.py system/wenqu_core/ledger_migrator.py system/dashboard/server.py system/bin/wenqu-dashboard.py tests/acceptance.sh; do\n echo "===== DIFF $f ====="\n git diff b259dac..HEAD -- "$f"\ndone\n' _ /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+===== DIFF system/wenqu_core/gate_aggregator.py =====
+diff --git a/system/wenqu_core/gate_aggregator.py b/system/wenqu_core/gate_aggregator.py
+index 517542f..7f11d5e 100644
+--- a/system/wenqu_core/gate_aggregator.py
++++ b/system/wenqu_core/gate_aggregator.py
+@@ -1,6 +1,9 @@
+ # -*- coding: utf-8 -*-
+ """统一 Gate 聚合器（Codex W3B；P0-3 二次加固：双契约消费 + dashboard 输出对齐；
+-F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验）。
++F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验；
++F6 六轮加固：镜像 RFC3339 严格 date-time、重复站幂等等价键收紧
++（attempt_id+scope_hash+coverage+artifact 摘要全等）、manifest 范围绑定
++（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）。
+ 
+ 消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
+ 
+@@ -52,7 +55,12 @@ outcome 别名表（大小写不敏感）：
+     C2 任一站点证据 SHA 与 target_sha 不一致（或缺失、无法绑定目标）-> BLOCKED；
+     C3 分母缩水：required 站未全部上报 -> BLOCKED；空 required_stations 同样 BLOCKED；
+     C4 CONDITIONAL != PASS：条件通过永不映射为绿判定 / GitHub success；
+-    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）。
++    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）；
++    C6 manifest 范围绑定（F6-GATE-SCOPE-001）：expected_scope_hash/
++       expected_denominator 给定时，逐站对账 identity.scope_hash 与
++       coverage.denominator——scope 缺失/不符、coverage 缺失/分母自报
++       （≠ manifest 冻结分母）、legacy 结果（无法证明 scope 绑定）一律
++       记 scope_binding_violation 并整线 BLOCKED。
+ 
+ ## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
+ 
+@@ -126,12 +134,14 @@ _GITHUB_STATE = {
+ # date-time 检查注册后）结论必须一致。改 schema 文件时必须同步改这里。
+ #
+ # 与 jsonschema 的两处刻意差异（均有一致性自测护栏）：
+-#   1. date-time：镜像无条件做严格 ISO-8601 解析（jsonschema 的 FormatChecker
++#   1. date-time：镜像无条件做严格 RFC3339 解析（jsonschema 的 FormatChecker
+ #      在未安装 rfc3339-validator 时对 date-time 空转——自测按仓内既有惯例
+-#      注册严格检查后对齐）；
++#      注册严格检查后对齐；F6-GATE-FORMAT-DUP-002：纯日期/无时区一律拒）；
+ #   2. PASS 的 scanned==denominator：schema 侧以 const 级联（1..64）机器判定
+ #      （draft-07 无法表达跨字段数值比较），分母>64 时不误拒合法全扫；镜像
+-#      侧做全量无界等式判定（缩水无论多大必拒）。
++#      侧做全量无界等式判定（缩水无论多大必拒）。F6-SCHEMA-BOUND-001：
++#      65/66 等级联外缩水由本镜像机器强制红（schema $comment 已注记，
++#      复验正本 system/tests/test_gate_scope_binding.py）。
+ _MIRROR_TOP_KEYS = frozenset({
+     "schema_version", "run_id", "station_id", "attempt_id",
+     "execution_status", "policy_verdict", "identity", "tool", "execution",
+@@ -152,6 +162,11 @@ _MIRROR_EXEC_REQUIRED = (
+ _MIRROR_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+ _MIRROR_SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+ _MIRROR_CAS_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
++# RFC3339 date-time：完整日期 + [Tt] 时间(可带小数秒) + 必带时区（Z/z 或 ±HH:MM）。
++# F6-GATE-FORMAT-DUP-002：纯日期（"2026-10-08"）、无时区（"2026-10-08T00:00:00"）、
++# 无时间部分一律拒——datetime.fromisoformat 单独使用会放过这些形态。
++_MIRROR_RFC3339_RE = re.compile(
++    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$")
+ _MIRROR_EXEC_STATUS = frozenset(
+     {"COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+ _MIRROR_VERDICTS = frozenset(
+@@ -168,9 +183,17 @@ def _mirror_int(value: Any) -> bool:
+ 
+ 
+ def _mirror_iso_datetime(value: Any) -> bool:
+-    """format: date-time（严格 ISO-8601；Z/z 后缀按 UTC 接受）。"""
++    """format: date-time（RFC3339 严格：Z/z 后缀按 UTC 接受；纯日期/无时区拒）。
++
++    F6-GATE-FORMAT-DUP-002：镜像此前直接 fromisoformat，会放过纯日期
++    （"2026-10-08"）与无时区时间（"2026-10-08 00:00:00"）——两者都不是
++    RFC3339 date-time。先以结构正则把关，再交给 fromisoformat 校验日历
++    合法性（如 2026-02-30）。
++    """
+     if not isinstance(value, str):
+         return False
++    if not _MIRROR_RFC3339_RE.match(value):
++        return False
+     text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+     try:
+         datetime.fromisoformat(text)
+@@ -264,7 +287,8 @@ def mirror_validate_station_result_v2(result: Any) -> List[str]:
+             _err("execution.argv_digest must be a string")
+         for key in ("started_at", "ended_at"):
+             if key in execution and not _mirror_iso_datetime(execution[key]):
+-                _err(f"execution.{key} must be an ISO-8601 date-time")
++                _err(f"execution.{key} must be an RFC3339 date-time "
++                     "(full date+time+timezone; bare date/timezone-less rejected)")
+         if "timeout_s" in execution and (
+                 not _mirror_int(execution["timeout_s"])
+                 or execution["timeout_s"] < 1):
+@@ -337,7 +361,8 @@ def mirror_validate_station_result_v2(result: Any) -> List[str]:
+             if coverage["scanned"] < 1:
+                 _err("PASS coverage.scanned must be >= 1")
+             # F4-SCHEMA-001 #2（分母缩水）：PASS 必须 scanned == denominator
+-            # （schema 侧 const 级联 1..64 的无界镜像）
++            # （schema 侧 const 级联 1..64 的无界镜像——F6-SCHEMA-BOUND-001：
++            #   级联外（>64，如 65/66）同样由本等式机器强制红）
+             if coverage["scanned"] != coverage["denominator"]:
+                 _err("PASS coverage.scanned("
+                      f"{coverage['scanned']}) != denominator("
+@@ -379,15 +404,42 @@ class GateAggregator:
+         verdict = agg.aggregate()          # 含 generated_at/policy_verdict（dashboard 契约）
+         status = agg.to_github_status()    # {"state": ..., "conclusion": ..., "description": ...}
+ 
++    manifest 范围绑定（F6-GATE-SCOPE-001，正门路径）::
++
++        agg = GateAggregator(required_stations=manifest_required_set,
++                             target_sha=manifest.commit_sha,
++                             environment=manifest.environment,
++                             expected_scope_hash=manifest.identity.scope_hash,
++                             expected_denominator=manifest.scope.denominator)
++
+     required_stations 兼容 int 站点号（自动归一为字符串键，如 2 -> "2"）。
++    expected_scope_hash/expected_denominator 必须成对提供（来自冻结
++    run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
++    逐站对账 scope 与分母，自报/缺失一律 BLOCKED（C6）。
+     """
+ 
+-    def __init__(self, required_stations: Set[str], target_sha: str, environment: str) -> None:
++    def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
++                 *, expected_scope_hash: Optional[str] = None,
++                 expected_denominator: Optional[int] = None) -> None:
+         target_sha = str(target_sha or "").strip().lower()
+         if not target_sha:
+             raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
+         if not isinstance(environment, str) or not environment:
+             raise ValueError("environment is required: gate evidence must be bound to an environment")
++        if (expected_scope_hash is None) != (expected_denominator is None):
++            raise ValueError(
++                "expected_scope_hash 与 expected_denominator 必须成对提供"
++                "（manifest 范围绑定——F6-GATE-SCOPE-001）")
++        if expected_scope_hash is not None and (
++                not isinstance(expected_scope_hash, str)
++                or not expected_scope_hash.strip()):
++            raise ValueError("expected_scope_hash must be a non-empty string")
++        if expected_denominator is not None and (
++                isinstance(expected_denominator, bool)
++                or not isinstance(expected_denominator, int)
++                or expected_denominator < 1):
++            raise ValueError("expected_denominator must be an integer >= 1 "
++                             "(manifest scope denominator)")
+ 
+         self.required_stations: frozenset = frozenset(
+             str(s).strip() for s in required_stations
+@@ -395,6 +447,8 @@ class GateAggregator:
+         )
+         self.target_sha: str = target_sha
+         self.environment: str = environment
++        self.expected_scope_hash: Optional[str] = expected_scope_hash
++        self.expected_denominator: Optional[int] = expected_denominator
+ 
+         # 内部登记簿
+         self._stations: Dict[str, Dict[str, Any]] = {}
+@@ -403,6 +457,7 @@ class GateAggregator:
+         self._malformed: List[Dict[str, Any]] = []
+         self._sha_violations: List[Dict[str, Any]] = []
+         self._env_violations: List[Dict[str, Any]] = []
++        self._scope_violations: List[Dict[str, Any]] = []
+ 
+     # ------------------------------------------------------------------ #
+     # 登记阶段
+@@ -458,6 +513,7 @@ class GateAggregator:
+         identity = station_result.get("identity")
+         sha = ""
+         environment = None
++        scope_hash_value: Optional[str] = None
+         if isinstance(identity, Mapping):
+             raw_sha = identity.get("commit_sha")
+             if isinstance(raw_sha, str) and raw_sha.strip():
+@@ -465,6 +521,9 @@ class GateAggregator:
+             env_raw = identity.get("environment")
+             if isinstance(env_raw, str):
+                 environment = env_raw
++            raw_scope = identity.get("scope_hash")
++            if isinstance(raw_scope, str):
++                scope_hash_value = raw_scope
+         else:
+             # identity 缺失/非对象——schema_invalid 已记账（镜像 required:identity），
+             # 这里继续提取其余字段并保持 C5 记账（宽松读不炸，聚合时 BLOCKED）
+@@ -504,6 +563,28 @@ class GateAggregator:
+                     "station": station,
+                 })
+ 
++        # F6-GATE-FORMAT-DUP-002：重复站幂等等价键的原料（宽松提取，None=缺失）
++        attempt_raw = station_result.get("attempt_id")
++        attempt_value = attempt_raw if isinstance(attempt_raw, str) else None
++        coverage_value: Optional[Dict[str, Any]] = None
++        raw_coverage = station_result.get("coverage")
++        if isinstance(raw_coverage, Mapping):
++            raw_exclusions = raw_coverage.get("exclusions")
++            coverage_value = {
++                "denominator": raw_coverage.get("denominator"),
++                "scanned": raw_coverage.get("scanned"),
++                "exclusions": (tuple(raw_exclusions)
++                               if isinstance(raw_exclusions, list)
++                               else raw_exclusions),
++            }
++        raw_artifacts = station_result.get("artifacts")
++        artifact_digests: Optional[tuple] = None
++        if isinstance(raw_artifacts, list):
++            artifact_digests = tuple(
++                item.get("cas_digest") if isinstance(item, Mapping) else None
++                for item in raw_artifacts
++            )
++
+         return {
+             "station": station,
+             "outcome": outcome,
+@@ -515,6 +596,10 @@ class GateAggregator:
+             "execution_status": execution_status or None,
+             "policy_verdict_raw": policy_verdict or None,
+             "schema_valid": not schema_errors,
++            "attempt_id": attempt_value,
++            "scope_hash": scope_hash_value,
++            "coverage": coverage_value,
++            "artifact_digests": artifact_digests,
+         }
+ 
+     def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
+@@ -548,16 +633,86 @@ class GateAggregator:
+             "execution_status": None,
+             "policy_verdict_raw": None,
+             "schema_valid": True,
++            # legacy 无 attempt/scope/coverage/artifact——重复等价键退化为
++            # outcome+sha+environment（历史语义），manifest 绑定下记 C6 违规
++            "attempt_id": None,
++            "scope_hash": None,
++            "coverage": None,
++            "artifact_digests": None,
+         }
+ 
++    def _resend_equivalent(self, previous: Dict[str, Any],
++                           entry: Dict[str, Any]) -> bool:
++        """重复站幂等等价键（F6-GATE-FORMAT-DUP-002）。
++
++        v2：attempt_id + scope_hash + coverage（分母/扫描/排除）+ artifact
++        cas_digest 摘要序列 + （历史基线）outcome/sha/environment 全等才算
++        幂等重发；任一不等 -> duplicate_conflict（aggregate 时 BLOCKED）。
++        旧键只有 outcome/sha/environment——同站两次自报不同分母/不同批次
++        工件曾被静默择优（首条为准），此处收紧为冲突。
++        legacy：无 attempt/coverage/artifact 概念，维持历史等价键。
++        """
++        if (previous["outcome"] != entry["outcome"]
++                or previous["sha"] != entry["sha"]
++                or previous["environment"] != entry["environment"]
++                or previous["input_version"] != entry["input_version"]):
++            return False
++        if previous["input_version"] != "v2":
++            return True
++        return (previous.get("attempt_id") == entry.get("attempt_id")
++                and previous.get("scope_hash") == entry.get("scope_hash")
++                and previous.get("coverage") == entry.get("coverage")
++                and previous.get("artifact_digests")
++                == entry.get("artifact_digests"))
++
++    def _reconcile_manifest_binding(self, station: str,
++                                    entry: Dict[str, Any]) -> None:
++        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
++
++        expected_scope_hash/expected_denominator 给定时：identity.scope_hash
++        必须等于冻结值；coverage.denominator 必须等于 manifest 冻结分母
++        （缺失/自报一律违规）；legacy 结果无法证明 scope 绑定——同样违规。
++        """
++        assert self.expected_scope_hash is not None  # 调用点已保证
++        if entry.get("input_version") != "v2":
++            self._scope_violations.append({
++                "station": station,
++                "reason": "legacy_result_not_manifest_bound",
++                "detail": "manifest 正门只接受 station-result-v2"
++                          "（legacy 结果无法证明 scope 绑定）",
++            })
++            return
++        scope = entry.get("scope_hash")
++        if scope != self.expected_scope_hash:
++            self._scope_violations.append({
++                "station": station,
++                "reason": "missing_scope_hash" if scope is None
++                          else "scope_hash_mismatch",
++                "scope_hash": scope,
++                "expected": self.expected_scope_hash,
++            })
++        coverage = entry.get("coverage")
++        denominator = (coverage.get("denominator")
++                       if isinstance(coverage, Mapping) else None)
++        if denominator != self.expected_denominator:
++            self._scope_violations.append({
++                "station": station,
++                "reason": ("missing_coverage_denominator"
++                           if denominator is None
++                           else "self_declared_denominator"),
++                "denominator": denominator,
++                "expected": self.expected_denominator,
++            })
++
+     def add(self, station_result: dict) -> "GateAggregator":
+         """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
+ 
+         v2 条目先过镜像校验器（F4-GATE-001）：schema-invalid 一律记 malformed
+         并强制该站 BLOCKED——聚合输出必为 BLOCKED、technical_eligible=false。
+ 
+-        重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
+-        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
++        重复站点（F6-GATE-FORMAT-DUP-002）：幂等等价键（attempt_id+scope_hash+
++        coverage+artifact 摘要+outcome/sha/environment）全等才视为幂等重发
++        （忽略）；否则 duplicate_conflict——aggregate() 时 BLOCKED，绝不静默择优。
+         """
+         if not isinstance(station_result, Mapping):
+             self._malformed.append(
+@@ -575,12 +730,7 @@ class GateAggregator:
+ 
+         previous = self._stations.get(station)
+         if previous is not None:
+-            identical = (
+-                previous["outcome"] == entry["outcome"]
+-                and previous["sha"] == entry["sha"]
+-                and previous["environment"] == entry["environment"]
+-            )
+-            if identical:
++            if self._resend_equivalent(previous, entry):
+                 self._duplicates.append(station)
+             else:
+                 self._conflicts.append({"station": station, "first": previous, "second": entry})
+@@ -604,6 +754,9 @@ class GateAggregator:
+                 "environment": entry["environment"],
+                 "expected": self.environment,
+             })
++        # C6：manifest 范围绑定逐站对账（正门路径激活时）
++        if self.expected_scope_hash is not None:
++            self._reconcile_manifest_binding(station, entry)
+         return self
+ 
+     # ------------------------------------------------------------------ #
+@@ -619,7 +772,7 @@ class GateAggregator:
+             hard = True
+             reasons.append(reason)
+ 
+-        # 1) C2/C5：证据完整性硬门
++        # 1) C2/C5/C6：证据完整性硬门
+         if self._sha_violations:
+             detail = "; ".join(f"{v['station']}:{v['reason']}" for v in self._sha_violations)
+             block(f"sha_evidence_violation [{detail}]")
+@@ -632,7 +785,14 @@ class GateAggregator:
+                   f"[first={self._malformed[0]['reason']}]")
+         if self._conflicts:
+             names = ",".join(sorted({c["station"] for c in self._conflicts}))
+-            block(f"duplicate_station_conflict [{names}]")
++            block(f"duplicate_station_conflict/duplicate_conflict [{names}] "
++                  "(attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)")
++        if self._scope_violations:
++            detail = "; ".join(
++                f"{v['station']}:{v['reason']}" for v in self._scope_violations)
++            block(f"scope_binding_violation [{detail}] "
++                  "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
++                  "必须对账冻结 manifest)")
+ 
+         # 2) C3：分母缩水（required 站未全部上报）；空 required 同样拒绝（无真空 PASS）
+         reported = set(self._stations)
+@@ -678,11 +838,18 @@ class GateAggregator:
+                 "environment_ok": e["environment"] == self.environment,
+                 "input_version": e["input_version"],
+                 "schema_valid": e.get("schema_valid", True),
++                **({
++                    "scope_bound": e.get("scope_hash") == self.expected_scope_hash,
++                    "denominator_bound": (
++                        isinstance(e.get("coverage"), Mapping)
++                        and e["coverage"].get("denominator")
++                        == self.expected_denominator),
++                } if self.expected_scope_hash is not None else {}),
+             }
+             for s, e in sorted(self._stations.items())
+         }
+ 
+-        return {
++        result: Dict[str, Any] = {
+             # dashboard/server.py read_gate_aggregate() 强制要求的契约字段（P0-3 修）
+             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             "policy_verdict": outcome,
+@@ -699,11 +866,22 @@ class GateAggregator:
+                 "duplicates_ignored": len(self._duplicates),
+                 "conflicts": len(self._conflicts),
+                 "malformed": len(self._malformed),
++                **({"scope_violations": len(self._scope_violations)}
++                   if self.expected_scope_hash is not None else {}),
+             },
+             "stations": stations_summary,
+             "target_sha": self.target_sha,
+             "environment": self.environment,
+         }
++        if self.expected_scope_hash is not None:
++            result["scope_binding"] = {
++                "mode": "manifest",
++                "expected_scope_hash": self.expected_scope_hash,
++                "expected_denominator": self.expected_denominator,
++            }
++        else:
++            result["scope_binding"] = {"mode": "self_declared"}
++        return result
+ 
+     def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+         """映射为 GitHub 状态：Commit Status `state` + Checks API `conclusion` 双口径。
+===== DIFF system/schemas/station-result-v2.schema.json =====
+diff --git a/system/schemas/station-result-v2.schema.json b/system/schemas/station-result-v2.schema.json
+index ec47fbe..e346032 100644
+--- a/system/schemas/station-result-v2.schema.json
++++ b/system/schemas/station-result-v2.schema.json
+@@ -186,5 +186,5 @@
+       }
+     }
+   ],
+-  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，此处以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64）；scanned>64 时 schema 侧不判定（不误拒合法大分母全扫），由 gate_aggregator.mirror_validate_station_result_v2 镜像校验器做无界等式判定并强制 BLOCKED（镜像与 schema 的一致性自测见 system/tests/test_gate_schema_hardening.py）"
++  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，schema 侧以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64；级联外不判定，不误拒合法大分母全扫）。F6-SCHEMA-BOUND-001（2026-10-08 Codex 第六轮根修，采纳镜像无界等式分支）：(c) 的全量机器强制由 gate_aggregator.mirror_validate_station_result_v2 的无界等式判定承担——样例 coverage {scanned:65, denominator:66}（及任意 scanned≠denominator，无论多大）必须机器强制红：镜像必拒、该站强制 BLOCKED（schema-invalid 一律 fail-closed）。机器复验正本为 system/tests/test_gate_scope_binding.py（65/66 全红 + 65/65 全绿 + 1..64 级联内镜像↔schema 一致性自测 + >64 声明边界）；两侧一致性自测另见 system/tests/test_gate_schema_hardening.py"
+ }
+===== DIFF tools/ac_traceability.py =====
+diff --git a/tools/ac_traceability.py b/tools/ac_traceability.py
+index 4967d49..a140d92 100644
+--- a/tools/ac_traceability.py
++++ b/tools/ac_traceability.py
+@@ -14,6 +14,16 @@
+   python3 tools/ac_traceability.py --plan PATH     # 用真实方案文件交叉校验 ID 集合（可选）
+   python3 tools/ac_traceability.py --check         # 目录完整性失败时 exit 2（CI 用）
+ 
++F6-TRC-PARSER-002（2026-10-08 Codex 第六轮根修，parser fail-open 全闭）：
++  - --plan 给定（含默认路径）但文件不存在 → problem → --check exit 2
++    （旧版静默 SKIP——方案文件被删/挪时 --check 仍全绿）；
++  - PLAN_SHA256 对方案文件实算并比对（方案文件任何字节变化 → problem →
++    exit 2；meta 落 plan_sha256_actual/plan_sha256_match）；
++  - §20 表格重复行检出报 problem：重复相同行、同 ID 异内容行（先毒后正/
++    先正后毒——旧版后行覆盖前行，投毒行可被后置正行掩蔽）一律 problem；
++  - 集合校验失败（目录完整性/§20/§25.1/哈希任一）时 meta.catalog_integrity
++    一律 FAIL（旧版仅目录完整性参与该字段，方案交叉校验失败仍标 OK）。
++
+ 判定口径（诚实优先）：
+   implemented=true  仅当：某测试文件中存在「以该 ID 命名/标注的测试函数或用例」
+       （.py: ID 出现在 test_*/selftest 函数体内或函数名含 ID；.sh: ID 字面量出现在测试脚本中）。
+@@ -23,6 +33,7 @@
+ """
+ import argparse
+ import ast
++import hashlib
+ import json
+ import os
+ import re
+@@ -317,6 +328,10 @@ def cross_check_plan(plan_path, catalog):
+     (ID, 注入, 期望)，与冻结目录（ID_DEFS 转录）做归一化语义比对：
+     去首尾空白、markdown 反引号剥离、全半角标点归一、连续空白折叠。
+     任一 ID 语义漂移 → semantic problems → --check exit 2。
++
++    F6-TRC-PARSER-002 根修（Codex 第六轮实锤）：表格行重复检出报 problem——
++    重复相同行（整表任何 ID 出现两行）与同 ID 异内容行（先毒后正/先正后毒，
++    旧版 dict 后行覆盖前行=投毒行可被正行掩蔽的 fail-open）一律 problem。
+     """
+     try:
+         with open(plan_path, encoding="utf-8") as f:
+@@ -337,10 +352,25 @@ def cross_check_plan(plan_path, catalog):
+     row_re = re.compile(
+         r"^\|\s*([A-Z]{2,5}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$")
+     plan_semantics = {}
++    duplicate_rows = []
+     for line in body.splitlines():
+         mm = row_re.match(line)
+-        if mm:
+-            plan_semantics[mm.group(1)] = (mm.group(2), mm.group(3))
++        if not mm:
++            continue
++        tid = mm.group(1)
++        content = (mm.group(2), mm.group(3))
++        if tid in plan_semantics:
++            first = plan_semantics[tid]
++            if (_norm_semantic(first[0]) == _norm_semantic(content[0])
++                    and _norm_semantic(first[1]) == _norm_semantic(content[1])):
++                duplicate_rows.append(
++                    f"§20 表格 {tid} 存在重复相同行（重复行一律 problem）")
++            else:
++                duplicate_rows.append(
++                    f"§20 表格 {tid} 重复 ID 行且内容不一致"
++                    "（先毒后正/先正后毒——后行覆盖前行的 fail-open 已闭）")
++        plan_semantics[tid] = content
++    semantic_problems.extend(duplicate_rows)
+     if not plan_semantics:
+         semantic_problems.append("§20 表格解析出 0 行数据行（格式漂移？）")
+     for tid in sorted(frozen):
+@@ -368,6 +398,7 @@ def cross_check_plan(plan_path, catalog):
+         "semantic_ok": not semantic_problems,
+         "semantic_problems": semantic_problems,
+         "semantic_rows_parsed": len(plan_semantics),
++        "duplicate_row_count": len(duplicate_rows),
+     }
+ 
+ 
+@@ -585,6 +616,15 @@ def git_head():
+     return None
+ 
+ 
++def file_sha256(path):
++    """对文件字节实算 sha256（F6-TRC-PARSER-002：PLAN_SHA256 不得只作摆设常量）。"""
++    h = hashlib.sha256()
++    with open(path, "rb") as f:
++        for chunk in iter(lambda: f.read(1 << 20), b""):
++            h.update(chunk)
++    return h.hexdigest()
++
++
+ def main():
+     ap = argparse.ArgumentParser(description="§20 131 验收 ID 追踪矩阵生成器")
+     ap.add_argument("--json", default=os.path.join(EVIDENCE_ROOT, "traceability-matrix.json"),
+@@ -592,16 +632,42 @@ def main():
+     ap.add_argument("--plan",
+                     default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                          "evidence", "00-baseline", "codex-external", "方案.md"),
+-                    help="方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；存在则做 ID 集合交叉校验）")
++                    help="方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；"
++                         "F6-TRC-PARSER-002：给定但不存在时一律校验失败——--check exit 2，"
++                         "不再静默 SKIP）")
+     ap.add_argument("--check", action="store_true",
+                     help="目录完整性/集合校验失败时 exit 2")
+     args = ap.parse_args()
+ 
+     catalog, problems = build_catalog()
+-    integrity_ok = not problems
+ 
+     plan_check = None
+-    if args.plan and os.path.isfile(args.plan):
++    plan_check_251 = None
++    plan_sha256_actual = None
++    plan_sha256_match = None
++    if args.plan and not os.path.isfile(args.plan):
++        # F6-TRC-PARSER-002：方案文件缺失 = fail-open 缺口（旧版静默 SKIP 后
++        # --check 仍全绿）——一律计 problem，--check exit 2。
++        problems.append(
++            f"方案文件不存在: {args.plan}（--plan 缺失即校验失败，"
++            "不得以内置冻结目录静默放行）")
++        plan_check = {"ok": False,
++                      "error": f"方案文件不存在: {args.plan}",
++                      "plan_ids": None}
++    elif args.plan:
++        # F6-TRC-PARSER-002：PLAN_SHA256 对方案文件实算比对（任何字节变化必红）
++        try:
++            plan_sha256_actual = file_sha256(args.plan)
++            plan_sha256_match = plan_sha256_actual == PLAN_SHA256
++        except OSError as e:
++            plan_sha256_actual = None
++            plan_sha256_match = False
++            problems.append(f"方案文件读取失败（sha256 实算）: {e}")
++        else:
++            if not plan_sha256_match:
++                problems.append(
++                    f"方案文件 sha256 与冻结值不符: actual={plan_sha256_actual} "
++                    f"frozen={PLAN_SHA256}")
+         plan_check = cross_check_plan(args.plan, catalog)
+         if not plan_check.get("ok", False):
+             if (plan_check.get("plan_only") or plan_check.get("frozen_only")
+@@ -666,6 +732,10 @@ def main():
+             st["proxy"] += 1
+ 
+     now = datetime.now(timezone(timedelta(hours=8)))
++    # F6-TRC-PARSER-002：catalog_integrity 必须反映最终 problems 全集
++    # （目录完整性 + §20 语义/重复行 + §25.1 映射 + sha256 实算比对）——
++    # 旧版只看 build_catalog 的目录问题，方案交叉校验失败时仍标 OK。
++    integrity_ok = not problems
+     report = {
+         "meta": {
+             "tool": "tools/ac_traceability.py",
+@@ -674,6 +744,8 @@ def main():
+             "repo_head": git_head(),
+             "plan_source": "/private/tmp/codex-test/方案.md",
+             "plan_sha256": PLAN_SHA256,
++            "plan_sha256_actual": plan_sha256_actual,
++            "plan_sha256_match": plan_sha256_match,
+             "catalog_integrity": "OK" if integrity_ok else "FAIL",
+             "catalog_problems": problems,
+             "plan_cross_check": plan_check,
+@@ -706,22 +778,29 @@ def main():
+     print(f"目录完整性: {report['meta']['catalog_integrity']}  "
+           f"(冻结 {total} ID，期望 {EXPECTED_TOTAL})")
+     if plan_check is not None:
+-        print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
+-              f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
+-        if not plan_check.get("ok"):
+-            print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
+-        print(f"方案交叉校验(§20 逐 ID 语义比对): "
+-              f"{'PASS' if plan_check.get('semantic_ok') else 'FAIL'}"
+-              f"  解析表格行 {plan_check.get('semantic_rows_parsed')}")
+-        for p in (plan_check.get("semantic_problems") or [])[:5]:
+-            print(f"  §20 语义漂移: {p}")
+-        print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
+-              f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
+-              f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")
+-        for p in (plan_check_251.get("problems") or [])[:5]:
+-            print(f"  §25.1 问题: {p}")
+-    elif args.plan and not os.path.isfile(args.plan):
+-        print(f"方案交叉校验: SKIP（{args.plan} 不存在，使用内置冻结目录 sha256 锚定）")
++        if plan_check.get("error") and not plan_check.get("plan_ids"):
++            # F6-TRC-PARSER-002：方案文件缺失/不可读——明确红，不再 SKIP
++            print(f"方案交叉校验: FAIL（{plan_check.get('error')}）")
++        else:
++            print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
++                  f"  方案侧 {plan_check.get('plan_ids_count')} vs 冻结 {plan_check.get('frozen_count')}")
++            if not plan_check.get("ok"):
++                print(f"  仅方案有: {plan_check.get('plan_only')}  仅冻结有: {plan_check.get('frozen_only')}")
++            print(f"方案交叉校验(§20 逐 ID 语义比对): "
++                  f"{'PASS' if plan_check.get('semantic_ok') else 'FAIL'}"
++                  f"  解析表格行 {plan_check.get('semantic_rows_parsed')}"
++                  f"（重复行 {plan_check.get('duplicate_row_count', 0)}——重复相同行/先毒后正一律红）")
++            for p in (plan_check.get("semantic_problems") or [])[:5]:
++                print(f"  §20 语义漂移: {p}")
++        print(f"方案文件 sha256 实算比对: "
++              f"{'PASS' if plan_sha256_match else 'FAIL'}"
++              f"  actual={plan_sha256_actual or 'N/A'}")
++        if plan_check_251 is not None:
++            print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
++                  f"{'PASS' if plan_check_251.get('ok') else 'FAIL'}"
++                  f"  展开 {plan_check_251.get('expanded_count')} vs 冻结 {plan_check_251.get('frozen_count')}")
++            for p in (plan_check_251.get("problems") or [])[:5]:
++                print(f"  §25.1 问题: {p}")
+     print("-" * 64)
+     print(f"总计测试 ID        : {total}")
+     print(f"专属已实现          : {n_impl}  ({report['stats']['dedicated_coverage_pct']}%)")
+===== DIFF evidence/evidence-index.json =====
+diff --git a/evidence/evidence-index.json b/evidence/evidence-index.json
+index 04259ed..d2c7337 100644
+--- a/evidence/evidence-index.json
++++ b/evidence/evidence-index.json
+@@ -9,11 +9,11 @@
+     "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
+   },
+   "repo_head_at_filing": {
+-    "commit": "f2b8fc3",
+-    "commit_full": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+-    "subject": "Merge pull request #4 wave5/one-shot——一步到位波",
+-    "ci_conclusion": "run 37744948480 acceptance success (macOS+Ubuntu)",
+-    "note": "第五波上产后刷新；分支保护生效中（required 双平台+strict+enforce_admins）"
++    "commit": "07a9494",
++    "commit_full": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
++    "subject": "Merge pull request #6 from AIruanchao/release/v3.7.1",
++    "ci_conclusion": "未查（F6 残余整改建档时未复核远端 CI；前值：f2b8fc3 run 37744948480 success）",
++    "note": "第六波残余整改（F6-EVID-001/COVERAGE-AUTH-001/OBS-001）建档刷新；前值 f2b8fc3（wave5 PR#4）"
+   },
+   "entries": [
+     {
+@@ -22,7 +22,7 @@
+       "title": "GitHub Actions acceptance 工作流通过记录（run 37660552501）",
+       "what": "CI 通过记录：commit 1858a75（fix(p0-9) dashboard /api/decide 安全加固）在 main 分支 acceptance 工作流全绿",
+       "run_id": "37660552501",
+-      "commit": "1858a75",
++      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+       "environment": "candidate (GitHub Actions, remote)",
+       "scope": "acceptance workflow 4 步：release-check + tests/acceptance.sh + pytest 契约 + selftest",
+       "ruleset": ".github/workflows/acceptance.yml (sha256 df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592)",
+@@ -31,11 +31,11 @@
+         "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+       ],
+       "real_rc": "conclusion=success (27s)",
+-      "artifact_sha256": null,
+-      "evidence_path": "evidence/08-ci-and-branch-rules/",
++      "artifact_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
++      "evidence_path": "evidence/08-ci-and-branch-rules/README.md",
+       "fresh_until": "2026-10-21",
+       "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+-      "caveat": "记录为 API 摘要，run 原始日志未导出落档"
++      "caveat": "记录为 API 摘要，run 原始日志未导出落档；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算"
+     },
+     {
+       "entry_id": "EV-CI-002",
+@@ -43,7 +43,7 @@
+       "title": "GitHub Actions acceptance 工作流通过记录（run 37660144865）",
+       "what": "CI 通过记录：commit be50cb8（fix(p0-6+7) EventStore 幂等+表名避冲突+部署 exec bit 保留）main 分支全绿",
+       "run_id": "37660144865",
+-      "commit": "be50cb8",
++      "commit": "be50cb820c0f1bd4fbcc563273d467f7e0c93e73",
+       "environment": "candidate (GitHub Actions, remote)",
+       "scope": "acceptance workflow 同上",
+       "ruleset": ".github/workflows/acceptance.yml",
+@@ -52,11 +52,11 @@
+         "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+       ],
+       "real_rc": "conclusion=success (27s)",
+-      "artifact_sha256": null,
+-      "evidence_path": "evidence/08-ci-and-branch-rules/",
++      "artifact_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
++      "evidence_path": "evidence/08-ci-and-branch-rules/README.md",
+       "fresh_until": "2026-10-21",
+       "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+-      "caveat": "同 EV-CI-001"
++      "caveat": "同 EV-CI-001；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算"
+     },
+     {
+       "entry_id": "EV-TEST-001",
+@@ -64,7 +64,7 @@
+       "title": "P0-1 核心接线测试 8/8 通过（CI 内执行）",
+       "what": "system/tests/test_core_wiring.py 全部 8 用例通过：wenqu_core 存在(≥8模块)/可导入/5 schema 可解析/dashboard 四文件/TrustedRunner 证据产出/GateAggregator 空分母 BLOCKED/schema 拒 CRITICAL ACCEPTED_RISK/install.sh 含核心安装",
+       "run_id": "37660552501 (随 CI acceptance 步骤)",
+-      "commit": "1858a75",
++      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+       "environment": "candidate (GitHub Actions, remote)",
+       "scope": "system/tests/test_core_wiring.py；经 tests/acceptance.sh P1 节接线（缺失时 acceptance 必红）",
+       "ruleset": "同 CI acceptance.yml",
+@@ -73,11 +73,11 @@
+         "python3 system/tests/test_core_wiring.py"
+       ],
+       "real_rc": "0 (8 PASS / 0 FAIL)",
+-      "artifact_sha256": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823",
+-      "evidence_path": "evidence/04-unit-property-mutation/",
++      "artifact_sha256": "099f78db913f872734899d5e840840f2221cdb5b9378467ce9ff1ae064c60d11",
++      "evidence_path": "evidence/04-unit-property-mutation/README.md",
+       "fresh_until": "2026-10-21",
+       "verified_by": "ZCode P0-10 建档（文件 sha256 实算 + CI 结论实查；步骤级日志未导出）",
+-      "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言"
++      "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言；F6-EVID-001：evidence_path 由目录改指本目录 README（P0-1 接线证据表所在）；原 artifact=31e1d6050190… 为建档时点旧文件哈希，已按当前文件实算更正"
+     },
+     {
+       "entry_id": "EV-TEST-002",
+@@ -85,7 +85,7 @@
+       "title": "tests/acceptance.sh 发行版回归 53 PASS / 0 FAIL（Codex 复核时点）",
+       "what": "发行版验收脚本全绿：selftest 契约/预埋缺陷探测器真命中(标记行验证)/干净仓不误报/convergence 空转拒绝/超时不落账/参数值域/并发 8 进程账本零损坏/repair 不伤审计行/sweep 精确匹配/四高防线/P0 安装收敛/P1 核心接线",
+       "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+-      "commit": "1858a75",
++      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+       "environment": "local (macOS, 只读复核)",
+       "scope": "tests/acceptance.sh 全 53 检查",
+       "ruleset": "脚本 sha256 912347f2d2acc4723915c8d086bd186df4e66062bceede6bb717e42aab5c3e35",
+@@ -94,11 +94,11 @@
+         "bash tests/acceptance.sh"
+       ],
+       "real_rc": "0 (53 PASS / 0 FAIL)",
+-      "artifact_sha256": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
++      "artifact_sha256": "60dcc26d73828b5cda00493c850945445a0902352a1e81fe48ac4e9fb33ee08d",
+       "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+       "fresh_until": "2026-10-14",
+       "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
+-      "caveat": "快照入仓前原始日志在 /private/tmp；本条为 53 项时点记录，当前 acceptance 已扩至 62+ 项"
++      "caveat": "快照入仓前原始日志在 /private/tmp；本条为 53 项时点记录，当前 acceptance 已扩至 62+ 项；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161）"
+     },
+     {
+       "entry_id": "EV-TEST-003",
+@@ -106,7 +106,7 @@
+       "title": "wenqu_core 5 模块内嵌 selftest rc=0",
+       "what": "bugscan_orchestrator / station2_static / station3_contract / station4_behavior / station7_runtime 五模块 self-test 通过",
+       "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+-      "commit": "1858a75",
++      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+       "environment": "local (macOS, 只读复核)",
+       "scope": "5 个 wenqu_core 模块 _self_test()",
+       "ruleset": "compileall 亦 rc=0",
+@@ -136,11 +136,11 @@
+         "python3 validate_plan.py 方案.md"
+       ],
+       "real_rc": "0 (29/29 PASS)",
+-      "artifact_sha256": "plan-self-validation.json.sha256 在快照目录",
++      "artifact_sha256": "269b834e20efea482503e2d7e0ab07d7c7ba2d651ecb287359243e8bc9f3c697",
+       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
+       "fresh_until": "2026-10-14",
+       "verified_by": "Codex 方案 §29 记录；已快照入仓",
+-      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论"
++      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：plan-self-validation.json.sha256 在快照目录）"
+     },
+     {
+       "entry_id": "EV-ACCEPT-002",
+@@ -148,18 +148,18 @@
+       "title": "Codex 整改产物验收总判定：BLOCKED（29/100）——负面结论存档",
+       "what": "2026-10-07 Codex 验收结论：候选实现/CI 准入/受控部署/发布后闭环全部不通过；W0-W10 加权 29 分；八项硬缺口（七段状态机闭环/八站统一入口/双授权/完整链/事件正源/原子安装/红探针矩阵/shadow-canary-观察-回滚证据）在册",
+       "run_id": "acceptance-20261007-231333",
+-      "commit": "1858a75 (验收基线 main@4aeb199 起算)",
++      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25 (验收基线 main@4aeb199884af20f956b704e04dd61df8b39fa16e 起算)",
+       "environment": "local (只读复核)",
+       "scope": "wenqu-dist 全仓 W0-W10",
+       "ruleset": "方案 §24.1 硬完成门",
+       "time": "2026-10-07T23:13–23:21 (+08:00)",
+       "argv": [],
+       "real_rc": "判定=BLOCKED",
+-      "artifact_sha256": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
++      "artifact_sha256": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+       "evidence_path": "evidence/00-baseline/codex-external/验收报告.md",
+       "fresh_until": "长期（作为整改基线判定，非时效性证据）",
+       "verified_by": "Codex 独立复核；已快照入仓",
+-      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移"
++      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）"
+     },
+     {
+       "entry_id": "EV-REL-001",
+@@ -174,11 +174,11 @@
+       "time": "2026-10-02 ～ 2026-10-08",
+       "argv": [],
+       "real_rc": null,
+-      "artifact_sha256": "SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
+-      "evidence_path": "evidence/09-release-manifest-attestation/",
++      "artifact_sha256": "2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
++      "evidence_path": "SHA256-v3.6.3.txt",
+       "fresh_until": "长期",
+       "verified_by": "ZCode P0-10 建档（文件存在性+哈希实算）",
+-      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）"
++      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）；F6-EVID-001：evidence_path 由目录改指仓根 v3.6.3 清单（建档时点链上最近一份；建档后仓根已续出 v3.7.0/v3.7.1），artifact=该文件实算"
+     },
+     {
+       "entry_id": "EV-TRACE-001",
+@@ -228,7 +228,7 @@
+       "title": "Codex 第三轮验收总判定：BLOCKED（38/100）——负面结论存档",
+       "what": "2026-10-08 Codex 第三轮独立复审：38/100（二轮 29→+9）；P0-8 关闭，P0-1~7/9/10 未关闭；12 项对抗探针 FAIL 在册（伪签名/跨类型 payload/false 字符串/非 resume CAS/TIMEOUT 洗白/事件直写/旁表正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/追踪假绿）；复验准入条件八条在册",
+       "run_id": "reaudit3-20261008-122924",
+-      "commit": "ff050bb (验收基线)",
++      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447 (验收基线)",
+       "environment": "local (只读独立复审)",
+       "scope": "wenqu-dist 全仓 W0-W10 + P0 十项逐项",
+       "ruleset": "方案 §24.1 硬完成门",
+@@ -256,11 +256,11 @@
+       "time": "2026-10-08 12:29–12:37 (+08:00)",
+       "argv": [],
+       "real_rc": null,
+-      "artifact_sha256": "MANIFEST.sha256 自身 sha256 088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
++      "artifact_sha256": "088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256",
+       "fresh_until": "长期",
+       "verified_by": "ZCode 快照入仓（cp -Rp + find 计数 141）",
+-      "caveat": "快照为验收时点状态；篡改检测依赖 MANIFEST.sha256 复算"
++      "caveat": "快照为验收时点状态；篡改检测依赖 MANIFEST.sha256 复算；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）"
+     },
+     {
+       "entry_id": "EV-TRACE-002",
+@@ -268,7 +268,7 @@
+       "title": "追踪 Gate 反假绿加固：§20/§25.1 双篡改负例必红（第四波）",
+       "what": "Codex 三轮实锤两处假绿已根治：①ac_traceability 新增真 §25.1 解析器（范围展开成 ID 集合+逐前缀四列元数据对账，全半角～归一）；②acceptance.sh P1c 改用 --check+临时输出（不再改受控矩阵文件弄脏工作树）。负例实证：篡改 §20（GATE-12→GATE-99）exit=2；篡改 §25.1（REQ-EVID-001→REQ-EVIL-999）exit=2；正常方案 exit=0（131=131 四列全对）",
+       "run_id": "wave4-p1c-hardening",
+-      "commit": "ff050bb 之后工作树（本波提交）",
++      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447 之后工作树（本波提交）",
+       "environment": "local (macOS)",
+       "scope": "tools/ac_traceability.py + tests/acceptance.sh P1c",
+       "ruleset": "方案 §25.1 机器校验集合等式要求",
+@@ -289,7 +289,7 @@
+       "title": "P0-9 收口：7789 加固 dashboard 运行时部署（active hash=候选）",
+       "what": "launchctl 重启后 active ~/.wenqu/bin/wenqu-dashboard.py sha256 前缀 72ba1db7 与仓内候选完全一致（旧 52aba1b5 已备份）；GET /api/health=200、无鉴权 POST /api/decide=403 forbidden（四检查默认拒生效）",
+       "run_id": "wave4-p09-deploy",
+-      "commit": "5403220 (部署基线)",
++      "commit": "54032208b5486d4cbfa4e6bb480714b456588620 (部署基线)",
+       "environment": "local (macOS launchd com.wenqu.dashboard)",
+       "scope": "运行时替换+重启+双探针验证",
+       "ruleset": "Codex 三轮 §3.9 复验准入条件 5（active runtime hash 与候选一致）",
+@@ -312,7 +312,7 @@
+       "title": "第五波：四轮 12 探针全闭+专属覆盖 0→99/131（PR#4）",
+       "what": "Runner token 击杀（daemon 3/3 死）/ActionSaga HMAC 授权链+PROVISIONAL-RECONCILED 回执分级/聚合器 Draft-07 镜像前置校验/Schema 五跨字段不变量/§20 逐 ID 语义比对/CLI 断链修/P1d+P1e required 接线/wenquctl gate 生产接线；蜂群七文件 97 条真实现+32 条诚实不可实现登记",
+       "run_id": "wave5-one-shot (PR#4)",
+-      "commit": "b08fa7a",
++      "commit": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+       "environment": "local",
+       "scope": "14 测试套件+5 模块自测+acceptance",
+       "ruleset": "tests/acceptance.sh@f2b8fc3",
+@@ -322,11 +322,11 @@
+         "bash tests/acceptance.sh"
+       ],
+       "real_rc": "14/14 绿 + 64/64 ALL GREEN + ac_traceability --check rc=0",
+-      "artifact_sha256": "7d3b04a863988425d3f38532b2d7642b85004c1e4facc4627d50f086d7aca37e",
++      "artifact_sha256": "7752f6c5361ec785c03ea212f500ea1c96de0f43cbd9016e5de312cc4009523a",
+       "evidence_path": "evidence/04-unit-property-mutation/ac-auth-cond.json",
+       "fresh_until": "2026-10-22",
+       "verified_by": "ZCode 终归亲验（2026-10-08 15:3x 全量实跑）",
+-      "caveat": "32 ID 不可实现清单见各测试文件模块级登记"
++      "caveat": "32 ID 不可实现清单见各测试文件模块级登记；F6-EVID-001：原 artifact_sha256=7d3b04a86398… 与 evidence_path 文件不符，已改为该文件（ac-auth-cond.json）实算哈希"
+     },
+     {
+       "entry_id": "EV-CI-004",
+@@ -334,7 +334,7 @@
+       "title": "CI 通过记录（run 37744948480，f2b8fc3）",
+       "what": "PR#4 合流后 main push 的 acceptance 工作流 success（双平台）；分支保护 required checks 双双满足后正门合流",
+       "run_id": "37744948480",
+-      "commit": "f2b8fc3",
++      "commit": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+       "environment": "candidate (GitHub Actions)",
+       "scope": "acceptance 64 项+pytest",
+       "ruleset": ".github/workflows/acceptance.yml",
+@@ -355,7 +355,7 @@
+       "title": "vNext 候选制品（f2b8fc3 tar.gz + SHA256 清单）",
+       "what": "git archive 从 f2b8fc3 干净树构建的候选发行制品，SHA256 清单同目录",
+       "run_id": null,
+-      "commit": "f2b8fc3",
++      "commit": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+       "environment": "repo artifact",
+       "scope": "dist/wenqu-vNext-candidate-f2b8fc3.tar.gz (3356318 bytes)",
+       "ruleset": "git archive --prefix=wenqu-f2b8fc3/",
+@@ -364,11 +364,11 @@
+         "git archive --format=tar.gz -o dist/... f2b8fc3"
+       ],
+       "real_rc": "0",
+-      "artifact_sha256": "0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00",
++      "artifact_sha256": "d9c83e11091968ce419790e0c17236464066c6f9f9360fc524f49a1ff7c75562",
+       "evidence_path": "dist/SHA256-vNext-candidate-f2b8fc3.txt",
+       "fresh_until": "长期（绑定 f2b8fc3）",
+       "verified_by": "ZCode 构建+shasum 实算",
+-      "caveat": "无签名/SBOM（签名体系属 §16.2 未实现面）"
++      "caveat": "无签名/SBOM（签名体系属 §16.2 未实现面）；F6-EVID-001：artifact_sha256 绑定 evidence_path 清单文件（txt）实算；tar.gz 制品哈希=0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00 另注于此（原登记值即 tar）"
+     },
+     {
+       "entry_id": "EV-TRACE-003",
+@@ -376,7 +376,7 @@
+       "title": "追踪终态：99/131 专属+§20 语义级 --check",
+       "what": "第五波后专属覆盖 75.57%（99 条，含 ACT6/RUN3/AUTH6/COND6/STOP3）；--check 升级为 §20 逐 ID 注入/期望语义比对+§25.1 四列映射+目录完整性三重校验",
+       "run_id": "wave5-final",
+-      "commit": "f2b8fc3",
++      "commit": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+       "environment": "local",
+       "scope": "tools/ac_traceability.py --check",
+       "ruleset": "方案 SHA256 96b8646f…（仓内快照）",
+@@ -418,7 +418,7 @@
+       "title": "W10 观察窗+W9 shadow 时钟启动（2026-10-08 起算）",
+       "what": "launchd com.wenqu.observation 每日 09:05 采样（HEAD/CI/7789 健康/磁盘/launchd 状态）+shadow 影子比对（模块化 server vs legacy 7789）；样本落 ~/.wenqu/observation/（仓外防脏树），14 天倒计时中",
+       "run_id": "com.wenqu.observation",
+-      "commit": "f2b8fc3",
++      "commit": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+       "environment": "local (macOS launchd)",
+       "scope": "tools/observation_daily.py",
+       "ruleset": "com.wenqu.observation.plist",
+===== DIFF system/wenqu_core/approval_issue.py =====
+diff --git a/system/wenqu_core/approval_issue.py b/system/wenqu_core/approval_issue.py
+new file mode 100644
+index 0000000..ef71239
+--- /dev/null
++++ b/system/wenqu_core/approval_issue.py
+@@ -0,0 +1,768 @@
++# -*- coding: utf-8 -*-
++"""approval_issue.py——审批签发端（P0-2 残余，Codex 六轮收口）。
++
++架构裁定（超哥授权默认案，2026-10-08）：**本地 keyring + CLI 签发**；
++飞书审批流只留抽象接口（``FeishuApprovalSource``——submit/callback 两方法，
++NotImplemented 占位），后续接线时替换实现、签发语义不变。
++
++与消费端（``wenqu_pipeline.ApprovalBroker``）的权限分离：
++- 消费端只验不签（cli.py 既有注释：CLI 只消费不签发）；
++- 本模块只签不消费——产出严格符合 approval-v2 契约的信封（HMAC-SHA256
++  签名 + crypto 随机 nonce + payload 按类型判别封闭），签发前经
++  ``ApprovalBroker.validate_structure`` 预检（纯静态方法，不触库），
++  保证签出来的审批消费端一定收。
++
++签发安全语义：
++1. 高危类型（prod_write/ddl/release/fund_auth）强制双人规则：
++   ``--confirm-two-persons`` + 第二签发人 key 联签（co-signature）——
++   第二 key 对同一信封体再算一个独立 HMAC，**两个签名都验**才落审计。
++   联签记录落在签发审计账本（不在信封内——approval-v2 顶层键集封闭，
++   消费端 ApprovalBroker 不校验联签；此为诚实边界，见模块尾部注释）。
++2. 签发审计账本（append-only jsonl + 哈希链）：谁（actor）/何时（ts）/
++   批了什么（approval_id/type/run_id/task_id/decision/payload 摘要）/
++   TTL（issued_at/expires_at/ttl_seconds）+ key_id + nonce 摘要（**不落
++   nonce 明文**——nonce 是消费凭据，审计只留 sha256 指纹供对账）。
++3. 密钥生命周期经 ``approval_keys``（active/rotated/revoked/expiry）：
++   只有 active 且未过期的 key 可签发；rotated 可验存量；revoked 验签即拒。
++4. 对账（``reconcile_issuance``）：签发审计（批了）× EventStore
++   APPROVAL_CONSUMED 事件（用了）双向核对——批了未用（在期/已过期）、
++   用了没批（无签发记录的消费=旁路签发或账本损坏）、nonce 指纹不匹配、
++   审计链断裂，全部显式分类报告。
++
++纯标准库实现；不触碰 wenqu_pipeline.py（消费端零改动）。
++"""
++
++from __future__ import annotations
++
++import abc
++import hashlib
++import json
++import os
++import secrets
++import sqlite3
++import time
++import uuid
++from typing import Any, Dict, List, Mapping, Optional
++
++from .approval_keys import (  # noqa: F401 —— re-export 供 CLI/测试消费
++    KEY_STATUS_ACTIVE,
++    KEY_STATUS_REVOKED,
++    KEY_STATUS_ROTATED,
++    KEYRING_EVENTS_FILENAME,
++    ApprovalKeyring,
++    KeyExpiredError,
++    KeyNotFoundError,
++    KeyRevokedError,
++    KeyRotatedError,
++    KeyStateError,
++    append_keyring_event,
++    ensure_keyring_dir,
++    generate_secret,
++    save_key_meta,
++    sign_envelope,
++    verify_envelope,
++    write_key_to_dir,
++)
++from .wenqu_pipeline import (  # noqa: F401 —— 单一正源，杜绝规格漂移
++    _APPROVAL_DECISIONS,
++    _APPROVAL_PAYLOAD_DISCRIMINATOR,
++    _APPROVAL_SCHEMA_VERSION,
++    _APPROVAL_TYPES,
++    ApprovalBroker,
++    ApprovalRejected,
++    SevenStageStateMachine,
++    STOP_PRECONDITION_SPECS,
++    STAGES,
++)
++
++__all__ = [
++    "HIGH_RISK_APPROVAL_TYPES",
++    "DEFAULT_STOP_TYPE",
++    "PAYLOAD_FIELDS_FOR_TYPE",
++    "IssuanceError",
++    "TwoPersonRuleError",
++    "ApprovalSource",
++    "LocalApprovalSource",
++    "FeishuApprovalSource",
++    "IssuanceAudit",
++    "ApprovalIssuer",
++    "reconcile_issuance",
++    "issue_from_preconditions_payload",
++    "APPROVAL_ISSUANCE_SCHEMA_VERSION",
++]
++
++#: 签发审计账本格式版本
++APPROVAL_ISSUANCE_SCHEMA_VERSION = "1.0"
++
++#: 高危审批类型——强制双人规则（--confirm-two-persons + 第二 key 联签）
++HIGH_RISK_APPROVAL_TYPES = frozenset({
++    "prod_write", "ddl", "release", "fund_auth",
++})
++
++#: 非停等类审批的 stop_type 缺省（结构必填但语义弱；resume 必须显式给真实停等）
++DEFAULT_STOP_TYPE: Dict[str, str] = {
++    "risk": "scope",
++    "merge": "scope",
++    "release": "release",
++    "ddl": "ddl",
++    "prod_write": "prod-write",
++    "fund_auth": "fund-auth",
++    "rollback": "release",
++}
++
++#: payload 判别封闭规格（单一正源=wenqu_pipeline，此处仅别名导出）
++PAYLOAD_FIELDS_FOR_TYPE = _APPROVAL_PAYLOAD_DISCRIMINATOR
++
++#: 审计账本文件名（目录型 keyring 的缺省落点）
++ISSUANCE_AUDIT_FILENAME = "issuance-audit.jsonl"
++
++_DEFAULT_TTL_SECONDS = 3600
++_MAX_TTL_SECONDS = 30 * 24 * 3600  # 30 天封顶（防手滑签出十年期审批）
++_AUDIT_FILE_MODE = 0o600
++_GENESIS = "0" * 64
++
++
++# ====================================================================== #
++# 异常
++# ====================================================================== #
++
++class IssuanceError(RuntimeError):
++    """签发失败（契约/参数/密钥资格任一不满足）——fail-closed，不落审计。"""
++
++
++class TwoPersonRuleError(IssuanceError):
++    """高危类型双人规则不满足（缺确认旗标/第二 key/第二签发人）。"""
++
++
++def _utc_now_iso(epoch: Optional[float] = None) -> str:
++    return time.strftime("%Y-%m-%dT%H:%M:%SZ",
++                         time.gmtime(epoch if epoch is not None
++                                     else time.time()))
++
++
++def _parse_iso_epoch(value: Any) -> float:
++    import datetime
++    if not isinstance(value, str) or not value.strip():
++        raise ValueError(f"invalid date-time: {value!r}")
++    return datetime.datetime.fromisoformat(
++        value.strip().replace("Z", "+00:00")).timestamp()
++
++
++def _canonical_json(obj: Any) -> str:
++    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
++                      ensure_ascii=False)
++
++
++# ====================================================================== #
++# 审批来源抽象（飞书审批流留接口——超哥授权默认案：本地签发为主）
++# ====================================================================== #
++
++class ApprovalSource(abc.ABC):
++    """审批送达来源抽象：签发端在落审计前经 ``submit`` 送达。"""
++
++    name = "abstract"
++
++    @abc.abstractmethod
++    def submit(self, approval: Mapping[str, Any],
++               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
++        """把已签发的审批（+联签记录）送达到审批系统，返回送达回执。"""
++
++    @abc.abstractmethod
++    def callback(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
++        """接收审批系统的回调（审批状态变更），返回处置结果。"""
++
++
++class LocalApprovalSource(ApprovalSource):
++    """本地签发（默认案）：审批 JSON 直接落 --out 文件，无外部系统。"""
++
++    name = "local"
++
++    def submit(self, approval: Mapping[str, Any],
++               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
++        return {
++            "delivered": True,
++            "mode": "local",
++            "approval_id": approval.get("approval_id"),
++            "co_signed": co_signature is not None,
++        }
++
++    def callback(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
++        # 本地来源没有回调通道——送达即生效，回调语义只属于外部审批流。
++        raise NotImplementedError(
++            "LocalApprovalSource 无回调通道（送达即生效）；"
++            "回调语义属于外部审批流（feishu）")
++
++
++class FeishuApprovalSource(ApprovalSource):
++    """飞书审批流（占位接口——后续接线时替换实现，签发语义不变）。
++
++    submit/callback 均为 NotImplemented 占位：当前架构裁定为本地 keyring +
++    CLI 签发，飞书只留接口。接线前置条件：飞书开放平台应用凭据、审批
++    definition code、回调事件验签密钥（均不得入库）。
++    """
++
++    name = "feishu"
++
++    def submit(self, approval: Mapping[str, Any],
++               co_signature: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
++        raise NotImplementedError(
++            "飞书审批流未接线（架构裁定：本地 keyring + CLI 签发为默认案，"
++            "飞书留接口）——FeishuApprovalSource.submit 为占位实现")
++
++    def callback(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
++        raise NotImplementedError(
++            "飞书审批流未接线——FeishuApprovalSource.callback 为占位实现")
++
++
++#: 来源注册表（CLI --source 名 → 实例）
++APPROVAL_SOURCES: Dict[str, type] = {
++    "local": LocalApprovalSource,
++    "feishu": FeishuApprovalSource,
++}
++
++
++# ====================================================================== #
++# 签发审计账本（append-only jsonl + 哈希链）
++# ====================================================================== #
++
++class IssuanceAudit:
++    """append-only 签发审计账本（jsonl，0600，逐条哈希链防篡改）。
++
++    链规则：每条记录 ``chain_prev`` = 前一条整行 canonical JSON 的
++    sha256（首条为全零 GENESIS）；本条摘要 = sha256(本行 canonical JSON)。
++    ``verify_chain`` 重放全链——任何篡改/插入/删除都断链。
++    """
++
++    def __init__(self, path: str) -> None:
++        if not path or not path.strip():
++            raise ValueError("audit path must be non-empty")
++        self.path = path
++
++    # ------------------------------------------------------------------ #
++    def append(self, record: Mapping[str, Any]) -> Dict[str, Any]:
++        """追加一条审计记录（补 ts/schema_version/chain_prev），返回落账记录。"""
++        body = dict(record)
++        body.setdefault("ts", _utc_now_iso())
++        body.setdefault("schema_version", APPROVAL_ISSUANCE_SCHEMA_VERSION)
++        prev = self.tail_digest()
++        body["chain_prev"] = prev
++        line = _canonical_json(body)
++        digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
++        fd = os.open(self.path,
++                     os.O_WRONLY | os.O_CREAT | os.O_APPEND,
++                     _AUDIT_FILE_MODE)
++        try:
++            os.write(fd, (line + "\n").encode("utf-8"))
++        finally:
++            os.close(fd)
++        os.chmod(self.path, _AUDIT_FILE_MODE)
++        out = dict(body)
++        out["chain_digest"] = digest
++        return out
++
++    def tail_digest(self) -> str:
++        """当前链尾摘要（空账本=GENESIS）。"""
++        tail = self.tail_line()
++        if tail is None:
++            return _GENESIS
++        return hashlib.sha256(tail.encode("utf-8")).hexdigest()
++
++    def tail_line(self) -> Optional[str]:
++        if not os.path.exists(self.path):
++            return None
++        tail = None
++        with open(self.path, "r", encoding="utf-8") as fh:
++            for line in fh:
++                if line.strip():
++                    tail = line.rstrip("\n")
++        return tail
++
++    # ------------------------------------------------------------------ #
++    @staticmethod
++    def read_records(path: str) -> List[Dict[str, Any]]:
++        """读取全部审计记录（坏行抛 ValueError——审计账本不允许静默跳行）。"""
++        records: List[Dict[str, Any]] = []
++        if not os.path.exists(path):
++            return records
++        with open(path, "r", encoding="utf-8") as fh:
++            for lineno, line in enumerate(fh, 1):
++                if not line.strip():
++                    continue
++                try:
++                    rec = json.loads(line)
++                except json.JSONDecodeError as exc:
++                    raise ValueError(
++                        f"audit line {lineno} is not JSON: {exc}") from None
++                if not isinstance(rec, dict):
++                    raise ValueError(f"audit line {lineno} is not an object")
++                records.append(rec)
++        return records
++
++    @classmethod
++    def verify_chain(cls, path: str) -> Dict[str, Any]:
++        """重放校验审计哈希链；返回 {ok, length, break_at, tail}。"""
++        records = cls.read_records(path)
++        expected_prev = _GENESIS
++        for idx, rec in enumerate(records, 1):
++            stored_prev = rec.get("chain_prev")
++            if stored_prev != expected_prev:
++                return {"ok": False, "length": len(records),
++                        "break_at": idx, "tail": None,
++                        "reason": f"record {idx}: chain_prev mismatch"}
++            digest = hashlib.sha256(
++                _canonical_json(rec).encode("utf-8")).hexdigest()
++            expected_prev = digest
++        return {"ok": True, "length": len(records), "break_at": None,
++                "tail": expected_prev if records else _GENESIS}
++
++
++# ====================================================================== #
++# payload 构造助手
++# ====================================================================== #
++
++def issue_from_preconditions_payload(
++        stop_event_id: str, stop_type: str,
++        preconditions: Mapping[str, Any]) -> Dict[str, Any]:
++    """由客观前置条件构造 resume 类 payload（含其哈希——消费端精确绑定）。
++
++    前置条件的规格校验（必要且充分）由消费端 validate_preconditions 终审；
++    此处只做哈希（canonical）——签发人拿到什么就绑定什么，不夹带裁量。
++    """
++    ph = SevenStageStateMachine.objective_precondition_hash(
++        dict(preconditions))
++    return {
++        "stop_event_id": stop_event_id,
++        "stop_type": stop_type,
++        "objective_precondition_hash": ph,
++    }
++
++
++# ====================================================================== #
++# 签发器
++# ====================================================================== #
++
++class ApprovalIssuer:
++    """approval-v2 审批签发器（本地 keyring + HMAC + 审计账本）。
++
++    用法（CLI 见 wenquctl approve）::
++
++        issuer = ApprovalIssuer(keyring, audit_path)
++        result = issuer.issue(actor="chaoge", approval_type="resume",
++                              run_id=..., ..., payload={...})
++        # result = {"approval": <envelope>, "co_signature": {...}|None,
++        #           "audit_record": {...}}
++
++    校验链（任一失败即 IssuanceError/TwoPersonRuleError，不落审计）：
++        1. approval_type/decision/stop_type/stage 合法（消费端同款枚举）；
++        2. payload 判别封闭（键集=该类型专属字段全集，非空；
++           risk.finding_fingerprints 允许空列表）；
++        3. TTL 边界（1s ~ 30 天）；
++        4. 签发 key 资格：显式 key_id 或唯一 active key（歧义=拒）；
++        5. 高危类型双人规则：--confirm-two-persons + 第二 key（≠主 key，
++           且可签发）+ 第二签发人标识；非高危带双人参数=拒（防错觉）；
++        6. 信封构造 → 主签名 → （高危）联签 → **双签名自验**；
++        7. ApprovalBroker.validate_structure 预检（结构层全量）；
++        8. source.submit 送达 → 审计落账（APPROVAL_ISSUED）。
++    """
++
++    def __init__(self, keyring: ApprovalKeyring, audit_path: str, *,
++                 source: Optional[ApprovalSource] = None) -> None:
++        if not isinstance(keyring, ApprovalKeyring):
++            raise TypeError("keyring must be an ApprovalKeyring")
++        self._keyring = keyring
++        self._audit = IssuanceAudit(audit_path)
++        self._source = source if source is not None else LocalApprovalSource()
++
++    # ------------------------------------------------------------------ #
++    @property
++    def audit_path(self) -> str:
++        return self._audit.path
++
++    def _validate_payload(self, approval_type: str,
++                          payload: Mapping[str, Any]) -> Dict[str, Any]:
++        if not isinstance(payload, Mapping):
++            raise IssuanceError("payload must be a JSON object")
++        allowed = frozenset(PAYLOAD_FIELDS_FOR_TYPE[approval_type])
++        required = tuple(PAYLOAD_FIELDS_FOR_TYPE[approval_type])
++        stray = sorted(set(payload) - allowed)
++        if stray:
++            raise IssuanceError(
++                f"payload not closed for approval_type={approval_type!r}: "
++                f"foreign/unknown fields {stray}（判别联合互斥封闭）")
++        missing = [k for k in required if k not in payload]
++        if missing:
++            raise IssuanceError(
++                f"payload discriminator mismatch for "
++                f"approval_type={approval_type!r}: missing {missing}")
++        # 非空校验与消费端一致：risk.finding_fingerprints 允许空列表
++        for key in required:
++            if key == "finding_fingerprints":
++                continue
++            value = payload[key]
++            empty = (value is None or value is False or value == ""
++                     or (isinstance(value, (list, tuple, dict, set))
++                         and len(value) == 0))
++            if empty:
++                raise IssuanceError(
++                    f"payload field {key!r} must be non-empty")
++        return dict(payload)
++
++    def _pick_signing_key(self, key_id: Optional[str]) -> str:
++        if key_id is not None:
++            try:
++                self._keyring.get_for_signing(key_id)
++            except (KeyNotFoundError, KeyStateError) as exc:
++                raise IssuanceError(
++                    f"签发 key 资格不满足: {exc}") from None
++            return key_id
++        active = self._keyring.active_key_ids()
++        if not active:
++            raise IssuanceError(
++                "keyring 无可签发 key（active 且未过期为空）——"
++                "先 wenquctl keys create")
++        if len(active) > 1:
++            raise IssuanceError(
++                f"keyring 有多个 active key {active}——必须显式 --key-id")
++        return active[0]
++
++    def _check_two_person(self, approval_type: str, *,
++                          confirm_two_persons: bool,
++                          second_key_id: Optional[str],
++                          second_actor: Optional[str]) -> None:
++        high_risk = approval_type in HIGH_RISK_APPROVAL_TYPES
++        given = (confirm_two_persons or second_key_id is not None
++                 or second_actor is not None)
++        if not high_risk and given:
++            raise TwoPersonRuleError(
++                f"approval_type={approval_type!r} 非高危类型"
++                f"（高危={sorted(HIGH_RISK_APPROVAL_TYPES)}），"
++                "不接受双人联签参数（防「已联签」错觉）")
++        if high_risk and not confirm_two_persons:
++            raise TwoPersonRuleError(
++                f"高危类型 {approval_type!r} 必须 --confirm-two-persons"
++                "（双人确认+第二签发人 key 联签）")
++        if high_risk:
++            if not (isinstance(second_key_id, str) and second_key_id.strip()):
++                raise TwoPersonRuleError(
++                    "高危类型必须 --second-key-id（第二签发人 key 联签）")
++            if not (isinstance(second_actor, str) and second_actor.strip()):
++                raise TwoPersonRuleError(
++                    "高危类型必须 --second-actor（第二签发人标识）")
++
++    # ------------------------------------------------------------------ #
++    def issue(self,  # noqa: C901 —— 校验链显式展开（可读性优先）
++              *,
++              actor: str,
++              approval_type: str,
++              run_id: str,
++              task_id: str,
++              stage: str,
++              environment: str,
++              authorized_scope: str,
++              policy_hash: str,
++              ruleset_hash: str,
++              input_watermark: str,
++              expected_state_version: int,
++              payload: Mapping[str, Any],
++              stop_type: Optional[str] = None,
++              stop_event_id: Optional[str] = None,
++              decision: str = "approve",
++              key_id: Optional[str] = None,
++              ttl_seconds: int = _DEFAULT_TTL_SECONDS,
++              issued_at: Optional[str] = None,
++              now_epoch: Optional[float] = None,
++              confirm_two_persons: bool = False,
++              second_key_id: Optional[str] = None,
++              second_actor: Optional[str] = None,
++              source: Optional[ApprovalSource] = None,
++              ) -> Dict[str, Any]:
++        """签发一份 approval-v2 审批（见类 docstring 校验链）。"""
++        # 1. 枚举与形状（与消费端同款封闭集合）
++        if not (isinstance(actor, str) and actor.strip()):
++            raise IssuanceError("actor must be a non-empty string")
++        if approval_type not in _APPROVAL_TYPES:
++            raise IssuanceError(
++                f"invalid approval_type {approval_type!r}; "
++                f"valid: {sorted(_APPROVAL_TYPES)}")
++        if decision not in _APPROVAL_DECISIONS:
++            raise IssuanceError(
++                f"invalid decision {decision!r}; "
++                f"valid: {sorted(_APPROVAL_DECISIONS)}")
++        if stop_type is None:
++            if approval_type == "resume":
++                raise IssuanceError(
++                    "resume 审批必须显式 stop_type（锚定真实停等类型）")
++            stop_type = DEFAULT_STOP_TYPE[approval_type]
++        if stop_type not in STOP_PRECONDITION_SPECS:
++            raise IssuanceError(
++                f"invalid stop_type {stop_type!r}; "
++                f"valid: {sorted(STOP_PRECONDITION_SPECS)}")
++        if stage not in STAGES:
++            raise IssuanceError(f"invalid stage {stage!r}; valid: {list(STAGES)}")
++        if stop_event_id is None:
++            if approval_type == "resume":
++                raise IssuanceError(
++                    "resume 审批必须显式 stop_event_id（锚定停等事件）")
++            stop_event_id = f"n/a-{approval_type}"
++        if not (isinstance(expected_state_version, int)
++                and not isinstance(expected_state_version, bool)
++                and expected_state_version >= 1):
++            raise IssuanceError("expected_state_version must be integer >= 1")
++
++        # 2. payload 判别封闭
++        payload = self._validate_payload(approval_type, payload)
++
++        # 3. TTL 边界
++        if not (isinstance(ttl_seconds, int)
++                and not isinstance(ttl_seconds, bool)
++                and 1 <= ttl_seconds <= _MAX_TTL_SECONDS):
++            raise IssuanceError(
++                f"ttl_seconds must be integer in [1, {_MAX_TTL_SECONDS}]")
++
++        # 4. 签发 key 资格
++        chosen_key_id = self._pick_signing_key(key_id)
++        secret = self._keyring.get_for_signing(chosen_key_id)
++
++        # 5. 高危双人规则
++        self._check_two_person(
++            approval_type, confirm_two_persons=confirm_two_persons,
++            second_key_id=second_key_id, second_actor=second_actor)
++        co_secret: Optional[str] = None
++        if confirm_two_persons and approval_type in HIGH_RISK_APPROVAL_TYPES:
++            assert second_key_id is not None  # _check_two_person 已保证
++            if second_key_id == chosen_key_id:
++                raise TwoPersonRuleError(
++                    "第二签发人 key 不得与主签发 key 相同（真双人，"
++                    "同一把 key 签两遍不是联签）")
++            try:
++                co_secret = self._keyring.get_for_signing(second_key_id)
++            except (KeyNotFoundError, KeyStateError) as exc:
++                # 与主 key 同一契约：联签 key 资格失败也收敛为 IssuanceError
++                # （fail-closed，不落审计）——不向调用方泄漏底层 KeyError 族。
++                raise IssuanceError(
++                    f"第二签发人 key 资格不满足: {exc}") from None
++
++        # 6. 信封构造 + 主签名 +（高危）联签
++        issued_at = issued_at or _utc_now_iso(now_epoch)
++        expires_at = _utc_now_iso(
++            _parse_iso_epoch(issued_at) + ttl_seconds)
++        envelope: Dict[str, Any] = {
++            "schema_version": _APPROVAL_SCHEMA_VERSION,
++            "approval_id": f"apr_{uuid.uuid4().hex}",
++            "approval_type": approval_type,
++            "key_id": chosen_key_id,
++            "run_id": run_id,
++            "task_id": task_id,
++            "stop_event_id": stop_event_id,
++            "stop_type": stop_type,
++            "stage": stage,
++            "environment": environment,
++            "authorized_scope": authorized_scope,
++            "policy_hash": policy_hash,
++            "ruleset_hash": ruleset_hash,
++            "input_watermark": input_watermark,
++            "expected_state_version": expected_state_version,
++            "actor": actor,
++            "issued_at": issued_at,
++            "expires_at": expires_at,
++            "nonce": secrets.token_hex(16),
++            "decision": decision,
++            "signature": "",
++            "payload": payload,
++        }
++        envelope.pop("signature", None)
++        envelope["signature"] = sign_envelope(secret, envelope)
++
++        co_signature: Optional[Dict[str, Any]] = None
++        if co_secret is not None:
++            co_hex = sign_envelope(co_secret, envelope)
++            co_signature = {
++                "schema_version": APPROVAL_ISSUANCE_SCHEMA_VERSION,
++                "approval_id": envelope["approval_id"],
++                "primary_key_id": chosen_key_id,
++                "primary_signature": envelope["signature"],
++                "second_key_id": second_key_id,
++                "second_actor": second_actor,
++                "co_signature": co_hex,
++                "ts": _utc_now_iso(now_epoch),
++            }
++
++        # 7. 双签名自验（先于任何落账——签出来就必须两个签名都真）
++        if not verify_envelope(secret, envelope, envelope["signature"]):
++            raise IssuanceError(
++                "主签名自验失败（不应发生——HMAC 实现或 key 状态异常）")
++        if co_signature is not None and not verify_envelope(
++                co_secret, envelope, co_signature["co_signature"]):
++            raise IssuanceError(
++                "联签自验失败（不应发生——第二 key HMAC 实现异常）")
++        try:
++            ApprovalBroker.validate_structure(envelope)
++        except ApprovalRejected as exc:
++            raise IssuanceError(
++                f"签发预检失败（ApprovalBroker.validate_structure 拒绝——"
++                f"该审批消费端不会收）: {exc}") from None
++
++        # 8. 送达（feishu 未接线 → NotImplementedError 向上抛，不落审计）
++        used_source = source if source is not None else self._source
++        delivery = used_source.submit(envelope, co_signature)
++
++        audit_record = self._audit.append({
++            "record_type": "APPROVAL_ISSUED",
++            "actor": actor,
++            "approval_id": envelope["approval_id"],
++            "approval_type": approval_type,
++            "run_id": run_id,
++            "task_id": task_id,
++            "stop_type": stop_type,
++            "stop_event_id": stop_event_id,
++            "decision": decision,
++            "key_id": chosen_key_id,
++            "nonce_digest": hashlib.sha256(
++                envelope["nonce"].encode("utf-8")).hexdigest(),
++            "issued_at": issued_at,
++            "expires_at": expires_at,
++            "ttl_seconds": ttl_seconds,
++            "high_risk": approval_type in HIGH_RISK_APPROVAL_TYPES,
++            "two_person": co_signature is not None,
++            "second_key_id": second_key_id,
++            "second_actor": second_actor,
++            "co_signature": (co_signature or {}).get("co_signature"),
++            "payload_fields": sorted(payload),
++            "source": used_source.name,
++            "delivery": delivery,
++        })
++        return {"approval": envelope,
++                "co_signature": co_signature,
++                "audit_record": audit_record}
++
++
++# ====================================================================== #
++# 对账：签发审计（批了）× EventStore APPROVAL_CONSUMED（用了）
++# ====================================================================== #
++
++def _load_consumed_from_eventstore(
++        db_path: str) -> List[Dict[str, Any]]:
++    """只读扫描 pipeline_events，抽取 APPROVAL_CONSUMED 事件面。"""
++    if not os.path.exists(db_path):
++        raise FileNotFoundError(f"event store not found: {db_path!r}")
++    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
++    try:
++        rows = conn.execute(
++            "SELECT seq, payload FROM pipeline_events ORDER BY seq ASC"
++        ).fetchall()
++    finally:
++        conn.close()
++    consumed: List[Dict[str, Any]] = []
++    for seq, payload_text in rows:
++        try:
++            payload = json.loads(payload_text)
++        except json.JSONDecodeError:
++            continue  # 非事件行（不应出现）；对账只认可解析事件
++        if isinstance(payload, dict) and payload.get(
++                "event_type") == "APPROVAL_CONSUMED":
++            consumed.append({
++                "seq": seq,
++                "approval_id": payload.get("approval_id"),
++                "approval_type": payload.get("approval_type"),
++                "nonce_digest": payload.get("nonce_digest"),
++                "run_id": payload.get("run_id"),
++                "ts": payload.get("ts"),
++            })
++    return consumed
++
++
++def reconcile_issuance(audit_path: str, db_path: str, *,
++                       now_epoch: Optional[float] = None
++                       ) -> Dict[str, Any]:
++    """双向对账：批了（签发审计）vs 用了（APPROVAL_CONSUMED）vs 未用过期。
++
++    分类：
++    - ``used_ok``                     签发记录 × 消费事件 双匹配
++                                       （approval_id + nonce 摘要均一致）；
++    - ``consumed_without_issuance``   消费事件无对应签发记录（旁路签发/
++                                       审计账本损坏——审计链同查）；
++    - ``digest_mismatch``             approval_id 匹配但 nonce 摘要不一致
++                                       （重造信封/账本被改）；
++    - ``issued_unused_active``        批了未用，TTL 内（在期未消费）；
++    - ``issued_unused_expired``       批了未用，已过期（未用过期）；
++    - ``duplicate_approval_ids``      同一 approval_id 签发多次（签发端异常）；
++    - ``chain_ok``                    审计哈希链完整性。
++
++    ``ok`` = 账本一致性（chain_ok 且无 consumed_without_issuance、无
++    digest_mismatch、无 duplicate_approval_ids）——未用过期是业务状态，
++    不是账本错误，只报告不判红。
++    """
++    now = now_epoch if now_epoch is not None else time.time()
++    chain = IssuanceAudit.verify_chain(audit_path)
++    records = IssuanceAudit.read_records(audit_path)
++
++    issued: Dict[str, Dict[str, Any]] = {}
++    duplicates: List[str] = []
++    for rec in records:
++        if rec.get("record_type") != "APPROVAL_ISSUED":
++            continue
++        approval_id = rec.get("approval_id")
++        if approval_id in issued:
++            duplicates.append(approval_id)
++            continue
++        issued[approval_id] = rec
++
++    consumed = _load_consumed_from_eventstore(db_path)
++    used_ok: List[str] = []
++    consumed_without_issuance: List[Dict[str, Any]] = []
++    digest_mismatch: List[Dict[str, Any]] = []
++    consumed_ids = set()
++    for c in consumed:
++        approval_id = c.get("approval_id")
++        consumed_ids.add(approval_id)
++        rec = issued.get(approval_id)
++        if rec is None:
++            consumed_without_issuance.append(c)
++        elif rec.get("nonce_digest") != c.get("nonce_digest"):
++            digest_mismatch.append(
++                {"approval_id": approval_id,
++                 "issued_nonce_digest": rec.get("nonce_digest"),
++                 "consumed_nonce_digest": c.get("nonce_digest")})
++        else:
++            used_ok.append(approval_id)
++
++    unused_active: List[Dict[str, Any]] = []
++    unused_expired: List[Dict[str, Any]] = []
++    bad_expiry: List[str] = []
++    for approval_id, rec in issued.items():
++        if approval_id in consumed_ids:
++            continue
++        try:
++            expires = _parse_iso_epoch(rec.get("expires_at"))
++        except ValueError:
++            bad_expiry.append(approval_id)
++            continue
++        entry = {"approval_id": approval_id,
++                 "approval_type": rec.get("approval_type"),
++                 "run_id": rec.get("run_id"),
++                 "expires_at": rec.get("expires_at")}
++        if expires > now:
++            unused_active.append(entry)
++        else:
++            unused_expired.append(entry)
++
++    ok = (chain["ok"] and not consumed_without_issuance
++          and not digest_mismatch and not duplicates and not bad_expiry)
++    return {
++        "generated_at": _utc_now_iso(now),
++        "audit_path": audit_path,
++        "event_store": db_path,
++        "ok": ok,
++        "chain_ok": chain["ok"],
++        "chain_break_at": chain.get("break_at"),
++        "audit_records": len(records),
++        "issued_total": len(issued),
++        "consumed_total": len(consumed),
++        "used_ok": used_ok,
++        "consumed_without_issuance": consumed_without_issuance,
++        "digest_mismatch": digest_mismatch,
++        "issued_unused_active": unused_active,
++        "issued_unused_expired": unused_expired,
++        "duplicate_approval_ids": sorted(set(duplicates)),
++        "issued_bad_expiry": bad_expiry,
++    }
+===== DIFF system/wenqu_core/approval_keys.py =====
+diff --git a/system/wenqu_core/approval_keys.py b/system/wenqu_core/approval_keys.py
+index ed0ff6f..b14f926 100644
+--- a/system/wenqu_core/approval_keys.py
++++ b/system/wenqu_core/approval_keys.py
+@@ -16,8 +16,20 @@ Codex 第三轮对抗实锤 #1：approval.signature 只验长度（>= 32 字符
+ - secret 以明文落在 keyring 路径——与仓库/事件库/审批文件的物理隔离、
+   文件权限（0600）是部署责任；
+ - 对称 shared-secret 模型防伪造/防篡改，不提供非否认（non-repudiation）；
+-- key 撤销 = 从 keyring 移除该 key_id（未知 key 即拒，天然 fail-closed）；
+ - 纯标准库实现（hmac/hashlib/secrets/json），无第三方依赖。
++
++P0-2 残余（审批签发端，2026-10-08）：key 生命周期元数据扩展——
++- 每 key 元数据：status（active/rotated/revoked）+ rotated_at/rotated_to +
++  revoked_at + expiry（ISO8601，可选）+ created_at；
++- 轮换：旧 key 标 rotated——**仍可验存量签名**（TTL 内已签发的审批不作废），
++  但不可再签发新审批；
++- 吊销：revoked——**验签即拒**（fail-closed），并把拒绝事件记入 keyring
++  事件账本（目录型 keyring：``<dir>/keyring-events.jsonl``，append-only）；
++- 过期：expiry 只阻断**新签发**；存量验证仍以信封自身 TTL 为准（撤销才是
++  显式的「验签即拒」控制）；
++- 目录型 keyring 的受管写入（``wenquctl keys create/rotate/revoke``）：
++  目录 0700（目录需要 x 位才能访问内容——「owner-only 0600 语义」对目录
++  的可执行落地），secret/meta 文件 0600，与 wenquctl/文档一致。
+ """
+ 
+ from __future__ import annotations
+@@ -26,15 +38,30 @@ import hashlib
+ import hmac
+ import json
+ import os
++import re
+ import secrets
++import time
+ from typing import Any, Dict, List, Mapping, Optional
+ 
+ __all__ = [
+     "ApprovalKeyring",
+     "KeyNotFoundError",
++    "KeyStateError",
++    "KeyRevokedError",
++    "KeyRotatedError",
++    "KeyExpiredError",
++    "KEY_STATUS_ACTIVE",
++    "KEY_STATUS_ROTATED",
++    "KEY_STATUS_REVOKED",
++    "KEY_STATUSES",
++    "KEYRING_EVENTS_FILENAME",
+     "generate_secret",
+     "sign_envelope",
+     "verify_envelope",
++    "ensure_keyring_dir",
++    "write_key_to_dir",
++    "save_key_meta",
++    "append_keyring_event",
+ ]
+ 
+ #: key_id 命名约束（与 approval-v2.schema.json 的 pattern 一致）
+@@ -47,6 +74,60 @@ class KeyNotFoundError(KeyError):
+     """key_id 未在 keyring 登记。"""
+ 
+ 
++# ---------------------------------------------------------------------- #
++# P0-2 残余：key 生命周期元数据（status/rotated_at/expiry）
++# ---------------------------------------------------------------------- #
++
++KEY_STATUS_ACTIVE = "active"
++KEY_STATUS_ROTATED = "rotated"
++KEY_STATUS_REVOKED = "revoked"
++KEY_STATUSES = frozenset({KEY_STATUS_ACTIVE, KEY_STATUS_ROTATED,
++                          KEY_STATUS_REVOKED})
++
++#: 目录型 keyring 的生命周期事件账本文件名（append-only，0600）
++KEYRING_EVENTS_FILENAME = "keyring-events.jsonl"
++
++#: secret/meta 文件与目录的权限（owner-only；目录需 x 位故为 0700）
++_SECRET_FILE_MODE = 0o600
++_KEYRING_DIR_MODE = 0o700
++
++
++class KeyStateError(KeyError):
++    """key 生命周期状态不允许该操作（fail-closed）。"""
++
++
++class KeyRevokedError(KeyStateError):
++    """key 已吊销——验签即拒，不得用于签发。"""
++
++
++class KeyRotatedError(KeyStateError):
++    """key 已轮换——可验存量，不得签发新审批。"""
++
++
++class KeyExpiredError(KeyStateError):
++    """key 已过期（expiry）——不得签发新审批。"""
++
++
++def _utc_now_iso() -> str:
++    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
++
++
++def _parse_iso_or_none(value: Any, field: str) -> Optional[float]:
++    """元数据 ISO 时间戳 → epoch；空值返回 None，坏值抛 ValueError。"""
++    if value is None or (isinstance(value, str) and not value.strip()):
++        return None
++    import datetime
++    if not isinstance(value, str):
++        raise ValueError(f"key meta {field} must be an ISO8601 string")
++    try:
++        return datetime.datetime.fromisoformat(
++            value.replace("Z", "+00:00")).timestamp()
++    except ValueError as exc:
++        raise ValueError(
++            f"key meta {field} is not a valid ISO8601 timestamp: "
++            f"{value!r}") from exc
++
++
+ def generate_secret(nbytes: int = 32) -> str:
+     """生成新密钥（crypto 随机，hex 编码）。"""
+     if nbytes < 16:
+@@ -83,12 +164,32 @@ def verify_envelope(secret: str, envelope: Mapping[str, Any],
+ 
+ 
+ class ApprovalKeyring:
+-    """key_id → secret 登记（只读视图；生成/写入经 ``save`` 显式落盘）。"""
++    """key_id → secret 登记（只读视图；生成/写入经 ``save`` 显式落盘）。
++
++    P0-2 残余扩展：可选 metadata（status/rotated_at/expiry）——
++
++    - ``get_for_signing``：仅 active 且未过期的 key 可签发（rotated/revoked/
++      expired/未知 一律抛对应 KeyStateError）；
++    - ``verify``：revoked 的 key **验签即拒**（返回 False 并尽力把拒绝事件
++      记入 keyring 事件账本）；rotated/expired 仍可验存量（信封 TTL 兜底）；
++    - 无 metadata 的旧 keyring（如 tests/fixtures/approval-keys.json）
++      全部 key 默认 active——向后兼容，P0-2/P0-4 既有行为不变。
++    """
+ 
+-    def __init__(self, keys: Optional[Mapping[str, str]] = None) -> None:
++    def __init__(self, keys: Optional[Mapping[str, str]] = None,
++                 metadata: Optional[Mapping[str, Mapping[str, Any]]] = None,
++                 event_log_path: Optional[str] = None) -> None:
+         self._keys: Dict[str, str] = {}
++        self._meta: Dict[str, Dict[str, Any]] = {}
++        # 目录型 keyring 的生命周期/吊销拒绝事件账本（append-only jsonl）
++        self._event_log_path = event_log_path
+         for key_id, secret in dict(keys or {}).items():
+             self._register(key_id, secret)
++        for key_id, meta in dict(metadata or {}).items():
++            if key_id not in self._keys:
++                raise ValueError(
++                    f"keyring metadata references unknown key_id {key_id!r}")
++            self._meta[key_id] = self._normalize_meta(key_id, meta)
+ 
+     # ------------------------------------------------------------------ #
+     @staticmethod
+@@ -107,28 +208,78 @@ class ApprovalKeyring:
+                 f"secret for {key_id!r} must be a string of >= 16 chars")
+         self._keys[key_id] = secret
+ 
++    # ------------------------------------------------------------------ #
++    @staticmethod
++    def _normalize_meta(key_id: str,
++                        meta: Mapping[str, Any]) -> Dict[str, Any]:
++        """校验并规范化单 key 元数据（未知字段拒绝，防拼写漂移）。"""
++        if not isinstance(meta, Mapping):
++            raise ValueError(f"key meta for {key_id!r} must be an object")
++        allowed = {"status", "created_at", "rotated_at", "rotated_to",
++                   "revoked_at", "expiry", "description"}
++        stray = sorted(set(meta) - allowed)
++        if stray:
++            raise ValueError(
++                f"key meta for {key_id!r} has unknown fields {stray} "
++                f"(allowed: {sorted(allowed)})")
++        normalized: Dict[str, Any] = {
++            "status": meta.get("status", KEY_STATUS_ACTIVE)}
++        if normalized["status"] not in KEY_STATUSES:
++            raise ValueError(
++                f"key meta status for {key_id!r} must be one of "
++                f"{sorted(KEY_STATUSES)}, got {normalized['status']!r}")
++        for ts_field in ("created_at", "rotated_at", "revoked_at", "expiry"):
++            if ts_field in meta:
++                _parse_iso_or_none(meta[ts_field], ts_field)  # 形状校验
++                normalized[ts_field] = meta[ts_field]
++        if "rotated_to" in meta:
++            rotated_to = meta["rotated_to"]
++            if rotated_to is not None:
++                ApprovalKeyring._validate_key_id(rotated_to)
++            normalized["rotated_to"] = rotated_to
++        if "description" in meta:
++            normalized["description"] = meta["description"]
++        if normalized["status"] == KEY_STATUS_ROTATED and \
++                not normalized.get("rotated_at"):
++            raise ValueError(
++                f"key meta for {key_id!r}: rotated key must carry rotated_at")
++        if normalized["status"] == KEY_STATUS_REVOKED and \
++                not normalized.get("revoked_at"):
++            raise ValueError(
++                f"key meta for {key_id!r}: revoked key must carry revoked_at")
++        return normalized
++
+     # ------------------------------------------------------------------ #
+     @classmethod
+     def from_path(cls, path: str) -> "ApprovalKeyring":
+         """从目录或 JSON 文件加载 keyring。
+ 
+         - 目录型：``<dir>/<key_id>.secret``（文本文件，首行非空白即 secret）；
+-        - 文件型：JSON——推荐 ``{"keys": {key_id: secret}}``，
++          P0-2 残余：可选 ``<dir>/<key_id>.meta.json`` 元数据边车
++          （status/rotated_at/expiry），缺省全部 active；目录内
++          ``keyring-events.jsonl`` 为生命周期/吊销拒绝事件账本路径；
++        - 文件型：JSON——推荐 ``{"keys": {key_id: secret}, "meta": {...}}``，
+           兼容顶层扁平 ``{key_id: secret}``（键必须匹配 key_id 命名）。
+         """
+         if not path or not os.path.exists(path):
+             raise FileNotFoundError(f"keyring path not found: {path!r}")
+         keys: Dict[str, str] = {}
+         if os.path.isdir(path):
++            meta: Dict[str, Dict[str, Any]] = {}
+             for name in sorted(os.listdir(path)):
+-                if not name.endswith(".secret"):
+-                    continue
+-                key_id = name[: -len(".secret")]
+-                with open(os.path.join(path, name), "r",
+-                          encoding="utf-8") as fh:
+-                    secret = fh.read().strip()
+-                keys[key_id] = secret
+-            return cls(keys)
++                if name.endswith(".secret"):
++                    key_id = name[: -len(".secret")]
++                    with open(os.path.join(path, name), "r",
++                              encoding="utf-8") as fh:
++                        secret = fh.read().strip()
++                    keys[key_id] = secret
++                    meta_file = os.path.join(path, f"{key_id}.meta.json")
++                    if os.path.exists(meta_file):
++                        with open(meta_file, "r", encoding="utf-8") as fh:
++                            meta[key_id] = json.load(fh)
++            return cls(keys, metadata=meta,
++                       event_log_path=os.path.join(
++                           path, KEYRING_EVENTS_FILENAME))
+         with open(path, "r", encoding="utf-8") as fh:
+             data = json.load(fh)
+         if not isinstance(data, dict):
+@@ -137,7 +288,11 @@ class ApprovalKeyring:
+         if not isinstance(raw, dict):
+             raise ValueError(
+                 f"keyring file {path!r}: 'keys' must be an object")
+-        return cls(raw)
++        file_meta = data.get("meta", data.get("metadata"))
++        if file_meta is not None and not isinstance(file_meta, dict):
++            raise ValueError(
++                f"keyring file {path!r}: 'meta' must be an object")
++        return cls(raw, metadata=file_meta)
+ 
+     # ------------------------------------------------------------------ #
+     @classmethod
+@@ -148,14 +303,77 @@ class ApprovalKeyring:
+                     else generate_secret(nbytes)})
+ 
+     def save_json(self, path: str) -> None:
+-        """把 keyring 落盘为 JSON 文件（0600，供下次 from_path 加载）。"""
+-        payload = json.dumps({"keys": dict(self._keys)}, indent=2,
+-                             ensure_ascii=False)
++        """把 keyring（含元数据）落盘为 JSON 文件（0600，供下次 from_path 加载）。"""
++        payload = json.dumps({"keys": dict(self._keys),
++                              "meta": dict(self._meta)},
++                             indent=2, ensure_ascii=False)
+         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+             fh.write(payload + "\n")
+ 
+     # ------------------------------------------------------------------ #
++    # P0-2 残余：生命周期元数据视图与签发资格
++    # ------------------------------------------------------------------ #
++    def meta(self, key_id: str) -> Dict[str, Any]:
++        """单 key 元数据副本（无元数据的 key 返回 {status: active}）。"""
++        if key_id not in self._keys:
++            raise KeyNotFoundError(
++                f"key_id {key_id!r} not registered in keyring "
++                f"(known: {sorted(self._keys)})") from None
++        return dict(self._meta.get(key_id, {"status": KEY_STATUS_ACTIVE}))
++
++    def _key_expired(self, key_id: str) -> bool:
++        expiry = self._meta.get(key_id, {}).get("expiry")
++        if expiry is None:
++            return False
++        epoch = _parse_iso_or_none(expiry, "expiry")
++        return epoch is not None and epoch <= time.time()
++
++    def _key_status(self, key_id: str) -> str:
++        return self._meta.get(key_id, {}).get("status", KEY_STATUS_ACTIVE)
++
++    def can_sign(self, key_id: str) -> bool:
++        """key 是否可用于**签发新审批**（active 且未过期）。"""
++        if key_id not in self._keys:
++            return False
++        if self._key_status(key_id) != KEY_STATUS_ACTIVE:
++            return False
++        return not self._key_expired(key_id)
++
++    def active_key_ids(self) -> List[str]:
++        """全部可签发 key（active 且未过期，排序稳定）。"""
++        return sorted(k for k in self._keys if self.can_sign(k))
++
++    def get_for_signing(self, key_id: str) -> str:
++        """签发用取 key：仅 active 且未过期——其余状态显式抛错（fail-closed）。
++
++        - revoked → KeyRevokedError（验签即拒，更不得签发）；
++        - rotated → KeyRotatedError（可验存量，不得签发新审批）；
++        - expired → KeyExpiredError（expiry 只阻断新签发）；
++        - 未登记 → KeyNotFoundError。
++        """
++        if key_id not in self._keys:
++            raise KeyNotFoundError(
++                f"key_id {key_id!r} not registered in keyring "
++                f"(known: {sorted(self._keys)})") from None
++        status = self._key_status(key_id)
++        if status == KEY_STATUS_REVOKED:
++            raise KeyRevokedError(
++                f"key_id {key_id!r} 已吊销（revoked "
++                f"{self._meta[key_id].get('revoked_at', '?')}）——"
++                "不得签发新审批")
++        if status == KEY_STATUS_ROTATED:
++            raise KeyRotatedError(
++                f"key_id {key_id!r} 已轮换（rotated_at="
++                f"{self._meta[key_id].get('rotated_at', '?')}, rotated_to="
++                f"{self._meta[key_id].get('rotated_to', '?')}）——"
++                "可验存量签名，不得签发新审批")
++        if self._key_expired(key_id):
++            raise KeyExpiredError(
++                f"key_id {key_id!r} 已过期（expiry="
++                f"{self._meta[key_id].get('expiry')!r}）——不得签发新审批")
++        return self._keys[key_id]
++
+     def has(self, key_id: str) -> bool:
+         return key_id in self._keys
+ 
+@@ -175,11 +393,100 @@ class ApprovalKeyring:
+ 
+     # ------------------------------------------------------------------ #
+     def verify(self, approval: Mapping[str, Any]) -> bool:
+-        """按 envelope.key_id 查 key 并验 signature；任何缺失即 False。"""
++        """按 envelope.key_id 查 key 并验 signature；任何缺失即 False。
++
++        P0-2 残余：revoked 的 key **验签即拒**（即使签名本身正确），
++        并尽力把拒绝事件记入 keyring 事件账本（目录型 keyring；
++        记账失败不吞掉拒绝——拒绝优先）；rotated/expired 仍可验存量。
++        """
+         if not isinstance(approval, Mapping):
+             return False
+         key_id = approval.get("key_id")
+         signature = approval.get("signature")
+         if not isinstance(key_id, str) or key_id not in self._keys:
+             return False
++        if self._key_status(key_id) == KEY_STATUS_REVOKED:
++            self._record_revoked_rejection(key_id, approval)
++            return False
+         return verify_envelope(self._keys[key_id], approval, signature)
++
++    def _record_revoked_rejection(self, key_id: str,
++                                  approval: Mapping[str, Any]) -> None:
++        """把「revoked key 验签被拒」记入事件账本（best-effort，绝不放行）。"""
++        if not self._event_log_path:
++            return
++        record = {
++            "record_type": "REVOKED_KEY_VERIFY_REJECTED",
++            "ts": _utc_now_iso(),
++            "key_id": key_id,
++            "approval_id": approval.get("approval_id"),
++            "approval_type": approval.get("approval_type"),
++            "run_id": approval.get("run_id"),
++            "note": "revoked key signature rejected (fail-closed)",
++        }
++        try:
++            append_keyring_event(self._event_log_path, record)
++        except OSError:
++            # 记账失败不改变判定：验签结果仍是「拒」。
++            return
++
++
++# ====================================================================== #
++# P0-2 残余：目录型受管 keyring 写入（wenquctl keys create/rotate/revoke）
++# ====================================================================== #
++
++def _write_private_file(path: str, data: str) -> None:
++    """以 0600 写文件（O_EXCL 不用——rotate/list 需要覆盖 meta）。"""
++    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
++                 _SECRET_FILE_MODE)
++    with os.fdopen(fd, "w", encoding="utf-8") as fh:
++        fh.write(data)
++    os.chmod(path, _SECRET_FILE_MODE)  # 掩盖既有宽权限文件
++
++
++def ensure_keyring_dir(path: str) -> None:
++    """创建/收敛 keyring 目录为 owner-only（0700——目录需要 x 位）。"""
++    os.makedirs(path, mode=_KEYRING_DIR_MODE, exist_ok=True)
++    os.chmod(path, _KEYRING_DIR_MODE)
++
++
++def write_key_to_dir(keyring_dir: str, key_id: str, secret: str,
++                     meta: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
++    """把 secret（0600）+ 元数据边车 ``<key_id>.meta.json``（0600）写入目录。
++
++    返回规范化后的元数据。目录必须是受管 keyring 目录（0700）。
++    """
++    ApprovalKeyring._validate_key_id(key_id)  # noqa: SLF001 —— 复用命名约束
++    ensure_keyring_dir(keyring_dir)
++    _write_private_file(os.path.join(keyring_dir, f"{key_id}.secret"),
++                        secret + "\n")
++    normalized = ApprovalKeyring._normalize_meta(  # noqa: SLF001
++        key_id, dict(meta or {}))
++    normalized.setdefault("created_at", _utc_now_iso())
++    normalized = ApprovalKeyring._normalize_meta(key_id, normalized)
++    save_key_meta(keyring_dir, key_id, normalized)
++    return normalized
++
++
++def save_key_meta(keyring_dir: str, key_id: str,
++                  meta: Mapping[str, Any]) -> None:
++    """（覆盖）写单 key 元数据边车 ``<key_id>.meta.json``（0600）。"""
++    normalized = ApprovalKeyring._normalize_meta(key_id, dict(meta))  # noqa: SLF001
++    payload = json.dumps(normalized, indent=2, ensure_ascii=False,
++                         sort_keys=True)
++    _write_private_file(os.path.join(keyring_dir, f"{key_id}.meta.json"),
++                        payload + "\n")
++
++
++def append_keyring_event(event_log_path: str,
++                         record: Mapping[str, Any]) -> None:
++    """append-only 追加一条 keyring 生命周期事件（jsonl，0600，单次 write）。"""
++    line = json.dumps(dict(record), sort_keys=True, separators=(",", ":"),
++                      ensure_ascii=False)
++    fd = os.open(event_log_path,
++                 os.O_WRONLY | os.O_CREAT | os.O_APPEND, _SECRET_FILE_MODE)
++    try:
++        os.write(fd, (line + "\n").encode("utf-8"))
++    finally:
++        os.close(fd)
++    os.chmod(event_log_path, _SECRET_FILE_MODE)
+===== DIFF system/wenqu_core/wenqu_pipeline.py =====
+diff --git a/system/wenqu_core/wenqu_pipeline.py b/system/wenqu_core/wenqu_pipeline.py
+index c12ab53..c3da054 100644
+--- a/system/wenqu_core/wenqu_pipeline.py
++++ b/system/wenqu_core/wenqu_pipeline.py
+@@ -90,6 +90,36 @@ reserve→start→commit 对 release/production 照样走通、receipt 为调用
+   - 重放一致：ACTION_* 折叠校验授权消费链（RESERVED 必须有对应
+     APPROVAL_CONSUMED 且 approval_type 与 action_type 匹配）与 receipt
+     分级（COMMITTED 出现非 RECONCILED 分级回执即 Corruption）。
++
++W6/P1F（wave6 产品面补缺——§20 验收 ID STATE-02/05/09/11 对应语义）：
++  - STATE-02（ID/路径校验面）：全部调用方可控 ID 做结构校验——
++    ``create_run`` task_id（^ alphanumeric/-/_ 且 ≤64）、
++    ``register_finding`` finding_id（^fnd_ 且 ≤64）、以及 ``_load_state``
++    入口的 run_id（^run_[A-Za-z0-9_-]+$ 且 ≤64）。路径穿越（``../``）、
++    绝对路径、NUL、超长一律 ``InvalidRunIdError``/``PipelineError`` 拒绝，
++    绝不进入事件流寻址；
++  - STATE-05（writer epoch fencing）：``RunManager(writer_epoch=N)`` 启用
++    写者栅栏。启用者发出的每个控制事件携带 ``writer_epoch`` 扩展字段；
++    重放维护流内最大 epoch（单调，旧 epoch 事件即
++    ``PipelineCorruptionError``），任何 writer 对 epoch 已被超越的 run 的
++    全部变更（advance/raise/resume/authorize/finding/cancel/supersede/
++    complete/adjudicate）一律 ``FencedWriterError``。未启用 fencing 的
++    存量调用零变化（不盖章、不比较——字节级兼容）；
++    诚实边界：fenced 模式事件的 ``writer_epoch`` 字段超出冻结
++    run-event-v2 词表（默认模式仍 100% 过 schema）；fencing 作用域=单
++    run 事件流（被接管的流整体拒绝旧写者，新流/新 run 不受旧租约牵连）；
++    epoch 唯一性由租约发放方保证（同 epoch 视为同一租约）；
++  - STATE-09（重放侧身份不变量）：run 事件流内 identity 必须全程逐字
++    一致——RUN_CREATED 冻结身份后，任何携带漂移 identity（commit_sha/
++    scope_hash/policy_hash/ruleset_hash/environment 等任一变化）或缺
++    identity 的 run 事件，重放即 ``PipelineCorruptionError``。SHA/scope/
++    policy 变化的唯一正道仍是既有不变量 #3：supersede 旧 run + 新建 run；
++  - STATE-11（S7 CONDITIONAL 缺授权终判）：新增
++    ``adjudicate_gate_conditional``——S7 软终态且无已消费、未过期、指纹
++    精确匹配的 risk 授权时，将该 run 终判 FAILED（RUN_COMPLETED/
++    COMPLETED/FAIL）。终态后一切写入（含 WAITING）拒绝，迟到的批准只能
++    指向新 run。``complete_run`` 的 fail-closed 拒绝语义保持不变（授权
++    到位后 COMPLETED_CONDITIONAL 的正道不受影响）。
+ """
+ 
+ from __future__ import annotations
+@@ -97,6 +127,7 @@ from __future__ import annotations
+ import hashlib
+ import hmac
+ import json
++import re
+ import sqlite3
+ import time
+ import uuid
+@@ -132,6 +163,8 @@ __all__ = [
+     "ApprovalReuseError",
+     "ApprovalPreconditionError",
+     "ActionError",
++    "FencedWriterError",
++    "InvalidRunIdError",
+     "RECEIPT_PROVISIONAL",
+     "RECEIPT_RECONCILED",
+ ]
+@@ -219,6 +252,13 @@ POLICY_VERDICTS = frozenset(
+ )
+ ENVIRONMENTS = frozenset({"local", "staging", "production"})
+ 
++# W6/STATE-02：调用方可控 ID 的结构校验面。
++# run_id 由 create_run 生成（run_ + 时间戳 + uuid hex 片段，≤64）；任何
++# 路径穿越（../）、绝对路径、NUL、超长（>64）或含路径分隔符/非法字符的
++# run_id 在进入事件流寻址前直接拒绝——不把不可信 ID 当作"查不到就算了"。
++_RUN_ID_PATTERN = re.compile(r"^run_[A-Za-z0-9_-]{1,60}$")   # 总长 ≤ 64
++_ID_MAX_LEN = 64
++
+ 
+ class NineStopTypes(str, Enum):
+     """九类停等（契约 §6）——枚举值与 approval-v2 schema 的 stop_type 完全一致。"""
+@@ -579,6 +619,25 @@ class ActionError(PipelineError):
+     """ActionSaga 编排违规（未知 action / 非法转换 / 终态后变更）。"""
+ 
+ 
++class FencedWriterError(PipelineError):
++    """writer epoch 落后于事件流当前 epoch——本 writer 对该 run 的全部写入被拒。
++
++    W6/STATE-05（双 writer epoch）：新 writer 以更高 epoch 接管 run 事件流后，
++    旧 epoch writer（含未启用 epoch 的 writer，视为 epoch 0）对该 run 的一切
++    变更路径（advance/raise/resume/authorize/finding/cancel/supersede/
++    complete/adjudicate）均以此错误拒绝；恢复只能由 ≥ 流内 epoch 的 writer 或
++    新建 run 承接。
++    """
++
++
++class InvalidRunIdError(PipelineError):
++    """run_id 结构非法（路径穿越/绝对路径/NUL/超长/非规范形态）。
++
++    W6/STATE-02：拒绝 ``../``、绝对路径、NUL、超过 64 字符及一切含路径
++    分隔符的 ID——不可信 ID 不进入事件流寻址。
++    """
++
++
+ # ====================================================================== #
+ # 通用小工具
+ # ====================================================================== #
+@@ -761,7 +820,9 @@ class RunState:
+     - findings：run 级 finding 登记面（FINDING_REGISTERED 事件）；
+     - consumed_nonce_digests / risk_authorizations：审批消费正源
+       （APPROVAL_CONSUMED 事件——approval_consumptions 旁表仅加速查询）；
+-    - actions：ActionSaga 聚合状态（ACTION_* control_outbox 事件）。
++    - actions：ActionSaga 聚合状态（ACTION_* control_outbox 事件）；
++    - writer_epoch：流内已见最大 writer epoch（W6/STATE-05 fencing——由
++      各事件 writer_epoch 字段折叠，0=未启用/未被接管）。
+     """
+ 
+     run_id: str
+@@ -781,6 +842,8 @@ class RunState:
+     consumed_nonce_types: Dict[str, str] = field(default_factory=dict)
+     risk_authorizations: List[Dict[str, Any]] = field(default_factory=list)
+     actions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
++    # W6/STATE-05：流内最大 writer epoch（fencing 判定锚点，重放折叠推导）
++    writer_epoch: int = 0
+ 
+     @property
+     def terminal(self) -> bool:
+@@ -1815,7 +1878,20 @@ class RunManager:
+ 
+     def __init__(self, store: EventStore,
+                  broker: Optional[ApprovalBroker] = None,
+-                 keyring: Optional[ApprovalKeyring] = None) -> None:
++                 keyring: Optional[ApprovalKeyring] = None,
++                 writer_epoch: Optional[int] = None) -> None:
++        """
++        writer_epoch（W6/STATE-05，可选）：启用写者栅栏——本 writer 以该
++        epoch 写入（控制事件盖章 ``writer_epoch``），对事件流 epoch 已被更高
++        writer 接管的 run 的全部变更一律 FencedWriterError。None（默认，存量
++        调用）不启用：不盖章、不比较，行为字节级不变。
++        """
++        if writer_epoch is not None and (
++                not isinstance(writer_epoch, int)
++                or isinstance(writer_epoch, bool) or writer_epoch < 1):
++            raise PipelineError(
++                "writer_epoch must be an integer >= 1 or None (lease token)")
++        self._writer_epoch = writer_epoch
+         self._store = store
+         self._db = _PipelineDb.from_store(store)
+         # seal 密钥按 run 确定性派生（_run_seal_secret）——_emit 打封印，
+@@ -1823,6 +1899,44 @@ class RunManager:
+         self.broker = broker if broker is not None else ApprovalBroker(
+             store, db=self._db, keyring=keyring)
+ 
++    # ------------------------------------------------------------------ #
++    # W6/STATE-02：run_id 结构校验（路径穿越/绝对路径/NUL/超长一律拒绝）
++    # ------------------------------------------------------------------ #
++    @staticmethod
++    def _validate_run_id(run_id: Any) -> str:
++        if not isinstance(run_id, str) or not _RUN_ID_PATTERN.match(run_id):
++            raise InvalidRunIdError(
++                f"run_id 结构非法（须 ^run_[A-Za-z0-9_-]+$ 且 ≤{_ID_MAX_LEN} 字符；"
++                f"拒绝 ../、绝对路径、NUL、超长 ID——STATE-02）: {run_id!r}")
++        return run_id
++
++    # ------------------------------------------------------------------ #
++    # W6/STATE-05：writer epoch fencing（旧 epoch 写者对被接管 run 全写入拒绝）
++    # ------------------------------------------------------------------ #
++    @property
++    def writer_epoch(self) -> Optional[int]:
++        """本 writer 的租约 epoch（None=未启用 fencing）。"""
++        return self._writer_epoch
++
++    def _fence_check(self, state: RunState) -> None:
++        mine = self._writer_epoch if self._writer_epoch is not None else 0
++        if state.writer_epoch > mine:
++            raise FencedWriterError(
++                f"run {state.run_id} 事件流已被 writer epoch "
++                f"{state.writer_epoch} 接管，本 writer（epoch={mine or '0，未启用'}）"
++                f"的全部写入被拒（STATE-05 双 writer fencing）——恢复须由不低于"
++                f"流内 epoch 的 writer 或新 run 承接")
++
++    def _fenced_loader(
++            self, run_id: str) -> Callable[[sqlite3.Connection], RunState]:
++        """带 fencing 核验的 run_loader（broker 消费路径共用 _load_state，
++        其变更入口不经 _require_mutable——在 loader 内补栅栏核验）。"""
++        def _loader(conn: sqlite3.Connection) -> RunState:
++            st = self._load_state(run_id, conn)
++            self._fence_check(st)
++            return st
++        return _loader
++
+     # ------------------------------------------------------------------ #
+     # 身份校验（run-event-v2.identity）
+     # ------------------------------------------------------------------ #
+@@ -1895,14 +2009,53 @@ class RunManager:
+                     f"run {ev.get('run_id')!r} 首事件非 RUN_CREATED: {etype}")
+             ident = ev.get("identity") or {}
+             stages = {s: StageState(stage=s) for s in STAGES}
++            epoch0 = ev.get("writer_epoch")
++            if epoch0 is not None and (not isinstance(epoch0, int)
++                                       or isinstance(epoch0, bool)
++                                       or epoch0 < 1):
++                raise PipelineCorruptionError(
++                    f"run {ev.get('run_id')!r}: RUN_CREATED writer_epoch 非法 "
++                    f"{epoch0!r}（须 >= 1 的整数——STATE-05）")
+             state = RunState(
+                 run_id=ev["run_id"], task_id=ev.get("task_id", ""),
+                 identity=dict(ident), state=RUN_CREATED_S,
+                 state_version=int(ev.get("state_version", 1)),
+                 stages=stages, created_at=ev.get("ts"),
++                writer_epoch=epoch0 if isinstance(epoch0, int) else 0,
+             )
+             return state
+ 
++        # ---- W6/STATE-09：run 事件流 identity 不变量（重放侧）----
++        # RUN_CREATED 冻结身份后，流内任何事件携带的 identity 必须逐字一致。
++        # SHA/scope/policy（及环境/规则集等）任一漂移或缺 identity 的 run 事件
++        # 即 Corruption——身份变化没有"原地改"路径，唯一正道是
++        # supersede + 新建 run（不变量 #3）。
++        ident_ev = ev.get("identity")
++        if not isinstance(ident_ev, Mapping) or dict(ident_ev) != state.identity:
++            raise PipelineCorruptionError(
++                f"run {state.run_id}: event {etype!r} identity 漂移/缺失"
++                f"（流内身份必须全程一致；SHA/scope/policy 变化强制新 run"
++                f"——STATE-09）。流身份={_canonical_json(state.identity)}，"
++                f"事件身份={_canonical_json(ident_ev) if isinstance(ident_ev, Mapping) else repr(ident_ev)}")
++
++        # ---- W6/STATE-05：writer epoch fencing（重放侧）----
++        # 携带 writer_epoch 的事件参与流内 epoch 单调性：低于已见最大 epoch
++        # 即旧 epoch 写入/重放被拒（Corruption）；更高则接管（流内 epoch 前移）。
++        epoch_ev = ev.get("writer_epoch")
++        if epoch_ev is not None:
++            if not isinstance(epoch_ev, int) or isinstance(epoch_ev, bool) \
++                    or epoch_ev < 1:
++                raise PipelineCorruptionError(
++                    f"run {state.run_id}: event {etype!r} writer_epoch 非法 "
++                    f"{epoch_ev!r}（须 >= 1 的整数——STATE-05）")
++            if epoch_ev < state.writer_epoch:
++                raise PipelineCorruptionError(
++                    f"run {state.run_id}: event {etype!r} writer_epoch "
++                    f"{epoch_ev} < 流内当前 epoch {state.writer_epoch}"
++                    f"（旧 epoch 写入/重放被拒——STATE-05 双 writer fencing）")
++            if epoch_ev > state.writer_epoch:
++                state.writer_epoch = epoch_ev
++
+         # ---- 观察类控制事件：登记面侧记，不推进状态机 ----
+         if etype in OBSERVATION_EVENT_TYPES:
+             observed_version = ev.get("state_version")
+@@ -2199,6 +2352,9 @@ class RunManager:
+ 
+     def _load_state(self, run_id: str,
+                     conn: Optional[sqlite3.Connection] = None) -> RunState:
++        # W6/STATE-02：run_id 结构校验先于寻址（路径穿越/绝对路径/NUL/超长
++        # 一律拒绝，不进入事件流过滤）——单闸口覆盖全部公开 API。
++        self._validate_run_id(run_id)
+         c = conn if conn is not None else self._db._conn  # noqa: SLF001
+         state: Optional[RunState] = None
+         for _seq, event_hash, payload in _PipelineDb.read_events(c):
+@@ -2214,6 +2370,9 @@ class RunManager:
+             raise TerminalRunError(
+                 f"run {state.run_id} is terminal ({state.state})——"
+                 f"控制事件只追加，纠错须 supersede/reopen（不变量 #6）")
++        # W6/STATE-05：终态检查后补写者栅栏——旧 epoch writer 对该 run 的
++        # 全部变更路径在此统一拒绝（各变更 API 均先 _require_mutable）。
++        self._fence_check(state)
+ 
+     def _emit(self, conn: sqlite3.Connection, state: RunState,
+               event: Mapping[str, Any]) -> str:
+@@ -2223,8 +2382,14 @@ class RunManager:
+         单调性、转换表与段序，因此本方法之后的内存状态与事后重放严格一致。
+         seal 密钥按 run_id 确定性派生——控制事件不可经公共
+         EventStore.append 注入（append 对控制类型直接 ValueError）。
++        W6/STATE-05：启用 writer_epoch 的 writer 在此盖章（写前再核栅栏，
++        观测面事件与状态面事件同一闸口）；未启用者不盖章（字节级兼容）。
+         """
+-        sealed = _seal_event(state.run_id, dict(event))
++        ev = dict(event)
++        if self._writer_epoch is not None:
++            self._fence_check(state)
++            ev["writer_epoch"] = self._writer_epoch
++        sealed = _seal_event(state.run_id, ev)
+         event_hash, _ = _PipelineDb.append_event(conn, sealed)
+         self._replay_fold(state, event_hash, sealed)
+         return event_hash
+@@ -2243,10 +2408,11 @@ class RunManager:
+                    actor: str = "system") -> Dict[str, Any]:
+         """创建七段 run：状态 CREATED，S1..S7 全 PENDING，state_version=1。"""
+         if not (isinstance(task_id, str) and task_id.strip()
+-                and len(task_id) <= 64
++                and len(task_id) <= _ID_MAX_LEN
+                 and all(c.isalnum() or c in "-_" for c in task_id)):
+             raise PipelineError(
+-                "task_id must match ^[a-zA-Z0-9_-]+$ and be <= 64 chars")
++                "task_id must match ^[a-zA-Z0-9_-]+$ and be <= 64 chars"
++                "（拒绝 ../、绝对路径、NUL、超长 ID——STATE-02）")
+         ident = self._validate_identity(identity)
+         run_id = f"run_{time.strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+         if len(run_id) > 64:
+@@ -2258,8 +2424,11 @@ class RunManager:
+                 state=RUN_CREATED_S, state_version=1,
+                 stages={s: StageState(stage=s) for s in STAGES},
+             )
+-            event = _seal_event(run_id, self._base_event(
+-                "RUN_CREATED", seed, "COMPLETED", "NOT_EVALUATED", actor=actor))
++            raw = self._base_event(
++                "RUN_CREATED", seed, "COMPLETED", "NOT_EVALUATED", actor=actor)
++            if self._writer_epoch is not None:   # W6/STATE-05：fenced 写者盖章
++                raw["writer_epoch"] = self._writer_epoch
++            event = _seal_event(run_id, raw)
+             event_hash, _ = _PipelineDb.append_event(conn, event)
+             # 用与重放完全相同的规则自证事件可折叠（不一致立即失败回滚）
+             self._replay_fold(None, event_hash, event)
+@@ -2454,9 +2623,6 @@ class RunManager:
+         - 充分：以上全部满足后没有任何自由裁量阻断——直接恢复 RUNNING；
+         - attempt 不可变：旧 attempt 停留 WAITING，恢复创建新 attempt_id。
+         """
+-        def _loader(conn: sqlite3.Connection) -> RunState:
+-            return self._load_state(run_id, conn)
+-
+         def _resume_event(state: RunState, ap: Mapping[str, Any],
+                           nonce_digest: str) -> Mapping[str, Any]:
+             if state.state != RUN_WAITING_S or state.waiting is None:
+@@ -2476,7 +2642,7 @@ class RunManager:
+ 
+         record = self.broker.consume(
+             approval,
+-            run_loader=_loader,
++            run_loader=self._fenced_loader(run_id),   # W6/STATE-05：栅栏核验
+             resume_event_builder=_resume_event,
+             objective_preconditions=objective_preconditions,
+         )
+@@ -2492,7 +2658,7 @@ class RunManager:
+                        approval: Mapping[str, Any]) -> Dict[str, Any]:
+         """消费一次性 risk 授权进台账——COMPLETED_CONDITIONAL 的前置。"""
+         return self.broker.consume_authorization(
+-            approval, run_loader=lambda conn: self._load_state(run_id, conn))
++            approval, run_loader=self._fenced_loader(run_id))  # W6/STATE-05
+ 
+     def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
+                      reason: str = "", actor: str = "system") -> Dict[str, Any]:
+@@ -2582,6 +2748,77 @@ class RunManager:
+ 
+         return self._db.transact(_body)
+ 
++    def adjudicate_gate_conditional(self, run_id: str, *, reason: str = "",
++                                    actor: str = "system") -> Dict[str, Any]:
++        """STATE-11｜S7 CONDITIONAL 缺 risk authorization → run 终判 FAILED。
++
++        语义（与 ``complete_run`` 互补，二者均保持 fail-closed）：
++        - 适用面：末段 S7 处于 COMPLETED_CONDITIONAL（软终态），且不存在
++          已消费、未过期、finding 指纹与 run 登记面精确匹配的 risk 授权
++          （判据与 ``complete_run`` 的 COMPLETED_CONDITIONAL 半边完全一致）；
++        - 终判：RUN_COMPLETED（execution=COMPLETED，policy_verdict=FAIL）
++          → run 终态 FAILED。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL
++          留档——attempt 一旦终态不可改写），终判落在 run 层；
++        - 终态后不得写 WAITING：raise_waiting/advance/resume/register_finding
++          等全部变更拒绝（TerminalRunError/ApprovalRejected），迟到的批准
++          （authorize_risk/resume_waiting）对该 run 无目标——只能创建新 run
++          重新授权（新 run_id + 新 state_version CAS 绑定）；
++        - 误用防护：存在可用 risk 授权时本方法拒绝（应走 complete_run →
++          COMPLETED_CONDITIONAL）；S7 非软终态时拒绝。
++        """
++        def _usable_risk(state: RunState) -> Optional[Dict[str, Any]]:
++            eligible = sorted({
++                f["fingerprint"] for f in state.findings.values()
++                if f.get("severity") in _RISK_ACCEPTABLE_SEVERITIES
++                and f.get("priority") in _RISK_ACCEPTABLE_PRIORITIES})
++            now = _utc_now_epoch()
++            for auth in state.risk_authorizations:
++                try:
++                    unexpired = (_parse_iso_ts(auth["expires_at"]).timestamp()
++                                 > now)
++                except (ValueError, TypeError):
++                    continue
++                if unexpired and sorted(auth["finding_fingerprints"]) == eligible:
++                    return auth
++            return None
++
++        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
++            state = self._load_state(run_id, conn)
++            self._require_mutable(state)
++            if state.state == RUN_WAITING_S:
++                raise PipelineError(
++                    f"run {run_id} WAITING——先 resume_waiting 或 cancel_run")
++            last = STAGES[-1]
++            s7_status = state.stages[last].status
++            if s7_status != ATTEMPT_COMPLETED_CONDITIONAL:
++                raise PipelineError(
++                    f"{last} 状态为 {s7_status}（非 COMPLETED_CONDITIONAL）——"
++                    f"本终判仅针对 S7 软终态缺 risk authorization（STATE-11）")
++            risk = _usable_risk(state)
++            if risk is not None:
++                raise PipelineError(
++                    f"run {run_id} 存在可用（已消费/未过期/指纹匹配）risk 授权 "
++                    f"{risk['approval_id']}——应走 complete_run → "
++                    f"COMPLETED_CONDITIONAL，而非终判 FAILED（STATE-11 误用防护）")
++            terminal_reason = reason or (
++                f"{last} COMPLETED_CONDITIONAL 缺可用 risk authorization——"
++                f"S7/run 终判 FAILED（STATE-11；后续批准只能创建新 run）")
++            SevenStageStateMachine.validate_outcome("COMPLETED", "FAIL")
++            event = self._base_event(
++                "RUN_COMPLETED", state, "COMPLETED", "FAIL", actor=actor,
++                state_version=state.state_version + 1,
++                terminal_reason=terminal_reason)
++            event_hash = self._emit(conn, state, event)  # 折叠内校验终态转换
++            return {
++                "run_id": run_id, "final_state": RUN_FAILED_S,
++                "execution_status": "COMPLETED", "policy_verdict": "FAIL",
++                "terminal_reason": terminal_reason,
++                "state_version": state.state_version,
++                "event_hash": event_hash,
++            }
++
++        return self._db.transact(_body)
++
+     def cancel_run(self, run_id: str, reason: str = "",
+                    actor: str = "system") -> Dict[str, Any]:
+         """取消（CREATED/RUNNING/WAITING → CANCELLED；attempt 亦 CANCELLED 由重放推导）。"""
+@@ -2633,10 +2870,12 @@ class RunManager:
+         只能登记一次。
+         """
+         if not (isinstance(finding_id, str) and finding_id.startswith("fnd_")
+-                and len(finding_id) > 4
++                and 4 < len(finding_id) <= _ID_MAX_LEN      # W6/STATE-02：超长拒
+                 and all(c.isalnum() or c == "_" for c in finding_id[4:])):
+             raise PipelineError(
+-                f"finding_id must match ^fnd_[a-zA-Z0-9_]+$, got {finding_id!r}")
++                f"finding_id must match ^fnd_[a-zA-Z0-9_]+$ and be "
++                f"<={_ID_MAX_LEN} chars（拒绝 ../、绝对路径、NUL、超长 ID"
++                f"——STATE-02）, got {finding_id!r}")
+         if not (isinstance(fingerprint, str) and fingerprint.strip()):
+             raise PipelineError("fingerprint must be a non-empty string")
+         if severity not in _SEVERITIES:
+@@ -2711,7 +2950,7 @@ class RunManager:
+             # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
+             # 任一步失败整体回滚，授权与预留绝不成单只
+             self.broker._consume_authorization_txn(  # noqa: SLF001
+-                conn, ap, lambda c: self._load_state(run_id, c), now, expected)
++                conn, ap, self._fenced_loader(run_id), now, expected)
+             state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
+             action_id = f"act_{uuid.uuid4().hex[:12]}"
+             event = self._base_event(
+===== DIFF system/wenqu_core/store.py =====
+diff --git a/system/wenqu_core/store.py b/system/wenqu_core/store.py
+index 585256e..7af968f 100644
+--- a/system/wenqu_core/store.py
++++ b/system/wenqu_core/store.py
+@@ -6,6 +6,13 @@
+ - 哈希链：event_hash = sha256(prev_event_hash || canonical_payload)，
+   首条 prev 为全零 GENESIS；篡改任意行都会破坏 verify_chain()。
+ - 写入用 BEGIN IMMEDIATE 单事务完成「读头 + 插入」，避免并发分叉。
++
++P0-6 第六轮（统一事件正源）：``pipeline_events`` 是全系统唯一的事件表，
++``EventStore.append``/RunManager._emit 是仅有的写入口——旧 JSONL 账本
++迁移器（ledger_migrator）的导入行也经公共 append 写入本表同一哈希链
++（不再自建第二张 events 表）；历史库中的旧 ``events`` 表冻结为只读兼容，
++残留行由 ledger_migrator.migrate_legacy_events 一次性收编。控制事件
++守卫语义（下方 P0-4）对本轮改写零改动。
+ """
+ 
+ from __future__ import annotations
+===== DIFF system/wenqu_core/ledger_migrator.py =====
+diff --git a/system/wenqu_core/ledger_migrator.py b/system/wenqu_core/ledger_migrator.py
+index 1c84811..2a63a8f 100644
+--- a/system/wenqu_core/ledger_migrator.py
++++ b/system/wenqu_core/ledger_migrator.py
+@@ -1,5 +1,19 @@
+ # -*- coding: utf-8 -*-
+-"""旧 JSONL 账本 -> SQLite EventStore 迁移器（Codex W5）。
++"""旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器（Codex W5）。
++
++P0-6 第六轮（统一事件正源）改写——「单一事件表 + 单一写入 API」：
++    旧版迁移器自建独立 ``events`` 表，与 ``store.EventStore`` 的
++    ``pipeline_events`` 哈希链表形成两表两正源。本轮起迁移器不再含
++    ``events`` 建表 DDL、绝不写入任何第二事件表：全部导入行经公共
++    :meth:`EventStore.append` 写入与管线控制事件/外部事件同一张
++    ``pipeline_events`` 表——迁移产物与 EventStore.append 产物同表、
++    同哈希链，混合流 ``verify_chain()`` 单链贯穿。
++
++旧 ``events`` 表（仅存在于历史库）冻结为只读兼容：
++    - 新代码绝不创建、绝不写入该表；
++    - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
++      ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
++    - 收编后旧表原样保留在库中，仅供只读对账，不再是事件正源。
+ 
+ 约束（不可降级）：
+     M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
+@@ -9,12 +23,26 @@
+        （未经独立验证不承认修复完成）；
+     M4 数量守恒：源非空行数 == 有效导入 + 重复 + quarantine；不守恒即抛
+        ConservationError，绝不静默少账。
++    M5（§20.2 MIG-05）project key 冲突 -> 显式冲突 quarantine，绝不静默
++       选边、绝不拆成假项目：同一行携带多个 project 身份字段且值不一致时，
++       以 ``project_key_conflict:...`` reason 隔离待人工裁定，导入行绝不
++       归入任一冲突方；一致时按 ``PROJECT_FIELDS`` 优先级取 project_id
++       贯通进事件负载（§14.3 canonical repo_id 映射的最小实现）。
+ 
+ 每行账本契约：JSON 对象，至少含 ``status`` 与 ``ts`` 两个字段；``status``
+ 归一化后必须落在已知状态集合内。空行不计入守恒分母。
+ 
+-重复判定：按行内容 SHA256（去行尾换行）判重；跨运行重跑时，已入库行
+-（line_sha 唯一约束）同样计为 duplicate，保证重跑幂等且账目守恒。
++重复判定（与旧版 line_sha 唯一约束语义等价）：导入事件的负载是行内容的
++纯函数——``event_type``/``line_sha``/``status``/``raw`` 全部由该行字节
++内容决定，不含 source_file/source_line 等位置信息（位置溯源只在 sidecar
++审计里逐行映射）。因此 ``event_id``（= canonical payload 的 SHA256，
++由 EventStore.append 计算）相等当且仅当行内容相同：同输入两次迁移零
++重复；跨文件出现的同内容行同样计为 duplicate（与旧版「按行内容 SHA256
++判重」一致）。
++
++提交粒度：导入行逐条经 EventStore.append 入链（每行一个 BEGIN
++IMMEDIATE 事务，与管线事件同一写入纪律）；中途崩溃后重跑幂等续账
++（已入链行计 duplicate），不会双记账。
+ """
+ 
+ from __future__ import annotations
+@@ -25,7 +53,14 @@ import os
+ import sqlite3
+ from typing import Any, Dict, List, Optional
+ 
+-__all__ = ["LedgerMigrator", "ConservationError", "STATUS_ALIASES", "KNOWN_STATUSES"]
++from .store import EventStore
++
++__all__ = [
++    "LedgerMigrator", "ConservationError", "STATUS_ALIASES", "KNOWN_STATUSES",
++    "MIGRATION_EVENT_TYPE", "LEGACY_EVENTS_TABLE",
++    "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
++    "PROJECT_FIELDS", "extract_project_ids",
++]
+ 
+ # 已知状态别名归一表（键为全大写形式）
+ STATUS_ALIASES = {
+@@ -49,18 +84,26 @@ STATUS_ALIASES = {
+ KNOWN_STATUSES = frozenset({"PASS", "FAIL", "CONDITIONAL", "BLOCKED", "FIXED_PENDING_VERIFY"})
+ REQUIRED_FIELDS = ("status", "ts")
+ 
+-_SCHEMA = """
+-CREATE TABLE IF NOT EXISTS events (
+-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+-    line_sha     TEXT NOT NULL UNIQUE,
+-    status       TEXT NOT NULL,
+-    source_file  TEXT NOT NULL,
+-    source_line  INTEGER NOT NULL,
+-    payload      TEXT NOT NULL,
+-    migrated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+-);
+-CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+-CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_file, source_line);
++#: project 身份字段（MIG-05 §14.3 canonical repo_id 映射的最小实现）：
++#: 按序取第一个非空值作为该行 project_id；多字段同时存在且值不一致
++#: 即 project key 冲突 -> 显式 quarantine（绝不静默选边/拆成假项目）
++PROJECT_FIELDS = ("project_id", "project", "repo_id", "repo", "task")
++
++#: MIG-05 quarantine reason 前缀（报告/对账工具按此前缀聚合冲突清单）
++PROJECT_KEY_CONFLICT_PREFIX = "project_key_conflict:"
++
++#: 导入行的统一事件类型（非控制类型——控制事件前缀/枚举之外，可经公共
++#: EventStore.append 写入；见 store.CONTROL_EVENT_TYPE_*）
++MIGRATION_EVENT_TYPE = "LEDGER_MIGRATED"
++
++#: 旧版两正源残留表名（冻结只读；新代码绝不创建、绝不写入）
++LEGACY_EVENTS_TABLE = "events"
++
++#: 旧表残留行收编进 pipeline_events 时的事件类型（同样非控制类型）
++LEGACY_RESIDUE_EVENT_TYPE = "LEGACY_EVENTS_ROW_MIGRATED"
++
++#: run 级迁移记账表（bookkeeping，非事件正源；与事件表分离）
++_RUNS_SCHEMA = """
+ CREATE TABLE IF NOT EXISTS migration_runs (
+     run_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+     finished_at   TEXT NOT NULL DEFAULT (datetime('now')),
+@@ -73,6 +116,10 @@ CREATE TABLE IF NOT EXISTS migration_runs (
+ );
+ """
+ 
++#: 旧 ``events`` 表收编时必须存在的列（缺失即形状异常，fail-closed 拒收）
++_LEGACY_REQUIRED_COLUMNS = frozenset({
++    "id", "line_sha", "status", "source_file", "source_line", "payload"})
++
+ 
+ class ConservationError(RuntimeError):
+     """数量守恒被破坏：源非空行数 != 有效导入 + 重复 + quarantine。"""
+@@ -83,8 +130,47 @@ def _line_sha(line: str) -> str:
+     return hashlib.sha256(line.rstrip("\r\n").encode("utf-8")).hexdigest()
+ 
+ 
++def extract_project_ids(obj: Dict[str, Any]) -> Dict[str, str]:
++    """按 ``PROJECT_FIELDS`` 顺序提取行内的 project 身份字段。
++
++    只取标量（str/int/float）非空值；dict/list 或空串视为该字段缺席
++    （绝不把复杂值 stringify 成假 project key）。返回 ``{字段名: 规格化值}``
++    （保留字段名大小写与顺序，值做 strip）。
++    """
++    out: Dict[str, str] = {}
++    for field in PROJECT_FIELDS:
++        val = obj.get(field)
++        if val is None or isinstance(val, (dict, list, bool)):
++            continue
++        text = str(val).strip()
++        if text:
++            out[field] = text
++    return out
++
++
++def migration_event(line_sha: str, status: str, raw: str,
++                    project_id: Optional[str] = None) -> Dict[str, Any]:
++    """构造一条导入行的统一事件（行内容的纯函数，保证内容寻址幂等）。
++
++    负载只含由该行字节内容决定的字段（event_type/line_sha/status/raw，
++    以及可选 project_id——同样由该行内容决定）；source_file/source_line
++    等位置溯源不进负载（进 sidecar 审计），否则同内容行在不同位置会绕过
++    判重、破坏 MIG 幂等语义。project_id 为 None（行内无 project 字段）时
++    不写入该键，负载形状与既有无 project 行逐字节一致。
++    """
++    event: Dict[str, Any] = {
++        "event_type": MIGRATION_EVENT_TYPE,
++        "line_sha": line_sha,
++        "status": status,
++        "raw": raw,
++    }
++    if project_id is not None:
++        event["project_id"] = project_id
++    return event
++
++
+ class LedgerMigrator:
+-    """旧 JSONL 账本 -> SQLite EventStore 迁移器。
++    """旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器。
+ 
+     用法::
+ 
+@@ -92,6 +178,9 @@ class LedgerMigrator:
+         mig.scan()          # 可选：显式建立逐文件逐行 SHA 清单
+         report = mig.migrate()
+         assert report["conserved"] is True
++
++    sqlite_path 指向的库即统一事件正源库：EventStore 在该库上维护
++    ``pipeline_events`` 哈希链表；迁移行与管线事件同表同链。
+     """
+ 
+     def __init__(self, source_dir: str, sqlite_path: str,
+@@ -144,10 +233,14 @@ class LedgerMigrator:
+         """判定单行账本。
+ 
+         返回 ``{"decision": "import"|"quarantine", "status": ..., "reason": ...,
+-        "line_sha": ...}``；import 时 status 为归一化后的已知状态。
++        "line_sha": ..., "project_id": ...}``；import 时 status 为归一化后的
++        已知状态、project_id 为行内一致提取的 project 身份（无则 None）；
++        MIG-05：多个 project 身份字段值不一致 -> quarantine，reason 形如
++        ``project_key_conflict:<fA>=<vA>!=<fB>=<vB>``（值截断 40 字符），
++        绝不静默选边导入任一冲突方。
+         """
+         sha = _line_sha(line)
+-        base = {"line_sha": sha, "status": None, "reason": None}
++        base = {"line_sha": sha, "status": None, "reason": None, "project_id": None}
+ 
+         try:
+             obj = json.loads(line)
+@@ -164,16 +257,34 @@ class LedgerMigrator:
+         if normalized is None:
+             # M2：未知状态绝不猜映射
+             return {**base, "decision": "quarantine", "reason": f"unknown_status:{raw_status}"}
+-        return {**base, "decision": "import", "status": normalized}
++
++        # M5（MIG-05）：project 身份字段一致性——冲突即显式隔离
++        projects = extract_project_ids(obj)
++        values = sorted(set(projects.values()))
++        if len(values) > 1:
++            # 按字段优先级取前两个不一致字段作冲突证据（值截断防长文本）
++            it = iter(projects.items())
++            fA, vA = next(it)
++            fB, vB = next(
++                (f, v) for f, v in it if v != projects[fA])
++            reason = (f"{PROJECT_KEY_CONFLICT_PREFIX}"
++                      f"{fA}={vA[:40]}!={fB}={vB[:40]}")
++            return {**base, "decision": "quarantine", "reason": reason}
++        project_id = values[0] if values else None
++        return {**base, "decision": "import", "status": normalized,
++                "project_id": project_id}
+ 
+     # ------------------------------------------------------------------ #
+-    # 迁移：导入 + 数量守恒校验
++    # 迁移：经 EventStore.append 写入统一事件表 + 数量守恒校验
+     # ------------------------------------------------------------------ #
+     def migrate(self) -> Dict[str, Any]:
+         """执行迁移并做数量守恒校验（M4）。
+ 
+         每行去向恰为三者之一：imported / duplicate / quarantined；
+-        汇总不守恒 -> 抛 ConservationError（migration_runs 表同时记账 conserved=0）。
++        导入行经公共 ``EventStore.append`` 写入 ``pipeline_events``（单一
++        事件表+单一写入 API）；``inserted=False`` 即内容寻址 duplicate
++        （等价于旧版 line_sha 唯一冲突）。汇总不守恒 -> 抛
++        ConservationError（migration_runs 表同时记账 conserved=0）。
+         """
+         if not self._inventory:
+             self.scan()
+@@ -193,11 +304,12 @@ class LedgerMigrator:
+         os.makedirs(db_dir, exist_ok=True)
+         os.makedirs(os.path.dirname(self.sidecar_path) or ".", exist_ok=True)
+ 
+-        conn = sqlite3.connect(self.sqlite_path)
++        # 单一写入 API：EventStore 负责建表（pipeline_events）、BEGIN
++        # IMMEDIATE 事务与哈希链维护；本类不再持有任何第二事件表 DDL。
++        store = EventStore(self.sqlite_path)
+         try:
+-            conn.execute("PRAGMA journal_mode=WAL;")
+-            conn.executescript(_SCHEMA)
+-            # M1：sidecar 只追加（"a"），源 JSONL 全程只读
++            # M1：sidecar 只追加（"a"），源 JSONL 全程只读；
++            # sidecar 打不开则整体失败（此时零行导入——先开审计再入账）
+             with open(self.sidecar_path, "a", encoding="utf-8") as sidecar:
+ 
+                 def audit(entry: Dict[str, Any], decision: str, **extra: Any) -> None:
+@@ -224,15 +336,14 @@ class LedgerMigrator:
+                         audit(entry, "quarantined", reason=key, preview=entry["raw"][:200])
+                         continue
+ 
+-                    try:
+-                        conn.execute(
+-                            "INSERT INTO events (line_sha, status, source_file, source_line, payload)"
+-                            " VALUES (?, ?, ?, ?, ?)",
+-                            (verdict["line_sha"], verdict["status"], entry["file"],
+-                             entry["line_no"], entry["raw"]),
+-                        )
+-                    except sqlite3.IntegrityError:
+-                        # line_sha 唯一冲突 = 重复行（本次运行或既往运行已导入）
++                    # 单一写入 API：与管线控制事件/外部事件同表同链；
++                    # inserted=False = 内容寻址 duplicate（本次或既往已入账）；
++                    # project_id（若有）随行内容贯通进负载（MIG-05 最小实现）
++                    event = migration_event(verdict["line_sha"], verdict["status"],
++                                            entry["raw"],
++                                            project_id=verdict.get("project_id"))
++                    _event_hash, inserted = store.append(event)
++                    if not inserted:
+                         tally["duplicates"] += 1
+                         stats["duplicates"] += 1
+                         audit(entry, "duplicate")
+@@ -244,19 +355,30 @@ class LedgerMigrator:
+                     status_counts[status] = status_counts.get(status, 0) + 1
+                     audit(entry, "imported", status=status)
+ 
++            # 产物链自检：迁移行与库中既有事件（管线控制事件/外部事件）
++            # 必须是同一条可验证哈希链——这是「唯一正源」的运行时证明
++            store.verify_chain()
++
+             conserved = (
+                 tally["lines_total"]
+                 == tally["imported"] + tally["duplicates"] + tally["quarantined"]
+             )
+-            conn.execute(
+-                "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
+-                " quarantined, conserved) VALUES (?, ?, ?, ?, ?, ?)",
+-                (tally["files_scanned"], tally["lines_total"], tally["imported"],
+-                 tally["duplicates"], tally["quarantined"], int(conserved)),
+-            )
+-            conn.commit()
++            # run 级记账（bookkeeping 表；非事件正源，不参与哈希链）
++            conn = sqlite3.connect(self.sqlite_path)
++            try:
++                conn.execute("PRAGMA busy_timeout=10000;")
++                conn.executescript(_RUNS_SCHEMA)
++                conn.execute(
++                    "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
++                    " quarantined, conserved) VALUES (?, ?, ?, ?, ?, ?)",
++                    (tally["files_scanned"], tally["lines_total"], tally["imported"],
++                     tally["duplicates"], tally["quarantined"], int(conserved)),
++                )
++                conn.commit()
++            finally:
++                conn.close()
+         finally:
+-            conn.close()
++            store.close()
+ 
+         if not conserved:
+             raise ConservationError(
+@@ -285,6 +407,9 @@ class LedgerMigrator:
+             "source_dir": self.source_dir,
+             "sqlite_path": self.sqlite_path,
+             "sidecar_path": self.sidecar_path,
++            # P0-6 第六轮：统一事件正源的显式锚点
++            "event_table": "pipeline_events",
++            "write_api": "EventStore.append",
+             "conserved": conserved,
+             "conservation": {
+                 "equation": "lines_total == imported + duplicates + quarantined",
+@@ -295,8 +420,117 @@ class LedgerMigrator:
+             },
+             "files_scanned": tally["files_scanned"],
+             "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
++            # MIG-05：project key 冲突单独聚合（仍是 quarantine 的子集，
++            # 不改变守恒等式；对账工具据此出显式冲突清单）
++            "project_key_conflicts": {
++                k: v for k, v in sorted(quarantine_reasons.items())
++                if k.startswith(PROJECT_KEY_CONFLICT_PREFIX)},
+             "imported_status_counts": dict(sorted(status_counts.items())),
+             "per_file": [
+                 {"file": f, **stats} for f, stats in sorted(per_file.items())
+             ],
+         }
++
++
++# ---------------------------------------------------------------------- #
++# 旧 events 表残留：一次性收编（P0-6 第六轮）
++# ---------------------------------------------------------------------- #
++def migrate_legacy_events(sqlite_path: str,
++                          sidecar_path: Optional[str] = None) -> Dict[str, Any]:
++    """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
++
++    契约：
++    - 只读旧表：本函数绝不 CREATE/INSERT/UPDATE/DELETE 旧 ``events`` 表
++      （保留只读兼容；收编后旧表原样留在库中，仅供对账，不再是正源）；
++    - 单一写入 API：每行经 ``EventStore.append`` 以
++      ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
++      事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
++      全部计 duplicate，零重复入账（一次性、幂等）；
++    - 旧行按已入账历史记录原样收编（status 等字段原封不动）：旧表行是
++      旧制度下已落账的数据，收编时重新判定/归一会改写历史账目，故只做
++      搬运、绝不再判；JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
++    - 守恒：rows_seen == imported + duplicates，否则 ConservationError；
++    - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
++      位置溯源。
++
++    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``。
++    """
++    sqlite_path = os.path.abspath(sqlite_path)
++    sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
++                    else sqlite_path + ".legacy-events-sidecar.jsonl")
++    os.makedirs(os.path.dirname(sidecar_path) or ".", exist_ok=True)
++
++    store = EventStore(sqlite_path)
++    try:
++        # 表名是模块常量（不可信输入不进 SQL 文本）；存在性用参数化查询
++        present = store._conn.execute(
++            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
++            (LEGACY_EVENTS_TABLE,),
++        ).fetchone() is not None
++
++        legacy_rows: List[Dict[str, Any]] = []
++        if present:
++            cols = {r[1] for r in store._conn.execute(
++                f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
++            missing = _LEGACY_REQUIRED_COLUMNS - cols
++            if missing:
++                # 形状异常 fail-closed：同名表不是旧迁移器产物，绝不猜搬
++                raise RuntimeError(
++                    f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
++                    f"missing columns: {sorted(missing)}; refusing to migrate")
++            # 只读 SELECT——旧表全程零写入
++            for rid, line_sha, status, source_file, source_line, payload in store._conn.execute(
++                f"SELECT id, line_sha, status, source_file, source_line, payload "
++                f"FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
++            ):
++                legacy_rows.append({
++                    "id": rid, "line_sha": line_sha, "status": status,
++                    "source_file": source_file, "source_line": source_line,
++                    "payload": payload,
++                })
++
++        imported = duplicates = 0
++        with open(sidecar_path, "a", encoding="utf-8") as sidecar:
++            for row in legacy_rows:
++                event = {
++                    "event_type": LEGACY_RESIDUE_EVENT_TYPE,
++                    "line_sha": row["line_sha"],
++                    "status": row["status"],
++                    "raw": row["payload"],
++                }
++                _event_hash, inserted = store.append(event)
++                if inserted:
++                    imported += 1
++                    decision = "imported"
++                else:
++                    duplicates += 1
++                    decision = "duplicate"
++                sidecar.write(json.dumps({
++                    "decision": decision,
++                    "legacy_table": LEGACY_EVENTS_TABLE,
++                    "legacy_id": row["id"],
++                    "line_sha": row["line_sha"],
++                    "source_file": row["source_file"],
++                    "source_line": row["source_line"],
++                }, ensure_ascii=False, sort_keys=True) + "\n")
++
++        store.verify_chain()
++        if len(legacy_rows) != imported + duplicates:
++            raise ConservationError(
++                f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
++                f"imported({imported}) + duplicates({duplicates})")
++
++        return {
++            "sqlite_path": sqlite_path,
++            "legacy_table": LEGACY_EVENTS_TABLE,
++            "legacy_table_present": present,
++            "rows_seen": len(legacy_rows),
++            "imported": imported,
++            "duplicates": duplicates,
++            "event_table": "pipeline_events",
++            "write_api": "EventStore.append",
++            "sidecar_path": sidecar_path,
++            "chain_verified": True,
++        }
++    finally:
++        store.close()
+===== DIFF system/dashboard/server.py =====
+===== DIFF system/bin/wenqu-dashboard.py =====
+diff --git a/system/bin/wenqu-dashboard.py b/system/bin/wenqu-dashboard.py
+index 9934890..6c237dc 100755
+--- a/system/bin/wenqu-dashboard.py
++++ b/system/bin/wenqu-dashboard.py
+@@ -229,7 +229,8 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
+ </div>
+ <script>
+ async function j(u){const r=await fetch(u);return r.json()}
+-function el(h){const d=document.createElement('div');d.innerHTML=h;return d}
++function _htmlEsc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
++function el(h){const d=document.createElement('div');d.innerHTML=h;return d} // el 模板由调用方保证已转义；外部数据必须先 _htmlEsc
+ function showTab(t){
+   for(const id of['ov','pipe','deck','bugdeck'])document.getElementById(id).style.display=t==id?'':'none';
+   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.t==t));
+@@ -470,8 +471,12 @@ loadTrend();setInterval(()=>loadTrend().catch(()=>{}),120000);
+ try{
+   const es=new EventSource('/api/bugscan-sse');
+   es.addEventListener('ledger',()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{})});
++  // W11 SSE 断线对账：重连后拉 REST Snapshot 校验一致性（事件可能丢失→全量刷新兜底）
++  es.onopen=()=>{loadBGL().catch(()=>{});loadTrend().catch(()=>{});refresh().catch(()=>{})};
++  es.onerror=()=>{/* EventSource 自动重连；重连成功走 onopen 对账 */};
+ }catch(e){}
+ async function refresh(){
++  const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+   const c=await j('/api/components');const box=document.getElementById('comp');box.innerHTML='';
+   let ok=0,tot=0;
+   for(const[grp,items]of Object.entries(c)){
+@@ -485,18 +490,18 @@ async function refresh(){
+   const d=await j('/api/daemons');const db=document.getElementById('daemon');db.innerHTML='';
+   const ds=Object.entries(d.daemons);
+   if(!ds.length)db.innerHTML='<span class="dim">无运行中守护（wenqu start）</span>';
+-  for(const[n,s]of ds)db.appendChild(el(`<div class="row"><span>${n}</span><span class="${s=='运行中'?'ok':'bad'}">${s}</span></div>`));
++  for(const[n,s]of ds)db.appendChild(el(`<div class="row"><span>${_htmlEsc(n)}</span><span class="${s=='运行中'?'ok':'bad'}">${_htmlEsc(s)}</span></div>`));
+   document.getElementById('cronline').textContent=`定时哨兵：${d.cron} 条`;
+   const r=await j('/api/ratchet');const rb=document.getElementById('ratchet');
+   rb.innerHTML=r.available?'':'<span class="dim">未接入（项目内 scripts/dupscan/baseline.json）</span>';
+   if(r.available){rb.innerHTML='';
+-    for(const[l,v]of Object.entries(r.layers))rb.appendChild(el(`<div class="row"><span>${l}</span><span>${v.clones} 克隆 / ${v.rate}%</span></div>`))}
++    for(const[l,v]of Object.entries(r.layers))rb.appendChild(el(`<div class="row"><span>${_htmlEsc(l)}</span><span>${_htmlEsc(v.clones)} 克隆 / ${_htmlEsc(v.rate)}%</span></div>`))}
+   const rd=await j('/api/rounds');const rbox=document.getElementById('rounds');
+   {const prevR=window.__lastRounds;const n=rd.rounds.length;
+    if(prevR!=null&&n>prevR){rbox.classList.remove('flash');void rbox.offsetWidth;rbox.classList.add('flash');}
+    window.__lastRounds=n;}
+   rbox.innerHTML='';
+-  for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${(x.label||'').replace(/"/g,'&quot;')}"><span class="dim" style="flex:0 0 76px">${x.ts||''}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.label}</span></div>`));
++  for(const x of rd.rounds)rbox.appendChild(el(`<div class="row" title="${_htmlEsc(x.label||'')}"><span class="dim" style="flex:0 0 76px">${_htmlEsc(x.ts||'')}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_htmlEsc(x.label)}</span></div>`));
+   const lg=await j('/api/logs');const lbox=document.getElementById('logs');lbox.innerHTML='';
+   for(const[n,t]of Object.entries(lg)){const h2=document.createElement('h2');h2.style.marginTop='8px';h2.textContent=n;lbox.appendChild(h2);const p=document.createElement('pre');p.textContent=t;lbox.appendChild(p);}
+   const h=await j('/api/health');const hbox=document.getElementById('health');
+@@ -544,7 +549,6 @@ async function refresh(){
+    window.__lastDec=dec.length;}
+   if(!dec.length){dbox.innerHTML='<span class="dim">无待拍项——全部清账 ✅</span>';}
+   else{dbox.innerHTML='';
+-    const escD=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     for(const d of dec){
+       const days=d.ttl?Math.max(0,d.ttl-Math.floor((Date.now()-new Date(d.ts).getTime())/86400000)):null;
+       const overdue=days===0;
+@@ -570,6 +574,8 @@ async function refresh(){
+     const obox=document.getElementById('orch');
+     const logLines=(await j('/api/orchestrator'));
+     obox.innerHTML=logLines.html||'<span class="dim">编排器日志为空</span>';
++    const ol=document.getElementById('orchlog');
++    if(ol) ol.textContent=logLines.log||'';  // textContent 防 XSS（日志内容不可信）
+   }catch(e){}
+ }
+ refresh();setInterval(refresh,5000);
+@@ -694,6 +700,63 @@ def _fold_project(f, by_day=None):
+ 
+ _LEDGER_CACHE = {"stamp": None, "data": None}
+ _LEDGER_LOCK = threading.Lock()
++
++# ── CacheRegistry（W10 统一缓存：mtime+TTL+singleflight 合一）──
++class _CacheEntry:
++    __slots__ = ("data", "ts", "stamp", "lock")
++    def __init__(self):
++        self.data = None
++        self.ts = 0.0
++        self.stamp = None
++        self.lock = threading.Lock()
++    def __getitem__(self, key):  # dict 兼容（渐进迁移期旧 b["data"] 语法不停改）
++        return getattr(self, key)
++    def __setitem__(self, key, value):
++        setattr(self, key, value)
++
++_CACHE = {}  # name → _CacheEntry
++_CACHE_GUARD = threading.Lock()
++
++def cache_get(name, ttl=None, stamp=None, loader=None):
++    """统一缓存入口——W10 CacheRegistry。
++    ttl=None → 纯 mtime 签名模式（stamp 不变返回缓存）
++    stamp=None → 纯 TTL 模式（ttl 秒内返回缓存）
++    loader() → 缓存 miss 时加载函数（singleflight：并发只一路执行）
++    """
++    with _CACHE_GUARD:
++        e = _CACHE.setdefault(name, _CacheEntry())
++    # 快路径（无锁）
++    if e.data is not None:
++        if ttl is None and stamp is not None and e.stamp == stamp:
++            return e.data
++        if ttl is not None and stamp is None and time.time() - e.ts < ttl:
++            return e.data
++    # 慢路径（singleflight）
++    with e.lock:
++        if e.data is not None:
++            if ttl is None and stamp is not None and e.stamp == stamp:
++                return e.data
++            if ttl is not None and stamp is None and time.time() - e.ts < ttl:
++                return e.data
++        data = loader() if loader else None
++        if data is not None:
++            e.data = data
++            e.ts = time.time()
++            e.stamp = stamp
++        return data
++
++def cache_invalidate(*names):
++    """指定缓存失效（写操作后调用）。"""
++    for n in names:
++        with _CACHE_GUARD:
++            e = _CACHE.get(n)
++        if e:
++            with e.lock:
++                e.data = None
++                e.ts = 0.0
++                e.stamp = None
++
++_SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
+ _EP_CACHE = {}  # 慢端点 TTL 结果缓存（health 30s/hh 30s/logs 15s；decide 等即时端点不入此表）
+ _SSE_COUNT = {}  # SSE 连接计数（dict 计数器——方法内免 global 声明）
+ _SSE_SEM = threading.BoundedSemaphore(4)  # SSE 并发上限（线程安全非阻塞获取）
+@@ -733,16 +796,17 @@ def bugscan_ledger():
+         return {"available": False}
+     files = _ledger_files(root)
+     stamp = frozenset(files.items())
+-    with _LEDGER_LOCK:
+-        if _LEDGER_CACHE["stamp"] == stamp:
+-            return _LEDGER_CACHE["data"]
++
++    def _load():
+         try:
+-            data = _bugscan_ledger_impl(files)
+-        except Exception as e:  # RecursionError/PermissionError/编码等边缘全兜底，不炸端点
+-            return {"available": False, "error": f"{type(e).__name__}: {e}"}
+-        _LEDGER_CACHE["stamp"] = stamp
+-        _LEDGER_CACHE["data"] = data
+-        return data
++            return _bugscan_ledger_impl(files)
++        except Exception:
++            return None  # fail-soft：不缓存错误
++
++    result = cache_get("ledger", stamp=stamp, loader=_load)
++    if result is None:
++        return {"available": False}
++    return result
+ 
+ 
+ def _bugscan_ledger_impl(files):
+@@ -974,7 +1038,7 @@ class H(BaseHTTPRequestHandler):
+                     pass
+             return self._send(200, json.dumps({"rounds": rounds}, ensure_ascii=False))
+         if self.path == "/api/health":
+-            b = _EP_CACHE.setdefault("health", {"ts": 0.0, "data": None})
++            b = _CACHE.setdefault("health", _CacheEntry())
+             if b["data"] is not None and time.time() - b["ts"] < 30:  # TTL 30s：走势本身 10min 粒度
+                 return self._send(200, b["data"])
+             def sub(name, got, full, weight, detail=""):
+@@ -1113,7 +1177,7 @@ class H(BaseHTTPRequestHandler):
+             b["data"], b["ts"] = out, time.time()
+             return self._send(200, out)
+         if self.path == "/api/health-history":
+-            b = _EP_CACHE.setdefault("hh", {"ts": 0.0, "data": None})
++            b = _CACHE.setdefault("hh", _CacheEntry())
+             if b["data"] is not None and time.time() - b["ts"] < 30:
+                 return self._send(200, b["data"])
+             out = []
+@@ -1169,7 +1233,7 @@ class H(BaseHTTPRequestHandler):
+                     d["items"] = [x for x in full if x["st"] == want][:60]
+             return self._send(200, json.dumps(d, ensure_ascii=False))
+         if self.path == "/api/bugscan-trend":
+-            b = _EP_CACHE.setdefault("trend", {"ts": 0.0, "data": None})
++            b = _CACHE.setdefault("trend", _CacheEntry())
+             if b["data"] is not None and time.time() - b["ts"] < 60:
+                 return self._send(200, b["data"])
+             out = json.dumps(ledger_trend(), ensure_ascii=False)
+@@ -1232,7 +1296,7 @@ class H(BaseHTTPRequestHandler):
+                 pass
+             return self._send(200, json.dumps(out, ensure_ascii=False))
+         if self.path == "/api/logs":
+-            b = _EP_CACHE.setdefault("logs", {"ts": 0.0, "data": None})
++            b = _CACHE.setdefault("logs", _CacheEntry())
+             if b["data"] is not None and time.time() - b["ts"] < 15:  # 日志尾 15s 滞后可接受
+                 return self._send(200, b["data"])
+             out, logdir = {}, os.path.join(WQ, "logs")
+@@ -1250,9 +1314,12 @@ class H(BaseHTTPRequestHandler):
+             b["data"], b["ts"] = out, time.time()
+             return self._send(200, out)
+         if self.path == "/api/orchestrator":
+-            b = _EP_CACHE.setdefault("orch", {"ts": 0.0, "data": None})
++            b = _CACHE.setdefault("orch", _CacheEntry())
+             if b["data"] is not None and time.time() - b["ts"] < 30:
+                 return self._send(200, b["data"])
++            with b["lock"]:  # singleflight：并发只一路执行子进程
++                if b["data"] is not None and time.time() - b["ts"] < 30:
++                    return self._send(200, b["data"])
+             # launchd 状态
+             orch_state = "未加载"
+             try:
+@@ -1279,7 +1346,8 @@ class H(BaseHTTPRequestHandler):
+                        f'<div class="row"><span>陈账检测（sweep.py）</span><span class="ok">{sweep_state}</span></div>'
+                        f'<div class="row"><span>管线</span><span class="dim">扫描→sweep 检测→Agent 修→Codex 审(≤3轮)→零发现销账→dashboard 归零</span></div>'
+                        f'<div class="row"><span>部署</span><span class="dim">永远停等超哥口令</span></div>'
+-                       f'<pre style="margin-top:6px">{orch_log}</pre>'
++                       f'<pre id="orchlog" style="margin-top:6px"></pre>',
++                "log": orch_log
+             }, ensure_ascii=False)
+             b["data"], b["ts"] = out, time.time()
+             return self._send(200, out)
+===== DIFF tests/acceptance.sh =====
+diff --git a/tests/acceptance.sh b/tests/acceptance.sh
+index 18e8253..cca48ae 100644
+--- a/tests/acceptance.sh
++++ b/tests/acceptance.sh
+@@ -362,19 +362,63 @@ fi
+ 
+ echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+ if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+-  AC_TMP_JSON="$(mktemp -t wq_matrix).json"
+-  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+-  AC_RC=$?
+-  rm -f "$AC_TMP_JSON"
+-  if [ $AC_RC -eq 0 ]; then
+-    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
++  # F6-CI-PORT-001：模板必须含 X（Ubuntu mktemp 模板无 X 会报错且旧版吞掉继续绿）；
++  # mktemp 本身失败必须 fail-closed 计 FAIL。（主会话手改版——并行会话勿 git checkout 还原本节）
++  AC_TMP_JSON="$(mktemp -t wq_matrix.XXXXXXXX 2>/dev/null).json" || AC_TMP_JSON=""
++  if [ -z "$AC_TMP_JSON" ]; then
++    FAIL_N=$((FAIL_N+1)); echo "  ❌ mktemp 失败——P1c 无法建立临时输出（fail-closed）"
+   else
+-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
++    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
++    AC_RC=$?
++    rm -f "$AC_TMP_JSON"
++    if [ $AC_RC -eq 0 ]; then
++      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
++    else
++      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
++    fi
+   fi
+ else
+   FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+ fi
+ 
++echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
++P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
++P1F_COUNT=0
++P1F_FAIL=0
++for tf in $P1F_FILES; do
++  if [ -f "$ROOT/system/tests/$tf.py" ]; then
++    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
++    TF_RC=$?
++    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
++    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
++      P1F_COUNT=$((P1F_COUNT+NF))
++    else
++      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
++      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
++    fi
++  else
++    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
++  fi
++done
++if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
++  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
++else
++  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
++fi
++
++echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
++if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
++  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
++  RA_RC=$?
++  if [ $RA_RC -eq 0 ]; then
++    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
++  else
++    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
++  fi
++else
++  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
++fi
++
+ echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+ if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+OUTPUT_END
+EXIT_CODE: 0

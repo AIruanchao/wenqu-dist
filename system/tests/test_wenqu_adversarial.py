@@ -90,6 +90,33 @@ def resign(ap):
     ap["signature"] = sign_envelope(SECRET, ap)
     return ap
 
+SECRET2 = KEYRING.get("key_test_2")  # 第二签发人 key（fixtures 双 active key）
+
+
+def cosign(ap, *, second_key_id="key_test_2", second_actor="erge",
+           primary_actor="chaoge"):
+    """R7-AUTH-DUAL-CONSUME-005：给已主签的信封补嵌入联签数组。
+
+    联签条目各对「信封体」（envelope 去掉 signature/cosignatures）独立
+    HMAC——主签条目复用 envelope.signature（同一信封体同一 key），第二
+    条目用第二 key 现算。返回新 dict（原信封不变）。
+    """
+    body = {k: v for k, v in ap.items()
+            if k not in ("signature", "cosignatures")}
+    out = dict(ap)
+    out["cosignatures"] = [
+        {"key_id": ap["key_id"], "actor": primary_actor,
+         "signature": ap["signature"]},
+        {"key_id": second_key_id, "actor": second_actor,
+         "signature": sign_envelope(KEYRING.get(second_key_id), body)},
+    ]
+    return out
+
+
+def descriptor_of(ap):
+    """exact action descriptor：调用方实参声明的动作描述（=审批 payload 副本）。"""
+    return dict(ap["payload"])
+
 def make_resume(run_id, stop_event_id, stop_type, state_version, task_id,
                 stage="S1_REQUIREMENT", preconditions=None, **over):
     pre = dict(preconditions if preconditions is not None
@@ -569,9 +596,12 @@ def adv9_schema_roundtrip():
     run_id = mgr.create_run("task_adv9", IDENT)["run_id"]
     mgr.advance_stage(run_id)
     # F4-AUTH-001（诚实更新）：action 预留必传审批——原 "deploy" 无审批类型
-    # 映射，改用 release 动作 + 签发的 release 审批（锚定 S1 RUNNING/版本 2）
-    rel_ap = make_action_approval(run_id, "task_adv9", 2, "release")
-    mgr.reserve_action(run_id, "release", "db://prod/erp", rel_ap, actor="adv9")
+    # 映射，改用 release 动作 + 签发的 release 审批（锚定 S1 RUNNING/版本 2）。
+    # R7 诚实更新：release 高危——补双联签 + exact descriptor（原断言保留）
+    rel_ap = cosign(make_action_approval(run_id, "task_adv9", 2, "release"))
+    mgr.reserve_action(run_id, "release", "db://prod/erp", rel_ap,
+                       actor="adv9",
+                       action_descriptor=descriptor_of(rel_ap))
     mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
     w = mgr.raise_waiting(run_id, "prod-write", "adv9")
     v = mgr.get_run(run_id).state_version
@@ -642,9 +672,10 @@ def adv10_action_saga():
     wrong = make_action_approval(run_id, "task_adv10", v, "ddl")
     expect(ApprovalRejected,
            lambda: mgr.reserve_action(run_id, "prod-write", target, wrong))
-    # 生命周期（授权链版）：签发 prod-write 审批 → RESERVED
-    ap = make_action_approval(run_id, "task_adv10", v, "prod-write")
-    r = mgr.reserve_action(run_id, "prod-write", target, ap)
+    # 生命周期（授权链版）：签发 prod-write 审批（R7：高危补双联签）→ RESERVED
+    ap = cosign(make_action_approval(run_id, "task_adv10", v, "prod-write"))
+    r = mgr.reserve_action(run_id, "prod-write", target, ap,
+                           action_descriptor=descriptor_of(ap))
     aid = r["action_id"]
     assert r["action_state"] == "RESERVED"
     assert r["approval_id"].startswith("apr_") and len(r["nonce_digest"]) == 64
@@ -690,10 +721,13 @@ def adv10_action_saga():
     # 终态后不可再变更（原断言保留，语义升级为授权链终态）
     expect(ActionError, lambda: mgr.commit_action(run_id, aid, good))
     expect(ActionError, lambda: mgr.start_action(run_id, aid))
-    # FAILED_UNKNOWN 终态路径（另一个 action：ddl 审批 + 对账不了收口）
-    ap2 = make_action_approval(run_id, "task_adv10",
-                               mgr.get_run(run_id).state_version, "ddl")
-    r2 = mgr.reserve_action(run_id, "ddl", "db://staging/schema", ap2)
+    # FAILED_UNKNOWN 终态路径（另一个 action：ddl 审批 + 对账不了收口；
+    # R7 诚实更新：ddl 高危补双联签 + descriptor）
+    ap2 = cosign(make_action_approval(run_id, "task_adv10",
+                                      mgr.get_run(run_id).state_version,
+                                      "ddl"))
+    r2 = mgr.reserve_action(run_id, "ddl", "db://staging/schema", ap2,
+                            action_descriptor=descriptor_of(ap2))
     aid2 = r2["action_id"]
     mgr.start_action(run_id, aid2)
     f = mgr.fail_action(run_id, aid2, "runner crash; outcome unknown")
@@ -705,9 +739,11 @@ def adv10_action_saga():
     expect(ActionError, lambda: mgr.reconcile_receipt(
         run_id, "act_ghost", {"x": 1}))
     # 伪签名回执在 STARTED 动作上同样 reconciled=False（原 TAMPERED 断言语义升级）
+    # （merge 低危：无联签要求——descriptor 仍必填）
     ap3 = make_action_approval(run_id, "task_adv10",
                                mgr.get_run(run_id).state_version, "merge")
-    r3 = mgr.reserve_action(run_id, "merge", "repo://qisemi-erp/pr-9", ap3)
+    r3 = mgr.reserve_action(run_id, "merge", "repo://qisemi-erp/pr-9", ap3,
+                            action_descriptor=descriptor_of(ap3))
     aid3 = r3["action_id"]
     mgr.start_action(run_id, aid3, receipt="merge attempt started")
     tampered = make_external_receipt(r3, run_id, IDENT["commit_sha"])
@@ -768,8 +804,10 @@ def adv11_action_auth_gate():
     run_id = mgr.create_run("task_adv11b", IDENT)["run_id"]
     mgr.advance_stage(run_id)
     v = mgr.get_run(run_id).state_version
-    ap = make_action_approval(run_id, "task_adv11b", v, "release")
-    r = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap)
+    # R7 诚实更新：release 高危补双联签 + descriptor
+    ap = cosign(make_action_approval(run_id, "task_adv11b", v, "release"))
+    r = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap,
+                           action_descriptor=descriptor_of(ap))
     aid = r["action_id"]
     assert r["action_state"] == "RESERVED"
     assert len(mgr.broker.consumed_approvals(run_id=run_id)) == 1  # 授权已消费
@@ -822,8 +860,252 @@ def adv11_action_auth_gate():
     assert store.verify_chain()["ok"]
 
 # ====================================================================== #
-# K 项：wenquctl CLI 端到端链
+# R7-AUTH-DUAL-CONSUME-005（Codex 第七轮 P0）：高危联签未进消费契约 +
+# payload 未绑 reserve_action 实参——消费端双门复验
 # ====================================================================== #
+def adv12_r7_dual_consume_gates():
+    store, mgr = fresh()
+    run_id = mgr.create_run("task_r7dual", IDENT)["run_id"]
+    mgr.advance_stage(run_id)
+    v = mgr.get_run(run_id).state_version
+    target = "db://prod/erp#r7"
+    good = cosign(make_action_approval(run_id, "task_r7dual", v,
+                                       "prod-write"))
+
+    # (1) 高危单签（无 cosignatures——第七轮攻击原样：一名 key 自签自发）
+    #     → 消费拒绝，零落账
+    single = make_action_approval(run_id, "task_r7dual", v, "prod-write",
+                                  nonce="nonce-r7-single-0001")
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, single,
+                                      action_descriptor=descriptor_of(single)),
+           contains="cosignatures")
+    # (1b) 单条联签（数组只有第二 key 一条）= 仍是单签 → 拒
+    one_entry = dict(single)
+    one_entry["cosignatures"] = [cosign(single)["cosignatures"][1]]
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, one_entry,
+                                      action_descriptor=descriptor_of(single)),
+           contains="cosignatures")
+    # (2) 双签但同 key（两条都真、都 key_test_1）→ 拒
+    body = {k: v2 for k, v2 in single.items()
+            if k not in ("signature", "cosignatures")}
+    same_key = dict(single)
+    same_key["cosignatures"] = [
+        {"key_id": "key_test_1", "actor": "chaoge",
+         "signature": single["signature"]},
+        {"key_id": "key_test_1", "actor": "erge",
+         "signature": sign_envelope(SECRET, body)}]
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, same_key,
+                                      action_descriptor=descriptor_of(single)),
+           contains="同 key")
+    # (3) cosign 之一 revoked → 拒（第二 key 已吊销的 keyring 上消费）
+    store_rev, mgr_rev = fresh()
+    rid_rev = mgr_rev.create_run("task_r7rev", IDENT)["run_id"]
+    mgr_rev.advance_stage(rid_rev)
+    v_rev = mgr_rev.get_run(rid_rev).state_version
+    from wenqu_core.approval_keys import KEY_STATUS_REVOKED
+    kr_rev = ApprovalKeyring(
+        {"key_test_1": SECRET, "key_test_2": SECRET2},
+        metadata={"key_test_2": {
+            "status": KEY_STATUS_REVOKED,
+            "revoked_at": "2026-10-08T00:00:00Z"}})
+    mgr_rev2 = RunManager(store_rev, keyring=kr_rev)
+    ap_rev = cosign(make_action_approval(rid_rev, "task_r7rev", v_rev,
+                                         "prod-write"))
+    expect(ApprovalRejected,
+           lambda: mgr_rev2.reserve_action(
+               rid_rev, "prod-write", target, ap_rev,
+               action_descriptor=descriptor_of(ap_rev)),
+           contains="联签验签失败")
+    # (3b) 联签 key 未登记 → 拒（手工构造——key 不在 keyring，签不出真值）
+    rogue = cosign(good)
+    rogue["cosignatures"][1] = {"key_id": "key_rogue_2", "actor": "ghost",
+                                "signature": "a" * 64}
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, rogue,
+                                      action_descriptor=descriptor_of(good)),
+           contains="未登记")
+    # (3c) 联签伪签名（64-hex 但 HMAC 不对）→ 拒
+    forged = cosign(good)
+    forged["cosignatures"][1]["signature"] = "0" * 64
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, forged,
+                                      action_descriptor=descriptor_of(good)),
+           contains="联签验签失败")
+    # (4) 低危类型携带 cosignatures → 结构层拒（防「已联签」错觉）
+    low_cos = cosign(make_action_approval(run_id, "task_r7dual", v, "merge"))
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "merge", "repo://x/pr-1",
+                                      low_cos,
+                                      action_descriptor=descriptor_of(low_cos)),
+           contains="非高危")
+    # (5) payload 与实参不符（descriptor 单字段漂移）→ 拒
+    drift = dict(descriptor_of(good), idempotency_key="idem-EVIL")
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, good,
+                                      action_descriptor=drift),
+           contains="descriptor mismatch")
+    # (5b) descriptor 缺失 / 键集不全 / 混入他类字段 → 拒
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, good))
+    short = {k: v2 for k, v2 in descriptor_of(good).items()
+             if k != "conservation_hash"}
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, good,
+                                      action_descriptor=short),
+           contains="缺字段")
+    foreign = dict(descriptor_of(good), repo_id="erp-evil")
+    expect(ApprovalRejected,
+           lambda: mgr.reserve_action(run_id, "prod-write", target, good,
+                                      action_descriptor=foreign),
+           contains="非本类型字段")
+    # 全部拒绝面零落账（nonce 未消费、零 ACTION_*、消费台账空）
+    st = mgr.get_run(run_id)
+    assert not st.actions and not st.consumed_nonce_digests
+    assert mgr.broker.consumed_approvals(run_id=run_id) == []
+
+    # (6) 低危（merge/rollback）无联签仍可消费——不误伤
+    for act, apv in (("merge", make_action_approval(run_id, "task_r7dual",
+                                                    v, "merge")),
+                     ("rollback", make_action_approval(
+                         run_id, "task_r7dual", v, "rollback"))):
+        rec = mgr.reserve_action(run_id, act, f"plan://{act}/r7", apv,
+                                 action_descriptor=descriptor_of(apv))
+        assert rec["action_state"] == "RESERVED", act
+    # (7) 正例：高危双联签 + descriptor 匹配 → 消费成功，事件带对账面
+    v_now = mgr.get_run(run_id).state_version
+    good = cosign(make_action_approval(run_id, "task_r7dual", v_now,
+                                       "prod-write"))
+    r = mgr.reserve_action(run_id, "prod-write", target, good,
+                           action_descriptor=descriptor_of(good))
+    assert r["action_state"] == "RESERVED"
+    import hashlib as _hl
+    assert r["payload_digest"] == _hl.sha256(json.dumps(
+        good["payload"], sort_keys=True, separators=(",", ":"),
+        ensure_ascii=False).encode("utf-8")).hexdigest()
+    consumed = [json.loads(row[0]) for row in store._conn.execute(
+        "SELECT payload FROM pipeline_events").fetchall()
+        if json.loads(row[0]).get("event_type") == "APPROVAL_CONSUMED"
+        and json.loads(row[0]).get("approval_id") == good["approval_id"]]
+    assert len(consumed) == 1
+    ev = consumed[0]
+    assert ev["payload_digest"] == r["payload_digest"] and len(
+        ev["payload_digest"]) == 64
+    assert len(ev["cosign_digests"]) == 2
+    assert {c["key_id"] for c in ev["cosign_digests"]} == {
+        "key_test_1", "key_test_2"}
+    assert all(len(c["signature_digest"]) == 64
+               for c in ev["cosign_digests"])
+    # (8) 篡改消费事件（payload_digest 改一字，不动 seal）→ 重放即 Corruption。
+    #     事件表 append-only 触发器挡 UPDATE——模拟具备 DB 写权限的攻击者
+    #     （触发器对可直写 SQL 的攻击者不设防，此为既有诚实边界）：
+    #     临时摘除触发器改行后再装回，验证 seal+重放对账面双闸仍红。
+    rows = store._conn.execute(
+        "SELECT rowid, payload FROM pipeline_events ORDER BY seq ASC"
+    ).fetchall()
+    row = next(r for r in rows
+               if json.loads(r[1]).get("event_type") == "APPROVAL_CONSUMED"
+               and json.loads(r[1]).get("approval_id")
+               == good["approval_id"])
+    tampered = dict(json.loads(row[1]), payload_digest="f" * 64)
+    store._conn.execute("DROP TRIGGER pipeline_events_append_only_no_update")
+    store._conn.execute(
+        "UPDATE pipeline_events SET payload = ? WHERE rowid = ?",
+        (json.dumps(tampered, sort_keys=True, separators=(",", ":"),
+                    ensure_ascii=False), row[0]))
+    store._conn.execute(
+        "CREATE TRIGGER pipeline_events_append_only_no_update BEFORE UPDATE"
+        " ON pipeline_events BEGIN SELECT RAISE(ABORT, 'pipeline_events is"
+        " append-only: UPDATE is forbidden'); END")
+    expect(PipelineCorruptionError, lambda: mgr.get_run(run_id))
+
+
+# ====================================================================== #
+# R7-AUTH-KEY-PERM-006（Codex 第七轮 P1）：0644 keyring 可加载 → loader
+# fail-closed（0600/0700）+ 显式豁免清单（tests/fixtures）+ env 通道
+# ====================================================================== #
+def adv13_r7_keyring_permission_gate():
+    import stat as _stat
+    from wenqu_core.approval_keys import (
+        KEYRING_DEV_FIXTURES_ENV, KeyringPermissionError)
+    from wenqu_core import wenqu_pipeline as _wp
+
+    tmp = tempfile.mkdtemp(prefix="wenqu-r7perm-")
+    wide = os.path.join(tmp, "wide-keyring.json")
+    with open(wide, "w") as fh:
+        json.dump({"keys": {"key_wide_1": "s" * 64}}, fh)
+    os.chmod(wide, 0o644)
+
+    saved_env = {k: os.environ.get(k) for k in
+                 (KEYRING_DEV_FIXTURES_ENV, "WENQU_APPROVAL_KEYRING")}
+    try:
+        # (1) 0644 keyring（清单外）→ loader 拒（fail-closed）
+        os.environ.pop(KEYRING_DEV_FIXTURES_ENV, None)
+        expect(KeyringPermissionError,
+               lambda: ApprovalKeyring.from_path(wide), contains="0600")
+        # (2) fixtures 豁免通道正例：清单内路径 0644 仍可载（发行包自测）
+        kr = ApprovalKeyring.from_path(os.path.join(
+            REPO, "tests", "fixtures", "approval-keys.json"))
+        assert kr.key_ids() == ["key_test_1", "key_test_2"]
+        # (3) env=1 显式开豁免 → 同一 0644 路径可载（dev 联调正门）
+        os.environ[KEYRING_DEV_FIXTURES_ENV] = "1"
+        assert ApprovalKeyring.from_path(wide).key_ids() == ["key_wide_1"]
+        # (4) env=0 strict → 连清单内也拒（豁免可自证关闭）
+        os.environ[KEYRING_DEV_FIXTURES_ENV] = "0"
+        expect(KeyringPermissionError, lambda: ApprovalKeyring.from_path(
+            os.path.join(REPO, "tests", "fixtures",
+                         "approval-keys.json")))
+        os.environ.pop(KEYRING_DEV_FIXTURES_ENV, None)
+        # (5) 0755 目录 → 拒；0700 目录 + 0600 成员 → 可载
+        kdir = os.path.join(tmp, "keyring-dir")
+        os.makedirs(kdir, mode=0o700)
+        with open(os.path.join(kdir, "key_d_1.secret"), "w") as fh:
+            fh.write("t" * 64 + "\n")
+        os.chmod(os.path.join(kdir, "key_d_1.secret"), 0o600)
+        assert ApprovalKeyring.from_path(kdir).key_ids() == ["key_d_1"]
+        os.chmod(kdir, 0o755)
+        expect(KeyringPermissionError,
+               lambda: ApprovalKeyring.from_path(kdir), contains="0700")
+        # 目录 0700 但成员 secret 0644 → 拒
+        os.chmod(kdir, 0o700)
+        os.chmod(os.path.join(kdir, "key_d_1.secret"), 0o644)
+        expect(KeyringPermissionError,
+               lambda: ApprovalKeyring.from_path(kdir), contains="0600")
+        # (6) 消费端默认 keyring（WENQU_APPROVAL_KEYRING→0644）→ 空 keyring
+        #     fail-closed：一切验签拒绝（未知 key）
+        os.environ["WENQU_APPROVAL_KEYRING"] = wide
+        empty_kr = _wp.default_keyring()
+        assert len(empty_kr) == 0
+        store0 = EventStore(os.path.join(tmp, "events.db"))
+        mgr0 = RunManager(store0, keyring=empty_kr)
+        run0 = mgr0.create_run("task_r7perm", IDENT)["run_id"]
+        mgr0.advance_stage(run0)
+        v0 = mgr0.get_run(run0).state_version
+        ap0 = cosign(make_action_approval(run0, "task_r7perm", v0,
+                                          "prod-write"))
+        expect(ApprovalRejected,
+               lambda: mgr0.reserve_action(
+                   run0, "prod-write", "db://prod/erp", ap0,
+                   action_descriptor=descriptor_of(ap0)),
+               contains="key_id")
+    finally:
+        for key, val in saved_env.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+        os.chmod(wide, 0o600)  # 收敛 tmp 路径权限（离开时不再宽权限）
+    # 豁免不改变受管 keyring 红线：save_json 落盘即 0600
+    kr_ok = ApprovalKeyring.generate("key_save_1", secret="u" * 64)
+    path600 = os.path.join(tmp, "saved.json")
+    kr_ok.save_json(path600)
+    assert _stat.S_IMODE(os.stat(path600).st_mode) == 0o600
+    assert ApprovalKeyring.from_path(path600).key_ids() == ["key_save_1"]
+
+
+
 def adv_cli_end_to_end():
     tmp = tempfile.mkdtemp(prefix="wenqu-adv-cli-")
     db = os.path.join(tmp, "events.db")
@@ -906,6 +1188,8 @@ TESTS = [
     ("#9 自产事件全过 run-event-v2（FormatChecker）", adv9_schema_roundtrip),
     ("#10 action saga（授权链/outbox/receipt 分级对账/重放）", adv10_action_saga),
     ("#11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门", adv11_action_auth_gate),
+    ("R7-005 高危联签消费门+exact descriptor+消费对账面", adv12_r7_dual_consume_gates),
+    ("R7-006 0644 keyring loader fail-closed+豁免通道", adv13_r7_keyring_permission_gate),
     ("K：wenquctl CLI 端到端链", adv_cli_end_to_end),
 ]
 if __name__ == "__main__":

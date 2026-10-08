@@ -30,6 +30,24 @@ P0-2 残余（审批签发端，2026-10-08）：key 生命周期元数据扩展�
 - 目录型 keyring 的受管写入（``wenquctl keys create/rotate/revoke``）：
   目录 0700（目录需要 x 位才能访问内容——「owner-only 0600 语义」对目录
   的可执行落地），secret/meta 文件 0600，与 wenquctl/文档一致。
+
+R7-AUTH-KEY-PERM-006（Codex 第七轮，2026-10-08）：loader 权限 fail-closed——
+- keyring 文件非 0600（或目录型 keyring 目录非 0700、secret/meta 文件非
+  0600）时 ``from_path`` 一律 ``KeyringPermissionError`` 拒绝加载（0644 的
+  keyring 意味着本机任意用户可读密钥——加载它就是把门焊死在敞开状态）；
+- 显式豁免清单：``DEV_FIXTURE_EXEMPT_ROOTS``（本仓 ``system/tests/fixtures``
+  目录，按本模块位置锚定——内含公开测试密钥，权限宽不构成泄密面）；
+  清单内路径在权限不符时仍可加载（发行包自测在全新 checkout（umask 022
+  →0644）上必须可用）；
+- ``WENQU_KEYRING_DEV_FIXTURES=1``：显式把上述豁免开到任意 dev 路径
+  （本机联调加载宽松权限 keyring 的唯一正门）；``=0`` 则连清单内也严格
+  拒绝（strict 模式自证）。生产 keyring 永远落在清单外——无豁免。
+
+R7-AUTH-DUAL-CONSUME-005：``sign_envelope`` 签名体排除 ``cosignatures``
+（信封联签数组——联签与主签同体：主签/联签都对「除 signature 与
+cosignatures 外的信全体」计算 HMAC；不存在该键时行为与旧版逐字节一致）。
+新增 ``ApprovalKeyring.verify_detached``——消费端对联签条目按 key_id 取
+secret 验 detached HMAC（未知/revoked key 一律 False，fail-closed）。
 """
 
 from __future__ import annotations
@@ -41,7 +59,7 @@ import os
 import re
 import secrets
 import time
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 __all__ = [
     "ApprovalKeyring",
@@ -50,11 +68,14 @@ __all__ = [
     "KeyRevokedError",
     "KeyRotatedError",
     "KeyExpiredError",
+    "KeyringPermissionError",
     "KEY_STATUS_ACTIVE",
     "KEY_STATUS_ROTATED",
     "KEY_STATUS_REVOKED",
     "KEY_STATUSES",
     "KEYRING_EVENTS_FILENAME",
+    "DEV_FIXTURE_EXEMPT_ROOTS",
+    "KEYRING_DEV_FIXTURES_ENV",
     "generate_secret",
     "sign_envelope",
     "verify_envelope",
@@ -108,6 +129,98 @@ class KeyExpiredError(KeyStateError):
     """key 已过期（expiry）——不得签发新审批。"""
 
 
+class KeyringPermissionError(ValueError):
+    """keyring/secret 路径权限过宽（非 0600/0700）——loader fail-closed 拒载。
+
+    R7-AUTH-KEY-PERM-006：``ApprovalKeyring.from_path`` 对权限不符的
+    keyring 一律抛本异常（``ValueError`` 子类——消费端 ``default_keyring``
+    的 except (OSError, ValueError) 会把它收敛为空 keyring，全部验签拒绝，
+    同样 fail-closed）。豁免通道见 ``DEV_FIXTURE_EXEMPT_ROOTS`` 与
+    ``KEYRING_DEV_FIXTURES_ENV``。
+    """
+
+
+#: 显式豁免清单：本仓测试夹具目录（内含公开测试密钥，权限宽不构成泄密面；
+#  全新 checkout 的 fixtures 文件按 umask 落 0644——发行包自测必须可用）。
+DEV_FIXTURE_EXEMPT_ROOTS: Tuple[str, ...] = (
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 "tests", "fixtures"),
+)
+
+#: 豁免显式开关：``=1`` 把豁免开到任意 dev 路径（联调正门）；
+#: ``=0`` 连清单内也严格拒绝（strict 自证）；未设置=仅清单内豁免。
+KEYRING_DEV_FIXTURES_ENV = "WENQU_KEYRING_DEV_FIXTURES"
+
+
+def _dev_fixtures_mode() -> str:
+    import os as _os
+    return _os.environ.get(KEYRING_DEV_FIXTURES_ENV, "").strip()
+
+
+def _path_in_exemption(path: str) -> bool:
+    """路径（realpath 归一）是否落在显式豁免清单内。"""
+    real = os.path.realpath(path)
+    return any(real == os.path.realpath(root)
+               or real.startswith(os.path.realpath(root) + os.sep)
+               for root in DEV_FIXTURE_EXEMPT_ROOTS)
+
+
+def _permission_violations(path: str) -> List[str]:
+    """收集 keyring 路径的权限违规项（文件型查自身；目录型查目录+成员）。"""
+    import stat as _stat
+    violations: List[str] = []
+
+    def _mode(p: str) -> int:
+        return _stat.S_IMODE(os.stat(p).st_mode)
+
+    if os.path.isdir(path):
+        if _mode(path) != _KEYRING_DIR_MODE:
+            violations.append(
+                f"{path}: mode {oct(_mode(path))} != 0700（keyring 目录须 "
+                "owner-only）")
+        for name in sorted(os.listdir(path)):
+            member = os.path.join(path, name)
+            if not os.path.isfile(member):
+                continue
+            if name.endswith(".secret") or name.endswith(".meta.json"):
+                if _mode(member) != _SECRET_FILE_MODE:
+                    violations.append(
+                        f"{member}: mode {oct(_mode(member))} != 0600")
+            elif name == KEYRING_EVENTS_FILENAME:
+                if _mode(member) != _SECRET_FILE_MODE:
+                    violations.append(
+                        f"{member}: mode {oct(_mode(member))} != 0600")
+        return violations
+    if _mode(path) != _SECRET_FILE_MODE:
+        violations.append(
+            f"{path}: mode {oct(_mode(path))} != 0600（keyring 文件须 "
+            "owner-only）")
+    return violations
+
+
+def _enforce_keyring_permissions(path: str) -> None:
+    """R7-AUTH-KEY-PERM-006：权限不符即拒载（豁免清单/env 通道除外）。
+
+    - 严格模式（``WENQU_KEYRING_DEV_FIXTURES=0``）：无任何豁免；
+    - 缺省：仅 ``DEV_FIXTURE_EXEMPT_ROOTS``（本仓 tests/fixtures）豁免；
+    - 显式豁免（``=1``）：任意路径豁免（dev 联调正门——生产禁止设置）。
+    """
+    violations = _permission_violations(path)
+    if not violations:
+        return
+    mode = _dev_fixtures_mode()
+    if mode == "1":
+        return  # 显式开豁免（dev fixtures 模式）
+    if mode != "0" and _path_in_exemption(path):
+        return  # 清单内路径豁免（公开测试密钥；全新 checkout 0644 亦可自测）
+    raise KeyringPermissionError(
+        "keyring 权限过宽，fail-closed 拒绝加载（R7-AUTH-KEY-PERM-006）: "
+        + "; ".join(violations)
+        + "——收敛为 0600（目录 0700）后重试；测试夹具路径走 "
+        "DEV_FIXTURE_EXEMPT_ROOTS 豁免，或显式注入 "
+        f"{KEYRING_DEV_FIXTURES_ENV}=1（仅限 dev）")
+
+
 def _utc_now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -142,10 +255,16 @@ def _canonical_json(obj: Any) -> str:
 
 
 def sign_envelope(secret: str, envelope: Mapping[str, Any]) -> str:
-    """对 envelope（不含 signature 字段）计算 HMAC-SHA256 签名（64 hex）。"""
+    """对 envelope 计算 HMAC-SHA256 签名（64 hex）。
+
+    签名体 = 信封除 ``signature`` 与 ``cosignatures`` 外的全字段
+    （R7-AUTH-DUAL-CONSUME-005：主签与联签对同一「信封体」独立计算 HMAC；
+    ``cosignatures`` 键不存在时签名体与旧版逐字节一致——向后兼容）。
+    """
     if not isinstance(secret, str) or not secret:
         raise ValueError("secret must be a non-empty string")
-    body = {k: v for k, v in dict(envelope).items() if k != "signature"}
+    body = {k: v for k, v in dict(envelope).items()
+            if k not in ("signature", "cosignatures")}
     mac = hmac.new(secret.encode("utf-8"),
                    _canonical_json(body).encode("utf-8"), hashlib.sha256)
     return mac.hexdigest()
@@ -260,9 +379,15 @@ class ApprovalKeyring:
           ``keyring-events.jsonl`` 为生命周期/吊销拒绝事件账本路径；
         - 文件型：JSON——推荐 ``{"keys": {key_id: secret}, "meta": {...}}``，
           兼容顶层扁平 ``{key_id: secret}``（键必须匹配 key_id 命名）。
+
+        R7-AUTH-KEY-PERM-006：权限 fail-closed——文件型须 0600；目录型须
+        目录 0700 且 secret/meta/事件账本文件全 0600；不符即
+        ``KeyringPermissionError`` 拒载（豁免通道见模块 docstring：
+        ``DEV_FIXTURE_EXEMPT_ROOTS`` 清单 + ``WENQU_KEYRING_DEV_FIXTURES``）。
         """
         if not path or not os.path.exists(path):
             raise FileNotFoundError(f"keyring path not found: {path!r}")
+        _enforce_keyring_permissions(path)
         keys: Dict[str, str] = {}
         if os.path.isdir(path):
             meta: Dict[str, Dict[str, Any]] = {}
@@ -409,6 +534,27 @@ class ApprovalKeyring:
             self._record_revoked_rejection(key_id, approval)
             return False
         return verify_envelope(self._keys[key_id], approval, signature)
+
+    def verify_detached(self, key_id: str, body: Mapping[str, Any],
+                        signature: str) -> bool:
+        """验 detached HMAC：按 key_id 取 secret 对 body 重算比对。
+
+        R7-AUTH-DUAL-CONSUME-005 消费端联签验证用——联签条目
+        ``{key_id, actor, signature}`` 的 signature 是该 key 对「信封体」
+        （envelope 去掉 signature/cosignatures）的独立 HMAC。语义与
+        ``verify`` 同源：未知 key / revoked key 一律 False（fail-closed，
+        revoked 拒绝同样尽力记入事件账本）；rotated/expired 仍可验存量
+        （信封 TTL 兜底，与主验签生命周期语义一致）。
+        """
+        if not isinstance(key_id, str) or key_id not in self._keys:
+            return False
+        if self._key_status(key_id) == KEY_STATUS_REVOKED:
+            self._record_revoked_rejection(key_id, {
+                "approval_id": None, "approval_type": "cosignature",
+                "run_id": None,
+                "note": "revoked cosign key rejected (fail-closed)"})
+            return False
+        return verify_envelope(self._keys[key_id], body, signature)
 
     def _record_revoked_rejection(self, key_id: str,
                                   approval: Mapping[str, Any]) -> None:

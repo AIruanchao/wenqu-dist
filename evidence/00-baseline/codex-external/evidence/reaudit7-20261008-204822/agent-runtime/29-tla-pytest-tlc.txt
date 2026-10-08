@@ -1,0 +1,483 @@
+UTC_START=2026-10-08T12:53:39Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-tla-run.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-release-d32c859
+cd "$R"
+echo HEAD=$(git rev-parse HEAD)
+echo JAR_SHA256=$(shasum -a 256 system/bin/tla2tools.jar | awk '{print $1}')
+echo SPEC_SHA256=$(shasum -a 256 specs/tla/wenqu_pipeline.tla | awk '{print $1}')
+echo CFG_SHA256=$(shasum -a 256 specs/tla/wenqu_pipeline.cfg | awk '{print $1}')
+echo '=== pytest spec-code consistency ==='
+python3 -m pytest system/tests/test_tla_spec.py -q
+p_rc=$?; echo PYTEST_RC=$p_rc
+echo '=== TLC real run ==='
+java -Xmx2g -XX:+UseParallelGC -cp system/bin/tla2tools.jar tlc2.TLC -workers 4 -coverage 1 specs/tla/wenqu_pipeline.tla
+t_rc=$?; echo TLC_RC=$t_rc
+exit $(( p_rc != 0 ? p_rc : t_rc ))
+--- OUTPUT ---
+HEAD=d32c859f9043798d9e8a4984e8f57aa64567e33c
+JAR_SHA256=8cce75caa1e59d0b0483bb8fb881ba33825edce8b2d98aba59d66ce685dd3d1a
+SPEC_SHA256=c1555e86889187ce030320216d959859f2f2319a75ca5d523aa12af272573fd0
+CFG_SHA256=d58edb1279623e982b2c9987352d6cc4d8151006af8f95a04b9e9140717e5f5c
+=== pytest spec-code consistency ===
+..........                                                               [100%]
+10 passed in 0.05s
+PYTEST_RC=0
+=== TLC real run ===
+TLC2 Version 2.15 of Day Month 20?? (rev: eb3ff99)
+Running breadth-first search Model-Checking with fp 76 and seed -1727910517820345622 with 4 workers on 10 cores with 1820MB heap and 64MB offheap memory [pid: 40770] (Mac OS X 26.5.1 aarch64, Eclipse Adoptium 17.0.20.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /private/tmp/reaudit7-release-d32c859/specs/tla/wenqu_pipeline.tla
+Parsing file /private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/Naturals.tla
+Parsing file /private/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module wenqu_pipeline
+Starting... (2026-10-08 20:53:39)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-08 20:53:40.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 7.3E-14
+The coverage statistics at 2026-10-08 20:53:40
+<Init line 195, col 1 to line 195, col 4 of module wenqu_pipeline>: 1:1
+  line 196, col 5 to line 202, col 21 of module wenqu_pipeline: 1
+<StartStage line 217, col 1 to line 217, col 13 of module wenqu_pipeline>: 31:31
+  line 218, col 8 to line 218, col 40 of module wenqu_pipeline: 1699
+  |line 218, col 8 to line 218, col 13 of module wenqu_pipeline: 1668
+  |line 218, col 19 to line 218, col 40 of module wenqu_pipeline: 1668
+  line 219, col 9 to line 219, col 60 of module wenqu_pipeline: 30
+  |line 219, col 9 to line 219, col 26 of module wenqu_pipeline: 352
+  |line 219, col 31 to line 219, col 60 of module wenqu_pipeline: 3
+  ||line 219, col 45 to line 219, col 60 of module wenqu_pipeline: 2
+  line 220, col 8 to line 220, col 19 of module wenqu_pipeline: 383
+  |line 220, col 8 to line 220, col 15 of module wenqu_pipeline: 352
+  ||line 140, col 16 to line 140, col 54 of module wenqu_pipeline: 352:864
+  |||line 140, col 34 to line 140, col 53 of module wenqu_pipeline: 704
+  ||||line 140, col 34 to line 140, col 42 of module wenqu_pipeline: 704
+  |||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 704
+  ||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 704
+  ||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 654
+  |||||line 140, col 41 to line 140, col 41 of module wenqu_pipeline: 704
+  |||line 140, col 23 to line 140, col 30 of module wenqu_pipeline: 352
+  ||line 141, col 8 to line 142, col 52 of module wenqu_pipeline: 352
+  |||line 141, col 11 to line 141, col 18 of module wenqu_pipeline: 352
+  |||line 142, col 13 to line 142, col 52 of module wenqu_pipeline: 276
+  ||||line 142, col 32 to line 142, col 52 of module wenqu_pipeline: 276
+  |||||line 142, col 47 to line 142, col 52 of module wenqu_pipeline: 312
+  |||||line 142, col 41 to line 142, col 43 of module wenqu_pipeline: 276
+  ||||line 142, col 26 to line 142, col 28 of module wenqu_pipeline: 276
+  |line 220, col 19 to line 220, col 19 of module wenqu_pipeline: 352
+  line 221, col 8 to line 221, col 28 of module wenqu_pipeline: 169
+  |line 221, col 8 to line 221, col 16 of module wenqu_pipeline: 138
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 138
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 138
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 131
+  ||line 221, col 15 to line 221, col 15 of module wenqu_pipeline: 138
+  line 222, col 8 to line 222, col 38 of module wenqu_pipeline: 31
+  |line 222, col 8 to line 222, col 24 of module wenqu_pipeline: 95
+  |line 222, col 29 to line 222, col 38 of module wenqu_pipeline: 95
+  line 223, col 8 to line 223, col 58 of module wenqu_pipeline: 31
+  line 224, col 8 to line 224, col 26 of module wenqu_pipeline: 31
+  line 225, col 8 to line 225, col 21 of module wenqu_pipeline: 31
+  line 226, col 8 to line 226, col 59 of module wenqu_pipeline: 31
+<CompleteStage line 236, col 1 to line 236, col 22 of module wenqu_pipeline>: 129:903
+  line 237, col 8 to line 237, col 25 of module wenqu_pipeline: 42603
+  |line 237, col 8 to line 237, col 13 of module wenqu_pipeline: 41700
+  line 238, col 8 to line 238, col 19 of module wenqu_pipeline: 9653
+  |line 238, col 8 to line 238, col 15 of module wenqu_pipeline: 8750
+  ||line 140, col 16 to line 140, col 54 of module wenqu_pipeline: 8750:21400
+  |||line 140, col 34 to line 140, col 53 of module wenqu_pipeline: 17500
+  ||||line 140, col 34 to line 140, col 42 of module wenqu_pipeline: 17500
+  |||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 17500
+  ||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 17500
+  ||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 16350
+  |||||line 140, col 41 to line 140, col 41 of module wenqu_pipeline: 17500
+  |||line 140, col 23 to line 140, col 30 of module wenqu_pipeline: 8750
+  ||line 141, col 8 to line 142, col 52 of module wenqu_pipeline: 8750
+  |||line 141, col 11 to line 141, col 18 of module wenqu_pipeline: 8750
+  |||line 142, col 13 to line 142, col 52 of module wenqu_pipeline: 6850
+  ||||line 142, col 32 to line 142, col 52 of module wenqu_pipeline: 6850
+  |||||line 142, col 47 to line 142, col 52 of module wenqu_pipeline: 7700
+  |||||line 142, col 41 to line 142, col 43 of module wenqu_pipeline: 6850
+  ||||line 142, col 26 to line 142, col 28 of module wenqu_pipeline: 6850
+  |line 238, col 19 to line 238, col 19 of module wenqu_pipeline: 8750
+  line 239, col 8 to line 239, col 28 of module wenqu_pipeline: 4328
+  |line 239, col 8 to line 239, col 16 of module wenqu_pipeline: 3425
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 3425
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 3425
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 3275
+  ||line 239, col 15 to line 239, col 15 of module wenqu_pipeline: 3425
+  line 161, col 5 to line 161, col 36 of module wenqu_pipeline: 1978
+  |line 161, col 7 to line 161, col 35 of module wenqu_pipeline: 1075
+  ||line 161, col 7 to line 161, col 16 of module wenqu_pipeline: 1075
+  ||line 161, col 21 to line 161, col 35 of module wenqu_pipeline: 215
+  line 240, col 21 to line 240, col 21 of module wenqu_pipeline: 215
+  line 240, col 24 to line 240, col 24 of module wenqu_pipeline: 1075
+  line 241, col 8 to line 241, col 54 of module wenqu_pipeline: 1806
+  |line 241, col 8 to line 241, col 26 of module wenqu_pipeline: 903
+  ||line 173, col 24 to line 173, col 79 of module wenqu_pipeline: 903
+  |||line 173, col 27 to line 173, col 41 of module wenqu_pipeline: 903
+  |||line 173, col 62 to line 173, col 79 of module wenqu_pipeline: 215
+  ||line 241, col 22 to line 241, col 22 of module wenqu_pipeline: 903
+  ||line 241, col 25 to line 241, col 25 of module wenqu_pipeline: 215
+  |line 241, col 32 to line 241, col 54 of module wenqu_pipeline: 903
+  line 242, col 8 to line 242, col 63 of module wenqu_pipeline: 903
+  |line 242, col 17 to line 242, col 63 of module wenqu_pipeline: 903
+  ||line 242, col 18 to line 242, col 22 of module wenqu_pipeline: 903
+  ||line 242, col 31 to line 242, col 62 of module wenqu_pipeline: 903
+  ||line 242, col 38 to line 242, col 62 of module wenqu_pipeline: 903
+  |||line 242, col 48 to line 242, col 61 of module wenqu_pipeline: 903
+  ||||line 182, col 15 to line 182, col 33 of module wenqu_pipeline: 903
+  |||||line 173, col 24 to line 173, col 79 of module wenqu_pipeline: 903
+  ||||||line 173, col 27 to line 173, col 41 of module wenqu_pipeline: 903
+  ||||||line 173, col 62 to line 173, col 79 of module wenqu_pipeline: 215
+  |||||line 182, col 29 to line 182, col 29 of module wenqu_pipeline: 903
+  |||||line 182, col 32 to line 182, col 32 of module wenqu_pipeline: 215
+  ||||line 183, col 8 to line 187, col 19 of module wenqu_pipeline: 903
+  |||||line 183, col 11 to line 183, col 39 of module wenqu_pipeline: 903
+  ||||||line 183, col 11 to line 183, col 20 of module wenqu_pipeline: 903
+  ||||||line 183, col 25 to line 183, col 39 of module wenqu_pipeline: 43
+  |||||line 185, col 13 to line 187, col 19 of module wenqu_pipeline: 903
+  ||||||line 185, col 16 to line 185, col 62 of module wenqu_pipeline: 903
+  |||||||line 185, col 16 to line 185, col 43 of module wenqu_pipeline: 903
+  |||||||line 185, col 48 to line 185, col 62 of module wenqu_pipeline: 86
+  ||||||line 187, col 18 to line 187, col 19 of module wenqu_pipeline: 903
+  ||||line 242, col 57 to line 242, col 57 of module wenqu_pipeline: 903
+  ||||line 242, col 60 to line 242, col 60 of module wenqu_pipeline: 903
+  line 243, col 8 to line 243, col 21 of module wenqu_pipeline: 903
+  line 244, col 8 to line 244, col 67 of module wenqu_pipeline: 903
+<RaiseWaiting line 250, col 1 to line 250, col 15 of module wenqu_pipeline>: 43:43
+  line 251, col 8 to line 251, col 25 of module wenqu_pipeline: 1711
+  |line 251, col 8 to line 251, col 13 of module wenqu_pipeline: 1668
+  line 252, col 8 to line 252, col 37 of module wenqu_pipeline: 393
+  |line 252, col 22 to line 252, col 37 of module wenqu_pipeline: 350
+  line 253, col 8 to line 253, col 19 of module wenqu_pipeline: 393
+  |line 253, col 8 to line 253, col 15 of module wenqu_pipeline: 350
+  ||line 140, col 16 to line 140, col 54 of module wenqu_pipeline: 350:856
+  |||line 140, col 34 to line 140, col 53 of module wenqu_pipeline: 700
+  ||||line 140, col 34 to line 140, col 42 of module wenqu_pipeline: 700
+  |||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 700
+  ||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 700
+  ||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 654
+  |||||line 140, col 41 to line 140, col 41 of module wenqu_pipeline: 700
+  |||line 140, col 23 to line 140, col 30 of module wenqu_pipeline: 350
+  ||line 141, col 8 to line 142, col 52 of module wenqu_pipeline: 350
+  |||line 141, col 11 to line 141, col 18 of module wenqu_pipeline: 350
+  |||line 142, col 13 to line 142, col 52 of module wenqu_pipeline: 274
+  ||||line 142, col 32 to line 142, col 52 of module wenqu_pipeline: 274
+  |||||line 142, col 47 to line 142, col 52 of module wenqu_pipeline: 308
+  |||||line 142, col 41 to line 142, col 43 of module wenqu_pipeline: 274
+  ||||line 142, col 26 to line 142, col 28 of module wenqu_pipeline: 274
+  |line 253, col 19 to line 253, col 19 of module wenqu_pipeline: 350
+  line 254, col 8 to line 254, col 28 of module wenqu_pipeline: 180
+  |line 254, col 8 to line 254, col 16 of module wenqu_pipeline: 137
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 137
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 137
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 131
+  ||line 254, col 15 to line 254, col 15 of module wenqu_pipeline: 137
+  line 255, col 8 to line 255, col 58 of module wenqu_pipeline: 43
+  line 256, col 8 to line 256, col 26 of module wenqu_pipeline: 43
+  line 257, col 8 to line 257, col 18 of module wenqu_pipeline: 43
+  line 258, col 8 to line 258, col 21 of module wenqu_pipeline: 43
+  line 259, col 8 to line 259, col 51 of module wenqu_pipeline: 43
+<ConsumeResume line 271, col 1 to line 271, col 16 of module wenqu_pipeline>: 2:2
+  line 272, col 8 to line 272, col 25 of module wenqu_pipeline: 3338
+  |line 272, col 8 to line 272, col 13 of module wenqu_pipeline: 3336
+  line 273, col 8 to line 273, col 37 of module wenqu_pipeline: 178
+  |line 273, col 22 to line 273, col 37 of module wenqu_pipeline: 176
+  line 274, col 8 to line 274, col 17 of module wenqu_pipeline: 178
+  |line 274, col 8 to line 274, col 13 of module wenqu_pipeline: 176
+  line 275, col 8 to line 275, col 28 of module wenqu_pipeline: 178
+  |line 275, col 8 to line 275, col 8 of module wenqu_pipeline: 176
+  |line 275, col 14 to line 275, col 28 of module wenqu_pipeline: 176
+  line 276, col 8 to line 276, col 23 of module wenqu_pipeline: 90
+  |line 276, col 8 to line 276, col 19 of module wenqu_pipeline: 88
+  line 277, col 8 to line 277, col 29 of module wenqu_pipeline: 86
+  |line 277, col 8 to line 277, col 23 of module wenqu_pipeline: 84
+  ||line 57, col 5 to line 60, col 10 of module wenqu_pipeline: 84
+  |||line 57, col 8 to line 57, col 13 of module wenqu_pipeline: 84
+  |||line 58, col 10 to line 60, col 10 of module wenqu_pipeline: 40
+  ||line 277, col 22 to line 277, col 22 of module wenqu_pipeline: 84
+  |line 277, col 27 to line 277, col 29 of module wenqu_pipeline: 84
+  line 278, col 8 to line 278, col 43 of module wenqu_pipeline: 2
+  |line 278, col 8 to line 278, col 29 of module wenqu_pipeline: 6
+  |line 278, col 34 to line 278, col 43 of module wenqu_pipeline: 6
+  line 279, col 8 to line 279, col 63 of module wenqu_pipeline: 2
+  line 280, col 8 to line 280, col 26 of module wenqu_pipeline: 2
+  line 281, col 8 to line 281, col 18 of module wenqu_pipeline: 2
+  line 282, col 8 to line 282, col 38 of module wenqu_pipeline: 2
+  line 283, col 8 to line 283, col 51 of module wenqu_pipeline: 2
+  line 284, col 8 to line 284, col 29 of module wenqu_pipeline: 2
+  line 285, col 8 to line 285, col 21 of module wenqu_pipeline: 2
+<ConsumeRisk line 291, col 1 to line 291, col 14 of module wenqu_pipeline>: 14:14
+  line 292, col 8 to line 292, col 32 of module wenqu_pipeline: 3350
+  |line 292, col 8 to line 292, col 13 of module wenqu_pipeline: 3336
+  |line 292, col 22 to line 292, col 32 of module wenqu_pipeline: 3336
+  line 293, col 8 to line 293, col 26 of module wenqu_pipeline: 894
+  |line 293, col 8 to line 293, col 8 of module wenqu_pipeline: 880
+  |line 293, col 14 to line 293, col 26 of module wenqu_pipeline: 880
+  line 294, col 8 to line 294, col 23 of module wenqu_pipeline: 454
+  |line 294, col 8 to line 294, col 19 of module wenqu_pipeline: 440
+  line 295, col 8 to line 295, col 29 of module wenqu_pipeline: 255
+  |line 295, col 8 to line 295, col 23 of module wenqu_pipeline: 241
+  |line 295, col 27 to line 295, col 29 of module wenqu_pipeline: 241
+  line 296, col 8 to line 296, col 38 of module wenqu_pipeline: 14
+  line 297, col 8 to line 297, col 51 of module wenqu_pipeline: 14
+  line 298, col 8 to line 298, col 40 of module wenqu_pipeline: 14
+  line 299, col 8 to line 299, col 47 of module wenqu_pipeline: 14
+<FinishSucceeded line 308, col 1 to line 308, col 15 of module wenqu_pipeline>: 38:38
+  line 309, col 8 to line 309, col 25 of module wenqu_pipeline: 872
+  |line 309, col 8 to line 309, col 13 of module wenqu_pipeline: 834
+  line 310, col 8 to line 310, col 39 of module wenqu_pipeline: 213
+  |line 310, col 24 to line 310, col 39 of module wenqu_pipeline: 175
+  line 144, col 37 to line 144, col 56 of module wenqu_pipeline: 409
+  |line 144, col 37 to line 144, col 45 of module wenqu_pipeline: 333
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 333
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 333
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 327
+  ||line 144, col 44 to line 144, col 44 of module wenqu_pipeline: 333
+  line 144, col 26 to line 144, col 33 of module wenqu_pipeline: 175
+  line 312, col 8 to line 312, col 28 of module wenqu_pipeline: 38
+  line 313, col 8 to line 313, col 21 of module wenqu_pipeline: 38
+  line 314, col 8 to line 314, col 66 of module wenqu_pipeline: 38
+<FinishConditional line 316, col 1 to line 316, col 17 of module wenqu_pipeline>: 28:28
+  line 317, col 8 to line 317, col 25 of module wenqu_pipeline: 862
+  |line 317, col 8 to line 317, col 13 of module wenqu_pipeline: 834
+  line 318, col 8 to line 318, col 51 of module wenqu_pipeline: 203
+  |line 318, col 36 to line 318, col 51 of module wenqu_pipeline: 175
+  line 145, col 38 to line 145, col 72 of module wenqu_pipeline: 378
+  |line 145, col 38 to line 145, col 46 of module wenqu_pipeline: 350
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 350
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 350
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 327
+  ||line 145, col 45 to line 145, col 45 of module wenqu_pipeline: 350
+  line 145, col 27 to line 145, col 34 of module wenqu_pipeline: 175
+  line 147, col 20 to line 147, col 68 of module wenqu_pipeline: 144
+  |line 147, col 20 to line 147, col 28 of module wenqu_pipeline: 88
+  ||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 88
+  |||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 88
+  |||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 82
+  ||line 147, col 27 to line 147, col 27 of module wenqu_pipeline: 88
+  |line 147, col 34 to line 147, col 68 of module wenqu_pipeline: 88
+  line 146, col 27 to line 146, col 34 of module wenqu_pipeline: 44
+  line 321, col 8 to line 321, col 21 of module wenqu_pipeline: 66
+  |line 321, col 8 to line 321, col 16 of module wenqu_pipeline: 38
+  |line 321, col 20 to line 321, col 21 of module wenqu_pipeline: 38
+  line 322, col 8 to line 322, col 40 of module wenqu_pipeline: 28
+  line 323, col 8 to line 323, col 21 of module wenqu_pipeline: 28
+  line 324, col 8 to line 324, col 66 of module wenqu_pipeline: 28
+<FinishFailed line 326, col 1 to line 326, col 12 of module wenqu_pipeline>: 109:109
+  line 327, col 8 to line 327, col 25 of module wenqu_pipeline: 943
+  |line 327, col 8 to line 327, col 13 of module wenqu_pipeline: 834
+  line 328, col 8 to line 328, col 36 of module wenqu_pipeline: 284
+  |line 328, col 21 to line 328, col 36 of module wenqu_pipeline: 175
+  line 329, col 8 to line 329, col 20 of module wenqu_pipeline: 284
+  |line 329, col 9 to line 329, col 20 of module wenqu_pipeline: 175
+  ||line 144, col 17 to line 144, col 56 of module wenqu_pipeline: 175
+  |||line 144, col 37 to line 144, col 56 of module wenqu_pipeline: 333
+  ||||line 144, col 37 to line 144, col 45 of module wenqu_pipeline: 333
+  |||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 333
+  ||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 333
+  ||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 327
+  |||||line 144, col 44 to line 144, col 44 of module wenqu_pipeline: 333
+  |||line 144, col 26 to line 144, col 33 of module wenqu_pipeline: 175
+  line 330, col 8 to line 330, col 54 of module wenqu_pipeline: 246
+  |line 330, col 11 to line 330, col 53 of module wenqu_pipeline: 137
+  ||line 330, col 11 to line 330, col 35 of module wenqu_pipeline: 137
+  |||line 330, col 11 to line 330, col 20 of module wenqu_pipeline: 137
+  ||||line 145, col 18 to line 145, col 72 of module wenqu_pipeline: 137
+  |||||line 145, col 38 to line 145, col 72 of module wenqu_pipeline: 268
+  ||||||line 145, col 38 to line 145, col 46 of module wenqu_pipeline: 268
+  |||||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 268
+  ||||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 268
+  ||||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 251
+  |||||||line 145, col 45 to line 145, col 45 of module wenqu_pipeline: 268
+  |||||line 145, col 27 to line 145, col 34 of module wenqu_pipeline: 137
+  |||line 330, col 25 to line 330, col 35 of module wenqu_pipeline: 44
+  ||||line 146, col 18 to line 147, col 68 of module wenqu_pipeline: 44
+  |||||line 147, col 20 to line 147, col 68 of module wenqu_pipeline: 88
+  ||||||line 147, col 20 to line 147, col 28 of module wenqu_pipeline: 88
+  |||||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 88
+  ||||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 88
+  ||||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 82
+  |||||||line 147, col 27 to line 147, col 27 of module wenqu_pipeline: 88
+  ||||||line 147, col 34 to line 147, col 68 of module wenqu_pipeline: 88
+  |||||line 146, col 27 to line 146, col 34 of module wenqu_pipeline: 44
+  ||line 330, col 40 to line 330, col 53 of module wenqu_pipeline: 38
+  line 331, col 8 to line 331, col 25 of module wenqu_pipeline: 109
+  line 332, col 8 to line 332, col 21 of module wenqu_pipeline: 109
+  line 333, col 8 to line 333, col 66 of module wenqu_pipeline: 109
+<CancelRun line 337, col 1 to line 337, col 9 of module wenqu_pipeline>: 220:220
+  line 338, col 8 to line 338, col 51 of module wenqu_pipeline: 1054
+  |line 338, col 8 to line 338, col 13 of module wenqu_pipeline: 834
+  |line 338, col 19 to line 338, col 51 of module wenqu_pipeline: 834
+  line 339, col 8 to line 339, col 39 of module wenqu_pipeline: 440
+  |line 339, col 24 to line 339, col 39 of module wenqu_pipeline: 220
+  line 340, col 8 to line 340, col 28 of module wenqu_pipeline: 220
+  line 341, col 8 to line 341, col 21 of module wenqu_pipeline: 220
+  line 342, col 8 to line 342, col 66 of module wenqu_pipeline: 220
+<SupersedeRun line 346, col 1 to line 346, col 12 of module wenqu_pipeline>: 219:219
+  line 347, col 8 to line 347, col 51 of module wenqu_pipeline: 1053
+  |line 347, col 8 to line 347, col 13 of module wenqu_pipeline: 834
+  |line 347, col 19 to line 347, col 51 of module wenqu_pipeline: 834
+  line 348, col 8 to line 348, col 40 of module wenqu_pipeline: 439
+  |line 348, col 25 to line 348, col 40 of module wenqu_pipeline: 220
+  line 349, col 8 to line 349, col 29 of module wenqu_pipeline: 219
+  line 350, col 8 to line 350, col 21 of module wenqu_pipeline: 219
+  line 351, col 8 to line 351, col 66 of module wenqu_pipeline: 219
+<NoOp line 354, col 1 to line 354, col 4 of module wenqu_pipeline>: 0:834
+  line 354, col 9 to line 354, col 22 of module wenqu_pipeline: 834
+<TypeOK line 385, col 1 to line 385, col 6 of module wenqu_pipeline>
+  line 386, col 5 to line 394, col 75 of module wenqu_pipeline: 834
+  |line 386, col 8 to line 386, col 27 of module wenqu_pipeline: 834
+  |line 387, col 8 to line 387, col 15 of module wenqu_pipeline: 834
+  |line 388, col 8 to line 388, col 37 of module wenqu_pipeline: 834
+  |line 389, col 8 to line 389, col 57 of module wenqu_pipeline: 834
+  ||line 389, col 28 to line 389, col 57 of module wenqu_pipeline: 1668
+  ||line 389, col 17 to line 389, col 24 of module wenqu_pipeline: 834
+  |line 390, col 8 to line 390, col 36 of module wenqu_pipeline: 834
+  |line 391, col 8 to line 391, col 39 of module wenqu_pipeline: 834
+  |line 392, col 8 to line 392, col 37 of module wenqu_pipeline: 834
+  |line 393, col 9 to line 393, col 70 of module wenqu_pipeline: 834
+  ||line 393, col 9 to line 393, col 26 of module wenqu_pipeline: 834
+  ||line 393, col 31 to line 393, col 70 of module wenqu_pipeline: 44
+  |line 394, col 9 to line 394, col 74 of module wenqu_pipeline: 834
+  ||line 394, col 9 to line 394, col 18 of module wenqu_pipeline: 834
+  ||line 394, col 23 to line 394, col 74 of module wenqu_pipeline: 132
+<NoSkipStages line 398, col 1 to line 398, col 12 of module wenqu_pipeline>
+  line 399, col 5 to line 401, col 58 of module wenqu_pipeline: 834
+  |line 400, col 9 to line 401, col 58 of module wenqu_pipeline: 1668
+  ||line 400, col 9 to line 400, col 25 of module wenqu_pipeline: 1668
+  ||line 401, col 13 to line 401, col 58 of module wenqu_pipeline: 1554
+  |||line 401, col 33 to line 401, col 58 of module wenqu_pipeline: 3108
+  ||||line 401, col 33 to line 401, col 37 of module wenqu_pipeline: 3108
+  ||||line 401, col 42 to line 401, col 58 of module wenqu_pipeline: 722
+  |||line 401, col 22 to line 401, col 29 of module wenqu_pipeline: 1554
+  |line 399, col 14 to line 399, col 21 of module wenqu_pipeline: 834
+<PriorPassedGate line 407, col 1 to line 407, col 15 of module wenqu_pipeline>
+  line 408, col 5 to line 410, col 61 of module wenqu_pipeline: 834
+  |line 409, col 9 to line 410, col 61 of module wenqu_pipeline: 1668
+  ||line 409, col 9 to line 409, col 25 of module wenqu_pipeline: 1668
+  ||line 410, col 13 to line 410, col 61 of module wenqu_pipeline: 1554
+  |||line 410, col 33 to line 410, col 61 of module wenqu_pipeline: 3108
+  ||||line 410, col 33 to line 410, col 37 of module wenqu_pipeline: 3108
+  ||||line 410, col 42 to line 410, col 61 of module wenqu_pipeline: 722
+  |||line 410, col 22 to line 410, col 29 of module wenqu_pipeline: 1554
+  |line 408, col 14 to line 408, col 21 of module wenqu_pipeline: 834
+<AttemptImmutable line 416, col 1 to line 416, col 16 of module wenqu_pipeline>
+  line 417, col 5 to line 420, col 61 of module wenqu_pipeline: 834
+  |line 418, col 9 to line 420, col 61 of module wenqu_pipeline: 1668
+  ||line 419, col 13 to line 420, col 61 of module wenqu_pipeline: 5064
+  |||line 419, col 17 to line 419, col 52 of module wenqu_pipeline: 5064
+  ||||line 419, col 17 to line 419, col 25 of module wenqu_pipeline: 5064
+  ||||line 419, col 30 to line 419, col 52 of module wenqu_pipeline: 2618
+  |||line 420, col 17 to line 420, col 60 of module wenqu_pipeline: 5064
+  ||||line 420, col 17 to line 420, col 25 of module wenqu_pipeline: 5064
+  ||||line 420, col 30 to line 420, col 60 of module wenqu_pipeline: 2446
+  ||line 418, col 18 to line 418, col 33 of module wenqu_pipeline: 1668
+  |line 417, col 14 to line 417, col 21 of module wenqu_pipeline: 834
+<NonceOnceConsumed line 426, col 1 to line 426, col 17 of module wenqu_pipeline>
+  line 427, col 5 to line 429, col 35 of module wenqu_pipeline: 834
+  |line 427, col 8 to line 427, col 45 of module wenqu_pipeline: 834
+  ||line 427, col 29 to line 427, col 45 of module wenqu_pipeline: 3336
+  ||line 427, col 17 to line 427, col 25 of module wenqu_pipeline: 834
+  |line 428, col 8 to line 428, col 67 of module wenqu_pipeline: 834
+  ||line 428, col 29 to line 428, col 67 of module wenqu_pipeline: 3336
+  ||line 428, col 17 to line 428, col 25 of module wenqu_pipeline: 834
+  |line 429, col 8 to line 429, col 35 of module wenqu_pipeline: 834
+<TerminalFinal line 436, col 1 to line 436, col 13 of module wenqu_pipeline>
+  line 437, col 5 to line 444, col 62 of module wenqu_pipeline: 834
+  |line 437, col 9 to line 437, col 44 of module wenqu_pipeline: 834
+  ||line 437, col 9 to line 437, col 28 of module wenqu_pipeline: 834
+  ||line 437, col 33 to line 437, col 44 of module wenqu_pipeline: 38
+  |||line 144, col 17 to line 144, col 56 of module wenqu_pipeline: 38
+  ||||line 144, col 37 to line 144, col 56 of module wenqu_pipeline: 76
+  ||||line 144, col 26 to line 144, col 33 of module wenqu_pipeline: 38
+  |line 438, col 9 to line 441, col 28 of module wenqu_pipeline: 834
+  ||line 438, col 9 to line 438, col 40 of module wenqu_pipeline: 834
+  ||line 439, col 12 to line 441, col 28 of module wenqu_pipeline: 28
+  |||line 439, col 15 to line 439, col 24 of module wenqu_pipeline: 28
+  ||||line 145, col 18 to line 145, col 72 of module wenqu_pipeline: 28
+  |||||line 145, col 38 to line 145, col 72 of module wenqu_pipeline: 56
+  |||||line 145, col 27 to line 145, col 34 of module wenqu_pipeline: 28
+  |||line 440, col 15 to line 440, col 25 of module wenqu_pipeline: 28
+  ||||line 146, col 18 to line 147, col 68 of module wenqu_pipeline: 28
+  |||||line 147, col 20 to line 147, col 68 of module wenqu_pipeline: 56
+  |||||line 146, col 27 to line 146, col 34 of module wenqu_pipeline: 28
+  |||line 441, col 15 to line 441, col 28 of module wenqu_pipeline: 28
+  |line 442, col 9 to line 444, col 61 of module wenqu_pipeline: 834
+  ||line 442, col 9 to line 442, col 25 of module wenqu_pipeline: 834
+  ||line 443, col 12 to line 444, col 61 of module wenqu_pipeline: 109
+  |||line 443, col 15 to line 443, col 27 of module wenqu_pipeline: 109
+  ||||line 443, col 16 to line 443, col 27 of module wenqu_pipeline: 109
+  |||||line 144, col 17 to line 144, col 56 of module wenqu_pipeline: 109
+  ||||||line 144, col 37 to line 144, col 56 of module wenqu_pipeline: 201
+  |||||||line 144, col 37 to line 144, col 45 of module wenqu_pipeline: 201
+  ||||||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 201
+  |||||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 201
+  |||||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 195
+  ||||||||line 144, col 44 to line 144, col 44 of module wenqu_pipeline: 201
+  ||||||line 144, col 26 to line 144, col 33 of module wenqu_pipeline: 109
+  |||line 444, col 15 to line 444, col 61 of module wenqu_pipeline: 109
+  ||||line 444, col 18 to line 444, col 60 of module wenqu_pipeline: 109
+  |||||line 444, col 18 to line 444, col 42 of module wenqu_pipeline: 109
+  ||||||line 444, col 18 to line 444, col 27 of module wenqu_pipeline: 109
+  |||||||line 145, col 18 to line 145, col 72 of module wenqu_pipeline: 109
+  ||||||||line 145, col 38 to line 145, col 72 of module wenqu_pipeline: 212
+  |||||||||line 145, col 38 to line 145, col 46 of module wenqu_pipeline: 212
+  ||||||||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 212
+  |||||||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 212
+  |||||||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 195
+  ||||||||||line 145, col 45 to line 145, col 45 of module wenqu_pipeline: 212
+  ||||||||line 145, col 27 to line 145, col 34 of module wenqu_pipeline: 109
+  ||||||line 444, col 32 to line 444, col 42 of module wenqu_pipeline: 16
+  |||||||line 146, col 18 to line 147, col 68 of module wenqu_pipeline: 16
+  ||||||||line 147, col 20 to line 147, col 68 of module wenqu_pipeline: 32
+  |||||||||line 147, col 20 to line 147, col 28 of module wenqu_pipeline: 32
+  ||||||||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 32
+  |||||||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 32
+  |||||||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 26
+  ||||||||||line 147, col 27 to line 147, col 27 of module wenqu_pipeline: 32
+  |||||||||line 147, col 34 to line 147, col 68 of module wenqu_pipeline: 32
+  ||||||||line 146, col 27 to line 146, col 34 of module wenqu_pipeline: 16
+  |||||line 444, col 47 to line 444, col 60 of module wenqu_pipeline: 10
+<DoubleAxisNoWash line 452, col 1 to line 452, col 16 of module wenqu_pipeline>
+  line 453, col 5 to line 457, col 69 of module wenqu_pipeline: 834
+  |line 453, col 8 to line 455, col 41 of module wenqu_pipeline: 834
+  ||line 454, col 12 to line 455, col 41 of module wenqu_pipeline: 1668
+  |||line 454, col 15 to line 454, col 40 of module wenqu_pipeline: 1668
+  ||||line 454, col 31 to line 454, col 40 of module wenqu_pipeline: 1668
+  |||||line 149, col 15 to line 149, col 52 of module wenqu_pipeline: 1668
+  ||||||line 149, col 16 to line 149, col 26 of module wenqu_pipeline: 5064
+  ||||||line 149, col 36 to line 149, col 51 of module wenqu_pipeline: 1668
+  |||||line 454, col 39 to line 454, col 39 of module wenqu_pipeline: 1668
+  |||line 455, col 15 to line 455, col 41 of module wenqu_pipeline: 1668
+  ||||line 455, col 32 to line 455, col 41 of module wenqu_pipeline: 1668
+  |||||line 149, col 15 to line 149, col 52 of module wenqu_pipeline: 1668
+  ||||||line 149, col 16 to line 149, col 26 of module wenqu_pipeline: 5064
+  ||||||line 149, col 36 to line 149, col 51 of module wenqu_pipeline: 1668
+  |||||line 455, col 40 to line 455, col 40 of module wenqu_pipeline: 1668
+  ||line 453, col 17 to line 453, col 24 of module wenqu_pipeline: 834
+  |line 456, col 8 to line 457, col 69 of module wenqu_pipeline: 834
+  ||line 457, col 13 to line 457, col 68 of module wenqu_pipeline: 1668
+  |||line 457, col 13 to line 457, col 32 of module wenqu_pipeline: 1668
+  ||||line 457, col 13 to line 457, col 21 of module wenqu_pipeline: 1668
+  |||||line 135, col 14 to line 135, col 77 of module wenqu_pipeline: 1668
+  ||||||line 135, col 17 to line 135, col 33 of module wenqu_pipeline: 1668
+  ||||||line 135, col 55 to line 135, col 77 of module wenqu_pipeline: 1554
+  |||||line 457, col 20 to line 457, col 20 of module wenqu_pipeline: 1668
+  |||line 457, col 37 to line 457, col 68 of module wenqu_pipeline: 176
+  ||line 456, col 17 to line 456, col 24 of module wenqu_pipeline: 834
+End of statistics.
+2442 states generated, 834 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 12.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 8 and the 95th percentile is 7).
+Finished in 00s at (2026-10-08 20:53:40)
+TLC_RC=0
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:53:40Z

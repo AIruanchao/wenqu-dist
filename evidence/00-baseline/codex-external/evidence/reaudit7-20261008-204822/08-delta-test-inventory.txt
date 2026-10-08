@@ -1,0 +1,182 @@
+=== recent changes c9..d32 ===
+ .gitignore                                         |    18 +
+ README.md                                          |     2 +-
+ SHA256-v3.7.1.txt                                  |     2 +
+ SHA256-v3.8.1.txt                                  |     2 +
+ SHA256-v3.8.2.txt                                  |     2 +
+ SHA256-v3.8.3.txt                                  |     2 +
+ dist/wenqu-dist-1620c7c.manifest.json              |  4533 ++++
+ dist/wenqu-dist-1620c7c.release.sig                |    13 +
+ dist/wenqu-dist-1620c7c.sbom.spdx.json             | 12892 ++++++++++
+ dist/wenqu-dist-1620c7c.tar.gz                     |   Bin 0 -> 7095163 bytes
+ evidence/02-schemas-and-tla/README.md              |    17 +
+ .../tla-wenqu-pipeline-run-2026-10-08.md           |    98 +
+ .../tlc-wenqu-pipeline-2026-10-08.log              |   450 +
+ ...c-wenqu-pipeline-mutation-probes-2026-10-08.log |    30 +
+ .../ac-deploy-release.json                         |    40 +
+ .../04-unit-property-mutation/ac-gate-family.json  |    20 +
+ .../04-unit-property-mutation/ac-ops-families.json |    22 +-
+ .../04-unit-property-mutation/ac-state-mig.json    |   146 +-
+ .../ac-station-families.json                       |   173 +-
+ .../04-unit-property-mutation/ac-ui-family.json    |    84 +
+ evidence/07-migration-reconcile/README.md          |    24 +-
+ evidence/07-migration-reconcile/migrated-events.db |   Bin 0 -> 40960 bytes
+ .../migrated-events.db.migration-sidecar.jsonl     |    68 +
+ .../07-migration-reconcile/reconcile-report.json   | 23803 +++++++++++++++++++
+ .../staging-normalized/engine-rounds.jsonl         |    17 +
+ evidence/07-migration-reconcile/summary.md         |    54 +
+ evidence/09-release-manifest-attestation/README.md |    45 +-
+ .../release-attest-run-1620c7c.json                |    67 +
+ .../release-attest-run-1620c7c.log                 |    30 +
+ .../verify-report-1620c7c.json                     |    44 +
+ evidence/10-ui-launchd-alert-backup/README.md      |    11 +-
+ .../dashboard-7789-modular-switch-20261008.json    |    16 +
+ .../launchd-inventory.json                         |    69 +
+ evidence/13-observation-window/README.md           |    16 +
+ evidence/evidence-index.json                       |    86 +-
+ evidence/traceability-matrix.json                  |   483 +-
+ specs/tla/README.md                                |    79 +
+ specs/tla/wenqu_pipeline.cfg                       |    32 +
+ specs/tla/wenqu_pipeline.tla                       |   493 +
+ system/VERSION                                     |     2 +-
+ system/bin/codeowners-ruleset-doctor.py            |   304 +
+ system/bin/wenqu-dashboard.py                      |   108 +-
+ system/bin/wenqu-scheduler                         |    40 +
+ system/schemas/station-result-v2.schema.json       |     2 +-
+ system/sentinels/backup-restore-drill.sh           |   302 +
+ system/tests/conftest.py                           |     7 +
+ system/tests/fixtures/approval-keys-meta.json      |    28 +
+ system/tests/test_ac_deploy_release.py             |  1079 +-
+ system/tests/test_ac_gate_family.py                |   293 +-
+ system/tests/test_ac_ops_families.py               |   485 +-
+ system/tests/test_ac_state_mig.py                  |   926 +-
+ system/tests/test_ac_station_families.py           |   437 +-
+ system/tests/test_ac_ui_family.py                  |   924 +
+ system/tests/test_approval_issue.py                |   815 +
+ system/tests/test_cli_install_ci.py                |    13 +-
+ system/tests/test_events_unified.py                |   618 +
+ system/tests/test_gate_scope_binding.py            |   631 +
+ system/tests/test_release_attest.py                |   450 +
+ system/tests/test_tla_spec.py                      |   190 +
+ system/tests/test_w4_production.py                 |   378 +
+ system/wenqu_core/approval_issue.py                |   768 +
+ system/wenqu_core/approval_keys.py                 |   341 +-
+ system/wenqu_core/bugscan_orchestrator.py          |   371 +-
+ system/wenqu_core/capacity_monitor.py              |   755 +
+ system/wenqu_core/cli.py                           |   679 +-
+ system/wenqu_core/deploy_framework.py              |   996 +-
+ system/wenqu_core/drill_runner.py                  |   239 +
+ system/wenqu_core/gate_aggregator.py               |   218 +-
+ system/wenqu_core/ledger_migrator.py               |   320 +-
+ system/wenqu_core/scheduler.py                     |   604 +
+ system/wenqu_core/station2_static.py               |   470 +-
+ system/wenqu_core/station3_contract.py             |   329 +-
+ system/wenqu_core/station4_behavior.py             |   397 +-
+ system/wenqu_core/store.py                         |     7 +
+ system/wenqu_core/ui_probe.py                      |   490 +
+ system/wenqu_core/wenqu_pipeline.py                |   269 +-
+ tests/acceptance.sh                                |    58 +-
+ tools/ac_traceability.py                           |   121 +-
+ tools/release_attest.py                            |   788 +
+ tools/w5_reconcile.py                              |   756 +
+ 80 files changed, 60062 insertions(+), 929 deletions(-)
+419e778 release(system): v3.7.1——Codex 四审关键修复：escD 作用域提升（修复刷新中断）+第七卡 XSS textContent+orchestrator API singleflight
+07a9494 Merge pull request #6 from AIruanchao/release/v3.7.1
+1620c7c fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65
+95dff5e feat(wave6): 干到能力上限波——专属覆盖 131/131+TLA+/签名制品+W4/W5 生产闭环+签发端+正源统一
+4fca609 fix(wave6): 演练脚本跨平台化（shasum/sha256sum+stat -f/-c 助手）——修 Ubuntu P1f 红
+bb10605 diag(wave6): P1f 失败时输出测试尾部 25 行（一次性诊断 Ubuntu 红）
+ffd7b2b fix(wave6): CAP-01 不变量跨平台化（used+free≤total，Linux 保留块）+README 66 项
+fb23a2f fix(wave6): CI 冷 runner 就绪窗 15→60s+stderr 尾部入失败消息（UI/HLT 双面）——修 macOS CI 红
+c9de6a4 Merge pull request #8 from AIruanchao/wave6/p1f-gate
+1495913 fix(wave6): REL-02 竞态根修——部署快于轮询的合法完成结局+64MiB 抓窗+子进程死亡诊断+td fixture（pytest 单跑能力）
+d32c859 Merge pull request #9 from AIruanchao/wave6/p1f-gate
+=== selftest entrypoints ===
+tools/observation_daily.py:409:def main():
+tools/observation_daily.py:460:if __name__ == "__main__":
+tools/release_attest.py:748:def main(argv: Optional[List[str]] = None) -> int:
+tools/release_attest.py:787:if __name__ == "__main__":
+system/bin/codeowners-ruleset-doctor.py:246:def main(argv: Optional[List[str]] = None) -> int:
+system/bin/codeowners-ruleset-doctor.py:303:if __name__ == "__main__":
+system/bin/coverage-ratchet.py:29:def main():
+system/bin/coverage-ratchet.py:50:if __name__ == "__main__":
+tools/w5_reconcile.py:711:def main() -> int:
+tools/w5_reconcile.py:755:if __name__ == "__main__":
+system/bin/same-name-census.py:67:def main():
+system/bin/same-name-census.py:100:if __name__ == "__main__":
+system/bin/wenqu-dashboard.py:1356:def main():
+system/bin/wenqu-dashboard.py:1372:if __name__ == "__main__":
+system/bin/gate-learner.py:166:def main():
+system/bin/gate-learner.py:194:if __name__ == "__main__":
+system/bin/spec-reconcile.py:24:def main():
+system/bin/spec-reconcile.py:62:if __name__ == "__main__":
+system/bin/check-openapi-compat.py:103:def main():
+system/bin/check-openapi-compat.py:136:if __name__ == "__main__":
+system/bin/ts-to-tla.py:207:def main():
+system/bin/ts-to-tla.py:246:if __name__ == "__main__":
+system/wenqu_core/station4_behavior.py:1442:def _self_test() -> int:  # noqa: C901——自测允许长函数
+system/wenqu_core/station4_behavior.py:1458:        run_id="selftest-st4-001",
+system/wenqu_core/station4_behavior.py:1459:        project_id="wenqu-selftest",
+system/wenqu_core/station4_behavior.py:1631:                plan, run_id="selftest-st4-OTHER", project_id="wenqu-selftest",
+system/wenqu_core/station4_behavior.py:1668:            "Path(out).write_text(json.dumps({'browser': 'chromium-selftest',\n"
+system/wenqu_core/station4_behavior.py:1688:              f"{st['coverage']['denominator']} scenarios on chromium-selftest")
+system/wenqu_core/station4_behavior.py:1702:if __name__ == "__main__":
+system/wenqu_core/station4_behavior.py:1703:    raise SystemExit(_self_test())
+system/wenqu_core/capacity_monitor.py:685:def _self_test() -> int:
+system/wenqu_core/capacity_monitor.py:754:if __name__ == "__main__":
+system/wenqu_core/capacity_monitor.py:755:    raise SystemExit(_self_test())
+system/wenqu_core/station7_runtime.py:1049:def _self_test() -> int:  # noqa: C901——自测允许长函数
+system/wenqu_core/station7_runtime.py:1063:        run_id="selftest-st7-001",
+system/wenqu_core/station7_runtime.py:1064:        project_id="wenqu-selftest",
+system/wenqu_core/station7_runtime.py:1291:if __name__ == "__main__":
+system/wenqu_core/station7_runtime.py:1292:    raise SystemExit(_self_test())
+tools/ac_traceability.py:29:      （.py: ID 出现在 test_*/selftest 函数体内或函数名含 ID；.sh: ID 字面量出现在测试脚本中）。
+tools/ac_traceability.py:500:TESTISH_NAME = re.compile(r"(^test_|_self_test$|^_?selftest|self_test)", re.I)
+tools/ac_traceability.py:628:def main():
+tools/ac_traceability.py:831:if __name__ == "__main__":
+system/wenqu_core/station2_static.py:2176:def _self_test() -> int:  # pragma: no cover - 自证入口
+system/wenqu_core/station2_static.py:2211:        "project_id": "wenqu-selftest",
+system/wenqu_core/station2_static.py:2286:        base_kwargs = dict(run_id="selftest-st2-001", identity=identity, repo_dir=repo)
+system/wenqu_core/station2_static.py:2429:            run_id="selftest-st2-001", identity=identity, repo_dir=empty_repo,
+system/wenqu_core/station2_static.py:2446:            "selftest-st2-001", identity=identity, repo_dir=str(repo), runner=runner,
+system/wenqu_core/station2_static.py:2468:            "selftest-st2-002", identity=identity, repo_dir=str(repo), runner=runner,
+system/wenqu_core/station2_static.py:2487:            "selftest-st2-003", identity=identity, repo_dir=str(repo), runner=runner,
+system/wenqu_core/station2_static.py:2510:            "selftest-st2-004", identity=identity, repo_dir=str(repo),
+system/wenqu_core/station2_static.py:2526:if __name__ == "__main__":  # pragma: no cover
+system/wenqu_core/station2_static.py:2527:    raise SystemExit(_self_test())
+system/wenqu_core/bugscan_orchestrator.py:1977:def _self_test() -> int:
+system/wenqu_core/bugscan_orchestrator.py:1995:        run_id="selftest-run-001",
+system/wenqu_core/bugscan_orchestrator.py:1996:        project_id="wenqu-selftest",
+system/wenqu_core/bugscan_orchestrator.py:2090:if __name__ == "__main__":
+system/wenqu_core/bugscan_orchestrator.py:2091:    raise SystemExit(_self_test())
+system/wenqu_core/cli.py:1051:def main(argv: Optional[List[str]] = None) -> int:
+system/wenqu_core/cli.py:1063:if __name__ == "__main__":
+system/wenqu_core/scheduler.py:2157:if __name__ == "__main__":  # python3 -m wenqu_core.scheduler tick
+system/wenqu_core/station3_contract.py:1911:def _self_test() -> int:
+system/wenqu_core/station3_contract.py:1929:        run_id="selftest-st3-001",
+system/wenqu_core/station3_contract.py:1930:        project_id="wenqu-selftest",
+system/wenqu_core/station3_contract.py:2153:if __name__ == "__main__":
+system/wenqu_core/station3_contract.py:2154:    raise SystemExit(_self_test())
+system/bin/risk-scorer.py:109:def main():
+system/bin/risk-scorer.py:160:if __name__ == "__main__":
+=== pytest files and test counts ===
+system/tests/test_ac_act_run.py 9
+system/tests/test_ac_auth_cond.py 16
+system/tests/test_ac_deploy_release.py 13
+system/tests/test_ac_gate_family.py 24
+system/tests/test_ac_ops_families.py 17
+system/tests/test_ac_state_mig.py 16
+system/tests/test_ac_station_families.py 29
+system/tests/test_ac_ui_family.py 7
+system/tests/test_approval_issue.py 15
+system/tests/test_cli_install_ci.py 7
+system/tests/test_core_wiring.py 8
+system/tests/test_events_unified.py 6
+system/tests/test_gate_schema_hardening.py 6
+system/tests/test_gate_scope_binding.py 14
+system/tests/test_infra_hardening.py 19
+system/tests/test_release_attest.py 8
+system/tests/test_runner_daemon.py 5
+system/tests/test_tla_spec.py 10
+system/tests/test_w4_production.py 3
+system/tests/test_wenqu_adversarial.py system/tests/test_wenqu_pipeline.py cli/test_wenqu.py 20

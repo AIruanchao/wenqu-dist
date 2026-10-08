@@ -1,0 +1,14 @@
+UTC_START=2026-10-08T12:51:49Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-health-latest.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+for u in http://127.0.0.1:7789/api/v1/health http://127.0.0.1:7789/api/v1/ping; do echo ===$u===; curl -sS --max-time 8 -D - "$u"; echo; done
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:51:49+0800
+/private/tmp/reaudit7-cmd-health-latest.zsh:4: ==http://127.0.0.1:7789/api/v1/health=== not found
+--- END OUTPUT ---
+EXIT_CODE=1
+UTC_END=2026-10-08T12:51:49Z

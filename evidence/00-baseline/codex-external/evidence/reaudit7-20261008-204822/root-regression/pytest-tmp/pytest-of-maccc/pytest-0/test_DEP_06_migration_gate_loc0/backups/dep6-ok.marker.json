@@ -1,0 +1,1 @@
+{"kind": "wenqu-backup-proof", "backup_id": "bk-dep6-ok", "created_at": "2026-10-08T00:00:00Z", "verified": true, "artifact": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_06_migration_gate_loc0/backups/dep6-ok.db", "artifact_sha256": "332e7a379e8ea851c7bdfdad523214026bc05731bd9e0c76dd37e15ab46a0a74"}

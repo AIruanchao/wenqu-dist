@@ -1,0 +1,1 @@
+gh api repos/AIruanchao/wenqu-dist/branches/main/protection/required_status_checks 

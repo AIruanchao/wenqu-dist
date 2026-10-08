@@ -1,0 +1,1 @@
+本人在源仓仅做只读基线取证；未执行 checkout/switch/commit/reset/merge/安装/部署，未修改源仓文件。初始取证为 main@b259dac4248b14af6ec05e1b3fc7f61401aba6b6 且 status clean。所有测试与篡改均在 /tmp/reaudit6-trace.dxHErV 或其复制副本；输出仅写本验收证据目录。验收期间发现外部 writer 推进远端 main/运行体；发现后按协调方指令停止访问共享源仓，结论冻结到 b259dac 隔离副本。

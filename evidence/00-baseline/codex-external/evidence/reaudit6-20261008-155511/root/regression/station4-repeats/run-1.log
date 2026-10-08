@@ -1,0 +1,13 @@
+[1] e2e PASS OK: coverage 3/3, exit=0
+[2] e2e FAIL OK: findings=['fnd_e2e_e3b226484e35']
+[3] e2e shrink OK: 2/3 → BLOCKED (铁律2)
+[4] e2e timeout OK: exit=-1 sentinel → BLOCKED/NOT_EVALUATED
+[5a] route PASS OK: 2/2 probed on http://127.0.0.1:50552
+[5b] route FAIL OK: mismatch → ['fnd_route_42f36d433c9d']
+[5c] route unreachable OK: 环境探不到证据 → BLOCKED（不猜证据）
+[6] combine OK: station-4 single result 4/4 → COMPLETED/PASS
+[7] combine consistency OK: 跨 run/SHA 腿拒绝合并
+[8a] web-gui PASS OK: 2/2 scenarios on chromium-selftest
+[8b] web-gui FAIL OK: ['fnd_gui_8ef6530b6df4']
+[8c] web-gui missing-scenario OK: 1/2 → BLOCKED
+SELF-TEST PASS

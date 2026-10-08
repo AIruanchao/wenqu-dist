@@ -1,0 +1,75 @@
+$ bash -n tests/acceptance.sh
+exit_code=0
+$ nl -ba .github/workflows/acceptance.yml
+     1	name: acceptance
+     2	on: [push, pull_request, workflow_dispatch]
+     3	jobs:
+     4	  matrix:
+     5	    strategy:
+     6	      matrix:
+     7	        os: [macos-latest, ubuntu-latest]
+     8	    runs-on: ${{ matrix.os }}
+     9	    steps:
+    10	      - uses: actions/checkout@v4
+    11	      - uses: actions/setup-python@v5
+    12	        with: { python-version: "3.11" }
+    13	      - name: release-check（版本号残留机械闸·动态版本）
+    14	        run: |
+    15	          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+    16	          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+    17	          echo "Checking: v$DV $V"
+    18	          bash tests/release-check.sh v$DV $V
+    19	      - name: acceptance
+    20	        run: bash tests/acceptance.sh
+    21	      - name: pytest 契约
+    22	        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+    23	      - name: selftest
+    24	        run: python cli/wenqu selftest
+$ nl -ba tests/acceptance.sh | sed -n 370,410p
+   370	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+   371	  else
+   372	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+   373	  fi
+   374	else
+   375	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   376	fi
+   377	
+   378	echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+   379	if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   380	  python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+   381	  ADV_RC=$?
+   382	  if [ ${ADV_RC} -eq 0 ]; then
+   383	    PASS_N=$((PASS_N+1)); echo "  ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）"
+   384	  else
+   385	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 对抗自测失败（exit=${ADV_RC}）——洞修复行为回归"
+   386	  fi
+   387	else
+   388	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_adversarial.py 不存在——对抗测试被移出验收面（F4-CI-001 复发）"
+   389	fi
+   390	
+   391	echo "== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）=="
+   392	if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
+   393	  python3 "$ROOT/system/tests/test_infra_hardening.py" >/dev/null 2>&1
+   394	  INF_RC=$?
+   395	  if [ ${INF_RC} -eq 0 ]; then
+   396	    PASS_N=$((PASS_N+1)); echo "  ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）"
+   397	  else
+   398	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归"
+   399	  fi
+   400	else
+   401	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
+   402	fi
+   403	
+   404	echo "================================"
+   405	echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+   406	[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+$ python independent exact wiring assertions
+{
+  "workflow_calls_acceptance_exact": true,
+  "acceptance_exec_adversarial": true,
+  "acceptance_exec_infra": true,
+  "adversarial_missing_is_failure": true,
+  "infra_missing_is_failure": true,
+  "final_nonzero_on_fail": true
+}
+exit_code=0

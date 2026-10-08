@@ -1,0 +1,47 @@
+TIMESTAMP_UTC: 2026-10-08T12:51:36Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: bash -lc $'\nset -uo pipefail\nfor n in server.py index.html app.css app.js; do\n a="$HOME/.wenqu/dashboard/$n"; b="$1/system/dashboard/$n";\n echo "=== $n ==="; ls -lOe "$a" "$b" 2>&1 || true; shasum -a 256 "$a" "$b" 2>&1 || true; cmp -s "$a" "$b"; echo "cmp_rc=$?";\ndone\necho "=== runtime source do_POST/write patterns ==="\nrg -n "def do_POST|WRITE_DISABLED|/api/v1/health|ThreadingHTTPServer\\(\\(\\"127.0.0.1\\"" "$HOME/.wenqu/dashboard/server.py"\necho "=== active health snapshot metadata ==="\nls -lOe "$HOME/.wenqu/state/gate-aggregate.json" 2>&1 || true\nshasum -a 256 "$HOME/.wenqu/state/gate-aggregate.json" 2>&1 || true\npython3 - <<"PY"\nimport json, os\np=os.path.expanduser("~/.wenqu/state/gate-aggregate.json")\nd=json.load(open(p))\n# Only non-sensitive state summary\nprint({k:d.get(k) for k in ("generated_at","policy_verdict","aggregate_outcome","technical_eligible","source","cli_exit","mode")})\nprint("reason_prefix=", str(d.get("reason", ""))[:240])\nPY\n' _ /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+=== server.py ===
+-rw-r--r--@ 1 maccc  staff  - 40554 Oct  7 21:33 /Users/maccc/.wenqu/dashboard/server.py
+-rw-r--r--@ 1 maccc  wheel  - 40554 Oct  8 20:48 /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/server.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/.wenqu/dashboard/server.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/server.py
+cmp_rc=0
+=== index.html ===
+-rw-r--r--@ 1 maccc  staff  - 11922 Oct  7 21:27 /Users/maccc/.wenqu/dashboard/index.html
+-rw-r--r--@ 1 maccc  wheel  - 11922 Oct  8 20:48 /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/index.html
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /Users/maccc/.wenqu/dashboard/index.html
+caa33316abed19dd21c041d0f87189cb89d77369183febfb48f344628f6cc6b2  /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/index.html
+cmp_rc=0
+=== app.css ===
+-rw-r--r--@ 1 maccc  staff  - 9721 Oct  7 21:28 /Users/maccc/.wenqu/dashboard/app.css
+-rw-r--r--@ 1 maccc  wheel  - 9721 Oct  8 20:48 /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/app.css
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /Users/maccc/.wenqu/dashboard/app.css
+d0e329deafc7f88d7c30f79241fb3e1917acbc668c1a35beb7806bff6a208e5a  /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/app.css
+cmp_rc=0
+=== app.js ===
+-rw-r--r--@ 1 maccc  staff  - 36227 Oct  7 21:33 /Users/maccc/.wenqu/dashboard/app.js
+-rw-r--r--@ 1 maccc  wheel  - 36227 Oct  8 20:48 /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/app.js
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /Users/maccc/.wenqu/dashboard/app.js
+fed9d13bb33c0f3038bff3f1c20c1e2f063fbb84f2ea50e0f64551a8b089807e  /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/app.js
+cmp_rc=0
+=== runtime source do_POST/write patterns ===
+8:  - 不变量 10：dashboard 只能等于或比权威聚合器更保守——/api/v1/health 只读 gate_aggregator
+708:    def do_POST(self):
+714:            return self._err(405, "WRITE_DISABLED",
+799:        srv = ThreadingHTTPServer(("127.0.0.1", bind_port), Handler)
+802:        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+847:        s, _, _, j = req("GET", "/api/v1/health")
+848:        ck("/api/v1/health 读 gate_aggregator（200 判定透传 或 503 结构化 ERROR，绝不 200+空集）",
+855:           s == 405 and isinstance(j, dict) and j.get("error", {}).get("code") == "WRITE_DISABLED")
+909:    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # 仅回环绑定
+=== active health snapshot metadata ===
+-rw-r--r--@ 1 maccc  staff  - 854 Oct  8 20:51 /Users/maccc/.wenqu/state/gate-aggregate.json
+f61674caf12c6110b68e4f9f010d9f7fd2f2a6d5300252cc7f02726c0f919a4c  /Users/maccc/.wenqu/state/gate-aggregate.json
+{'generated_at': '2026-10-08T12:51:16Z', 'policy_verdict': 'BLOCKED', 'aggregate_outcome': 'BLOCKED', 'technical_eligible': False, 'source': 'w4-scheduler', 'cli_exit': 1, 'mode': None}
+reason_prefix= wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):
+  File "/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py", line 41, in <module>
+    from wenqu_core.approval_issue ）
+OUTPUT_END
+EXIT_CODE: 0

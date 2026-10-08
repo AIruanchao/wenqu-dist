@@ -1,0 +1,84 @@
+--- §24 around evidence index contract ---
+ 1810 - traceability 零孤儿；
+ 1811 - 所有旧假绿红探针在新实现中均正确阻断；
+ 1812 - 全部 required checks exact-SHA、未过期、来自可信 provenance；
+ 1813 - P0/P1=0；
+ 1814 - 活跃 ACCEPTED_RISK=0；存在任何合法低风险接受时只能走 `AUTHORIZED_CONDITIONAL`，不得称清零或最终生产闭环；
+ 1815 - 账本无非法状态、无未裁定 quarantine；
+ 1816 - 清零范围内无 OPEN/FIXING/FIXED_PENDING_VERIFY；
+ 1817 - 并发、kill、磁盘满、只读、时钟、网络、TCC 故障注入通过；
+ 1818 - targeted mutation 和全量测试门达成；
+ 1819 - 浏览器、launchd、备份恢复、原子部署、回滚均真实演练；
+ 1820 - shadow/canary/14 天观察窗达标；
+ 1821 - 独立 S5 与战训四查通过；
+ 1822 - 未覆盖威胁和生产边界明确列出。
+ 1823 
+ 1824 ## 24.2 证据包目录
+ 1825 
+ 1826 ```text
+ 1827 evidence/<program-run-id>/
+ 1828   00-baseline/
+ 1829   01-threat-model-and-contracts/
+ 1830   02-schemas-and-tla/
+ 1831   03-red-probes-before/
+ 1832   04-unit-property-mutation/
+ 1833   05-concurrency-crash-chaos/
+ 1834   06-scanner-goldens/
+ 1835   07-migration-reconcile/
+ 1836   08-ci-and-branch-rules/
+ 1837   09-release-manifest-attestation/
+ 1838   10-ui-launchd-alert-backup/
+ 1839   11-shadow-canary/
+ 1840   12-rollback-drill/
+ 1841   13-observation-window/
+ 1842   evidence-index.json
+ 1843 ```
+ 1844 
+ 1845 每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+ 1846 
+ 1847 ---
+ 1848 
+ 1849 # 25. 本轮复审发现族→工作包→测试→证据追踪矩阵
+ 1850 
+ 1851 下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+ 1852 
+ 1853 | FND-ID | 复审发现族 | 工作包 | 精确测试 ID | 主要证据 |
+ 1854 |---|---|---|---|---|
+ 1855 | FND-001 | auto-merge 子串、UNSTABLE、`--admin` | W0/W3B | MRG-01～07 | containment、branch rules、merge dry-run |
+ 1856 | FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+ 1857 | FND-003 | base 不存在/零测试假绿 | W3A | GATE-01～03 | runner 原始日志 |
+ 1858 | FND-004 | verifier 信任 rc/findings/symlink/N | W2/W3B | GATE-04～12 | red-probes before/after |
+ 1859 | FND-005 | 任意状态、路径穿越、无授权 clear | W1/W2 | STATE-01～05、AUTH-01 | property/concurrency/crash 日志 |
+ 1860 | FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+ 1861 | FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+ 1862 | FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+ 1863 | FND-009 | 安装器原地覆盖、doctor 吞错 | W7A/W7B | REL-01～03、DEP-01～03 | deploy/rollback drill |
+ 1864 | FND-010 | DB 至少 280 项仍 CLEAN | W6C | DB-01～06 | canonical diff/golden |
+ 1865 | FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+ 1866 | FND-012 | advisory UNKNOWN 写 seen | W6B | ADV-01～02 | 分页/版本 fixtures |
+ 1867 | FND-013 | 租户扫描固定分母、当前约漏 172 | W6C | TEN-01～08 | DMMF/AST/runtime probes |
+ 1868 | FND-014 | 性能 null/500/错误 p95 | W6D | PERF-01～06 | load profile/raw metrics |
+ 1869 | FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+ 1870 | FND-016 | 当前 43 ACCEPTED 缺要素 | W5 | MIG-02、RISK-01、COND-01/04/05 | risk acceptance events |
+ 1871 | FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+ 1872 | FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+ 1873 | FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+ 1874 | FND-020 | Skill/版本/枚举/数量/状态说明漂移 | W1/W10 | DOC-01～04 | consistency report |
+ 1875 | FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+ 1876 
+ 1877 脚本必须校验每个 `FND-*` 至少映射一个工作包、一个已定义测试 ID 和一个证据路径；每个高风险测试必须反向映射需求。481 条旧记录的逐项映射属于 W5 交付物，不在本方案验证阶段冒充已完成。
+ 1878 
+ 1879 ## 25.1 全部验收 ID 的反向需求/AC 映射
+ 1880 
+--- headings 24 ---
+26:9. **每个工作包必须交付五件套：** 代码/配置、正反测试、证据索引、迁移或部署说明、已演练回滚报告。未演练只能写“已记录回滚路径”。
+471:release:    release_id + artifact_sha256 + manifest_sha256 + environment + previous_release_id
+491:artifact_sha256, artifact_size, verdict, fresh_until
+496:`fresh_until` 由受保护 policy 按 `trusted_finished_at + policy_ttl` 计算，调用者和工件不得自行声明。Aggregator 每次读取都必须动态判断 evidence、ACCEPTED_RISK、EXM 是否过期；reopen/expiry scheduler 仅用于修正投影和通知，不能成为过期失效的唯一防线。
+1008:  "artifact_sha256": "...",
+1287:files[path,size,mode,sha256], artifact_sha256,
+1371:每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+1803:# 24. 完成定义与证据包
+1805:## 24.1 硬完成门
+1824:## 24.2 证据包目录
+1845:每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。

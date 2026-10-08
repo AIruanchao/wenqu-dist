@@ -1,0 +1,600 @@
+/private/tmp/codex-test/验收报告-第六轮.md:21:| required CI | **不通过** | 12+66 两套已接入且 PR#4/#5 经现行保护门；但七个 99 条专属文件全删后 acceptance 与 trace `--check` 仍双绿。Ubuntu acceptance 还忽略了 `mktemp` 错误。 |
+/private/tmp/codex-test/验收报告-第六轮.md:27:本轮相对第四轮的真实进步：Runner 重挂接后台收拢、action 审批存在性/回执分级、安装体 CLI、原 Schema 五类反例、残缺 station 拦截、12+66 required 接线，以及 99 条专属测试代码均有实跑正证。
+/private/tmp/codex-test/验收报告-第六轮.md:81:| 七专属文件全删 | 删七个 `test_ac_*` 后 trace + acceptance | trace rc=0；acceptance `64/64` rc=0 | **假绿** |
+/private/tmp/codex-test/验收报告-第六轮.md:82:| 空断言 | DOC-03 测试体改为 `assert True` | 专属 14/14 rc=0；trace 仍 99、rc=0 | **假绿** |
+/private/tmp/codex-test/验收报告-第六轮.md:83:| §20 语义变异 | 改 ID/注入/期望/Unicode/列序 | 应红项均 rc=2 | 直接修复有效 |
+/private/tmp/codex-test/验收报告-第六轮.md:121:| F4-CI-001 | **PASS-DIRECT / PARTIAL-OVERALL** | adversarial 12 与 infra 66 已进入 acceptance；删任一文件必红；PR#4/#5 经 required checks | 七个 99 条专属文件未进入 required；全删仍双绿，形成新的覆盖 Gate 缺口 |
+/private/tmp/codex-test/验收报告-第六轮.md:122:| F4-TRC-001 | **CLOSED-DIRECT / PARTIAL-OVERALL** | 保留 ID 而修改注入/期望文本已 rc=2；§20/§25.1 常规语义变异有效 | 重复行后写覆盖、缺 plan、冻结 SHA 不实算、空断言与删测试均可 rc=0 |
+/private/tmp/codex-test/验收报告-第六轮.md:149:### F6-GATE-SCOPE-001（P0）— required、scope 与 coverage 未绑定冻结 manifest
+/private/tmp/codex-test/验收报告-第六轮.md:157:### F6-GATE-FORMAT-DUP-002（P0/P1）— 镜像并非 Draft-07 全量等价
+/private/tmp/codex-test/验收报告-第六轮.md:163:### F6-SCHEMA-BOUND-001（P0）— PASS 分母等值规则只生成至 64
+/private/tmp/codex-test/验收报告-第六轮.md:167:### F6-TRC-GATE-001（P0）— 99/131 不是 required coverage Gate
+/private/tmp/codex-test/验收报告-第六轮.md:169:- 七专属文件全删：dedicated 99→2；trace `--check` rc=0；acceptance 64/64 rc=0；
+/private/tmp/codex-test/验收报告-第六轮.md:170:- DOC-03 测试体置为恒真：专属套件与 trace 均 rc=0，仍计 99；
+/private/tmp/codex-test/验收报告-第六轮.md:175:### F6-TRC-PARSER-002（P1）— trace parser/冻结 SHA fail-open
+/private/tmp/codex-test/验收报告-第六轮.md:179:- `PLAN_SHA256` 常量没有对方案全文件实算；§20/§25 外修改仍 rc=0；
+/private/tmp/codex-test/验收报告-第六轮.md:182:### F6-EVID-001（P0）— 20 条证据索引未达到严格合同
+/private/tmp/codex-test/验收报告-第六轮.md:220:| P0-1 核心接线 | **PASS（仅 b259 候选）** | 双布局 CLI、安装体真实 gate、三移除锚点、12+66 required 接线均有实跑 | 不代表当前 main/7789 已部署；七专属 required 缺口计 P0-10/W3 |
+/private/tmp/codex-test/验收报告-第六轮.md:229:| P0-10 证据/追踪/制品 | **FAIL** | §20/§25 基础集合、直接文本变异与七文件实跑有正证 | coverage 可全删/空断言；parser fail-open；索引 0/20；矩阵 stale；无签名/SBOM |
+/private/tmp/codex-test/验收报告-第六轮.md:242:| W3 Gate/CI/合流控制 | 15 | 6 | **8** | +2：真实 CLI gate、12+66 required、双平台 CI/保护门属实；扣 Gate 自举假绿、七专属未 required、无 review/CODEOWNERS/merge_group/action SHA pin。 |
+/private/tmp/codex-test/验收报告-第六轮.md:254:## 9. 99/131 专属覆盖真实性抽查
+/private/tmp/codex-test/验收报告-第六轮.md:264:这证明文件内存在并可运行 99 个命名测试，不证明 99 个均完整兑现冻结 §20。
+/private/tmp/codex-test/验收报告-第六轮.md:291:### 10.1 三移除锚点
+/private/tmp/codex-test/验收报告-第六轮.md:307:### 10.3 §20 ID 集合与语义文本
+/private/tmp/codex-test/验收报告-第六轮.md:309:- 基线 131/131 集合一致、`--check` rc=0；
+/private/tmp/codex-test/验收报告-第六轮.md:310:- ID、注入、期望、Unicode、列错位、§25.1 映射变异均 rc=2；
+/private/tmp/codex-test/验收报告-第六轮.md:319:14 套声明测试均在 b259 副本 rc=0：pipeline 10、adversarial 12、infra 66、core 8、runner 13、gate/schema 20、CLI/install 19、七专属 99。完整 acceptance 为 `64/64 ALL GREEN`、rc=0。
+/private/tmp/codex-test/验收报告-第六轮.md:337:数量和路径存在性为 20/20；严格合同为 0/20。详见 F6-EVID-001。候选 tar 实算 SHA256：
+/private/tmp/codex-test/验收报告-第六轮.md:381:5. **把 99 专属测试接入 required**：建立 coverage floor/棘轮，删文件、删函数、恒真断言、missing plan、重复 ID 都必须红；不允许方案快照本身充当执行证据。
+/private/tmp/codex-test/验收报告-第六轮.md:398:| `agents/trace-ci-runtime/16-*`、`mutations/` | §20/§25.1 语义与 parser 变异 |
+/private/tmp/codex-test/验收报告-第六轮.md:406:| `EVIDENCE-INDEX.md` | 本轮总入口与关键判定 |
+/private/tmp/codex-test/验收报告-第六轮.md:415:但第五波也没有达到生产级闭环：action 审批 payload 可被用于任意实际 target；Gate 仍可自举分母并接受 schema-invalid 时间；formal schema 仍有 65/66 漏洞；99 专属覆盖可被整体删除或空断言绕过；证据索引 0/20；现役 b259 身份在验收中漂移；首日观察失败仍被采样器报 ok。
+tools/w5_reconcile.py:3:"""w5_reconcile.py —— W5 旧账 reconciliation（方案 §14 / §20.2 MIG-01~05 证据面）。
+tools/w5_reconcile.py:75:FORMAL_EVIDENCE_DIR = os.path.join(REPO_ROOT, "evidence", "07-migration-reconcile")
+tools/w5_reconcile.py:549:            "+ACCEPTED 裁定清单（方案 §14/§20.2 MIG-01~05）"),
+tools/w5_reconcile.py:722:    workdir = FORMAL_EVIDENCE_DIR if args.formal else (
+tests/acceptance.sh:363:echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+tests/acceptance.sh:375:      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+tests/acceptance.sh:377:      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+tests/acceptance.sh:384:echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+tests/acceptance.sh:396:      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+tests/acceptance.sh:400:    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+tests/acceptance.sh:404:  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+tests/acceptance.sh:406:  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+evidence/traceability-matrix.json:75:    "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true"
+evidence/traceability-matrix.json:310:      "injection": "merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段",
+evidence/traceability-matrix.json:972:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:973:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:987:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:988:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1002:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1003:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1017:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1018:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1032:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1033:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1047:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1048:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1062:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1063:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1077:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1078:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1092:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1093:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1107:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1108:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1122:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1123:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/traceability-matrix.json:1137:      "req": "REQ-EVID-001",
+evidence/traceability-matrix.json:1138:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/方案.md:734:docs/traceability/REQ-AC-IMP-TEST-EVID.md
+evidence/00-baseline/codex-external/方案.md:1545:# 20. 强制红探针与验收矩阵
+evidence/00-baseline/codex-external/方案.md:1549:## 20.1 Gate、授权、合流
+evidence/00-baseline/codex-external/方案.md:1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+evidence/00-baseline/codex-external/方案.md:1581:## 20.2 状态、账本、迁移
+evidence/00-baseline/codex-external/方案.md:1597:## 20.3 Bug 扫描器
+evidence/00-baseline/codex-external/方案.md:1622:## 20.4 调度、发布、UI
+evidence/00-baseline/codex-external/方案.md:1640:## 20.5 补充契约、隔离与治理探针
+evidence/00-baseline/codex-external/方案.md:1879:## 25.1 全部验收 ID 的反向需求/AC 映射
+evidence/00-baseline/codex-external/方案.md:1881:为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+evidence/00-baseline/codex-external/方案.md:1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+evidence/00-baseline/codex-external/方案.md:1914:机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+evidence/00-baseline/codex-external/方案.md:1993:| 测试追踪 | PASS；§20 定义 131 个唯一测试 ID，§25.1 展开映射 131 个，集合完全相等、零重复、零悬空 |
+tools/ac_traceability.py:3:"""ac_traceability.py — Codex 方案 §20 全部 131 个验收 ID 的追踪矩阵生成器（P0-10）。
+tools/ac_traceability.py:7:  §20（20.1～20.5）定义全部测试 ID 的注入/期望；§25.1 给出 ID 范围→需求/AC/工作包/证据类映射。
+tools/ac_traceability.py:8:本工具把 §20/§25.1 全量转录为冻结目录（PLAN_TEST_CATALOG），运行时扫描仓内测试资产，
+tools/ac_traceability.py:17:F6-TRC-PARSER-002（2026-10-08 Codex 第六轮根修，parser fail-open 全闭）：
+tools/ac_traceability.py:22:  - §20 表格重复行检出报 problem：重复相同行、同 ID 异内容行（先毒后正/
+tools/ac_traceability.py:24:  - 集合校验失败（目录完整性/§20/§25.1/哈希任一）时 meta.catalog_integrity
+tools/ac_traceability.py:31:      （部分覆盖，match_type=proxy_partial）——代理测试不冒充专属验收。
+tools/ac_traceability.py:48:# ---------------------------------------------------------------- 冻结目录：§25.1 前缀元数据
+tools/ac_traceability.py:51:    "GATE": ("REQ-EVID-001", "AC-EVID-FAIL-CLOSED", "W2/W3A/W3B", "raw rc、CAS、before/after"),
+tools/ac_traceability.py:81:# ---------------------------------------------------------------- 冻结目录：§20 逐 ID（注入, 期望）
+tools/ac_traceability.py:82:# 逐字转录自方案 §20.1～§20.5 表格。
+tools/ac_traceability.py:84:    # -- §20.1 Gate、授权、合流 --
+tools/ac_traceability.py:107:    ("ACT", 6): ("merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段", "schema 拒绝"),
+tools/ac_traceability.py:114:    # -- §20.2 状态、账本、迁移 --
+tools/ac_traceability.py:126:    # -- §20.3 Bug 扫描器 --
+tools/ac_traceability.py:147:    # -- §20.4 调度、发布、UI --
+tools/ac_traceability.py:161:    # -- §20.5 补充契约、隔离与治理探针 --
+tools/ac_traceability.py:245:# 其余（§20.5 补充）在构建目录时兜底。
+tools/ac_traceability.py:248:# 只登记确实存在且语义相邻的仓内测试；implemented 仍为 false（无 §20 ID 专属用例）。
+tools/ac_traceability.py:254:                "但非完整注入面（无 base ref/纯文档 scope 判定），不冒充专属验收",
+tools/ac_traceability.py:266:                "非 wenqu_core EventStore（100×100 规模亦未达），不冒充专属验收",
+tools/ac_traceability.py:272:EVIDENCE_ROOT = os.path.join(REPO_ROOT, "evidence")
+tools/ac_traceability.py:295:    # 前缀分母核对（§25.1 范围展开）
+tools/ac_traceability.py:324:    """可选：解析方案 §20 表格，与冻结目录做 ID 集合等式校验 + 逐 ID 语义比对。
+tools/ac_traceability.py:327:    只改该行「注入/期望」文本的语义篡改全绿。现从 §20.1～§20.5 表格逐行解析
+tools/ac_traceability.py:332:    F6-TRC-PARSER-002 根修（Codex 第六轮实锤）：表格行重复检出报 problem——
+tools/ac_traceability.py:342:    # 只取 §20～§21 之间的正文，避免 §25 表格里的范围写法（GATE-01～12）污染集合
+tools/ac_traceability.py:367:                    f"§20 表格 {tid} 存在重复相同行（重复行一律 problem）")
+tools/ac_traceability.py:370:                    f"§20 表格 {tid} 重复 ID 行且内容不一致"
+tools/ac_traceability.py:375:        semantic_problems.append("§20 表格解析出 0 行数据行（格式漂移？）")
+tools/ac_traceability.py:379:            semantic_problems.append(f"§20 表格缺 {tid} 行（或行格式无法解析）")
+tools/ac_traceability.py:391:        semantic_problems.append(f"§20 表格行 {tid} 不在冻结目录中")
+tools/ac_traceability.py:415:    """§20 语义归一化：去 markdown 反引号、全半角标点归一、折叠空白、去首尾。"""
+tools/ac_traceability.py:425:    """§25.1 表格与冻结元数据的归一化：全角～→半角~、去首尾空白。"""
+tools/ac_traceability.py:430:    """真解析方案 §25.1 映射表：范围展开成 ID 集合 + 逐前缀四列元数据对账。
+tools/ac_traceability.py:432:    防的是第三轮验收实锤的假绿：篡改 §25.1 映射（换 REQ/AC/工作包/证据类）
+tools/ac_traceability.py:433:    时旧版工具根本不解析该表却声称"§25.1 集合等式"。
+tools/ac_traceability.py:442:        return {"ok": False, "error": "方案中未找到 §25.1 小节"}
+tools/ac_traceability.py:458:            problems.append(f"§25.1 行 {prefix}-{lo:02d}～{hi:02d} 需求/AC 列格式非法: {req_ac.strip()!r}")
+tools/ac_traceability.py:463:                problems.append(f"§25.1 重复展开 ID: {tid}")
+tools/ac_traceability.py:468:        return {"ok": False, "error": "§25.1 表格解析出 0 行（格式漂移？）"}
+tools/ac_traceability.py:471:        problems.append(f"§25.1 展开集合≠冻结目录: 仅方案={sorted(expanded - frozen)} 仅冻结={sorted(frozen - expanded)}")
+tools/ac_traceability.py:475:            problems.append(f"§25.1 前缀 {prefix} 不在冻结元数据中")
+tools/ac_traceability.py:480:            problems.append(f"§25.1 前缀 {prefix} 四列元数据与冻结值不符: 方案={plan_meta} 冻结={norm_frozen}")
+tools/ac_traceability.py:545:    """返回 {test_id: {"test_file":..., "test_function":..., "line":...}}（专属命中）。"""
+tools/ac_traceability.py:587:    if not os.path.isdir(EVIDENCE_ROOT):
+tools/ac_traceability.py:589:    for dirpath, dirnames, filenames in os.walk(EVIDENCE_ROOT):
+tools/ac_traceability.py:620:    """对文件字节实算 sha256（F6-TRC-PARSER-002：PLAN_SHA256 不得只作摆设常量）。"""
+tools/ac_traceability.py:629:    ap = argparse.ArgumentParser(description="§20 131 验收 ID 追踪矩阵生成器")
+tools/ac_traceability.py:630:    ap.add_argument("--json", default=os.path.join(EVIDENCE_ROOT, "traceability-matrix.json"),
+tools/ac_traceability.py:636:                         "F6-TRC-PARSER-002：给定但不存在时一律校验失败——--check exit 2，"
+tools/ac_traceability.py:649:        # F6-TRC-PARSER-002：方案文件缺失 = fail-open 缺口（旧版静默 SKIP 后
+tools/ac_traceability.py:658:        # F6-TRC-PARSER-002：PLAN_SHA256 对方案文件实算比对（任何字节变化必红）
+tools/ac_traceability.py:678:                problems.append(f"§20 语义漂移: {p}")
+tools/ac_traceability.py:681:            problems.append("§25.1 映射交叉校验不一致: " + "; ".join(
+tools/ac_traceability.py:735:    # F6-TRC-PARSER-002：catalog_integrity 必须反映最终 problems 全集
+tools/ac_traceability.py:736:    # （目录完整性 + §20 语义/重复行 + §25.1 映射 + sha256 实算比对）——
+tools/ac_traceability.py:754:            "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true",
+tools/ac_traceability.py:776:    print("Codex 方案 §20 验收 ID 追踪矩阵（P0-10）")
+tools/ac_traceability.py:782:            # F6-TRC-PARSER-002：方案文件缺失/不可读——明确红，不再 SKIP
+tools/ac_traceability.py:785:            print(f"方案交叉校验(§20 集合等式): {'PASS' if not (plan_check.get('plan_only') or plan_check.get('frozen_only')) else 'FAIL'}"
+tools/ac_traceability.py:789:            print(f"方案交叉校验(§20 逐 ID 语义比对): "
+tools/ac_traceability.py:794:                print(f"  §20 语义漂移: {p}")
+tools/ac_traceability.py:799:            print(f"方案交叉校验(§25.1 映射展开+四列元数据): "
+tools/ac_traceability.py:803:                print(f"  §25.1 问题: {p}")
+tools/ac_traceability.py:806:    print(f"专属已实现          : {n_impl}  ({report['stats']['dedicated_coverage_pct']}%)")
+tools/ac_traceability.py:809:    print(f"专属+代理覆盖参考   : {report['stats']['dedicated_plus_proxy_pct']}%")
+tools/ac_traceability.py:811:    print(f"{'前缀':<8}{'总数':>4}{'专属':>6}{'代理':>6}")
+system/schemas/station-result-v2.schema.json:189:  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，schema 侧以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64；级联外不判定，不误拒合法大分母全扫）。F6-SCHEMA-BOUND-001（2026-10-08 Codex 第六轮根修，采纳镜像无界等式分支）：(c) 的全量机器强制由 gate_aggregator.mirror_validate_station_result_v2 的无界等式判定承担——样例 coverage {scanned:65, denominator:66}（及任意 scanned≠denominator，无论多大）必须机器强制红：镜像必拒、该站强制 BLOCKED（schema-invalid 一律 fail-closed）。机器复验正本为 system/tests/test_gate_scope_binding.py（65/66 全红 + 65/65 全绿 + 1..64 级联内镜像↔schema 一致性自测 + >64 声明边界）；两侧一致性自测另见 system/tests/test_gate_schema_hardening.py"
+system/tests/test_ac_gate_family.py:3:"""§20 验收 ID 专属测试——GATE/MRG/CI 族（test_ac_gate_family）。
+system/tests/test_ac_gate_family.py:5:覆盖 Codex 方案 §20.1/§20.5 中 GATE-01~12、MRG-01~07、CI-05/06/07/08/09
+system/tests/test_ac_gate_family.py:251:# GATE 族（§20.1）
+system/tests/test_ac_gate_family.py:655:# MRG 族（§20.1 + §20.5 MRG-07）
+system/tests/test_ac_gate_family.py:811:# CI 族（§20.5，本地等价映射见模块 docstring）
+system/tests/test_ac_gate_family.py:891:            "~DEFAULT_BRANCH 专属 token 应命中默认分支")
+system/tests/test_ac_gate_family.py:1040:# 2026-10-08 wave6/p1f-gate：GATE-09/10/11、CI-06 已由 bugscan_orchestrator
+system/tests/test_ac_gate_family.py:1061:    print(f"§20 GATE/MRG/CI 族专属验收测试（实现 {len(tests)} 条"
+evidence/04-unit-property-mutation/ac-state-mig.json:3:  "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（A 组被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py，不依赖 wenqu_pipeline；B 组（STATE-02/05/09/11，wave6/P1F）被测体：wenqu_core/wenqu_pipeline.py）",
+evidence/04-unit-property-mutation/ac-state-mig.json:327:      "coverage_boundary": "complete_run 对『软终态缺可用授权』的 fail-closed 拒绝保持不变（P0-2 既有测试断言不回退）；终判 FAILED 由 wave6 专属裁决口 adjudicate_gate_conditional 承接（S7 软终态 + 无已消费/未过期/指纹匹配授权 → RUN_COMPLETED/COMPLETED/FAIL）。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL 留档），终判落在 run 层；gate_aggregator 的 technical eligibility/context failure 属 COND-01 面（已覆盖）",
+system/wenqu_core/bugscan_orchestrator.py:25:- 收敛环契约（§20.1 GATE-09/10/11）：validate_convergence_rounds 在编排器
+system/wenqu_core/bugscan_orchestrator.py:57:    "EVIDENCE_TTL_CAP_DAYS",
+system/wenqu_core/bugscan_orchestrator.py:124:#: GATE-09（§20.1）：收敛轮数 N 的值域。下界=1（N=-1/0 一律参数错误拒绝；
+system/wenqu_core/bugscan_orchestrator.py:143:EVIDENCE_TTL_CAP_DAYS: Dict[str, int] = {
+system/wenqu_core/bugscan_orchestrator.py:332:    ttl_days: int             # 证据时效上限（天），≤ EVIDENCE_TTL_CAP_DAYS[evidence_class]
+system/wenqu_core/bugscan_orchestrator.py:545:            cap = EVIDENCE_TTL_CAP_DAYS.get(spec.evidence_class)
+system/wenqu_core/bugscan_orchestrator.py:550:                    f"{sorted(EVIDENCE_TTL_CAP_DAYS)})"
+system/wenqu_core/bugscan_orchestrator.py:1654:# 收敛环参数域与轮数熔断（GATE-09/GATE-10/GATE-11，§20.1）
+system/wenqu_core/bugscan_orchestrator.py:1663:    """GATE-09：编排器入口的收敛轮数 N 值域检查（§20.1 注入：-1/0/超上限）。
+system/wenqu_core/bugscan_orchestrator.py:1761:    """GATE-10/GATE-11：异源收敛环轮数追踪器（§20.1）。
+system/wenqu_core/drill_runner.py:5:见 test_ac_ops_families.py 专属测试）：
+evidence/04-unit-property-mutation/ac-ops-families.json:7:    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+system/wenqu_core/approval_issue.py:357:        2. payload 判别封闭（键集=该类型专属字段全集，非空；
+system/wenqu_core/gate_aggregator.py:6:（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）。
+system/wenqu_core/gate_aggregator.py:59:    C6 manifest 范围绑定（F6-GATE-SCOPE-001）：expected_scope_hash/
+system/wenqu_core/gate_aggregator.py:139:#      注册严格检查后对齐；F6-GATE-FORMAT-DUP-002：纯日期/无时区一律拒）；
+system/wenqu_core/gate_aggregator.py:142:#      侧做全量无界等式判定（缩水无论多大必拒）。F6-SCHEMA-BOUND-001：
+system/wenqu_core/gate_aggregator.py:166:# F6-GATE-FORMAT-DUP-002：纯日期（"2026-10-08"）、无时区（"2026-10-08T00:00:00"）、
+system/wenqu_core/gate_aggregator.py:188:    F6-GATE-FORMAT-DUP-002：镜像此前直接 fromisoformat，会放过纯日期
+system/wenqu_core/gate_aggregator.py:364:            # （schema 侧 const 级联 1..64 的无界镜像——F6-SCHEMA-BOUND-001：
+system/wenqu_core/gate_aggregator.py:407:    manifest 范围绑定（F6-GATE-SCOPE-001，正门路径）::
+system/wenqu_core/gate_aggregator.py:432:                "（manifest 范围绑定——F6-GATE-SCOPE-001）")
+system/wenqu_core/gate_aggregator.py:566:        # F6-GATE-FORMAT-DUP-002：重复站幂等等价键的原料（宽松提取，None=缺失）
+system/wenqu_core/gate_aggregator.py:646:        """重复站幂等等价键（F6-GATE-FORMAT-DUP-002）。
+system/wenqu_core/gate_aggregator.py:670:        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
+system/wenqu_core/gate_aggregator.py:713:        重复站点（F6-GATE-FORMAT-DUP-002）：幂等等价键（attempt_id+scope_hash+
+system/wenqu_core/gate_aggregator.py:794:                  "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
+evidence/04-unit-property-mutation/ac-ui-family.json:8:    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+system/wenqu_core/scheduler.py:1902:        # F6-GATE-SCOPE-001（共享树 2026-10-08 17:25 并行任务入契约）：裸
+system/wenqu_core/deploy_framework.py:559:    §20 DEP 族扩展（全部可选、默认关闭——不配置即保持 W7A 原语义）：
+evidence/04-unit-property-mutation/README.md:19:**PARTIAL——接线级与遗留回归在绿，但 §20 ID 专属测试为 0，属性/变异测试为 0**：
+evidence/04-unit-property-mutation/README.md:28:诚实边界：以上均**不含** §20 的 131 个 ID 专属用例（详见 `evidence/traceability-matrix.json`，
+evidence/03-red-probes-before/README.md:5:Codex 方案 §20 的硬前提：**所有用例必须保存 before/after**。本目录存放 BEFORE 侧——
+evidence/03-red-probes-before/README.md:9:重放边界（§20 强制）：旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；
+evidence/03-red-probes-before/README.md:15:§20 全部 131 个 ID 的 before 侧；特别是 FND-001～017 对应的 MRG/GATE/STATE/SC/DB/TEN/PERF 族。
+system/wenqu_core/station2_static.py:230:    BLOCKED（§20.5 期望；绝不折算 PASS，也绝不采信未验签的载荷内容）。"""
+system/wenqu_core/station2_static.py:790:      变化与新增 install script 各落一条 HIGH/P1 finding（§20.3：install
+system/wenqu_core/station2_static.py:796:      snapshot_max_age_s）→ 该源数据不可用 → BLOCKED（§20.5；分母不采信
+system/wenqu_core/station2_static.py:981:        aspect ∈ {resolved, integrity, install_script}——§20.3 注入面的三个
+system/wenqu_core/station2_static.py:1110:        """SC-05 fail-closed 出口：该源数据不可用 → BLOCKED（§20.5）。
+evidence/evidence-index.json:16:    "note": "第六波残余整改（F6-EVID-001/COVERAGE-AUTH-001/OBS-001）建档刷新；前值 f2b8fc3（wave5 PR#4）"
+evidence/evidence-index.json:38:      "caveat": "记录为 API 摘要，run 原始日志未导出落档；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算"
+evidence/evidence-index.json:59:      "caveat": "同 EV-CI-001；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算"
+evidence/evidence-index.json:80:      "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言；F6-EVID-001：evidence_path 由目录改指本目录 README（P0-1 接线证据表所在）；原 artifact=31e1d6050190… 为建档时点旧文件哈希，已按当前文件实算更正"
+evidence/evidence-index.json:101:      "caveat": "快照入仓前原始日志在 /private/tmp；本条为 53 项时点记录，当前 acceptance 已扩至 62+ 项；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161）"
+evidence/evidence-index.json:128:      "what": "方案文件一致性/追踪性/可执行性检查全过：131 个 §20 测试 ID 与 §25.1 展开集合完全相等零重复零悬空、21 个 FND 连续唯一、DAG 无环、15 个快照靶点存在",
+evidence/evidence-index.json:143:      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：plan-self-validation.json.sha256 在快照目录）"
+evidence/evidence-index.json:162:      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）"
+evidence/evidence-index.json:181:      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）；F6-EVID-001：evidence_path 由目录改指仓根 v3.6.3 清单（建档时点链上最近一份；建档后仓根已续出 v3.7.0/v3.7.1），artifact=该文件实算"
+evidence/evidence-index.json:186:      "title": "131 个 §20 验收 ID 初始追踪矩阵（P0-10 生成）",
+evidence/evidence-index.json:191:      "scope": "§20 全部 131 ID × 仓内测试资产扫描",
+evidence/evidence-index.json:192:      "ruleset": "工具冻结目录=方案 §20/§25.1 转录；方案 sha256 96b8646f…",
+evidence/evidence-index.json:250:      "what": "第三轮验收全部对抗探针证据：三移除锚点/Schema 篡改/核心-Schema-CAS-Runner-EventStore-Deploy 动态探针源码与输出/CI JSON 与 branch rules API/运行身份哈希/独立 131 集合与 §25.1 映射解析/子审计发现与分目录 MANIFEST.sha256",
+evidence/evidence-index.json:255:      "ruleset": "总索引 06-final/EVIDENCE-INDEX.md",
+evidence/evidence-index.json:263:      "caveat": "快照为验收时点状态；篡改检测依赖 MANIFEST.sha256 复算；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）"
+evidence/evidence-index.json:268:      "title": "追踪 Gate 反假绿加固：§20/§25.1 双篡改负例必红（第四波）",
+evidence/evidence-index.json:269:      "what": "Codex 三轮实锤两处假绿已根治：①ac_traceability 新增真 §25.1 解析器（范围展开成 ID 集合+逐前缀四列元数据对账，全半角～归一）；②acceptance.sh P1c 改用 --check+临时输出（不再改受控矩阵文件弄脏工作树）。负例实证：篡改 §20（GATE-12→GATE-99）exit=2；篡改 §25.1（REQ-EVID-001→REQ-EVIL-999）exit=2；正常方案 exit=0（131=131 四列全对）",
+evidence/evidence-index.json:274:      "ruleset": "方案 §25.1 机器校验集合等式要求",
+evidence/evidence-index.json:279:      "real_rc": "0 / 2 / 2（正常/篡改§20/篡改§25.1）",
+evidence/evidence-index.json:284:      "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0"
+evidence/evidence-index.json:312:      "title": "第五波：四轮 12 探针全闭+专属覆盖 0→99/131（PR#4）",
+evidence/evidence-index.json:313:      "what": "Runner token 击杀（daemon 3/3 死）/ActionSaga HMAC 授权链+PROVISIONAL-RECONCILED 回执分级/聚合器 Draft-07 镜像前置校验/Schema 五跨字段不变量/§20 逐 ID 语义比对/CLI 断链修/P1d+P1e required 接线/wenquctl gate 生产接线；蜂群七文件 97 条真实现+32 条诚实不可实现登记",
+evidence/evidence-index.json:329:      "caveat": "32 ID 不可实现清单见各测试文件模块级登记；F6-EVID-001：原 artifact_sha256=7d3b04a86398… 与 evidence_path 文件不符，已改为该文件（ac-auth-cond.json）实算哈希"
+evidence/evidence-index.json:371:      "caveat": "无签名/SBOM（签名体系属 §16.2 未实现面）；F6-EVID-001：artifact_sha256 绑定 evidence_path 清单文件（txt）实算；tar.gz 制品哈希=0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00 另注于此（原登记值即 tar）"
+evidence/evidence-index.json:376:      "title": "追踪终态：99/131 专属+§20 语义级 --check",
+evidence/evidence-index.json:377:      "what": "第五波后专属覆盖 75.57%（99 条，含 ACT6/RUN3/AUTH6/COND6/STOP3）；--check 升级为 §20 逐 ID 注入/期望语义比对+§25.1 四列映射+目录完整性三重校验",
+evidence/evidence-index.json:438:    "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属第六波候选",
+system/tests/test_w4_production.py:110:        _ck("面1 shadow 刷新走诊断模式不冒充发布门（F6-GATE-SCOPE-001）",
+system/wenqu_core/cli.py:16:                 GateAggregator 的第一个生产消费者；F6-GATE-SCOPE-001：正门
+system/wenqu_core/cli.py:580:    正门路径（F6-GATE-SCOPE-001，P0 根修）：--manifest <run-manifest.json>
+system/wenqu_core/cli.py:610:                "manifest（F6-GATE-SCOPE-001：不接受自报 required 集）",
+system/wenqu_core/cli.py:627:            "（F6-GATE-SCOPE-001：required 站集合与 coverage 分母不得由结果自报）。"
+system/wenqu_core/cli.py:908:             "PASS=0/FAIL=1/BLOCKED=2/ERROR=3；F6-GATE-SCOPE-001：正门须 "
+evidence/06-scanner-goldens/README.md:38:2. 站点 selftest 升级为 §20 ID 标注后，执行输出直接引用到本目录。
+evidence/04-unit-property-mutation/ac-station-families.json:4:    "plan_source": "evidence/00-baseline/codex-external/方案.md §20.3/§20.5（注入/期望逐字对齐）",
+evidence/04-unit-property-mutation/ac-station-families.json:26:      "task": "wave6/p1f-gate §20 六项「产品面缺失」补齐（SC-03/SC-05、TEN-04、PERF-03/PERF-04）",
+evidence/04-unit-property-mutation/ac-station-families.json:315:    "attribution": "首轮 24 个 implemented ID 均命中专属 test_<ID> 函数；本轮（2026-10-08）补齐 5 个产品面缺失 ID（SC-03/SC-05、TEN-04、PERF-03/PERF-04）：先在三个站模块内新增真实产品通道，再将其 NOT_IMPLEMENTABLE 登记转真实用例（函数名原样含 ID、注入/期望与方案 §20.3/§20.5 逐字对齐）；29/29 全绿，python3 tools/ac_traceability.py rc=0（集合等式保持）"
+evidence/04-unit-property-mutation/ac-station-families.json:321:      "result": "29 PASS / 0 FAIL（原 24 用例零回退 + 新增 5 个专属用例全绿）"
+evidence/04-unit-property-mutation/ac-station-families.json:330:    "traceability_this_round": "python3 tools/ac_traceability.py rc=0（§20 131 ID↔§25.1 集合等式保持；SC-03/SC-05、TEN-04、PERF-03/PERF-04 进入已实现清单）",
+evidence/04-unit-property-mutation/ac-station-families.json:334:    "ADV": "§20 ADV(advisory) 的 version parser/seen/多页多 range 语义，在本发行包落在 station2 SupplyChainScanner 的 npm-audit 公告解析通道（station2 为任务指定的 ADV 被测体）：解析异常→UNKNOWN 方向保守升 HIGH 并写账（不静默跳过=不写 seen）；多页合流+多 range 全遍历，截断=自报与解析列表不一致→ERROR。",
+evidence/04-unit-property-mutation/ac-station-families.json:348:    "PERF-04": "站4 新增 QueryCountProfileScanner：输入规模→查询计数剖析点，最小二乘斜率判线性（slope≥1 query/输入项=N+1 形态→finding）+绝对上限判定面（任一点超 max_query_count→逐点 finding）双面独立；单点/无方差不可证线性（slope=None，只做上限）；剖析点结构非法→未扫计→缩水 BLOCKED。§20 注入原样：1→2、100→101（斜率≈1.0）→FAIL。"
+evidence/README.md:14:| 03-red-probes-before | 红探针 BEFORE（假绿复现） | §20 全局 | EMPTY |
+evidence/README.md:34:- 131 个验收 ID（§20）追踪矩阵：`evidence/traceability-matrix.json`
+system/tests/test_ac_state_mig.py:3:"""§20 验收 ID 专属测试——STATE-01~11 / MIG-01~05（状态、账本、迁移）。
+system/tests/test_ac_state_mig.py:6:    evidence/00-baseline/codex-external/方案.md §20.2（STATE-01~06、MIG-01~05）
+system/tests/test_ac_state_mig.py:7:    与 §20.5（STATE-07~11）表格的「注入/期望」列。
+system/tests/test_ac_state_mig.py:23:    本文件对全部 16 个 ID 给出专属真实测试：
+system/tests/test_ac_state_mig.py:28:    贯通进事件负载），本文件随即以真实专属测试替换该过期登记——断言只增不减。
+system/tests/test_ac_state_mig.py:34:    登记转为真实专属测试（负例必拒、断言只增不减）。
+system/tests/test_ac_state_mig.py:92:# 语义并转为专属真实测试（见下方 B 组用例）；MIG-05 已在 W5 对账轮由
+system/tests/test_ac_state_mig.py:113:    "STATE-11": "complete_run 对『软终态缺可用授权』的 fail-closed 拒绝保持不变（P0-2 既有测试断言不回退）；终判 FAILED 由 wave6 专属裁决口 adjudicate_gate_conditional 承接（S7 软终态 + 无已消费/未过期/指纹匹配授权 → RUN_COMPLETED/COMPLETED/FAIL）。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL 留档），终判落在 run 层；gate_aggregator 的 technical eligibility/context failure 属 COND-01 面（已覆盖）",
+system/tests/test_ac_state_mig.py:1203:# 方案 §20.2/§20.5 注入/期望逐字对齐；负例必拒，断言只增不减。
+system/tests/test_ac_state_mig.py:1358:    期望（§20.2 逐字）：旧 epoch writer 的**所有写入**拒绝——
+system/tests/test_ac_state_mig.py:1451:    期望（§20.5 逐字）：强制新 run——
+system/tests/test_ac_state_mig.py:1542:    期望（§20.5 逐字）：S7/run 终判 FAILED；后续批准只能创建新 run，
+system/tests/test_ac_state_mig.py:1711:        "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试"
+system/tests/test_ac_state_mig.py:1746:    print("§20 验收 ID 专属测试：STATE-01~11 / MIG-01~05")
+system/tests/test_ac_state_mig.py:1771:        print("\n不可实现登记：无（16/16 ID 均有专属真实测试）")
+system/wenqu_core/station4_behavior.py:29:性能剖析腿（§20.3 PERF 族，进程内执行，同站合并）：
+system/wenqu_core/station4_behavior.py:923:# 性能剖析腿（§20.3 PERF 族）：分位数统计 + 查询计数剖析
+system/wenqu_core/station4_behavior.py:1102:      finding——§20 注入「输入 1→100，query count 线性」→ FAIL。
+system/wenqu_core/capacity_monitor.py:4:正源与契约（本模块按 §20 验收表的容量行语义实现，模块内不写验收 ID
+system/wenqu_core/capacity_monitor.py:5:字面量——追踪矩阵归属纪律，见 test_ac_ops_families.py 专属测试）：
+system/docs/adr/ADR-002-approval-security.md:17:  → 构造 canonical payload（按 approval_type 含专属字段）
+system/wenqu_core/ledger_migrator.py:26:    M5（§20.2 MIG-05）project key 冲突 -> 显式冲突 quarantine，绝不静默
+system/tests/test_ac_station_families.py:3:"""test_ac_station_families.py——§20 验收 ID 专属测试·六族（本文件负责 29 条）。
+system/tests/test_ac_station_families.py:5:负责族与 ID（正源：evidence/00-baseline/codex-external/方案.md §20.3/§20.5 表格，
+system/tests/test_ac_station_families.py:100:# 不可实现清单（§20 注入面在本发行包无对应通道——不硬凑、不设测试函数）
+system/tests/test_ac_station_families.py:102:# 2026-10-08 起清零：SC-03/SC-05（站2 SupplyChainScanner 增 lockfile 差异
+system/tests/test_ac_station_families.py:105:# 均已具备真实注入通道并转为专属测试函数；保留空映射以维持
+system/tests/test_ac_station_families.py:112:# 公共桩与夹具（范式参考各模块内嵌 selftest，独立成函数，按 §20 语义组织）
+system/tests/test_ac_station_families.py:1544:    - §20 注入原样：输入 1→2 条查询、输入 100→101 条 → 最小二乘斜率≈1.0
+system/tests/test_ac_station_families.py:1809:    print(f"\n§20 六族验收测试: {pass_n} PASS / {fail_n} FAIL "
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:9:    "subject": "fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65"
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:6:  commit   : 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数)
+system/tests/test_events_unified.py:3:"""统一事件正源专属测试（Codex P0-6 第六轮：pipeline_events 与迁移器 events
+system/tests/test_events_unified.py:594:    print("统一事件正源专属测试（P0-6 第六轮：单一事件表+单一写入 API）")
+system/tests/test_wenqu_adversarial.py:283:    # risk payload 混入 resume 专属字段：Broker 结构层拒（键集封闭）
+system/tests/test_ac_act_run.py:3:"""§20 验收 ID 专属测试——ACT/RUN 族（test_ac_act_run）。
+system/tests/test_ac_act_run.py:5:覆盖 Codex 方案 §20.1/§20.5 中 ACT-01~06、RUN-01~03 共 9 条：每条按
+system/tests/test_ac_act_run.py:6:「注入→期望」逐字对齐方案 §20 表格（正源：evidence/00-baseline/
+system/tests/test_ac_act_run.py:23:本地等价映射说明（§20 条目语义 → 本仓被测体语义）：
+system/tests/test_ac_act_run.py:46:- ACT-06「payload 使用错误 discriminator 或缺专属字段 → schema 拒绝」→
+system/tests/test_ac_act_run.py:47:  ApprovalBroker.validate_structure 的 payload 判别封闭（键集=该类专属
+system/tests/test_ac_act_run.py:700:#         或缺专属字段
+system/tests/test_ac_act_run.py:709:        # (类型, 缺失专属字段, 错误 discriminator 的来源类型)
+system/tests/test_ac_act_run.py:722:            # 注入 a（缺专属字段）：payload 少一个判别键（签名有效）→ schema 拒
+system/tests/test_ac_act_run.py:1001:    print("§20 ACT/RUN 族专属验收测试（实现 9 条：ACT-01~06 + RUN-01~03）")
+evidence/02-schemas-and-tla/README.md:32:负例（CRITICAL 拒 ACCEPTED_RISK），**不等于** §20 全部 schema 面验收通过。
+evidence/02-schemas-and-tla/README.md:34:## 2026-10-08 更新：W1 缺口（无 Wenqu TLA/TLC）已闭环
+system/wenqu_core/wenqu_pipeline.py:94:W6/P1F（wave6 产品面补缺——§20 验收 ID STATE-02/05/09/11 对应语义）：
+system/wenqu_core/wenqu_pipeline.py:363:# payload 按 approval_type 互斥封闭（键集=该类型专属字段，混入他类即拒）。
+system/wenqu_core/wenqu_pipeline.py:382:#: payload 判别封闭（Codex 实锤 #2）：每类 payload 的键集 = 专属字段全集，
+system/wenqu_core/wenqu_pipeline.py:504:#: 走 consume()/consume_authorization(risk) 专属 API 通道，不得用于 action
+system/wenqu_core/wenqu_pipeline.py:1311:        # payload 判别封闭（Codex 实锤 #2）：键集 = 该 approval_type 的专属
+system/wenqu_core/wenqu_pipeline.py:1732:            """risk 专属：HIGH/CRITICAL 机器拒绝 + 指纹与登记面精确匹配。"""
+evidence/07-migration-reconcile/reconcile-report.json:17:  "description": "W5 旧账 reconciliation：legacy jsonl 逐行规范化→LedgerMigrator（EventStore.append 统一正源 pipeline_events）→逐行对账+四态汇总+ACCEPTED 裁定清单（方案 §14/§20.2 MIG-01~05）",
+evidence/07-migration-reconcile/reconcile-report.json:18541:      "preview": "{\"round_id\": \"engine-r1360\", \"ts\": \"2026-10-04T10:0xZ\", \"type\": \"audit\", \"summary\": \"继续轮：部署触发器收口（183 别名失效+本地无=超哥专属通道，升级维持）+账本完整性总检零病（流式解析 1539 条目全过、string 无重复）\", \"findings\": [\"jsonl 校验法战训：多行 JSON 条目必须",
+system/tests/test_ac_ops_families.py:3:"""§20 验收 ID 专属测试——调度/告警/健康/文档治理/容量/备份DR 六族（P0-10 追踪缺口销账件）。
+system/tests/test_ac_ops_families.py:5:覆盖 §20.4/§20.5 中本件负责的 17 个验收 ID（注入/期望逐字对齐
+system/tests/test_ac_ops_families.py:6:evidence/00-baseline/codex-external/方案.md §20 表格）：
+system/tests/test_ac_ops_families.py:135:EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ops-families.json"
+system/tests/test_ac_ops_families.py:166:    # ---- （本文件 test_CAP_01_ 专属测试），登记移除、断言只增不减。
+system/tests/test_ac_ops_families.py:169:    # ---- （本文件 test_BAK_01_/test_DR_01_ 专属测试），登记移除、断言只增不减。
+system/tests/test_ac_ops_families.py:171:    # ---- system/tests/test_ac_ui_family.py 专属承接（探针=system/wenqu_core/
+system/tests/test_ac_ops_families.py:179:# 通用小工具（不含任何 §20 ID 字面量，避免追踪矩阵误归属）
+system/tests/test_ac_ops_families.py:1172:              f"（ck={len(ck_lines)} + inline={len(inc_lines)}）——按 §20 应 CI 阻断并修文档")
+system/tests/test_ac_ops_families.py:1313:    被测产品面：system/wenqu_core/capacity_monitor.py（本测试即其专属验收）。
+system/tests/test_ac_ops_families.py:1386:        # 注入 B：磁盘满——free=0（§20.5「或磁盘满」方向），优先级最高
+system/tests/test_ac_ops_families.py:1530:    """BAK-01｜注入：磁盘满/tar/backup 失败｜期望：不更新 success（§20.4 逐字）。
+system/tests/test_ac_ops_families.py:1532:    §25.1 证据类：checkpoint/restore drill（REQ-BACKUP-001/AC-BACKUP-RESTORABLE）。
+system/tests/test_ac_ops_families.py:1630:    """DR-01｜注入：恢复演练｜期望：实测满足冻结 RPO/RTO（§20.5 逐字）。
+system/tests/test_ac_ops_families.py:1632:    §25.1 证据类：restored state/RPO/RTO timing（REQ-DR-001/AC-DR-RPO-RTO）。
+system/tests/test_ac_ops_families.py:1722:    print("§20 验收 ID 专属测试——SCH/ALT/BAK/HLT/DOC/CAP/DR 七族 17 条（真实注入/真实断言）")
+system/tests/test_ac_ops_families.py:1745:        EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+system/tests/test_ac_ops_families.py:1752:                "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+system/tests/test_ac_ops_families.py:1761:        EVIDENCE_PATH.write_text(
+system/tests/test_ac_ops_families.py:1763:        print(f"证据工件: {EVIDENCE_PATH.relative_to(REPO)}")
+system/tests/test_gate_schema_hardening.py:13:  F4-TRC-001  §20 语义篡改假绿（ac_traceability 只比 ID 集合）
+system/tests/test_gate_schema_hardening.py:476:# F4-TRC-001：§20 语义篡改假绿（ac_traceability 逐 ID 语义比对）
+system/tests/test_ac_auth_cond.py:3:"""§20 验收 ID 专属测试——AUTH/STOP/RISK/COND 四族（test_ac_auth_cond）。
+system/tests/test_ac_auth_cond.py:5:覆盖 Codex 方案 §20.1/§20.5 中 AUTH-01~06、STOP-01~03、RISK-01、COND-01~06
+system/tests/test_ac_auth_cond.py:37:- 方案 §20 STOP 行注（L330）：STOP-01~03 须逐类型验证九类全覆盖「错误类型/
+system/tests/test_ac_auth_cond.py:347:# AUTH 族（§20.1 AUTH-01~03 + §20.5 AUTH-04~06）
+system/tests/test_ac_auth_cond.py:644:# STOP 族（§20.5；方案 L330 要求九类逐类型全覆盖三态矩阵）
+system/tests/test_ac_auth_cond.py:767:# RISK 族（§20.5 RISK-01）
+system/tests/test_ac_auth_cond.py:865:# COND 族（§20.5 COND-01~06）
+system/tests/test_ac_auth_cond.py:1244:    print("§20 AUTH/STOP/RISK/COND 四族专属验收测试（16 条；不可实现 0 条）")
+system/wenqu_core/station3_contract.py:1370:    """SQL 字符串 / Prisma ``$queryRaw`` 调用点的租户隔离静态分析（§20.3
+evidence/10-ui-launchd-alert-backup/README.md:27:| com.wenqu.scheduler launchd（W4 生产调度） | **真机挂载+首跑实证（2026-10-08）**：`launchctl print` 回读 last exit code=0；首 tick（09:16:49Z）bootstrap 真跑采样器 COMPLETED/PASS，真 wenquctl gate 聚合 PASS（target_sha 绑 HEAD），心跳 FRESH，`~/.wenqu/observation/heartbeat.json` + `logs/scheduler-*.jsonl` 落盘；清单固化 `launchd-inventory.json`（三 agent 真回读+plist sha256+W4 运行态）。注：plist 直用 /opt/homebrew/bin/python3——launchd GUI 下 /bin/bash 无 Documents TCC 授权（bash 壳 exit 126，2026-10-08 首挂实测；launchd err 日志每次 spawn 截断故不留存）；到期机制经 09:27:11/09:32:11 两轮自然调度 run PASS 自续实证；gate 快照走 `--allow-self-declared` 诊断模式（F6-GATE-SCOPE-001 契约——shadow 数据源不冒充发布门，快照如实记 mode=self_declared_diagnostic） |
+evidence/01-threat-model-and-contracts/README.md:28:缺口：threat model 尚未覆盖 §20 全部注入面（如 COND/DEP/STOP 族）；契约未做机器校验版本冻结。
+system/tests/test_ac_deploy_release.py:3:"""§20 验收 ID 专属测试——DEP-01~09 / RB-01 / REL-01~03（部署、回滚、发布）。
+system/tests/test_ac_deploy_release.py:6:    evidence/00-baseline/codex-external/方案.md §20.4（REL-01~03）与
+system/tests/test_ac_deploy_release.py:7:    §20.5（DEP-01~09、RB-01）表格的「注入/期望」列。
+system/tests/test_ac_deploy_release.py:1623:    print(f"§20 DEP/RB/REL 族专属验收测试（实现 {len(tests)} 条；"
+system/tests/test_ac_ui_family.py:3:"""§20 验收 ID 专属测试——UI 族七条（P1f 接入件；W8 UI 面激活）。
+system/tests/test_ac_ui_family.py:5:覆盖 §20.4/§20.5 中 UI 前缀全部 7 个验收 ID（注入/期望逐字对齐
+system/tests/test_ac_ui_family.py:6:evidence/00-baseline/codex-external/方案.md §20 表格）：
+system/tests/test_ac_ui_family.py:84:EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ui-family.json"
+system/tests/test_ac_ui_family.py:129:# 通用小工具（不含任何 §20 ID 字面量，避免追踪矩阵误归属）
+system/tests/test_ac_ui_family.py:861:    print("§20 验收 ID 专属测试——UI 族 7 条（真实注入/真实断言/负例红探针）")
+system/tests/test_ac_ui_family.py:886:        EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+system/tests/test_ac_ui_family.py:894:                "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+system/tests/test_ac_ui_family.py:915:        EVIDENCE_PATH.write_text(
+system/tests/test_ac_ui_family.py:917:        print(f"证据工件: {EVIDENCE_PATH.relative_to(REPO)}")
+evidence/10-ui-launchd-alert-backup/launchd-inventory.json:65:    "com.wenqu.scheduler=W4 生产调度（StartInterval 300s+RunAtLoad）：2026-10-08 挂载首跑 bootstrap run PASS；到期机制经 09:27:11/09:32:11 两轮自然调度 run PASS 自续实证；gate 快照走 --allow-self-declared 诊断模式（F6-GATE-SCOPE-001 契约，shadow 数据源不冒充发布门）",
+evidence/00-baseline/codex-external/方案.md:734:docs/traceability/REQ-AC-IMP-TEST-EVID.md
+evidence/00-baseline/codex-external/方案.md:1545:# 20. 强制红探针与验收矩阵
+evidence/00-baseline/codex-external/方案.md:1549:## 20.1 Gate、授权、合流
+evidence/00-baseline/codex-external/方案.md:1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+evidence/00-baseline/codex-external/方案.md:1581:## 20.2 状态、账本、迁移
+evidence/00-baseline/codex-external/方案.md:1597:## 20.3 Bug 扫描器
+evidence/00-baseline/codex-external/方案.md:1622:## 20.4 调度、发布、UI
+evidence/00-baseline/codex-external/方案.md:1640:## 20.5 补充契约、隔离与治理探针
+evidence/00-baseline/codex-external/方案.md:1879:## 25.1 全部验收 ID 的反向需求/AC 映射
+evidence/00-baseline/codex-external/方案.md:1881:为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+evidence/00-baseline/codex-external/方案.md:1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+evidence/00-baseline/codex-external/方案.md:1914:机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+evidence/00-baseline/codex-external/方案.md:1993:| 测试追踪 | PASS；§20 定义 131 个唯一测试 ID，§25.1 展开映射 131 个，集合完全相等、零重复、零悬空 |
+system/bin/codeowners-ruleset-doctor.py:3:"""codeowners-ruleset-doctor——CI-06 诊断件（§20.5：CODEOWNERS/ruleset 一致性）。
+system/bin/codeowners-ruleset-doctor.py:5:语义（逐字对齐 Codex 方案 §20.5 CI-06）：
+system/bin/codeowners-ruleset-doctor.py:69:    """ruleset ref_name 模式对分支的命中（glob，支持 ~DEFAULT_BRANCH 专属token）。
+system/bin/codeowners-ruleset-doctor.py:72:    `~DEFAULT_BRANCH` 是默认分支专属 token。宽松兼容裸分支名/前缀 glob。
+system/tests/test_gate_scope_binding.py:6:  F6-GATE-SCOPE-001（P0）  wenquctl gate 的 required 站集合/coverage 分母由结果自报
+system/tests/test_gate_scope_binding.py:14:  F6-GATE-FORMAT-DUP-002    镜像非 Draft-07 全量等价 + 重复站幂等等价键过松
+system/tests/test_gate_scope_binding.py:18:  F6-SCHEMA-BOUND-001       PASS 分母等值 schema 级联只到 64
+system/tests/test_gate_scope_binding.py:21:  F6-TRC-PARSER-002         ac_traceability parser fail-open
+system/tests/test_gate_scope_binding.py:139:# F6-GATE-SCOPE-001：required/scope/coverage 自报（P0）
+system/tests/test_gate_scope_binding.py:304:# F6-GATE-FORMAT-DUP-002：镜像 RFC3339 + 重复站等价键 + CLI 误拒
+system/tests/test_gate_scope_binding.py:437:# F6-SCHEMA-BOUND-001：PASS 分母等值只到 64（镜像无界等式分支 + 一致性自测）
+system/tests/test_gate_scope_binding.py:517:# F6-TRC-PARSER-002：ac_traceability parser fail-open
+system/tests/test_gate_scope_binding.py:600:        # 空白级篡改：语义归一折叠（不触 §20/§25.1 比对），仅 sha256 变化
+evidence/00-baseline/codex-external/验收报告.md:274:- 方案 §20 共 131 个唯一验收 ID；active workflow 中对应自动测试为 0。
+evidence/00-baseline/codex-external/验收报告.md:376:   - 将方案 131/131 AC ID 映射到真实测试和证据；
+evidence/00-baseline/codex-external/验收报告-第四轮.md:19:| 候选实现完成 | **不通过** | 12 项旧失败族仍有 Runner 逃逸未闭环；另发现 action 无授权可提交、Schema/聚合器假绿、安装后 CLI 断链、§20 语义篡改假绿。 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:32:4. 保留 §20 ID、只改变“注入/期望”语义时，追踪 `--check` 和完整 acceptance 均全绿；
+evidence/00-baseline/codex-external/验收报告-第四轮.md:55:- 移除锚点、Schema/方案篡改、CI 缺件、部署失败与 CAS 竞态均在独立 `/tmp` clone/copy 中执行；
+evidence/00-baseline/codex-external/验收报告-第四轮.md:101:| P0-1 核心接线 | **FAIL / PARTIAL** | 模块/schema/tool 三移除锚点均红；源树 `wenquctl --help` rc=0；安装器全模块导入 15 个模块成功 | 正常安装 rc=0 后，安装体 `bin/wenquctl --help` rc=2：壳寻找 `$PREFIX/wenqu_core/cli.py`，实体在 `$PREFIX/lib/wenqu_core/cli.py`；两套新增关键测试未进入 required CI |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:110:| P0-10 证据/追踪/制品 | **FAIL / PARTIAL** | 索引由 9 增至 14；§25.1 真解析、ID/元数据篡改会红；P1c 已只读；131 集合诚实 | §20 语义文本篡改仍假绿；受控 matrix 绑定旧 HEAD；索引严格合格 0/14 且漏当前 HEAD/run/branch；0/131 专属覆盖；无最终制品与时序工件 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:151:| W1 契约/Schema/威胁/TLA/红探针 | 10 | 6 | **7** | +1：HMAC/判别联合、§25.1 四列真解析与多类变异门属实。仍无 Wenqu TLA/TLC、BEFORE 全量红探针；Schema 残余与 §20 语义假绿仍在。 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:182:### 6.2 三个移除锚点
+evidence/00-baseline/codex-external/验收报告-第四轮.md:202:### 6.4 追踪工具 §20 / §25.1 篡改
+evidence/00-baseline/codex-external/验收报告-第四轮.md:206:| §20 `GATE-01→GATE-99`（ID 集合） | rc=2 | 61/1 rc=1 | PASS |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:207:| §25.1 GATE 的 REQ 元数据 | rc=2 | 61/1 rc=1 | PASS |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:208:| §20 保留 ID、仅改“注入/期望”语义 | **rc=0** | **62/0 rc=0** | **FAIL / 假绿** |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:210:因此用户要求的“§20 与 §25.1 内容篡改后都必须非零”只在 §20 ID 集合口径成立，在 §20 语义内容口径 **不成立**。新发现编号：`F4-TRC-001`。证据：`05-trace/findings.md`、`07-*`～`09-*`。
+evidence/00-baseline/codex-external/验收报告-第四轮.md:293:## 9. 追踪矩阵与专属覆盖
+evidence/00-baseline/codex-external/验收报告-第四轮.md:299:| §20 唯一 ID | 131 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:300:| §25.1 展开唯一 ID | 131 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:305:| §20 当前逐行“注入/期望”与目录差异 | 0 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:306:| §25.1 REQ/AC/工作包/证据类差异 | 0 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:308:| 专属测试覆盖 | **0/131（0.0%）** |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:312:所以“131 集合等式成立”和“专属覆盖仍为 0%”必须同时表达。集合完整不等于测试实现。
+evidence/00-baseline/codex-external/验收报告-第四轮.md:349:| 131 ID 专属测试覆盖 0% | 仍为 0/131；诚实呈现，但阻断 W1/W3/P0-10 |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:363:5. **P0：** 修复安装体 `wenquctl` 路径并将安装后真实 CLI 纳入移除锚点/required CI；
+evidence/00-baseline/codex-external/验收报告-第四轮.md:364:6. **P0：** 追踪 Gate 对 §20 每行语义做冻结 hash/结构化映射校验，不只比较 ID；
+evidence/00-baseline/codex-external/验收报告-第四轮.md:379:| `04-mutations/` | 三移除锚点、Schema 变异、独立交叉脚本、子 manifest |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:380:| `05-trace/` | §20/§25.1 变异、语义假绿、131 独立对账、子 manifest |
+evidence/00-baseline/codex-external/验收报告-第四轮.md:386:| `EVIDENCE-INDEX.md` | 本轮机器证据入口 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:33:3. 模块、Schema、追踪工具三个移除锚点均会变红；
+evidence/00-baseline/codex-external/验收报告-第三轮.md:36:6. 当前方案 §20、§25.1 与工具目录三套 ID 的原始集合均为 131 且相等；
+evidence/00-baseline/codex-external/验收报告-第三轮.md:37:7. 追踪工具如实报告专属覆盖 **0/131（0.0%）**。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:83:| P0-10 证据/追踪/制品 | **FAIL / 部分修复** | 14 目录、方案/报告快照、生成器、131 集合已入仓；0% 专属覆盖诚实呈现 | 01～13 只有 README，索引 stale 且无严格逐工件条目；Gate 可假绿；0 专属用例；无最终 tar/zip 制品、回滚/迁移/观察窗证据 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:85:### 3.1 P0-1：移除锚点成立，但业务运行接线不存在
+evidence/00-baseline/codex-external/验收报告-第三轮.md:247:6. P1c 调用工具时没有 `--check`：隔离篡改方案 §20 后，工具打印集合 FAIL 但返回 0，完整 acceptance 仍 62/0 ALL GREEN。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:248:7. 只篡改 §25.1 映射元数据，即使手工 `--check` 也返回 0；工具实际没有解析 §25.1 映射，却把标签写成“§25.1 集合等式”。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:249:8. 131 个 ID 专属实现为 0，代理 3，缺失 128；没有 before 红探针、属性/变异、chaos、迁移对账、scanner golden、Playwright、shadow/canary、rollback、14 天观察工件。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:265:| W1 契约、Schema、威胁模型、红探针 | 10 | 4 | **6** | +2：五个 Schema 有窄加固，131 集合/映射工具存在。仍无 Wenqu TLA/TLC、BEFORE 红探针、治理一致性 Gate；Schema 多个反例仍接受，专属覆盖 0。 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:267:| W3 Gate、CI、合流控制 | 15 | 2 | **3** | +1：ff050bb 双平台 CI success，模块/工具移除锚点进入 acceptance。正式 v2 聚合链仍断；追踪 Gate 假绿；main 无保护且 rulesets=[]；无 action controller/required contexts。 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:270:| W6 Bug 八站 | 15 | 8 | **8** | 不升：既有站点模块/selftest 保留，但无 scanner goldens、分母/DB/租户/供应链专属验收增量，正式统一聚合仍断链。 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:304:| §20 追踪篡改 | 改 ID 后跑完整 acceptance | 仍 62/0 ALL GREEN | **FAIL / 假绿** |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:305:| §25.1 映射篡改 | 改映射后工具 `--check` | rc=0 | **FAIL / 假绿** |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:325:| 方案 §20 独立解析 | 131 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:326:| 方案 §25.1 独立展开 | 131 |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:329:| §25.1 四列映射差异 | 0（由本轮独立脚本对原始方案核对） |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:330:| 专属覆盖 | **0 / 131（0.0%）** |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:333:| 专属+代理参考覆盖 | 2.29% |
+evidence/00-baseline/codex-external/验收报告-第三轮.md:335:因此“131 集合等式成立”和“0% 专属覆盖”都是真实结论。必须同时保留这两句话：集合完整不等于测试实现，更不等于验收通过。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:337:此外，当前工具自身的 `cross_check_plan()` 只核对 §20 显式 ID，不解析 §25.1 元数据；本轮之所以能确认 §25.1 映射，是使用独立解析脚本，而不是相信工具标签。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:391:- 三个移除锚点；
+evidence/00-baseline/codex-external/验收报告-第三轮.md:399:总索引：`06-final/EVIDENCE-INDEX.md`。  
+evidence/00-baseline/codex-external/验收报告-第三轮.md:426:1. acceptance 的追踪步骤强制 `--check`，并真正解析 §25.1 全映射；篡改 §20/§25.1 都必须 CI 红。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:427:2. 131 个 ID 建立专属测试；0% 不得作为完成证据。
+evidence/00-baseline/codex-external/验收报告-第三轮.md:443:3. 131 专属覆盖不再为 0，且 traceability 篡改能使 acceptance/CI 非零；
+evidence/00-baseline/codex-external/验收报告-第三轮.md:462:- `06-final/EVIDENCE-INDEX.md`
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md:1:# 第四轮复审：移除锚点与 Schema 变异核验
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md:13:| 模块移除锚点 | 删除 `system/wenqu_core/wenqu_pipeline.py`；`test_core_wiring.py` rc=1（7/1），`test_wenqu_pipeline.py` rc=1，完整 acceptance rc=1（58/4） | PASS，删模块必红 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md:14:| Schema 移除锚点 | 删除 `system/schemas/approval-v2.schema.json`；core wiring rc=1（7/1），pipeline rc=1（9/1），acceptance rc=1（60/2） | PASS，删 Schema 必红 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md:15:| 工具移除锚点 | 删除 `tools/ac_traceability.py`；直接调用 rc=2，acceptance rc=1（61/1），P1c 明确失败 | PASS，删工具必红 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-acceptance.log:87:  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-acceptance.log:87:  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-acceptance.log:87:  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/findings.md:8:- 12 项口径：第三轮报告第 292～303 行，从“伪签名+缺绑定”至“升级回滚”的连续 12 项；`§20`、`§25.1` 两项按总任务“常规核验”另行处理，不在本组重复计数。原文见 `00-third-round-12-source.txt`。
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json:44:      "detail": "refs=['12.1', '12.2', '12.3', '12.8', '20', '22', '25.1', '28', '6.1', '6.2.1', '8'], missing=[]"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py:270:    mixed["payload"]["severity"] = "LOW"  # resume 专属键齐全，再混入 risk 键
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:3:   313	    """可选：解析方案 §20 表格提取 ID 集合，与冻结目录做集合等式校验（§25.1 要求）。"""
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:10:   320	    # 只取 §20～§21 之间的正文，避免 §25 表格里的范围写法（GATE-01～12）污染集合
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:28:   338	    """§25.1 表格与冻结元数据的归一化：全角～→半角~、去首尾空白。"""
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:33:   343	    """真解析方案 §25.1 映射表：范围展开成 ID 集合 + 逐前缀四列元数据对账。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:35:   345	    防的是第三轮验收实锤的假绿：篡改 §25.1 映射（换 REQ/AC/工作包/证据类）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:36:   346	    时旧版工具根本不解析该表却声称"§25.1 集合等式"。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:45:   355	        return {"ok": False, "error": "方案中未找到 §25.1 小节"}
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:61:   371	            problems.append(f"§25.1 行 {prefix}-{lo:02d}～{hi:02d} 需求/AC 列格式非法: {req_ac.strip()!r}")
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:66:   376	                problems.append(f"§25.1 重复展开 ID: {tid}")
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:71:   381	        return {"ok": False, "error": "§25.1 表格解析出 0 行（格式漂移？）"}
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:74:   384	        problems.append(f"§25.1 展开集合≠冻结目录: 仅方案={sorted(expanded - frozen)} 仅冻结={sorted(frozen - expanded)}")
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:78:   388	            problems.append(f"§25.1 前缀 {prefix} 不在冻结元数据中")
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:83:   393	            problems.append(f"§25.1 前缀 {prefix} 四列元数据与冻结值不符: 方案={plan_meta} 冻结={norm_frozen}")
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:88:   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:95:   370	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log:97:   372	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:4:Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:7:方案交叉校验(§20 集合等式): FAIL  方案侧 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:9:方案交叉校验(§25.1 映射展开+四列元数据): PASS  展开 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:12:专属已实现          : 0  (0.0%)
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:15:专属+代理覆盖参考   : 2.29%
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log:17:前缀        总数    专属    代理
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/findings.md:16:本结论只证明当前未篡改基线的 62 项 acceptance 与只读性。`05-trace` 的独立语义变异另证：保持 §20 ID 不变仅改注入文本时，P1c/acceptance 仍会假绿；不能用本次基线 62/62 覆盖该缺口。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST.sha256:244:77ff37e553541a33ac406bdd3d6665bddbcac9655efdd8afb5e7f56fc6062ac2  ./EVIDENCE-INDEX.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/diff-stat-ff050bb-head.txt:39: .../06-final/EVIDENCE-INDEX.md                     |   46 +
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:33:3. 模块、Schema、追踪工具三个移除锚点均会变红；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:36:6. 当前方案 §20、§25.1 与工具目录三套 ID 的原始集合均为 131 且相等；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:37:7. 追踪工具如实报告专属覆盖 **0/131（0.0%）**。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:83:| P0-10 证据/追踪/制品 | **FAIL / 部分修复** | 14 目录、方案/报告快照、生成器、131 集合已入仓；0% 专属覆盖诚实呈现 | 01～13 只有 README，索引 stale 且无严格逐工件条目；Gate 可假绿；0 专属用例；无最终 tar/zip 制品、回滚/迁移/观察窗证据 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:85:### 3.1 P0-1：移除锚点成立，但业务运行接线不存在
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:247:6. P1c 调用工具时没有 `--check`：隔离篡改方案 §20 后，工具打印集合 FAIL 但返回 0，完整 acceptance 仍 62/0 ALL GREEN。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:248:7. 只篡改 §25.1 映射元数据，即使手工 `--check` 也返回 0；工具实际没有解析 §25.1 映射，却把标签写成“§25.1 集合等式”。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:249:8. 131 个 ID 专属实现为 0，代理 3，缺失 128；没有 before 红探针、属性/变异、chaos、迁移对账、scanner golden、Playwright、shadow/canary、rollback、14 天观察工件。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:265:| W1 契约、Schema、威胁模型、红探针 | 10 | 4 | **6** | +2：五个 Schema 有窄加固，131 集合/映射工具存在。仍无 Wenqu TLA/TLC、BEFORE 红探针、治理一致性 Gate；Schema 多个反例仍接受，专属覆盖 0。 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:267:| W3 Gate、CI、合流控制 | 15 | 2 | **3** | +1：ff050bb 双平台 CI success，模块/工具移除锚点进入 acceptance。正式 v2 聚合链仍断；追踪 Gate 假绿；main 无保护且 rulesets=[]；无 action controller/required contexts。 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:270:| W6 Bug 八站 | 15 | 8 | **8** | 不升：既有站点模块/selftest 保留，但无 scanner goldens、分母/DB/租户/供应链专属验收增量，正式统一聚合仍断链。 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:304:| §20 追踪篡改 | 改 ID 后跑完整 acceptance | 仍 62/0 ALL GREEN | **FAIL / 假绿** |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:305:| §25.1 映射篡改 | 改映射后工具 `--check` | rc=0 | **FAIL / 假绿** |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:325:| 方案 §20 独立解析 | 131 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:326:| 方案 §25.1 独立展开 | 131 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:329:| §25.1 四列映射差异 | 0（由本轮独立脚本对原始方案核对） |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:330:| 专属覆盖 | **0 / 131（0.0%）** |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:333:| 专属+代理参考覆盖 | 2.29% |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:335:因此“131 集合等式成立”和“0% 专属覆盖”都是真实结论。必须同时保留这两句话：集合完整不等于测试实现，更不等于验收通过。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:337:此外，当前工具自身的 `cross_check_plan()` 只核对 §20 显式 ID，不解析 §25.1 元数据；本轮之所以能确认 §25.1 映射，是使用独立解析脚本，而不是相信工具标签。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:391:- 三个移除锚点；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:399:总索引：`06-final/EVIDENCE-INDEX.md`。  
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:426:1. acceptance 的追踪步骤强制 `--check`，并真正解析 §25.1 全映射；篡改 §20/§25.1 都必须 CI 红。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:427:2. 131 个 ID 建立专属测试；0% 不得作为完成证据。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:443:3. 131 专属覆盖不再为 0，且 traceability 篡改能使 acceptance/CI 非零；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/验收报告-第三轮.md:462:- `06-final/EVIDENCE-INDEX.md`
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt:21:   322	#: payload 判别封闭（Codex 实锤 #2）：每类 payload 的键集 = 专属字段全集，
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt:138:  1124	        # payload 判别封闭（Codex 实锤 #2）：键集 = 该 approval_type 的专属
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt:411:  1525	            """risk 专属：HIGH/CRITICAL 机器拒绝 + 指纹与登记面精确匹配。"""
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:50:    "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:280:      "injection": "merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:899:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:900:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:913:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:914:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:917:      "proxy_note": "空 required_stations → BLOCKED 与 GATE-02『零测试→BLOCKED』语义相邻；但非完整注入面（无 base ref/纯文档 scope 判定），不冒充专属验收"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:928:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:929:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:942:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:943:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:956:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:957:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:970:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:971:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:984:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:985:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:998:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:999:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1012:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1013:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1026:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1027:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1040:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1041:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1054:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1055:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json:1674:      "proxy_note": "并发正确性语义相邻，但对象是遗留 cli findings.jsonl 账本，非 wenqu_core EventStore（100×100 规模亦未达），不冒充专属验收"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:734:docs/traceability/REQ-AC-IMP-TEST-EVID.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1545:# 20. 强制红探针与验收矩阵
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1549:## 20.1 Gate、授权、合流
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1581:## 20.2 状态、账本、迁移
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1597:## 20.3 Bug 扫描器
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1622:## 20.4 调度、发布、UI
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1640:## 20.5 补充契约、隔离与治理探针
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1879:## 25.1 全部验收 ID 的反向需求/AC 映射
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1881:为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1914:机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/方案.md:1993:| 测试追踪 | PASS；§20 定义 131 个唯一测试 ID，§25.1 展开映射 131 个，集合完全相等、零重复、零悬空 |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/03-acceptance-full.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/03-acceptance-full.log:87:  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:1:# 第四轮复审：追踪矩阵、篡改闸与专属覆盖
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:7:  - §20：131 行 / 131 唯一；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:8:  - §25.1：展开 131 / 131 唯一；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:11:  - §20 每行 `注入/期望` 与冻结目录差异 0；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:12:  - §25.1 的 REQ、AC、工作包、证据类与冻结映射差异 0；
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:14:- 专属覆盖呈现属实：扫描 23 个 `.py/.sh` 资产，对 131 ID 的连字符、下划线、`test_` 三种精确形态，原始命中 0、测试上下文命中 0；live 显示 dedicated=0、proxy=3（`GATE-02/COND-04/STATE-03`）、missing=128，与独立结果一致。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:21:| §20 `GATE-01→GATE-99`（集合变异） | rc=2 | rc=1，61/1 | PASS：ID 集合漂移已 fail-closed |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:22:| §25.1 GATE 的 REQ 元数据改写 | rc=2 | rc=1，61/1 | PASS：范围展开/四列映射漂移已 fail-closed |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:23:| §20 保留 `GATE-01`，只改“注入”语义文本 | **rc=0** | **rc=0，62/0 ALL GREEN** | **FAIL：§20 语义内容篡改仍假绿** |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:27:`cross_check_plan()` 只提取 §20 ID 集合，并未把 §20 每行的 `注入/期望` 与工具内 `ID_DEFS` 做运行时对账。因此只要攻击者保留 ID，就能任意漂移验收语义而 `--check` 与 P1c 全绿。基线当前内容虽与冻结目录一致，但防篡改 Gate 不完整；“§20 内容篡改必非零”只能在 ID 集合口径下成立，按真实语义内容口径不成立。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:33:- §20 ID 变异：`01-section20-id-mutation.log`、`02-section20-id-check.log`、`03-section20-id-acceptance.log`。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:34:- §25.1 元数据变异：`04-section251-meta-mutation.log`、`05-section251-meta-check.log`、`06-section251-meta-acceptance.log`。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md:35:- §20 语义假绿：`07-section20-semantic-mutation.log`、`08-section20-semantic-check.log`、`09-section20-semantic-acceptance.log`。
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/09-section20-semantic-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/09-section20-semantic-acceptance.log:87:  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:8:Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:11:方案交叉校验(§20 集合等式): PASS  方案侧 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:12:方案交叉校验(§25.1 映射展开+四列元数据): PASS  展开 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:15:专属已实现          : 0  (0.0%)
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:18:专属+代理覆盖参考   : 2.29%
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log:20:前缀        总数    专属    代理
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:2:INTEGRITY-FAIL: §25.1 映射交叉校验不一致: §25.1 前缀 GATE 四列元数据与冻结值不符: 方案=('REQ-EVID-TAMPER/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after') 冻结=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after')
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:4:Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:7:方案交叉校验(§20 集合等式): PASS  方案侧 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:8:方案交叉校验(§25.1 映射展开+四列元数据): FAIL  展开 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:9:  §25.1 问题: §25.1 前缀 GATE 四列元数据与冻结值不符: 方案=('REQ-EVID-TAMPER/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after') 冻结=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after')
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:12:专属已实现          : 0  (0.0%)
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:15:专属+代理覆盖参考   : 2.29%
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log:17:前缀        总数    专属    代理
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/06-section251-meta-acceptance.log:86:== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/06-section251-meta-acceptance.log:87:  ❌ 追踪矩阵校验失败（exit=2）——§20/§25.1 被篡改、evidence 目录或工具损坏
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:3:Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:6:方案交叉校验(§20 集合等式): PASS  方案侧 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:7:方案交叉校验(§25.1 映射展开+四列元数据): PASS  展开 131 vs 冻结 131
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:10:专属已实现          : 0  (0.0%)
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:13:专属+代理覆盖参考   : 2.29%
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log:15:前缀        总数    专属    代理
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log:6:$ mutate §25.1 GATE range requirement REQ-EVID-001 -> REQ-EVID-TAMPER
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log:17:-| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log:18:+| GATE-01～12 | REQ-EVID-TAMPER / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:50:    "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:280:      "injection": "merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:899:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:900:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:913:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:914:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:917:      "proxy_note": "空 required_stations → BLOCKED 与 GATE-02『零测试→BLOCKED』语义相邻；但非完整注入面（无 base ref/纯文档 scope 判定），不冒充专属验收"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:928:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:929:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:942:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:943:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:956:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:957:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:970:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:971:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:984:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:985:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:998:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:999:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:1012:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:1013:      "ac": "AC-EVID-FAIL-CLOSED",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:1026:      "req": "REQ-EVID-001",
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json:1027:      "ac": "AC-EVID-FAIL-CLOSED",

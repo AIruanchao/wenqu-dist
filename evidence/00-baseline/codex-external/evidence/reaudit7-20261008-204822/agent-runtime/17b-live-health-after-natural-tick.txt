@@ -1,0 +1,39 @@
+UTC_START=2026-10-08T12:51:52Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-health-latest.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+for u in http://127.0.0.1:7789/api/v1/health http://127.0.0.1:7789/api/v1/ping; do echo "=== $u ==="; curl -sS --max-time 8 -D - "$u"; echo; done
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:51:52+0800
+=== http://127.0.0.1:7789/api/v1/health ===
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:52 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 793
+
+{"generated_at": "2026-10-08T12:51:16Z", "policy_verdict": "BLOCKED", "aggregate_outcome": "BLOCKED", "technical_eligible": false, "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "reasons": ["wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"], "counts": {"required_total": 0, "required_reported": 0, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "source": "w4-scheduler", "cli_exit": 1}
+=== http://127.0.0.1:7789/api/v1/ping ===
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:52 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 50
+
+{"pong": true, "server": "wenqu-dashboard-w8/1.0"}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:51:52Z

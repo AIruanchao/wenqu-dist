@@ -1,0 +1,14 @@
+$ active/archive identities
+-rwxr-xr-x@ 1 maccc  staff  93097 Oct  8 15:55 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+-rwxr-xr-x@ 1 maccc  wheel  92689 Oct  8 15:47 /tmp/reaudit6-trace.dxHErV/system/bin/wenqu-dashboard.py
+675603caca01317029f5cd208c2ebfc62f3c8272caa74491db05426d56dc1b2a  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+1cdb3a49b999a774aeafe0ca3baa43d001182ece1df3f3e693ee27303264d0dd  /tmp/reaudit6-trace.dxHErV/system/bin/wenqu-dashboard.py
+path=/Users/maccc/.wenqu/bin/wenqu-dashboard.py size=93097 mode=-rwxr-xr-x mtime=2026-10-08T15:55:11+0800 inode=466083470
+path=/tmp/reaudit6-trace.dxHErV/system/bin/wenqu-dashboard.py size=92689 mode=-rwxr-xr-x mtime=2026-10-08T15:47:32+0800 inode=466063671
+$ cmp active archive
+cmp_rc=1
+$ static runtime shape anchors in archived HEAD
+20:_DECIDE_LOCK = threading.Lock()  # /api/decide 读改写整段互斥（ThreadingHTTPServer 并发下防丢账）
+538:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+869:    def do_POST(self):
+870:        if self.path == "/api/decide":

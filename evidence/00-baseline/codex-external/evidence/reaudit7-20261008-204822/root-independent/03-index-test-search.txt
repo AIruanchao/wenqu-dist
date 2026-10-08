@@ -1,0 +1,16 @@
+system/tests/test_ac_gate_family.py:376:                fresh_until=float(n) + 1,
+system/tests/test_ac_gate_family.py:419:            fresh_until=2.0,
+system/tests/test_ac_act_run.py:133:        "artifact_sha256": "6" * 64,
+system/tests/test_ac_act_run.py:456:        # 腿 5（artifact 不符）：release 审批签名后篡改 artifact_sha256 → HMAC 拒
+system/tests/test_ac_act_run.py:460:            tampered_artifact["payload"], artifact_sha256="f" * 64)
+system/tests/test_ac_act_run.py:712:            ("release", "artifact_sha256", "ddl"),
+system/tests/test_wenqu_adversarial.py:161:    "release": {"release_id": "rel-77", "artifact_sha256": "d" * 64,
+system/tests/test_infra_hardening.py:80:        fresh_until=2000000.0, timed_out=False,
+system/tests/test_infra_hardening.py:320:                        argv_digest="c" * 64, timestamp=1.0, fresh_until=2.0,
+system/tests/test_infra_hardening.py:337:            "argv_digest='c'*64, timestamp=1.0, fresh_until=2.0, timed_out=False)\n"
+system/tests/test_ac_station_families.py:147:        fresh_until=time.time() + 300.0, timed_out=False,
+system/tests/test_ac_station_families.py:156:        fresh_until=time.time() + 300.0, timed_out=True,
+system/tests/test_gate_schema_hardening.py:346:            "verdict": "PASS", "fresh_until": "2026-10-09T00:00:00Z",
+system/tests/test_gate_schema_hardening.py:347:            "artifact": {"artifact_sha256": "d" * 64, "artifact_size": 10},
+system/tests/test_ac_deploy_release.py:590:        "artifact_sha256": "a" * 64,
+system/tests/test_ac_deploy_release.py:683:        "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),

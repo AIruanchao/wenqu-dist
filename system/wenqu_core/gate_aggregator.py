@@ -3,7 +3,10 @@
 F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验；
 F6 六轮加固：镜像 RFC3339 严格 date-time、重复站幂等等价键收紧
 （attempt_id+scope_hash+coverage+artifact 摘要全等）、manifest 范围绑定
-（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）。
+（F6-GATE-SCOPE-001：expected_scope_hash/expected_denominator 逐站对账）；
+R7 第七轮加固：等价键扩为全语义身份（R7-GATE-DUP-EQUIV-002——
+ruleset/data_config/tool name+digest/argv_digest/finding_ids 任一漂移
+都算 duplicate_conflict，不再静默 duplicates_ignored）。
 
 消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
 
@@ -563,7 +566,8 @@ class GateAggregator:
                     "station": station,
                 })
 
-        # F6-GATE-FORMAT-DUP-002：重复站幂等等价键的原料（宽松提取，None=缺失）
+        # F6-GATE-FORMAT-DUP-002 / R7-GATE-DUP-EQUIV-002：重复站幂等等价键的
+        # 原料（宽松提取，None=缺失）
         attempt_raw = station_result.get("attempt_id")
         attempt_value = attempt_raw if isinstance(attempt_raw, str) else None
         coverage_value: Optional[Dict[str, Any]] = None
@@ -584,6 +588,30 @@ class GateAggregator:
                 item.get("cas_digest") if isinstance(item, Mapping) else None
                 for item in raw_artifacts
             )
+        # R7-GATE-DUP-EQUIV-002：全语义身份原料（identity 的 ruleset/
+        # data_config、tool name+version+digest、execution.argv_digest、
+        # finding_ids 排序摘要）——任一漂移即非幂等重发
+        ruleset_hash_value: Optional[str] = None
+        data_config_hash_value: Optional[str] = None
+        if isinstance(identity, Mapping):
+            raw_rh = identity.get("ruleset_hash")
+            ruleset_hash_value = raw_rh if isinstance(raw_rh, str) else None
+            raw_dch = identity.get("data_config_hash")
+            data_config_hash_value = raw_dch if isinstance(raw_dch, str) else None
+        tool_identity: Optional[tuple] = None
+        raw_tool = station_result.get("tool")
+        if isinstance(raw_tool, Mapping):
+            tool_identity = (raw_tool.get("name"), raw_tool.get("version"),
+                             raw_tool.get("digest"))
+        argv_digest_value: Optional[str] = None
+        raw_execution = station_result.get("execution")
+        if isinstance(raw_execution, Mapping):
+            raw_argv = raw_execution.get("argv_digest")
+            argv_digest_value = raw_argv if isinstance(raw_argv, str) else None
+        raw_findings = station_result.get("finding_ids")
+        finding_ids_sorted: Optional[tuple] = None
+        if isinstance(raw_findings, list):
+            finding_ids_sorted = tuple(sorted(raw_findings))
 
         return {
             "station": station,
@@ -600,6 +628,11 @@ class GateAggregator:
             "scope_hash": scope_hash_value,
             "coverage": coverage_value,
             "artifact_digests": artifact_digests,
+            "ruleset_hash": ruleset_hash_value,
+            "data_config_hash": data_config_hash_value,
+            "tool_identity": tool_identity,
+            "argv_digest": argv_digest_value,
+            "finding_ids_sorted": finding_ids_sorted,
         }
 
     def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
@@ -639,17 +672,26 @@ class GateAggregator:
             "scope_hash": None,
             "coverage": None,
             "artifact_digests": None,
+            "ruleset_hash": None,
+            "data_config_hash": None,
+            "tool_identity": None,
+            "argv_digest": None,
+            "finding_ids_sorted": None,
         }
 
     def _resend_equivalent(self, previous: Dict[str, Any],
                            entry: Dict[str, Any]) -> bool:
-        """重复站幂等等价键（F6-GATE-FORMAT-DUP-002）。
+        """重复站幂等等价键（F6-GATE-FORMAT-DUP-002；R7-GATE-DUP-EQUIV-002
+        第七轮收紧为**全语义身份**）。
 
         v2：attempt_id + scope_hash + coverage（分母/扫描/排除）+ artifact
-        cas_digest 摘要序列 + （历史基线）outcome/sha/environment 全等才算
-        幂等重发；任一不等 -> duplicate_conflict（aggregate 时 BLOCKED）。
-        旧键只有 outcome/sha/environment——同站两次自报不同分母/不同批次
-        工件曾被静默择优（首条为准），此处收紧为冲突。
+        cas_digest 摘要序列 + identity.ruleset_hash/data_config_hash +
+        tool（name+version+digest）+ execution.argv_digest + finding_ids
+        排序摘要 + （历史基线）outcome/sha/environment 全等才算幂等重发；
+        任一不等 -> duplicate_conflict（aggregate 时 BLOCKED）。
+        旧键只有 outcome/sha/environment——同站两次自报不同 ruleset/
+        data_config/工具/命令身份/发现清单曾被静默择优（首条为准，
+        duplicates_ignored PASS），此处收紧为冲突。
         legacy：无 attempt/coverage/artifact 概念，维持历史等价键。
         """
         if (previous["outcome"] != entry["outcome"]
@@ -663,7 +705,17 @@ class GateAggregator:
                 and previous.get("scope_hash") == entry.get("scope_hash")
                 and previous.get("coverage") == entry.get("coverage")
                 and previous.get("artifact_digests")
-                == entry.get("artifact_digests"))
+                == entry.get("artifact_digests")
+                and previous.get("ruleset_hash")
+                == entry.get("ruleset_hash")
+                and previous.get("data_config_hash")
+                == entry.get("data_config_hash")
+                and previous.get("tool_identity")
+                == entry.get("tool_identity")
+                and previous.get("argv_digest")
+                == entry.get("argv_digest")
+                and previous.get("finding_ids_sorted")
+                == entry.get("finding_ids_sorted"))
 
     def _reconcile_manifest_binding(self, station: str,
                                     entry: Dict[str, Any]) -> None:
@@ -710,9 +762,11 @@ class GateAggregator:
         v2 条目先过镜像校验器（F4-GATE-001）：schema-invalid 一律记 malformed
         并强制该站 BLOCKED——聚合输出必为 BLOCKED、technical_eligible=false。
 
-        重复站点（F6-GATE-FORMAT-DUP-002）：幂等等价键（attempt_id+scope_hash+
-        coverage+artifact 摘要+outcome/sha/environment）全等才视为幂等重发
-        （忽略）；否则 duplicate_conflict——aggregate() 时 BLOCKED，绝不静默择优。
+        重复站点（F6-GATE-FORMAT-DUP-002 / R7-GATE-DUP-EQUIV-002）：幂等等价键
+        （attempt_id+scope_hash+coverage+artifact 摘要+ruleset/data_config+
+        tool+argv_digest+finding_ids 排序摘要+outcome/sha/environment——全
+        语义身份）全等才视为幂等重发（忽略）；否则 duplicate_conflict——
+        aggregate() 时 BLOCKED，绝不静默择优。
         """
         if not isinstance(station_result, Mapping):
             self._malformed.append(
@@ -786,7 +840,9 @@ class GateAggregator:
         if self._conflicts:
             names = ",".join(sorted({c["station"] for c in self._conflicts}))
             block(f"duplicate_station_conflict/duplicate_conflict [{names}] "
-                  "(attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)")
+                  "(attempt_id+scope+coverage+artifact+ruleset+data_config"
+                  "+tool+argv_digest+finding_ids 全语义等价键不等"
+                  "——非幂等重发)")
         if self._scope_violations:
             detail = "; ".join(
                 f"{v['station']}:{v['reason']}" for v in self._scope_violations)

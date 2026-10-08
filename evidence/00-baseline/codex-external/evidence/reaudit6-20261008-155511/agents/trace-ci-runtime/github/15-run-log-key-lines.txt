@@ -1,0 +1,136 @@
+148:matrix (macos-latest)	acceptance	2026-10-08T07:47:45.4192270Z == A. selftest 契约 ==
+149:matrix (macos-latest)	acceptance	2026-10-08T07:47:45.5088750Z   ✅ selftest (exit=0)
+219:matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9842300Z == H. pytest 契约套件（若 pytest 可用）==
+220:matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9987440Z   ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）
+230:matrix (macos-latest)	acceptance	2026-10-08T07:47:51.6847060Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+232:matrix (macos-latest)	acceptance	2026-10-08T07:47:51.7992340Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+234:matrix (macos-latest)	acceptance	2026-10-08T07:47:52.4204250Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+236:matrix (macos-latest)	acceptance	2026-10-08T07:47:53.7605530Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+239:matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159330Z RESULT: PASS=63 FAIL=0
+240:matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159520Z ALL GREEN
+241:matrix (macos-latest)	pytest 契约	﻿2026-10-08T07:48:01.5319660Z ##[group]Run pip install pytest && python -m pytest cli/test_wenqu.py -q
+242:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5325200Z ^[[36;1mpip install pytest && python -m pytest cli/test_wenqu.py -q^[[0m
+243:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5352840Z shell: /bin/bash -e {0}
+244:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5352980Z env:
+245:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353150Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+246:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353480Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+247:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353800Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+248:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354080Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+249:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354410Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+250:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354620Z ##[endgroup]
+251:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2024810Z Collecting pytest
+252:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2498540Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+253:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2641960Z Collecting iniconfig>=1.0.1 (from pytest)
+254:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2711700Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+255:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2858100Z Collecting packaging>=22 (from pytest)
+256:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2925790Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+257:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3064370Z Collecting pluggy<2,>=1.5 (from pytest)
+258:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3131940Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+259:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3289160Z Collecting pygments>=2.7.2 (from pytest)
+260:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3360550Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+261:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3477640Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+262:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3741920Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+263:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3835270Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+264:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3929120Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+265:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4022130Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+266:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4171590Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 82.6 MB/s  0:00:00
+267:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4498290Z Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
+268:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:03.0353380Z 
+269:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:03.0360020Z Successfully installed iniconfig-2.3.1 packaging-26.3 pluggy-1.6.0 pygments-2.21.0 pytest-9.1.1
+270:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:05.5185910Z ....................                                                     [100%]
+271:matrix (macos-latest)	pytest 契约	2026-10-08T07:48:05.5186230Z 20 passed in 2.33s
+272:matrix (macos-latest)	selftest	﻿2026-10-08T07:48:05.5349510Z ##[group]Run python cli/wenqu selftest
+273:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5349820Z ^[[36;1mpython cli/wenqu selftest^[[0m
+274:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380230Z shell: /bin/bash -e {0}
+275:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380560Z env:
+276:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380770Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+277:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381120Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+278:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381530Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+279:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381810Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+280:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5382140Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+281:matrix (macos-latest)	selftest	2026-10-08T07:48:05.5382360Z ##[endgroup]
+282:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6604430Z OK ingest：原子拒绝——0 条入账，2 处问题（--partial 可恢复逐行模式）
+283:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6604970Z   拒绝：第2行：id 重复 X-1
+284:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6605210Z   拒绝：第3行：sev 非法（须为 HIGH/MEDIUM/LOW）
+285:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6784750Z OK init：范围冻结 1 文件，scope_hash=0a23e51566e5e471，账本在 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/findings.jsonl
+286:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6785810Z OK fake PASS，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-628-fake.log
+287:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6786580Z FAIL fakebad（exit=1）——已落账 OPEN，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-644-fakebad.log
+288:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787010Z OK ingest：入账 1 条
+289:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787260Z OK close：X-9 OPEN → CLOSED（append-only 转移已入账）
+290:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787520Z FAIL verify：schema 净；OPEN 1/0 限额；总 2 条
+291:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787750Z   OPEN：AUTO-20261008074805-2704-fakebad-442e
+292:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788090Z OK close：AUTO-20261008074805-2704-fakebad-442e OPEN → FIXED（append-only 转移已入账）
+293:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788440Z OK verify：schema 净；OPEN 0/0 限额；总 2 条
+294:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788840Z OK fake PASS，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-661-fake.log
+295:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6789260Z OK repair：保留 7 行，隔离 0 行 → findings.jsonl.quarantine
+296:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6789600Z FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+297:matrix (macos-latest)	selftest	2026-10-08T07:48:05.6790010Z OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）
+466:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5813607Z == A. selftest 契约 ==
+467:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.6890146Z   ✅ selftest (exit=0)
+537:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3709530Z == H. pytest 契约套件（若 pytest 可用）==
+538:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3832725Z   ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）
+548:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.1135110Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+550:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3457492Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+553:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9591146Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+555:matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8584663Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+558:matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251352Z RESULT: PASS=63 FAIL=0
+559:matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251764Z ALL GREEN
+560:matrix (ubuntu-latest)	pytest 契约	﻿2026-10-08T07:48:00.2385342Z ##[group]Run pip install pytest && python -m pytest cli/test_wenqu.py -q
+561:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2385901Z ^[[36;1mpip install pytest && python -m pytest cli/test_wenqu.py -q^[[0m
+562:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2452844Z shell: /usr/bin/bash -e {0}
+563:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453136Z env:
+564:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453438Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+565:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453940Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+566:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454431Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+567:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454872Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+568:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455327Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+569:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455768Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+570:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2456169Z ##[endgroup]
+571:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.1882338Z Collecting pytest
+572:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2707491Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+573:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2843166Z Collecting iniconfig>=1.0.1 (from pytest)
+574:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2983720Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+575:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3138625Z Collecting packaging>=22 (from pytest)
+576:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3277573Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+577:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3408388Z Collecting pluggy<2,>=1.5 (from pytest)
+578:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3549511Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+579:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3739047Z Collecting pygments>=2.7.2 (from pytest)
+580:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3879242Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+581:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4077586Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+582:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4666166Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+583:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4828328Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+584:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4991863Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+585:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5167534Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+586:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5572850Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 37.5 MB/s  0:00:00
+587:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.6349521Z Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
+588:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6829490Z 
+589:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6840938Z Successfully installed iniconfig-2.3.1 packaging-26.3 pluggy-1.6.0 pygments-2.21.0 pytest-9.1.1
+590:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2772606Z ....................                                                     [100%]
+591:matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2773667Z 20 passed in 3.27s
+592:matrix (ubuntu-latest)	selftest	﻿2026-10-08T07:48:06.3076309Z ##[group]Run python cli/wenqu selftest
+593:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3076703Z ^[[36;1mpython cli/wenqu selftest^[[0m
+594:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3140910Z shell: /usr/bin/bash -e {0}
+595:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141241Z env:
+596:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141576Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+597:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142366Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+598:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142934Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+599:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143436Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+600:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143945Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+601:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144460Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+602:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144889Z ##[endgroup]
+603:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4041505Z OK ingest：原子拒绝——0 条入账，2 处问题（--partial 可恢复逐行模式）
+604:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4042697Z   拒绝：第2行：id 重复 X-1
+605:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4043609Z   拒绝：第3行：sev 非法（须为 HIGH/MEDIUM/LOW）
+606:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4196839Z OK init：范围冻结 1 文件，scope_hash=0a23e51566e5e471，账本在 /tmp/tmp50iewptm/wh/findings.jsonl
+607:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4198166Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-374-fake.log
+608:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4199282Z FAIL fakebad（exit=1）——已落账 OPEN，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-387-fakebad.log
+609:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4200727Z OK ingest：入账 1 条
+610:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201307Z OK close：X-9 OPEN → CLOSED（append-only 转移已入账）
+611:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201968Z FAIL verify：schema 净；OPEN 1/0 限额；总 2 条
+612:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4202603Z   OPEN：AUTO-20261008074806-2853-fakebad-2b7c
+613:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4203483Z OK close：AUTO-20261008074806-2853-fakebad-2b7c OPEN → FIXED（append-only 转移已入账）
+614:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4204313Z OK verify：schema 净；OPEN 0/0 限额；总 2 条
+615:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205075Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-405-fake.log
+616:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205878Z OK repair：保留 7 行，隔离 0 行 → findings.jsonl.quarantine
+617:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4206698Z FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+618:matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4207713Z OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）

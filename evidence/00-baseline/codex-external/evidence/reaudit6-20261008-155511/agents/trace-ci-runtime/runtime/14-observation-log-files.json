@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/Users/maccc/.wenqu/observation/logs/out.log",
+    "exists": true,
+    "size": 1226,
+    "sha256": "8f48bc5718b1b0334d951dc5a6237aa9174dd8888484b3433bdecfcd359eea98",
+    "mtime": "2026-10-08T06:56:14.796721+00:00",
+    "tail": "{\"ok\": true, \"sample_path\": \"/Users/maccc/.wenqu/observation/samples/2026-10-08.json\", \"shadow_path\": \"/Users/maccc/.wenqu/observation/shadow/2026-10-08.json\", \"ci_latest_main\": \"completed/success run=37738717793\", \"shadow_compare\": {\"key_sets_equal\": null, \"score_equal\": null, \"only_legacy\": null, \"only_modular\": null, \"legacy_score\": 40, \"modular_score\": null, \"note\": \"modular health 无 200 JSON（当前为结构化错误态），无法比对\"}, \"shadow_ready\": true, \"dashboard_launchd_state\": \"running\", \"disk_used_pct\": 93.1, \"repo_head\": \"b08fa7afd492ceb413419518b066bb456ad5f70c\", \"repo_dirty\": true}\n{\"ok\": true, \"sample_path\": \"/Users/maccc/.wenqu/observation/samples/2026-10-08.json\", \"shadow_path\": \"/Users/maccc/.wenqu/observation/shadow/2026-10-08.json\", \"ci_latest_main\": \"completed/success run=37738717793\", \"shadow_compare\": {\"key_sets_equal\": null, \"score_equal\": null, \"only_legacy\": null, \"only_modular\": null, \"legacy_score\": 40, \"modular_score\": null, \"note\": \"modular health 无 200 JSON（当前为结构化错误态），无法比对\"}, \"shadow_ready\": true, \"dashboard_launchd_state\": \"running\", \"disk_used_pct\": 93.2, \"repo_head\": \"b08fa7afd492ceb413419518b066bb456ad5f70c\", \"repo_dirty\": true}\n"
+  },
+  {
+    "path": "/Users/maccc/.wenqu/observation/logs/err.log",
+    "exists": true,
+    "size": 167,
+    "sha256": "81a0d9d20d09ff520436c427b83e2166cf1c8765ddd16b938edc4250f6fca7df",
+    "mtime": "2026-10-08T06:51:46.501620+00:00",
+    "tail": "/Library/Developer/CommandLineTools/usr/bin/python3: can't open file '/Users/maccc/Documents/wenqu-dist/tools/observation_daily.py': [Errno 1] Operation not permitted\n"
+  }
+]

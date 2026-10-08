@@ -1,0 +1,14 @@
+$ cp -R <b259dac-isolated> <mutation>; unlink system/wenqu_core/cli.py
+$ HOME=<fake> bash system/install.sh --prefix <prefix>
+╔══════════════════════════════════════╗
+║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+╚══════════════════════════════════════╝
+目标：/tmp/reaudit6-install-missing-cli.5h1xzp/prefix
+wenqu_core 全模块导入验证通过（14 模块）
+✓ wenqu_core 安装验证通过（全模块可导入，含 wenqu_pipeline）
+✗ 安装自检失败：安装体 bin/wenquctl 断链（--help rc≠0）——wenqu_core/cli.py 缺失或壳路径解析损坏，安装中止
+exit_code=1
+$ test -f <prefix>/lib/wenqu_core/cli.py
+exit_code=1 (expected 1: cli.py absent)
+$ test -x <prefix>/bin/wenquctl
+exit_code=0 (shell may have been copied before fail; install overall remains rc=1)

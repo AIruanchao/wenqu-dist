@@ -1,0 +1,23 @@
+COMMAND: python3 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/independent-sc05-pagination-probe.py'
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+{
+  "injection": {
+    "page": 1,
+    "pages_total": 2,
+    "complete": false,
+    "next_page": 2
+  },
+  "signature_and_hash_valid": true,
+  "execution_status": "COMPLETED",
+  "policy_verdict": "PASS",
+  "coverage": {
+    "denominator": 12,
+    "scanned": 12
+  },
+  "note": "verified snapshot: captured_at 2026-10-08T12:56:14Z (age 0s, content sha256:41fb86cd6ba324d8…)",
+  "finding_ids": []
+}
+SC05_PAGINATION_RESULT=GAP_FALSE_GREEN
+--- STDERR ---

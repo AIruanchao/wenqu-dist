@@ -1,0 +1,51 @@
+UTC_START=2026-10-08T12:55:03Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-w5-live-drill.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+R=/private/tmp/reaudit7-release-d32c859
+S='/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl'
+W=/private/tmp/reaudit7-w5-live-drill
+rm -rf "$W"
+PRE=$(shasum -a 256 "$S"|awk '{print $1}'); PRE_SIZE=$(stat -f %z "$S"); PRE_LINES=$(wc -l < "$S"|tr -d ' ')
+echo PRE_SHA=$PRE PRE_SIZE=$PRE_SIZE PRE_LINES=$PRE_LINES
+cd "$R"
+python3 tools/w5_reconcile.py --workdir "$W"
+rc=$?
+echo TOOL_RC=$rc
+POST=$(shasum -a 256 "$S"|awk '{print $1}'); POST_SIZE=$(stat -f %z "$S"); POST_LINES=$(wc -l < "$S"|tr -d ' ')
+echo POST_SHA=$POST POST_SIZE=$POST_SIZE POST_LINES=$POST_LINES UNCHANGED=$([[ "$PRE:$PRE_SIZE:$PRE_LINES" == "$POST:$POST_SIZE:$POST_LINES" ]] && echo true || echo false)
+python3 - "$W/drill-report.json" <<'PY'
+import json,sys
+r=json.load(open(sys.argv[1]))
+print('GIT_HEAD',r.get('git_head'))
+print('SOURCE',r['source']['total_nonblank_lines'],r['source']['files'])
+print('FOUR_STATE',r['four_state_summary'])
+print('RUNS',r['runs'])
+print('VERIFICATION',r['verification'])
+print('EVENT_STORE',r['event_store'])
+print('ACCEPTED_N',len(r['accepted_adjudication']))
+PY
+exit $rc
+--- OUTPUT ---
+PRE_SHA=737c014987514e147e53998cf0aaaff622bbeaec9d6ac838467cd2db782fa67e PRE_SIZE=838314 PRE_LINES=1974
+[w5_reconcile] mode=drill workdir=/private/tmp/reaudit7-w5-live-drill
+  源非空行 1974 | mapped 16 | quarantined 1957 | 待人工 1 | 不一致 0
+  run1: imported=16 dup=0 quarantine=1 | run2: imported=0 dup=16 quarantine=1
+  守恒=True 幂等=True 链验证=True 源字节不变=True
+  ACCEPTED 裁定清单：1 条
+  报告：/private/tmp/reaudit7-w5-live-drill/drill-report.json
+  结果：ALL CHECKS PASSED
+TOOL_RC=0
+POST_SHA=737c014987514e147e53998cf0aaaff622bbeaec9d6ac838467cd2db782fa67e POST_SIZE=838314 POST_LINES=1974 UNCHANGED=true
+GIT_HEAD d32c859f9043798d9e8a4984e8f57aa64567e33c
+SOURCE 1974 [{'blank_lines': 0, 'bytes': 838314, 'bytewise_unchanged': True, 'file': '/Users/maccc/Documents/ERP）Zcode/持续修复引擎/engine-rounds.jsonl', 'nonblank_lines': 1974, 'sha256': '737c014987514e147e53998cf0aaaff622bbeaec9d6ac838467cd2db782fa67e', 'sha256_after': '737c014987514e147e53998cf0aaaff622bbeaec9d6ac838467cd2db782fa67e'}]
+FOUR_STATE {'mapped': 16, 'quarantined': 1957, 'total': 1974, '不一致': 0, '待人工': 1}
+RUNS {'run1': {'conservation': {'duplicates': 0, 'equation': 'lines_total == imported + duplicates + quarantined', 'imported': 16, 'lines_total': 17, 'quarantined': 1}, 'conserved': True, 'event_table': 'pipeline_events', 'files_scanned': 1, 'imported_status_counts': {'PASS': 16}, 'per_file': [{'duplicates': 0, 'file': '/private/tmp/reaudit7-w5-live-drill/staging-normalized/engine-rounds.jsonl', 'imported': 16, 'lines': 17, 'quarantined': 1}], 'project_key_conflicts': {}, 'quarantine_reasons': {'unknown_status:ACCEPTED-CLOSED': 1}, 'sidecar_path': '/private/tmp/reaudit7-w5-live-drill/migrated-events.db.migration-sidecar.jsonl', 'source_dir': '/private/tmp/reaudit7-w5-live-drill/staging-normalized', 'sqlite_path': '/private/tmp/reaudit7-w5-live-drill/migrated-events.db', 'write_api': 'EventStore.append'}, 'run2': {'conservation': {'duplicates': 16, 'equation': 'lines_total == imported + duplicates + quarantined', 'imported': 0, 'lines_total': 17, 'quarantined': 1}, 'conserved': True, 'event_table': 'pipeline_events', 'files_scanned': 1, 'imported_status_counts': {}, 'per_file': [{'duplicates': 16, 'file': '/private/tmp/reaudit7-w5-live-drill/staging-normalized/engine-rounds.jsonl', 'imported': 0, 'lines': 17, 'quarantined': 1}], 'project_key_conflicts': {}, 'quarantine_reasons': {'unknown_status:ACCEPTED-CLOSED': 1}, 'sidecar_path': '/private/tmp/reaudit7-w5-live-drill/migrated-events.db.migration-sidecar.jsonl', 'source_dir': '/private/tmp/reaudit7-w5-live-drill/staging-normalized', 'sqlite_path': '/private/tmp/reaudit7-w5-live-drill/migrated-events.db', 'write_api': 'EventStore.append'}}
+VERIFICATION {'all_checks_passed': True, 'chain_verified': True, 'conservation': {'conserved': True, 'equation': 'source_nonblank == mapped + quarantined + 待人工 + 不一致', 'mapped': 16, 'quarantined': 1957, 'source_nonblank': 1974, '不一致': 0, '待人工': 1}, 'idempotent': {'prior_db_existed': False, 'rowset_identical': True, 'run1_duplicates': 0, 'run1_imported': 16, 'run1_quarantined': 1, 'run2_duplicates': 16, 'run2_imported': 0, 'run2_imported_zero': True, 'run2_quarantined': 1, 'snapshot_sha_identical': True}, 'source_bytewise_unchanged': True}
+EVENT_STORE {'chain_head': 'fe929c37e3416f3145ead6e23459ccad3f2b2839f9482b6841c5752b35b34e7d', 'chain_verified': True, 'db_logical_snapshot_sha': 'f5bbaebe90b54888c2c12f2c23bb0ab3d1bb5d7ff97ff419e996fee41d2f5860', 'db_path': '/private/tmp/reaudit7-w5-live-drill/migrated-events.db', 'event_count_total': 16, 'ledger_migrated_events': 16, 'orphan_events': [], 'table': 'pipeline_events', 'write_api': 'EventStore.append'}
+ACCEPTED_N 1
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:55:03Z

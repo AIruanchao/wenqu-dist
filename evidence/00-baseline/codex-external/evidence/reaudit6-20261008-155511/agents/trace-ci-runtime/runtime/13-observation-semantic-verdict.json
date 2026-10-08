@@ -1,0 +1,40 @@
+{
+  "sample_collected_at": "2026-10-08T06:56:04.809402+00:00",
+  "sample_repo_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+  "sample_repo_dirty": true,
+  "sample_ci": {
+    "conclusion": "success",
+    "createdAt": "2026-10-08T06:38:25Z",
+    "databaseId": 37738717793,
+    "displayTitle": "Merge pull request #3 from AIruanchao/release/v3.7.0",
+    "headSha": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "status": "completed",
+    "workflowName": "acceptance"
+  },
+  "sample_dashboard_launchd": {
+    "state": "running",
+    "returncode": 0,
+    "error": null
+  },
+  "sample_legacy_status": 200,
+  "sample_legacy_score": 40,
+  "disk_used_pct": 93.2,
+  "shadow_collected_at": "2026-10-08T06:56:04.809402+00:00",
+  "shadow_ready": true,
+  "shadow_ready_http": 200,
+  "modular_path": "/api/v1/health",
+  "modular_status": 503,
+  "modular_error": "http_503",
+  "legacy_status_shadow": 200,
+  "compare": {
+    "key_sets_equal": null,
+    "score_equal": null,
+    "only_legacy": null,
+    "only_modular": null,
+    "legacy_score": 40,
+    "modular_score": null,
+    "note": "modular health 无 200 JSON（当前为结构化错误态），无法比对"
+  },
+  "terminated": "term",
+  "comparison_conclusive": false
+}

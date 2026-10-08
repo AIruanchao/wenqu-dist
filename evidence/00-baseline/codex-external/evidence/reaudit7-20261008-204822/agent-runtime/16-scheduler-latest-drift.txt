@@ -1,0 +1,226 @@
+UTC_START=2026-10-08T12:51:38Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-scheduler-latest.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+date '+LOCAL_NOW=%Y-%m-%dT%H:%M:%S%z'
+for f in "$HOME/.wenqu/observation/heartbeat.json" "$HOME/.wenqu/state/gate-aggregate.json" "$HOME/.wenqu/state/station-results/0.json"; do echo "=== $f ==="; stat -f 'SIZE=%z MTIME=%Sm MTIME_EPOCH=%m' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; cat "$f"; echo; done
+echo '=== frozen cli import line ==='; nl -ba /private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/cli.py | sed -n '30,55p'
+echo '=== work cli import line and status ==='; nl -ba /Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py | sed -n '30,55p'; cd /Users/maccc/Documents/wenqu-dist; git status --porcelain=v2 --branch; echo '=== compare frozen/work key files ==='; for f in system/wenqu_core/cli.py system/wenqu_core/approval_issue.py system/wenqu_core/scheduler.py; do shasum -a 256 "/private/tmp/reaudit7-d32c859-runtime/$f" "/Users/maccc/Documents/wenqu-dist/$f"; cmp -s "/private/tmp/reaudit7-d32c859-runtime/$f" "/Users/maccc/Documents/wenqu-dist/$f"; echo "$f CMP_RC=$?"; done
+--- OUTPUT ---
+LOCAL_NOW=2026-10-08T20:51:38+0800
+=== /Users/maccc/.wenqu/observation/heartbeat.json ===
+SIZE=1678 MTIME=2026-10-08T20:51:22+0800 MTIME_EPOCH=1791463882
+95fbe24d1710cf1dc4b865e0e39720b89dbc34ed9f0ec909c647c201e952b468  /Users/maccc/.wenqu/observation/heartbeat.json
+{
+  "label": "com.wenqu.scheduler",
+  "tick_at": "2026-10-08T12:51:16Z",
+  "tick_epoch": 1791463876.575907,
+  "job_id": "w4.observation-sample",
+  "bootstrapped": false,
+  "due": [
+    {
+      "scheduled_at": 1791463631.010995,
+      "run": true,
+      "reason": "coalesced"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "job-w4.observation-sample-1791463631011",
+      "execution_status": "COMPLETED",
+      "policy_verdict": "PASS",
+      "actual_exit_code": 0,
+      "refreshed_heartbeat": true,
+      "notifications_enqueued": 0
+    }
+  ],
+  "station_result": {
+    "policy_verdict": "PASS",
+    "coverage": {
+      "denominator": 1,
+      "scanned": 1,
+      "exclusions": []
+    },
+    "execution_status": "COMPLETED"
+  },
+  "gate": {
+    "aggregate_outcome": "BLOCKED",
+    "policy_verdict": "BLOCKED",
+    "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）",
+    "cli_exit": 1
+  },
+  "health": [
+    {
+      "job_id": "w4.observation-sample",
+      "state": "FRESH",
+      "healthy": true,
+      "severity": null
+    }
+  ],
+  "notifications": {
+    "dispatch": {
+      "sent": 0,
+      "failed": 0,
+      "dead_lettered": 0,
+      "errors": []
+    },
+    "outbox_stats": {
+      "SENT": 2
+    }
+  },
+  "paths": {
+    "scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db",
+    "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json",
+    "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json",
+    "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"
+  },
+  "tick_rc": 0
+}
+
+=== /Users/maccc/.wenqu/state/gate-aggregate.json ===
+SIZE=854 MTIME=2026-10-08T20:51:22+0800 MTIME_EPOCH=1791463882
+f61674caf12c6110b68e4f9f010d9f7fd2f2a6d5300252cc7f02726c0f919a4c  /Users/maccc/.wenqu/state/gate-aggregate.json
+{
+  "generated_at": "2026-10-08T12:51:16Z",
+  "policy_verdict": "BLOCKED",
+  "aggregate_outcome": "BLOCKED",
+  "technical_eligible": false,
+  "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）",
+  "reasons": [
+    "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"
+  ],
+  "counts": {
+    "required_total": 0,
+    "required_reported": 0,
+    "required_missing": 0,
+    "bypass_stations": 0,
+    "duplicates_ignored": 0,
+    "conflicts": 0,
+    "malformed": 0
+  },
+  "source": "w4-scheduler",
+  "cli_exit": 1
+}
+
+=== /Users/maccc/.wenqu/state/station-results/0.json ===
+SIZE=1026 MTIME=2026-10-08T20:51:21+0800 MTIME_EPOCH=1791463881
+fed04cbe78a9766f9e018d5bbd9d4623c73c832129978e29d0e31e191887ac12  /Users/maccc/.wenqu/state/station-results/0.json
+{
+  "schema_version": "2.0",
+  "run_id": "w4-w4-observation-sample-1791463631011",
+  "station_id": 0,
+  "attempt_id": "job-w4.observation-sample-1791463631011",
+  "execution_status": "COMPLETED",
+  "policy_verdict": "PASS",
+  "identity": {
+    "commit_sha": "1495913085eae13155f977fcebc8400b9789e04c",
+    "environment": "production",
+    "scope_hash": "wenqu-dist:w4-production-observation",
+    "project_id": "wenqu-dist"
+  },
+  "tool": {
+    "name": "observation_daily",
+    "version": "w4-1.0"
+  },
+  "execution": {
+    "argv_digest": "a588e77c88168e903cf30a73c4e55beae8eb114bbafa8e552a25322ed7cd121d",
+    "started_at": "2026-10-08T12:51:16Z",
+    "ended_at": "2026-10-08T12:51:21Z",
+    "actual_exit_code": 0,
+    "expected_exit_set": [
+      0
+    ],
+    "assertion_verdict": "PASS"
+  },
+  "coverage": {
+    "denominator": 1,
+    "scanned": 1,
+    "exclusions": []
+  },
+  "artifacts": [
+    {
+      "cas_digest": "sha256:0771f950a6f2b8be81faabfff707d8c83dff17d64348d6cb3a61aeede5369248",
+      "size": 1492
+    }
+  ]
+}
+
+=== frozen cli import line ===
+    30	import os
+    31	import sys
+    32	import time
+    33	import uuid
+    34	from typing import Any, Dict, List, Mapping, Optional, Set
+    35	
+    36	_SYS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    37	if _SYS_DIR not in sys.path:
+    38	    sys.path.insert(0, _SYS_DIR)
+    39	
+    40	from wenqu_core.approval_keys import ApprovalKeyring  # noqa: E402
+    41	from wenqu_core.approval_issue import (  # noqa: E402
+    42	    APPROVAL_SOURCES, HIGH_RISK_APPROVAL_TYPES, ApprovalIssuer,
+    43	    IssuanceError, TwoPersonRuleError, issue_from_preconditions_payload,
+    44	    reconcile_issuance,
+    45	)
+    46	from wenqu_core.approval_keys import (  # noqa: E402
+    47	    KeyNotFoundError, KeyStateError, append_keyring_event,
+    48	    ensure_keyring_dir, generate_secret, save_key_meta, write_key_to_dir,
+    49	)
+    50	from wenqu_core.bugscan_orchestrator import (  # noqa: E402
+    51	    ManifestFreezeError, RunManifest,
+    52	)
+    53	from wenqu_core.gate_aggregator import (  # noqa: E402
+    54	    BLOCKED, GateAggregator, mirror_validate_station_result_v2,
+    55	)
+=== work cli import line and status ===
+    30	import os
+    31	import sys
+    32	import time
+    33	import uuid
+    34	from typing import Any, Dict, List, Mapping, Optional, Set
+    35	
+    36	_SYS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    37	if _SYS_DIR not in sys.path:
+    38	    sys.path.insert(0, _SYS_DIR)
+    39	
+    40	from wenqu_core.approval_keys import ApprovalKeyring  # noqa: E402
+    41	from wenqu_core.approval_issue import (  # noqa: E402
+    42	    APPROVAL_SOURCES, HIGH_RISK_APPROVAL_TYPES, ApprovalIssuer,
+    43	    IssuanceError, TwoPersonRuleError, issue_from_preconditions_payload,
+    44	    reconcile_issuance,
+    45	)
+    46	from wenqu_core.approval_keys import (  # noqa: E402
+    47	    KeyNotFoundError, KeyStateError, append_keyring_event,
+    48	    ensure_keyring_dir, generate_secret, save_key_meta, write_key_to_dir,
+    49	)
+    50	from wenqu_core.bugscan_orchestrator import (  # noqa: E402
+    51	    ManifestFreezeError, RunManifest,
+    52	)
+    53	from wenqu_core.gate_aggregator import (  # noqa: E402
+    54	    BLOCKED, GateAggregator, mirror_validate_station_result_v2,
+    55	)
+# branch.oid 1495913085eae13155f977fcebc8400b9789e04c
+# branch.head wave6/p1f-gate
+# branch.upstream origin/wave6/p1f-gate
+# branch.ab +0 -0
+1 .M N... 100644 100644 100644 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 evidence/04-unit-property-mutation/ac-ops-families.json
+1 .M N... 100644 100644 100644 269aa9c86de7dc77e2318c699297b92342c63779 269aa9c86de7dc77e2318c699297b92342c63779 system/VERSION
+1 .M N... 100755 100755 100755 6c237dc89a584744ef58dae83097ebeeb46796fd 6c237dc89a584744ef58dae83097ebeeb46796fd system/bin/wenqu-dashboard.py
+1 .D N... 100644 100644 000000 c3da05429806c69d1cc5a70bf9f1cf88440c627f c3da05429806c69d1cc5a70bf9f1cf88440c627f system/wenqu_core/wenqu_pipeline.py
+? "\"\""
+? SHA256-v3.8.4.txt
+=== compare frozen/work key files ===
+a5f874faaa0e7e0d7cafbad15358c77214aba596c8b02b1d8acfad3c4b5f208a  /private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/cli.py
+a5f874faaa0e7e0d7cafbad15358c77214aba596c8b02b1d8acfad3c4b5f208a  /Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py
+system/wenqu_core/cli.py CMP_RC=0
+dd5dca56be386de7733e570509dff8fbb788bee8214b3ec4c51dc21b3f7188b6  /private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/approval_issue.py
+dd5dca56be386de7733e570509dff8fbb788bee8214b3ec4c51dc21b3f7188b6  /Users/maccc/Documents/wenqu-dist/system/wenqu_core/approval_issue.py
+system/wenqu_core/approval_issue.py CMP_RC=0
+9b8a123fd9fd99264c1488b66f4cc085b05adeb51e43a038a1f31ed534c27ea6  /private/tmp/reaudit7-d32c859-runtime/system/wenqu_core/scheduler.py
+9b8a123fd9fd99264c1488b66f4cc085b05adeb51e43a038a1f31ed534c27ea6  /Users/maccc/Documents/wenqu-dist/system/wenqu_core/scheduler.py
+system/wenqu_core/scheduler.py CMP_RC=0
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:51:38Z

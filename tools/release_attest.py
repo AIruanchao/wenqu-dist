@@ -24,7 +24,10 @@ DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货�
   依赖信息从**归档内自述文件**提取（requirements*.txt/package.json/
   pyproject.toml/setup.py 等），无外部网络、无猜测。
 - verify = tar 重算逐文件 hash 对 manifest + 验签 + SBOM 三方对账，
-  任一不符 exit 非零（fail-closed：缺件/多件/错 hash/错权限/坏路径全拒）。
+  任一不符 exit 非零（fail-closed：缺件/多件/错 hash/错权限/坏路径全拒）；
+  另含 plan-hash 绑定检查（R7-REL-POLICY-HASH-011 根修）：实算 tar 内方案
+  快照 sha256 与 manifest.policy_hash.plan_sha256 等值校验 + 64hex 格式
+  强校验——截损/漂移的 policy hash 不可能通过 verify。
 
 用法（纯标准库；仓根执行）：
   python3 tools/release_attest.py build  [--commit HEAD] [--dist-dir dist]
@@ -70,14 +73,27 @@ if SYSTEM_DIR not in sys.path:
 from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
 
 TOOL_NAME = "release_attest.py"
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
 MANIFEST_SCHEMA = "wenqu-release-manifest/1"
 SIG_SCHEMA = "wenqu-release-sig/1"
 SBOM_SPDX_VERSION = "SPDX-2.3"
 
-#: 方案正源哈希（tools/ac_traceability.py 冻结值同源）——manifest 落
-#: policy_hash，把「验收目录来自哪份方案」钉进 build identity。
-PLAN_SHA256 = "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306"
+#: 方案快照在归档内的成员路径（冻结正源 evidence/00-baseline/codex-external/
+#: 方案.md 的仓内路径；git archive 干净树必含——缺件即 build fail-closed）。
+PLAN_MEMBER = "evidence/00-baseline/codex-external/方案.md"
+
+#: 方案正源冻结哈希——**单一正源 import**（R7-REL-POLICY-HASH-011 根修：
+#: 旧版手工拷贝 ac_traceability 的冻结值时截损 3 字符产出 61hex 常量并被
+#: 烤进 manifest，verify 又不实算校验 → 绑定形同虚设。现改为运行时从
+#: tools/ac_traceability.py import，拷贝漂移在构造上不可复现）。
+from ac_traceability import PLAN_SHA256 as PLAN_SHA256  # noqa: E402
+
+#: 启动即守卫：冻结常量必须是 64 位小写 hex（61/62/63 字符的截损值在此
+#: 立即炸掉，任何子命令都跑不起来——同类回归零静默通过）。
+if not re.fullmatch(r"[0-9a-f]{64}", PLAN_SHA256):
+    raise SystemExit(
+        f"[release_attest] ERROR: ac_traceability.PLAN_SHA256 非法（应 64 位"
+        f"小写 hex，实得 {len(PLAN_SHA256)} 字符）: {PLAN_SHA256!r}")
 
 #: SBOM 依赖提取的自述文件清单（归档内按 basename 精确匹配；无网络）。
 DEP_MANIFEST_BASENAMES = (
@@ -242,6 +258,21 @@ def cmd_build(args: argparse.Namespace) -> int:
     if vbytes is not None:
         version = vbytes.decode("utf-8", "replace").strip() or "UNKNOWN"
 
+    # R7-REL-POLICY-HASH-011 根修：policy_hash 不再烤常量，而是**实算归档内
+    # 方案快照**的 sha256（完整 64hex）落 manifest——并在 build 期对冻结值
+    # fail-closed（快照缺件或与冻结正源漂移都不出包）。
+    plan_rec = next((r for r in records if r["path"] == PLAN_MEMBER), None)
+    if plan_rec is None:
+        os.unlink(tar_path)
+        _die(f"归档缺方案快照 {PLAN_MEMBER!r}——policy_hash 无法实算"
+             f"（fail-closed 不出包）")
+    plan_sha_actual = plan_rec["sha256"]
+    if plan_sha_actual != PLAN_SHA256:
+        os.unlink(tar_path)
+        _die(f"归档内方案快照 sha256 与冻结正源不符: actual={plan_sha_actual} "
+             f"frozen={PLAN_SHA256}——该 commit 的验收目录来源不可信，"
+             f"fail-closed 不出包")
+
     manifest = {
         "schema": MANIFEST_SCHEMA,
         "tool": TOOL_NAME,
@@ -252,7 +283,13 @@ def cmd_build(args: argparse.Namespace) -> int:
         "source_commit_short": short,
         "source_commit_subject": subject,
         "version": version,
-        "policy_hash": {"plan_sha256": PLAN_SHA256},
+        "policy_hash": {
+            "plan_member": PLAN_MEMBER,
+            "plan_sha256": plan_sha_actual,
+            "plan_sha256_frozen": PLAN_SHA256,
+            "frozen_match": True,
+            "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）",
+        },
         "builder": {
             "user": getpass.getuser(),
             "host": platform.node(),
@@ -279,6 +316,8 @@ def cmd_build(args: argparse.Namespace) -> int:
     print(f"BUILD OK  {name}")
     print(f"  commit   : {full} ({subject[:60]})")
     print(f"  version  : {version}  files: {len(records)}")
+    print(f"  plan     : {PLAN_MEMBER}")
+    print(f"             sha256={plan_sha_actual}（实算=冻结，64hex）")
     print(f"  tar.gz   : {tar_path}")
     print(f"             sha256={manifest['artifact']['sha256']} "
           f"size={manifest['artifact']['size']}")
@@ -293,7 +332,7 @@ def _load_manifest(manifest_path: str) -> Dict[str, Any]:
     try:
         with open(manifest_path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:  # 含 JSONDecodeError/UnicodeDecodeError
         _die(f"manifest 不可读/非 JSON: {manifest_path!r} ({exc})")
     if not isinstance(data, dict) or data.get("schema") != MANIFEST_SCHEMA:
         _die(f"manifest schema 不符（期望 {MANIFEST_SCHEMA}）: {manifest_path!r}")
@@ -535,7 +574,9 @@ def _load_json(path: str, what: str) -> Dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:  # ValueError 含 JSONDecodeError 与
+        # UnicodeDecodeError——坏字节/坏编码同样按 verify 判 FAIL 收口，
+        # 不允许裸 traceback（对抗实测：翻字节致非 UTF-8 曾打出 crash 栈）。
         raise VerifyFail(f"{what} 不可读/非 JSON: {path!r} ({exc})")
     if not isinstance(data, dict):
         raise VerifyFail(f"{what} 不是 JSON 对象: {path!r}")
@@ -604,6 +645,33 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 + (f" 例drift={drift[:3]}" if drift else ""))
         record(True, "files-reconcile", f"{len(records)}/{len(manifest['files'])} "
                                         "path+type+mode+size+sha256 全符")
+
+        # --- 2b) 方案快照绑定（R7-REL-POLICY-HASH-011：verify 实算等值校验）---
+        # 旧洞：manifest.policy_hash.plan_sha256 是烤死的（且曾为 61hex 截损
+        # 常量），verify 从不实算比对——policy_hash 与制品内容零绑定。现三重
+        # fail-closed：①格式必须 64 位小写 hex（61/62/63 截损值即拒）；
+        # ②归档必须含方案快照成员；③成员实算 sha256 == plan_sha256 等值。
+        ph = manifest.get("policy_hash")
+        if not isinstance(ph, dict):
+            raise VerifyFail("manifest.policy_hash 缺失/非对象——方案绑定断裂")
+        declared_plan = ph.get("plan_sha256")
+        if not isinstance(declared_plan, str) \
+                or not re.fullmatch(r"[0-9a-f]{64}", declared_plan):
+            raise VerifyFail(
+                f"policy_hash.plan_sha256 非法（应 64 位小写 hex，实得 "
+                f"{len(declared_plan) if isinstance(declared_plan, str) else '非字符串'}"
+                f" 字符）: {declared_plan!r}")
+        plan_member = ph.get("plan_member") or PLAN_MEMBER
+        rec_by_path = {r["path"]: r for r in records}
+        if plan_member not in rec_by_path:
+            raise VerifyFail(f"归档缺方案快照成员: {plan_member!r}")
+        actual_plan = rec_by_path[plan_member]["sha256"]
+        if actual_plan != declared_plan:
+            raise VerifyFail(
+                f"方案快照 sha256 与 manifest.policy_hash.plan_sha256 不符: "
+                f"actual={actual_plan} declared={declared_plan}")
+        record(True, "plan-hash",
+               f"{plan_member} sha256={actual_plan[:16]}…（实算等值，64hex）")
 
         # --- 3) detached 签名验签（keyring 只读；revoked fail-closed）---
         sig = _load_json(sig_path, "release.sig")

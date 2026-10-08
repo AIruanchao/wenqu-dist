@@ -1,0 +1,194 @@
+{
+  "run": {
+    "databaseId": 37745638008,
+    "headSha": "b259dac4248b14af6ec05e1b3fc7f61401aba6b6",
+    "headBranch": "main",
+    "event": "push",
+    "status": "completed",
+    "conclusion": "success",
+    "workflowName": "acceptance",
+    "createdAt": "2026-10-08T07:47:36Z",
+    "startedAt": "2026-10-08T07:47:36Z",
+    "updatedAt": "2026-10-08T07:48:10Z",
+    "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745638008"
+  },
+  "run_actor": "AIruanchao",
+  "run_path": ".github/workflows/acceptance.yml",
+  "run_attempt": 1,
+  "jobs": [
+    {
+      "id": 113206338438,
+      "name": "matrix (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T07:47:42Z",
+      "completedAt": "2026-10-08T07:48:08Z",
+      "step_names": [
+        "Set up job",
+        "Run actions/checkout@v4",
+        "Run actions/setup-python@v5",
+        "release-check（版本号残留机械闸·动态版本）",
+        "acceptance",
+        "pytest 契约",
+        "selftest",
+        "Post Run actions/setup-python@v5",
+        "Post Run actions/checkout@v4",
+        "Complete job"
+      ]
+    },
+    {
+      "id": 113206338450,
+      "name": "matrix (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-08T07:47:39Z",
+      "completedAt": "2026-10-08T07:48:10Z",
+      "step_names": [
+        "Set up job",
+        "Run actions/checkout@v4",
+        "Run actions/setup-python@v5",
+        "release-check（版本号残留机械闸·动态版本）",
+        "acceptance",
+        "pytest 契约",
+        "selftest",
+        "Post Run actions/setup-python@v5",
+        "Post Run actions/checkout@v4",
+        "Complete job"
+      ]
+    }
+  ],
+  "check_runs": [
+    {
+      "name": "matrix (ubuntu-latest)",
+      "app": "github-actions",
+      "sha": "b259dac4248b14af6ec05e1b3fc7f61401aba6b6",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745638008/job/113206338450"
+    },
+    {
+      "name": "matrix (macos-latest)",
+      "app": "github-actions",
+      "sha": "b259dac4248b14af6ec05e1b3fc7f61401aba6b6",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745638008/job/113206338438"
+    }
+  ],
+  "branch_protection": {
+    "strict": true,
+    "contexts": [
+      "matrix (ubuntu-latest)",
+      "matrix (macos-latest)"
+    ],
+    "checks": [
+      {
+        "context": "matrix (ubuntu-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "matrix (macos-latest)",
+        "app_id": 15368
+      }
+    ],
+    "enforce_admins": true,
+    "required_signatures": false,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "required_reviews_present": false,
+    "conversation_resolution": false
+  },
+  "repo": {
+    "default_branch": "main",
+    "allow_auto_merge": false,
+    "pushed_at": "2026-10-08T07:59:41Z"
+  },
+  "rulesets_count": 0,
+  "workflow": {
+    "uses": [
+      "actions/checkout@v4",
+      "actions/setup-python@v5"
+    ],
+    "sha_pinned": false,
+    "has_merge_group": false,
+    "runs_seven_ac_files": false
+  },
+  "prs": [
+    {
+      "number": 4,
+      "state": "MERGED",
+      "createdAt": "2026-10-08T07:40:12Z",
+      "mergedAt": "2026-10-08T07:40:59Z",
+      "headRefOid": "3c0b0c063be882bb54cef1975f8eb7f162aab5c5",
+      "mergeCommit": "f2b8fc3062c6418118f1cb950cc2f5cdefc079fd",
+      "reviewDecision": "",
+      "autoMergeRequest": null,
+      "checks": [
+        {
+          "name": "matrix (macos-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:40:52Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37744866093/job/113203842324"
+        },
+        {
+          "name": "matrix (macos-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:40:43Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37744856094/job/113203811504"
+        },
+        {
+          "name": "matrix (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:40:43Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37744866093/job/113203841994"
+        },
+        {
+          "name": "matrix (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:40:41Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37744856094/job/113203811264"
+        }
+      ],
+      "all_checks_success": true,
+      "latest_check_completed": "2026-10-08T07:40:52Z"
+    },
+    {
+      "number": 5,
+      "state": "MERGED",
+      "createdAt": "2026-10-08T07:46:42Z",
+      "mergedAt": "2026-10-08T07:47:33Z",
+      "headRefOid": "6b859cd3915895a3a8934e746149dbe833cd18a7",
+      "mergeCommit": "b259dac4248b14af6ec05e1b3fc7f61401aba6b6",
+      "reviewDecision": "",
+      "autoMergeRequest": null,
+      "checks": [
+        {
+          "name": "matrix (macos-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:47:19Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745551232/job/113206053065"
+        },
+        {
+          "name": "matrix (macos-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:47:13Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745542023/job/113206023864"
+        },
+        {
+          "name": "matrix (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:47:20Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745551232/job/113206053167"
+        },
+        {
+          "name": "matrix (ubuntu-latest)",
+          "conclusion": "SUCCESS",
+          "completedAt": "2026-10-08T07:47:10Z",
+          "detailsUrl": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37745542023/job/113206024047"
+        }
+      ],
+      "all_checks_success": true,
+      "latest_check_completed": "2026-10-08T07:47:20Z"
+    }
+  ]
+}

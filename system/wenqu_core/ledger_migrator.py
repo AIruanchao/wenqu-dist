@@ -13,7 +13,13 @@ P0-6 第六轮（统一事件正源）改写——「单一事件表 + 单一写
     - 新代码绝不创建、绝不写入该表；
     - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
       ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
-    - 收编后旧表原样保留在库中，仅供只读对账，不再是事件正源。
+    - 收编后旧表原样保留在库中，仅供只读对账，不再是事件正源；
+    - R7-EVENT-LEGACY-WRITABLE-007（P0）根修：收编完成后对旧表安装冻结
+      触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)），cutover（冻结）
+      时刻记入库内 bookkeeping 表 ``legacy_events_cutover``；晚于 cutover
+      才出现/才落账的迟到行绝不导入——一律 quarantine
+      （reason=late_write_after_cutover）并在报告告警，迁移器绝不静默
+      吸收收编后的写入（详见 :func:`migrate_legacy_events` 契约）。
 
 约束（不可降级）：
     M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
@@ -51,6 +57,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .store import EventStore
@@ -60,6 +67,7 @@ __all__ = [
     "MIGRATION_EVENT_TYPE", "LEGACY_EVENTS_TABLE",
     "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
     "PROJECT_FIELDS", "extract_project_ids",
+    "LATE_WRITE_REASON", "LEGACY_FREEZE_TRIGGER_NAMES", "LEGACY_CUTOVER_TABLE",
 ]
 
 # 已知状态别名归一表（键为全大写形式）
@@ -115,6 +123,45 @@ CREATE TABLE IF NOT EXISTS migration_runs (
     conserved     INTEGER NOT NULL
 );
 """
+
+# ---------------------------------------------------------------------- #
+# R7-EVENT-LEGACY-WRITABLE-007（P0）：旧表冻结只读 + cutover 记账 + 迟到写拒收
+# ---------------------------------------------------------------------- #
+#: 收编完成后对旧表安装的冻结触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）。
+#: CREATE TRIGGER IF NOT EXISTS 幂等安装：重跑不报错、不重复；触发器曾被
+#: 绕过删除时，下一次收编运行治愈重装。
+_LEGACY_FREEZE_ACTIONS = ("insert", "update", "delete")
+LEGACY_FREEZE_TRIGGER_NAMES = tuple(
+    f"{LEGACY_EVENTS_TABLE}_legacy_frozen_no_{action}"
+    for action in _LEGACY_FREEZE_ACTIONS)
+_LEGACY_FREEZE_TRIGGER_DDL = tuple(
+    f"CREATE TRIGGER IF NOT EXISTS {name} "
+    f"BEFORE {action.upper()} ON {LEGACY_EVENTS_TABLE} "
+    "BEGIN "
+    f"SELECT RAISE(ABORT, 'legacy {LEGACY_EVENTS_TABLE} frozen read-only "
+    f"after cutover: {action.upper()} is forbidden'); "
+    "END;"
+    for action, name in zip(_LEGACY_FREEZE_ACTIONS, LEGACY_FREEZE_TRIGGER_NAMES))
+
+#: 迟到写（cutover 之后才出现/才落账的旧行）的统一 quarantine reason
+LATE_WRITE_REASON = "late_write_after_cutover"
+
+#: cutover（冻结时刻）记账表：bookkeeping，非事件正源（与 migration_runs
+#: 同类）。为何记在库内 bookkeeping 而不是事件链/sidecar：
+#: - 迟到写判定必须与库同生命周期可读（sidecar 是旁路审计文件，可被独立
+#:   删除/移动，不能承担执法凭证）；
+#: - 往事件链追加 bookkeeping 事件会扰动「收编行数=链增量」的链长不变量，
+#:   并混淆「事件负载=旧行内容纯函数」的幂等契约；
+#: - sidecar 保持逐行 1:1 审计形状。cutover 时刻经迁移报告显式回带。
+LEGACY_CUTOVER_TABLE = "legacy_events_cutover"
+_CUTOVER_SCHEMA = (
+    f"CREATE TABLE IF NOT EXISTS {LEGACY_CUTOVER_TABLE} ("
+    " id            INTEGER PRIMARY KEY CHECK (id = 1),"
+    " cutover_ts    TEXT NOT NULL,"
+    " cutover_epoch REAL NOT NULL,"
+    " max_legacy_id INTEGER NOT NULL,"
+    " trigger_names TEXT NOT NULL)"
+)
 
 #: 旧 ``events`` 表收编时必须存在的列（缺失即形状异常，fail-closed 拒收）
 _LEGACY_REQUIRED_COLUMNS = frozenset({
@@ -434,26 +481,164 @@ class LedgerMigrator:
 
 # ---------------------------------------------------------------------- #
 # 旧 events 表残留：一次性收编（P0-6 第六轮）
+# R7-EVENT-LEGACY-WRITABLE-007：收编后冻结只读 + 迟到写拒收（第七轮 P0 修）
 # ---------------------------------------------------------------------- #
+def _parse_ts_to_epoch(value: Any) -> Optional[float]:
+    """把行内 ts / migrated_at 等时间值解析为 UTC epoch 秒；不可解析返回 None。
+
+    支持 ISO 8601（含 Z 后缀/无时区按 UTC）、SQLite ``datetime('now')``
+    形状、数值 epoch（秒；≥1e12 视为毫秒归一）。不可解析/空值返回
+    None——该时间通道缺席，绝不猜时间（M2 精神：缺证据不猜填）。
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value) / 1000.0 if value >= 1e12 else float(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        num = float(text)
+    except ValueError:
+        num = None
+    if num is not None:
+        return num / 1000.0 if num >= 1e12 else num
+    iso = (text[:-1] + "+00:00") if text.endswith(("Z", "z")) else text
+    parsed: Optional[datetime] = None
+    try:
+        parsed = datetime.fromisoformat(iso)
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _row_effective_epoch(payload_text: Optional[str],
+                         migrated_at: Any = None) -> Optional[float]:
+    """旧行「落账时刻」的保守估计：行内 ts（payload JSON 的 ``ts`` 字段）与
+    表元数据 ``migrated_at``（rowid 侧元数据通道）两路取可解析的最大值。
+
+    取最大是 fail-closed 方向：任一通道声称该行晚于 cutover，即按迟到
+    写处理。全部不可解析返回 None（时间证据缺席，由 id 通道兜底）。
+    """
+    candidates: List[float] = []
+    meta = _parse_ts_to_epoch(migrated_at)
+    if meta is not None:
+        candidates.append(meta)
+    if payload_text:
+        try:
+            obj = json.loads(payload_text)
+        except ValueError:
+            obj = None
+        if isinstance(obj, dict):
+            inner = _parse_ts_to_epoch(obj.get("ts"))
+            if inner is not None:
+                candidates.append(inner)
+    return max(candidates) if candidates else None
+
+
+def _read_cutover(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
+    """读该库已记录的 cutover；无记账/记账行为空返回 None。"""
+    hit = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (LEGACY_CUTOVER_TABLE,)).fetchone()
+    if hit is None:
+        return None
+    row = conn.execute(
+        f"SELECT cutover_ts, cutover_epoch, max_legacy_id, trigger_names "
+        f"FROM {LEGACY_CUTOVER_TABLE} WHERE id = 1").fetchone()
+    if row is None:
+        return None
+    try:
+        names = json.loads(row[3])
+    except ValueError:
+        names = []
+    return {"cutover_ts": row[0], "cutover_epoch": row[1],
+            "max_legacy_id": row[2], "trigger_names": names}
+
+
+def _record_cutover(conn: sqlite3.Connection, max_legacy_id: int,
+                    trigger_names: List[str]) -> None:
+    """首次冻结记账（bookkeeping，非事件正源）。
+
+    INSERT OR IGNORE + ``id = 1`` CHECK：单行记账，一经记录永不推进——
+    迟到判定永远以该库首次 cutover 为准，绝不因后续运行（哪怕吸收过迟到
+    行）而把门槛后移。
+    """
+    now = datetime.now(timezone.utc)
+    conn.execute(_CUTOVER_SCHEMA)
+    conn.execute(
+        f"INSERT OR IGNORE INTO {LEGACY_CUTOVER_TABLE} "
+        f"(id, cutover_ts, cutover_epoch, max_legacy_id, trigger_names) "
+        f"VALUES (1, ?, ?, ?, ?)",
+        (now.strftime("%Y-%m-%dT%H:%M:%SZ"), now.timestamp(),
+         int(max_legacy_id), json.dumps(sorted(trigger_names))))
+
+
+def _install_freeze_triggers(conn: sqlite3.Connection) -> List[str]:
+    """对旧 events 表幂等安装冻结只读触发器；返回安装后实际在库的触发器名。
+
+    CREATE TRIGGER IF NOT EXISTS：已安装（含重跑/治愈场景）不报错、不
+    重复；返回值以 sqlite_master 实查为准（不信任 IF NOT EXISTS 的静默）。
+    """
+    for ddl in _LEGACY_FREEZE_TRIGGER_DDL:
+        conn.execute(ddl)
+    present = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+        (LEGACY_EVENTS_TABLE,))}
+    return [name for name in LEGACY_FREEZE_TRIGGER_NAMES if name in present]
+
+
 def migrate_legacy_events(sqlite_path: str,
                           sidecar_path: Optional[str] = None) -> Dict[str, Any]:
     """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
 
     契约：
-    - 只读旧表：本函数绝不 CREATE/INSERT/UPDATE/DELETE 旧 ``events`` 表
-      （保留只读兼容；收编后旧表原样留在库中，仅供对账，不再是正源）；
+    - 只读旧行数据：本函数绝不 INSERT/UPDATE/DELETE 旧 ``events`` 表的
+      行，收编后旧表行原样留在库中，仅供对账，不再是正源；
+    - 冻结只读（R7-EVENT-LEGACY-WRITABLE-007）：收编完成后对旧表安装
+      三个拒绝触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）——
+      ``CREATE TRIGGER IF NOT EXISTS`` 幂等安装，重跑不报错、不重复；
+      触发器被绕过删除时，下一次收编运行治愈重装；
+    - cutover（冻结时刻）记账：首次冻结把 cutover_ts/cutover_epoch/
+      max_legacy_id 写入库内 bookkeeping 表 ``legacy_events_cutover``
+      （INSERT OR IGNORE——一经记录永不推进，迟到判定永远以首次 cutover
+      为准）。cutover 不写入事件链（链长不变量与「负载=旧行内容纯函数」
+      幂等契约零扰动）、不额外追加 sidecar 行（sidecar 保持逐行 1:1 审计
+      形状），时刻经返回报告显式回带（cutover_ts/cutover_max_legacy_id）；
+    - 迟到写拒收（绝不静默吸收收编后的写入）：迁移入口对每行校验时间
+      戳——行内 ts（payload JSON 的 ``ts`` 字段）或 rowid 对应元数据
+      （``migrated_at`` 列 / id 序）晚于该库已记录 cutover 的行不导入，
+      单独 quarantine（reason=late_write_after_cutover）并在报告告警
+      （late_write_alert/late_write_rows）。两个独立拒收通道：
+      (a) id > cutover.max_legacy_id——cutover 后新出现的行，无论 ts
+          伪装多早；(b) 行有效时间戳 > cutover.cutover_epoch——含
+          UPDATE 渠道篡改出的迟到内容；
     - 单一写入 API：每行经 ``EventStore.append`` 以
       ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
       事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
       全部计 duplicate，零重复入账（一次性、幂等）；
     - 旧行按已入账历史记录原样收编（status 等字段原封不动）：旧表行是
       旧制度下已落账的数据，收编时重新判定/归一会改写历史账目，故只做
-      搬运、绝不再判；JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
-    - 守恒：rows_seen == imported + duplicates，否则 ConservationError；
+      搬运、绝不再判（迟到写拒收是「是否搬运」的守门，不是重判状态）；
+      JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
+    - 守恒：rows_seen == imported + duplicates + quarantined，否则
+      ConservationError；
     - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
-      位置溯源。
+      位置溯源；quarantine 行额外携带 reason 与迟到证据（late_evidence）。
 
-    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``。
+    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``
+    （不装触发器、不记 cutover；但若该库历史上记录过 cutover 而旧表被
+    整表删除，cutover 记账仍在——旧表重建后迟到判定继续生效）。
     """
     sqlite_path = os.path.abspath(sqlite_path)
     sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
@@ -469,6 +654,7 @@ def migrate_legacy_events(sqlite_path: str,
         ).fetchone() is not None
 
         legacy_rows: List[Dict[str, Any]] = []
+        has_migrated_at = False
         if present:
             cols = {r[1] for r in store._conn.execute(
                 f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
@@ -478,20 +664,67 @@ def migrate_legacy_events(sqlite_path: str,
                 raise RuntimeError(
                     f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
                     f"missing columns: {sorted(missing)}; refusing to migrate")
-            # 只读 SELECT——旧表全程零写入
-            for rid, line_sha, status, source_file, source_line, payload in store._conn.execute(
-                f"SELECT id, line_sha, status, source_file, source_line, payload "
-                f"FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
+            # migrated_at 是迟到写判定的 rowid 侧元数据通道（旧 schema 自带
+            # DEFAULT datetime('now')；形状变体缺列时该通道缺席，由 id 通道
+            # 兜底）——存在则一并只读取出
+            has_migrated_at = "migrated_at" in cols
+            select_cols = ("id, line_sha, status, source_file, source_line, payload"
+                           + (", migrated_at" if has_migrated_at else ""))
+            # 只读 SELECT——旧表行数据全程零写入
+            for row in store._conn.execute(
+                f"SELECT {select_cols} FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
             ):
                 legacy_rows.append({
-                    "id": rid, "line_sha": line_sha, "status": status,
-                    "source_file": source_file, "source_line": source_line,
-                    "payload": payload,
+                    "id": row[0], "line_sha": row[1], "status": row[2],
+                    "source_file": row[3], "source_line": row[4],
+                    "payload": row[5],
+                    "migrated_at": row[6] if has_migrated_at else None,
                 })
 
-        imported = duplicates = 0
+        # 该库已记录的 cutover（无论旧表当前是否存在都读：旧表被整表删除
+        # 后重建的场景，迟到判定必须继续以首次 cutover 为准）
+        prior_cutover = _read_cutover(store._conn)
+
+        imported = duplicates = quarantined = 0
+        quarantine_reasons: Dict[str, int] = {}
+        late_rows: List[Dict[str, Any]] = []      # 告警明细（legacy_id+证据）
         with open(sidecar_path, "a", encoding="utf-8") as sidecar:
             for row in legacy_rows:
+                # 迟到写拒收：cutover 之后才出现/才落账的行绝不入链（两个
+                # 独立通道任一命中即拒——id 通道抓新出现的行、ts 通道抓
+                # 篡改出的迟到内容；证据原样进 sidecar 与报告）
+                late_evidence = None
+                if prior_cutover is not None:
+                    if row["id"] > prior_cutover["max_legacy_id"]:
+                        late_evidence = (f"id={row['id']} > "
+                                         f"cutover_max_id="
+                                         f"{prior_cutover['max_legacy_id']}")
+                    else:
+                        eff = _row_effective_epoch(row["payload"],
+                                                   row["migrated_at"])
+                        if (eff is not None
+                                and eff > prior_cutover["cutover_epoch"]):
+                            late_evidence = (
+                                f"row_ts={eff:.3f} > cutover_epoch="
+                                f"{prior_cutover['cutover_epoch']:.3f}")
+                if late_evidence is not None:
+                    quarantined += 1
+                    quarantine_reasons[LATE_WRITE_REASON] = \
+                        quarantine_reasons.get(LATE_WRITE_REASON, 0) + 1
+                    late_rows.append({"legacy_id": row["id"],
+                                      "evidence": late_evidence})
+                    sidecar.write(json.dumps({
+                        "decision": "quarantined",
+                        "reason": LATE_WRITE_REASON,
+                        "legacy_table": LEGACY_EVENTS_TABLE,
+                        "legacy_id": row["id"],
+                        "line_sha": row["line_sha"],
+                        "source_file": row["source_file"],
+                        "source_line": row["source_line"],
+                        "late_evidence": late_evidence,
+                    }, ensure_ascii=False, sort_keys=True) + "\n")
+                    continue
+
                 event = {
                     "event_type": LEGACY_RESIDUE_EVENT_TYPE,
                     "line_sha": row["line_sha"],
@@ -514,12 +747,25 @@ def migrate_legacy_events(sqlite_path: str,
                     "source_line": row["source_line"],
                 }, ensure_ascii=False, sort_keys=True) + "\n")
 
+        # 收编完成 → 冻结只读：幂等安装拒绝触发器（重跑不报错；触发器曾被
+        # 绕过删除时在此治愈重装）；首次冻结即记 cutover（永不推进）
+        frozen_triggers: List[str] = []
+        if present:
+            frozen_triggers = _install_freeze_triggers(store._conn)
+            if prior_cutover is None:
+                _record_cutover(
+                    store._conn,
+                    max_legacy_id=max((r["id"] for r in legacy_rows), default=0),
+                    trigger_names=frozen_triggers)
+
         store.verify_chain()
-        if len(legacy_rows) != imported + duplicates:
+        if len(legacy_rows) != imported + duplicates + quarantined:
             raise ConservationError(
                 f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
-                f"imported({imported}) + duplicates({duplicates})")
+                f"imported({imported}) + duplicates({duplicates}) + "
+                f"quarantined({quarantined})")
 
+        cutover = _read_cutover(store._conn)
         return {
             "sqlite_path": sqlite_path,
             "legacy_table": LEGACY_EVENTS_TABLE,
@@ -527,6 +773,16 @@ def migrate_legacy_events(sqlite_path: str,
             "rows_seen": len(legacy_rows),
             "imported": imported,
             "duplicates": duplicates,
+            "quarantined": quarantined,
+            "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+            "late_write_alert": bool(late_rows),
+            "late_write_rows": late_rows,
+            "cutover_ts": cutover["cutover_ts"] if cutover else None,
+            "cutover_max_legacy_id": (cutover["max_legacy_id"]
+                                      if cutover else None),
+            "legacy_frozen": present and len(frozen_triggers)
+            == len(LEGACY_FREEZE_TRIGGER_NAMES),
+            "frozen_triggers": frozen_triggers,
             "event_table": "pipeline_events",
             "write_api": "EventStore.append",
             "sidecar_path": sidecar_path,

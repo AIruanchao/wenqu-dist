@@ -794,8 +794,10 @@ class SupplyChainScanner(_Station2Scanner):
       build_snapshot_envelope 信封（content_hash+captured_at+HMAC 签名）；
       验签失败/内容哈希失配/时间戳非法或未来/过期（captured_at 距今超
       snapshot_max_age_s）→ 该源数据不可用 → BLOCKED（§20.5；分母不采信
-      未验签载荷，0/0+原因入 note）。分页不全天性由 ADV-02 的自报计数
-      交叉核对机制覆盖（截断=证据损坏 ERROR）。
+      未验签载荷，0/0+原因入 note）。分页不全天性由 parse_audit_payload 的
+      pagination 门（R7-SC-PAGINATION-008：complete 非 true/page<pages_total
+      → ERROR）与 ADV-02 的自报计数交叉核对机制共同覆盖（截断=证据损坏
+      ERROR，绝不折算 PASS）。
     """
 
     slug = "supply"
@@ -872,6 +874,33 @@ class SupplyChainScanner(_Station2Scanner):
                 "npm audit metadata.dependencies.total missing/invalid "
                 "(dynamic denominator unavailable -> ERROR)"
             )
+        # R7-SC-PAGINATION-008 根修：载荷自带分页元数据时必须声明「已完整收集」。
+        # complete 非 true、page<pages_total（pages 覆盖不全）或字段形态非法
+        # → 证据损坏 ERROR（fail-closed：分页不全的载荷绝不是已见全集，绝不
+        # 折算 PASS）。无 pagination 字段=单页 npm audit 正常形态，不受影响；
+        # ADV-02 的自报计数交叉核对机制保持不变。对离线快照通道同样生效
+        # （信封验签后 payload 走本函数——合法签名+hash 也救不了分页不全）。
+        pagination = payload.get("pagination")
+        if pagination is not None:
+            if not isinstance(pagination, dict):
+                raise _PayloadError(
+                    f"npm audit JSON 'pagination' must be an object when present, "
+                    f"got {type(pagination).__name__} (malformed pagination -> ERROR)"
+                )
+            page = pagination.get("page")
+            pages_total = pagination.get("pages_total")
+            page_int = isinstance(page, int) and not isinstance(page, bool)
+            total_int = isinstance(pages_total, int) and not isinstance(pages_total, bool)
+            if page_int and total_int and page < pages_total:
+                raise _PayloadError(
+                    f"pagination coverage incomplete: page {page} < pages_total "
+                    f"{pages_total} (pages not fully collected -> ERROR, not PASS)"
+                )
+            if pagination.get("complete") is not True:
+                raise _PayloadError(
+                    "pagination.complete is not true (incomplete page "
+                    "collection = corrupt evidence -> ERROR, not PASS)"
+                )
         lockfile = "package-lock.json"
         findings: List[ScanFinding] = []
         for name in sorted(vulns):

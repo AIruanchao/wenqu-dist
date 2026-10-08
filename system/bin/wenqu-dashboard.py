@@ -969,6 +969,7 @@ class H(BaseHTTPRequestHandler):
                     if not hit:
                         return self._send(404, '{"error":"id 不存在或非待拍"}')
                     self._decide_write(out)
+                    cache_invalidate("health")  # 决策变更→健康分缓存失效（Codex 六审 F4）
                     return self._send(200, '{"ok":true}')
                 finally:
                     _DECIDE_LOCK.release()

@@ -1,0 +1,27 @@
+{
+  "content_digest": "ea98af96962fefe435691896ea0bcaa9621af4c4ed52a489853f50dd3aab91ed",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "0a42a5ea873c4f09719a73c8fcdfb67edc2f74c489322f50d9a10cb6b2fdb67a",
+      "size": 25
+    },
+    {
+      "mode": "0444",
+      "path": "flag-c.txt",
+      "sha256": "a3a5e715f0cc574a73c3f9bebb6bc24f32ffd5b67b387244c2c909da779a1478",
+      "size": 2
+    }
+  ],
+  "release_id": "20261008T125114Z-ea98af96962f",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_01_concurrent_deploye0/dep1-crash-src"
+}

@@ -1,0 +1,10 @@
+COMMAND: set -o pipefail; printf "HEAD="; git rev-parse HEAD; printf "STATUS_BEGIN\n"; git status --short; printf "STATUS_END\n"; printf "PLAN_SHA="; shasum -a 256 evidence/00-baseline/codex-external/方案.md; printf "FILE_COUNT="; git ls-files | wc -l
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+HEAD=d32c859f9043798d9e8a4984e8f57aa64567e33c
+STATUS_BEGIN
+STATUS_END
+PLAN_SHA=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+FILE_COUNT=     684
+--- STDERR ---

@@ -1,0 +1,463 @@
+--- observation_daily.py ---
+     1	#!/usr/bin/env python3
+     2	"""W10 观察窗 + W9 shadow 每日采样器（只读，不改产品码，仓外落盘）。
+     3	
+     4	W10 观察窗样本（~/.wenqu/observation/samples/YYYY-MM-DD.json）：
+     5	  host / repo HEAD / dirty / ci_latest_main / dashboard launchd state /
+     6	  legacy 7789 /api/health / 磁盘 used 占比
+     7	W9 shadow 时钟（~/.wenqu/observation/shadow/YYYY-MM-DD.json）：
+     8	  起本仓 system/dashboard/server.py 于随机空闲端口（影子实例，与 7789 legacy 并存），
+     9	  就绪后抓双方 health JSON 做 key 集合 / score 相等性比对，finally 必杀影子进程。
+    10	
+    11	设计约束：
+    12	  - 纯标准库；单探针失败记 null / error，绝不中断整体采样。
+    13	  - 文件保留 30 天，超期轮转删除；同日重跑覆盖当日文件（当日以最新样本为准）。
+    14	  - 结束 print 一行 JSON 摘要。
+    15	  - subprocess 一律参数列表 + shell=False；URL 用常量拼接（不用 f-string）。
+    16	
+    17	注：modular server（system/dashboard/server.py）的 health 契约路径是
+    18	  /api/v1/health（未版本化 /api/health 已废止，返回 404 API_VERSION_REQUIRED）。
+    19	  shadow 比对优先取 /api/v1/health 的 200 JSON；两条路径的原始探测结果都会落盘。
+    20	"""
+    21	import json
+    22	import os
+    23	import re
+    24	import shutil
+    25	import signal
+    26	import socket
+    27	import subprocess
+    28	import sys
+    29	import time
+    30	from datetime import date, datetime, timedelta, timezone
+    31	from urllib import error as urlerror
+    32	from urllib import request as urlrequest
+    33	
+    34	REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    35	SERVER_PY = os.path.join(REPO, "system", "dashboard", "server.py")
+    36	OBS_ROOT = os.path.expanduser("~/.wenqu/observation")
+    37	SAMPLES_DIR = os.path.join(OBS_ROOT, "samples")
+    38	SHADOW_DIR = os.path.join(OBS_ROOT, "shadow")
+    39	LOGS_DIR = os.path.join(OBS_ROOT, "logs")
+    40	KEEP_DAYS = 30
+    41	
+    42	UID = os.getuid()
+    43	HOST_LOCAL = "127.0.0.1"
+    44	LEGACY_PORT = 7789
+    45	LEGACY_BASE = "http://" + HOST_LOCAL + ":" + str(LEGACY_PORT)
+    46	LEGACY_HEALTH_URL = LEGACY_BASE + "/api/health"
+    47	DASHBOARD_LABEL = "com.wenqu.dashboard"
+    48	LAUNCHD_TARGET = "gui/" + str(UID) + "/" + DASHBOARD_LABEL
+    49	UA = "wenqu-observation/1.0"
+    50	HTTP_TIMEOUT = 8.0
+    51	GH_TIMEOUT = 45.0
+    52	SHADOW_READY_TIMEOUT = 15.0
+    53	
+    54	# launchd 上下文 PATH 极简，gh/homebrew 工具需要显式兜底解析
+    55	_BIN_FALLBACK_DIRS = ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin")
+    56	
+    57	# 绕过任何 HTTP(S)_PROXY 环境变量：全部目标都是 localhost
+    58	_OPENER = urlrequest.build_opener(urlrequest.ProxyHandler({}))
+    59	
+    60	
+    61	def _log(msg):
+    62	    sys.stderr.write("[observation] " + msg + "\n")
+    63	    sys.stderr.flush()
+    64	
+    65	
+    66	def find_bin(name):
+    67	    found = shutil.which(name)
+    68	    if found:
+    69	        return found
+    70	    for d in _BIN_FALLBACK_DIRS:
+    71	        cand = os.path.join(d, name)
+    72	        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+    73	            return cand
+    74	    return None
+    75	
+    76	
+    77	def run_cmd(argv, timeout, cwd=None):
+    78	    """跑一条命令，永不抛异常。返回 {"returncode", "stdout", "stderr", "error"}。"""
+    79	    try:
+    80	        p = subprocess.run(
+    81	            argv,
+    82	            capture_output=True,
+    83	            text=True,
+    84	            timeout=timeout,
+    85	            cwd=cwd,
+    86	        )
+    87	        return {
+    88	            "returncode": p.returncode,
+    89	            "stdout": (p.stdout or "").strip(),
+    90	            "stderr": (p.stderr or "").strip()[:500],
+    91	            "error": None,
+    92	        }
+    93	    except Exception as e:  # FileNotFoundError / TimeoutExpired / OSError
+    94	        return {
+    95	            "returncode": None,
+    96	            "stdout": "",
+    97	            "stderr": "",
+    98	            "error": str(e)[:300],
+    99	        }
+   100	
+   101	
+   102	def http_get_json(url, timeout=HTTP_TIMEOUT):
+   103	    """GET 一个 URL 并解析 JSON，永不抛异常。返回 {"status", "json", "error"}。"""
+   104	    req = urlrequest.Request(url, headers={"Accept": "application/json", "User-Agent": UA})
+   105	    try:
+   106	        with _OPENER.open(req, timeout=timeout) as resp:
+   107	            body = resp.read(262144).decode("utf-8", "replace")
+   108	            status = getattr(resp, "status", None) or resp.getcode()
+   109	        parsed = None
+   110	        if body:
+   111	            try:
+   112	                parsed = json.loads(body)
+   113	            except ValueError:
+   114	                parsed = None
+   115	        return {"status": status, "json": parsed, "error": None if parsed is not None else "body_not_json"}
+   116	    except urlerror.HTTPError as e:
+   117	        body = ""
+   118	        try:
+   119	            body = e.read(262144).decode("utf-8", "replace")
+   120	        except Exception:
+   121	            pass
+   122	        parsed = None
+   123	        try:
+   124	            parsed = json.loads(body) if body else None
+   125	        except ValueError:
+   126	            parsed = None
+   127	        return {"status": e.code, "json": parsed, "error": "http_" + str(e.code)}
+   128	    except Exception as e:
+   129	        return {"status": None, "json": None, "error": str(e)[:200]}
+   130	
+   131	
+   132	def http_status_only(url, timeout=2.0):
+   133	    """轻探：返回 HTTP 状态码 int；连接层失败返回 None（用于就绪轮询）。"""
+   134	    req = urlrequest.Request(url, headers={"User-Agent": UA})
+   135	    try:
+   136	        with _OPENER.open(req, timeout=timeout) as resp:
+   137	            return getattr(resp, "status", None) or resp.getcode()
+   138	    except urlerror.HTTPError as e:
+   139	        return e.code
+   140	    except Exception:
+   141	        return None
+   142	
+   143	
+   144	def safe(fn):
+   145	    """单探针兜底：任何异常转为 {"error": ...}，不中断采样。"""
+   146	    try:
+   147	        val = fn()
+   148	        return val if val is not None else {"error": "probe_returned_null"}
+   149	    except Exception as e:
+   150	        return {"error": str(e)[:300]}
+   151	
+   152	
+   153	# ---------------------------------------------------------------- W10 探针
+   154	
+   155	def probe_host():
+   156	    uname_bin = find_bin("uname")
+   157	    if not uname_bin:
+   158	        return {"error": "uname not found"}
+   159	    r = run_cmd([uname_bin, "-a"], timeout=10)
+   160	    return r["stdout"] if r["returncode"] == 0 and r["stdout"] else {"error": r["error"] or ("rc=" + str(r["returncode"]) + " " + r["stderr"][:120])}
+   161	
+   162	
+   163	def probe_repo():
+   164	    git_bin = find_bin("git")
+   165	    if not git_bin:
+   166	        return {"error": "git not found"}
+   167	    head_r = run_cmd([git_bin, "rev-parse", "HEAD"], timeout=15, cwd=REPO)
+   168	    dirty_r = run_cmd([git_bin, "status", "--porcelain"], timeout=15, cwd=REPO)
+   169	    head = head_r["stdout"] if head_r["returncode"] == 0 else None
+   170	    dirty_files = [ln for ln in dirty_r["stdout"].splitlines() if ln.strip()] if dirty_r["returncode"] == 0 else None
+   171	    return {
+   172	        "path": REPO,
+   173	        "head": head,
+   174	        "head_error": None if head else (head_r["error"] or head_r["stderr"][:200]),
+   175	        "dirty": (len(dirty_files) > 0) if dirty_files is not None else None,
+   176	        "dirty_files": dirty_files if dirty_files is not None else None,
+   177	        "dirty_error": None if dirty_files is not None else dirty_r["error"],
+   178	    }
+   179	
+   180	
+   181	def probe_ci_latest_main():
+   182	    gh_bin = find_bin("gh")
+   183	    if not gh_bin:
+   184	        return None
+   185	    r = run_cmd(
+   186	        [gh_bin, "run", "list", "--branch", "main", "--limit", "1",
+   187	         "--json", "status,conclusion,databaseId,createdAt,headSha,displayTitle,workflowName"],
+   188	        timeout=GH_TIMEOUT,
+   189	        cwd=REPO,
+   190	    )
+   191	    if r["returncode"] != 0 or not r["stdout"]:
+   192	        return {"error": r["error"] or ("rc=" + str(r["returncode"]) + " " + r["stderr"][:200])}
+   193	    try:
+   194	        runs = json.loads(r["stdout"])
+   195	    except ValueError:
+   196	        return {"error": "gh output not json"}
+   197	    if not isinstance(runs, list) or not runs:
+   198	        return {"error": "no runs returned"}
+   199	    return runs[0]
+   200	
+   201	
+   202	def probe_dashboard_launchd():
+   203	    launchctl_bin = find_bin("launchctl")
+   204	    if not launchctl_bin:
+   205	        return {"error": "launchctl not found"}
+   206	    r = run_cmd([launchctl_bin, "print", LAUNCHD_TARGET], timeout=15)
+   207	    if r["returncode"] != 0:
+   208	        return {"state": None, "returncode": r["returncode"], "error": r["error"] or r["stderr"][:200]}
+   209	    m = re.search(r"^\s*state\s*=\s*(\S+)", r["stdout"], re.MULTILINE)
+   210	    return {"state": m.group(1) if m else None, "returncode": 0, "error": None if m else "state line not found"}
+   211	
+   212	
+   213	def probe_legacy_health():
+   214	    return http_get_json(LEGACY_HEALTH_URL)
+   215	
+   216	
+   217	def probe_disk():
+   218	    st = os.statvfs(os.path.expanduser("~"))
+   219	    used = (st.f_blocks - st.f_bfree) * st.f_frsize
+   220	    avail = st.f_bavail * st.f_frsize
+   221	    total = used + avail
+   222	    return {
+   223	        "mount": os.path.expanduser("~"),
+   224	        "used_bytes": used,
+   225	        "avail_bytes": avail,
+   226	        "used_pct": round(used * 100.0 / total, 1) if total > 0 else None,
+   227	    }
+   228	
+   229	
+   230	# ---------------------------------------------------------------- W9 shadow
+   231	
+   232	def pick_free_port():
+   233	    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+   234	    try:
+   235	        s.bind((HOST_LOCAL, 0))
+   236	        return s.getsockname()[1]
+   237	    finally:
+   238	        s.close()
+   239	
+   240	
+   241	def stop_process_tree(proc):
+   242	    """必杀：先 SIGTERM 进程组，3s 不退再 SIGKILL。返回终止方式。"""
+   243	    if proc.poll() is not None:
+   244	        return "already_exited_rc=" + str(proc.returncode)
+   245	    try:
+   246	        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+   247	    except OSError:
+   248	        try:
+   249	            proc.terminate()
+   250	        except OSError:
+   251	            pass
+   252	    try:
+   253	        proc.wait(timeout=3)
+   254	        return "term"
+   255	    except subprocess.TimeoutExpired:
+   256	        try:
+   257	            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+   258	        except OSError:
+   259	            try:
+   260	                proc.kill()
+   261	            except OSError:
+   262	                pass
+   263	        try:
+   264	            proc.wait(timeout=3)
+   265	        except subprocess.TimeoutExpired:
+   266	            pass
+   267	        return "kill"
+   268	
+   269	
+   270	def compare_health(legacy, modular):
+   271	    """key 集合相等性 / score 相等性 / 键差。不可比时字段记 null，不猜。"""
+   272	    out = {
+   273	        "key_sets_equal": None,
+   274	        "score_equal": None,
+   275	        "only_legacy": None,
+   276	        "only_modular": None,
+   277	        "legacy_score": None,
+   278	        "modular_score": None,
+   279	        "note": None,
+   280	    }
+   281	    lj = legacy.get("json") if isinstance(legacy, dict) and legacy.get("status") == 200 else None
+   282	    mj = modular.get("json") if isinstance(modular, dict) and modular.get("status") == 200 else None
+   283	    if not isinstance(lj, dict):
+   284	        out["note"] = "legacy /api/health 无 200 JSON，无法比对"
+   285	        return out
+   286	    if not isinstance(mj, dict):
+   287	        out["legacy_score"] = lj.get("score") if isinstance(lj.get("score"), (int, float)) else None
+   288	        out["note"] = "modular health 无 200 JSON（当前为结构化错误态），无法比对"
+   289	        return out
+   290	    lk = set(lj.keys())
+   291	    mk = set(mj.keys())
+   292	    out["only_legacy"] = sorted(lk - mk)
+   293	    out["only_modular"] = sorted(mk - lk)
+   294	    out["key_sets_equal"] = lk == mk
+   295	    ls = lj.get("score")
+   296	    ms = mj.get("score")
+   297	    out["legacy_score"] = ls if isinstance(ls, (int, float)) and not isinstance(ls, bool) else None
+   298	    out["modular_score"] = ms if isinstance(ms, (int, float)) and not isinstance(ms, bool) else None
+   299	    if out["legacy_score"] is not None and out["modular_score"] is not None:
+   300	        out["score_equal"] = out["legacy_score"] == out["modular_score"]
+   301	    else:
+   302	        out["note"] = "至少一方缺 numeric score 字段，score 不比对"
+   303	    return out
+   304	
+   305	
+   306	def probe_shadow():
+   307	    if not os.path.isfile(SERVER_PY):
+   308	        return {"error": "server.py not found: " + SERVER_PY}
+   309	    port = pick_free_port()
+   310	    base_url = "http://" + HOST_LOCAL + ":" + str(port)
+   311	    ping_url = base_url + "/api/v1/ping"
+   312	    v1_health_url = base_url + "/api/v1/health"
+   313	    unversioned_health_url = base_url + "/api/health"
+   314	    server_log_path = os.path.join(LOGS_DIR, "shadow-server-" + date.today().isoformat() + ".log")
+   315	
+   316	    result = {
+   317	        "port": port,
+   318	        "server_pid": None,
+   319	        "ready": False,
+   320	        "ready_seconds": None,
+   321	        "server_log": server_log_path,
+   322	        "terminated": None,
+   323	    }
+   324	    logf = open(server_log_path, "ab")
+   325	    try:
+   326	        proc = subprocess.Popen(
+   327	            [sys.executable, SERVER_PY, "--port", str(port)],
+   328	            start_new_session=True,
+   329	            stdout=logf,
+   330	            stderr=subprocess.STDOUT,
+   331	            cwd=REPO,
+   332	        )
+   333	        result["server_pid"] = proc.pid
+   334	        t0 = time.monotonic()
+   335	        while (time.monotonic() - t0) < SHADOW_READY_TIMEOUT:
+   336	            if proc.poll() is not None:
+   337	                result["ready_error"] = "server exited early rc=" + str(proc.returncode)
+   338	                break
+   339	            code = http_status_only(ping_url, timeout=2.0)
+   340	            if code is not None:
+   341	                result["ready"] = True
+   342	                result["ready_http"] = code
+   343	                result["ready_seconds"] = round(time.monotonic() - t0, 2)
+   344	                break
+   345	            time.sleep(0.5)
+   346	        else:
+   347	            result["ready_error"] = "not ready within " + str(int(SHADOW_READY_TIMEOUT)) + "s"
+   348	
+   349	        legacy = probe_legacy_health()
+   350	        v1_health = http_get_json(v1_health_url)
+   351	        unversioned_health = http_get_json(unversioned_health_url)
+   352	
+   353	        # 比对主源：优先 200 JSON 的 v1；否则退回未版本化路径的 200 JSON；
+   354	        # 都没有时保留 v1 原始结果（含 503/404 结构化错误），如实观测。
+   355	        modular = v1_health
+   356	        modular_path = "/api/v1/health"
+   357	        if not (v1_health.get("status") == 200 and isinstance(v1_health.get("json"), dict)):
+   358	            if unversioned_health.get("status") == 200 and isinstance(unversioned_health.get("json"), dict):
+   359	                modular = unversioned_health
+   360	                modular_path = "/api/health"
+   361	
+   362	        result["modular_health"] = modular
+   363	        result["modular_health_path"] = modular_path
+   364	        result["modular_health_v1_raw"] = {"status": v1_health.get("status"), "error": v1_health.get("error")}
+   365	        result["modular_health_unversioned_raw"] = {"status": unversioned_health.get("status"), "error": unversioned_health.get("error")}
+   366	        result["legacy_health"] = legacy
+   367	        result["compare"] = compare_health(legacy, modular)
+   368	    finally:
+   369	        if result.get("server_pid") is not None:
+   370	            result["terminated"] = stop_process_tree(proc)
+   371	        logf.close()
+   372	    return result
+   373	
+   374	
+   375	# ---------------------------------------------------------------- 落盘与轮转
+   376	
+   377	def write_json_atomic(path, payload):
+   378	    tmp = path + ".tmp"
+   379	    with open(tmp, "w", encoding="utf-8") as f:
+   380	        json.dump(payload, f, ensure_ascii=False, indent=2, sort_keys=False)
+   381	        f.write("\n")
+   382	    os.replace(tmp, path)
+   383	
+   384	
+   385	def rotate(dirpath):
+   386	    """按文件名日期删除超过 KEEP_DAYS 天的样本。"""
+   387	    cutoff = date.today() - timedelta(days=KEEP_DAYS)
+   388	    removed = []
+   389	    try:
+   390	        names = os.listdir(dirpath)
+   391	    except OSError:
+   392	        return removed
+   393	    for name in names:
+   394	        if not name.endswith(".json"):
+   395	            continue
+   396	        try:
+   397	            d = datetime.strptime(name[:-len(".json")], "%Y-%m-%d").date()
+   398	        except ValueError:
+   399	            continue
+   400	        if d < cutoff:
+   401	            try:
+   402	                os.remove(os.path.join(dirpath, name))
+   403	                removed.append(name)
+   404	            except OSError:
+   405	                pass
+   406	    return removed
+   407	
+   408	
+   409	def main():
+   410	    for d in (SAMPLES_DIR, SHADOW_DIR, LOGS_DIR):
+   411	        os.makedirs(d, exist_ok=True)
+   412	    today = date.today().isoformat()
+   413	    now_iso = datetime.now(timezone.utc).isoformat()
+   414	
+   415	    repo_info = safe(probe_repo)
+   416	
+   417	    sample = {
+   418	        "window": "W10-observation",
+   419	        "day_index_note": "14 天观察窗，当日启动（launchd 每日 09:05 触发）",
+   420	        "collected_at": now_iso,
+   421	        "host": safe(probe_host),
+   422	        "repo": repo_info,
+   423	        "ci_latest_main": safe(probe_ci_latest_main),
+   424	        "dashboard_launchd": safe(probe_dashboard_launchd),
+   425	        "legacy_health": safe(probe_legacy_health),
+   426	        "disk": safe(probe_disk),
+   427	    }
+   428	
+   429	    shadow = {
+   430	        "window": "W9-shadow-clock",
+   431	        "collected_at": now_iso,
+   432	        "shadow": safe(probe_shadow),
+   433	    }
+   434	
+   435	    sample_path = os.path.join(SAMPLES_DIR, today + ".json")
+   436	    shadow_path = os.path.join(SHADOW_DIR, today + ".json")
+   437	    write_json_atomic(sample_path, sample)
+   438	    write_json_atomic(shadow_path, shadow)
+   439	    rotate(SAMPLES_DIR)
+   440	    rotate(SHADOW_DIR)
+   441	
+   442	    ci = sample["ci_latest_main"]
+   443	    sh = shadow["shadow"]
+   444	    cmp_ = sh.get("compare") if isinstance(sh, dict) else None
+   445	    summary = {
+   446	        "ok": True,
+   447	        "sample_path": sample_path,
+   448	        "shadow_path": shadow_path,
+   449	        "ci_latest_main": (ci.get("status") + "/" + str(ci.get("conclusion")) + " run=" + str(ci.get("databaseId"))) if isinstance(ci, dict) and ci.get("status") else (ci if isinstance(ci, dict) else None),
+   450	        "shadow_compare": cmp_,
+   451	        "shadow_ready": sh.get("ready") if isinstance(sh, dict) else None,
+   452	        "dashboard_launchd_state": sample["dashboard_launchd"].get("state") if isinstance(sample["dashboard_launchd"], dict) else None,
+   453	        "disk_used_pct": sample["disk"].get("used_pct") if isinstance(sample["disk"], dict) else None,
+   454	        "repo_head": repo_info.get("head") if isinstance(repo_info, dict) else None,
+   455	        "repo_dirty": repo_info.get("dirty") if isinstance(repo_info, dict) else None,
+   456	    }
+   457	    print(json.dumps(summary, ensure_ascii=False))
+   458	
+   459	
+   460	if __name__ == "__main__":
+   461	    main()
+--- launchagent candidates in archive ---

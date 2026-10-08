@@ -1,0 +1,29 @@
+--- /tmp/wq7b-p1f-delete-gate-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ D system/tests/test_ac_gate_family.py
+--- /tmp/wq7b-p1f-delete-ui-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ D system/tests/test_ac_ui_family.py
+--- /tmp/wq7b-p1f-vacuous-one-365-67622
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-id-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-semantic-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+--- /tmp/wq7b-tamper-251-365-67622
+ M "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-state-mig.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json

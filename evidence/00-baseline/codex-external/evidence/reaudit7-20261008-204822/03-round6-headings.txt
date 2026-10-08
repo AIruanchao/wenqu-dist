@@ -1,0 +1,63 @@
+1:# 问渠质量工程管线验收报告（第六轮独立复审）
+13:## 1. 最终判定
+15:# **BLOCKED — 52/100**
+33:## 2. 身份、隔离与审计期间漂移
+35:### 2.1 起点与冻结副本
+46:### 2.2 审计中发生的源与运行体漂移
+67:## 3. 独立命令与退出码摘要
+92:## 4. 第四轮 12 项旧探针终态
+113:## 5. 第四轮六项新发现逐条闭环判定
+128:## 6. 第六轮新增实证发现
+130:### F6-AUTH-EXACT-001（P0）— 签名 action payload 未绑定实际 target
+145:### F6-BASELINE-DRIFT-001（P0）— 审计目标与运行体在验收中漂移
+149:### F6-GATE-SCOPE-001（P0）— required、scope 与 coverage 未绑定冻结 manifest
+157:### F6-GATE-FORMAT-DUP-002（P0/P1）— 镜像并非 Draft-07 全量等价
+163:### F6-SCHEMA-BOUND-001（P0）— PASS 分母等值规则只生成至 64
+167:### F6-TRC-GATE-001（P0）— 99/131 不是 required coverage Gate
+175:### F6-TRC-PARSER-002（P1）— trace parser/冻结 SHA fail-open
+182:### F6-EVID-001（P0）— 20 条证据索引未达到严格合同
+194:### F6-CI-PORT-001（P1）— Ubuntu required acceptance 忽略 `mktemp` 错误
+204:### F6-COVERAGE-AUTH-001（P1）— 逐 ID 内容与登记声明不实
+210:### F6-OBS-001（P1）— 首日样本不能计入 b259 观察窗
+216:## 7. P0 十项同口径重判
+220:| P0-1 核心接线 | **PASS（仅 b259 候选）** | 双布局 CLI、安装体真实 gate、三移除锚点、12+66 required 接线均有实跑 | 不代表当前 main/7789 已部署；七专属 required 缺口计 P0-10/W3 |
+221:| P0-2 七段状态机与审批 | **FAIL / PARTIAL** | 审批存在性、类型、envelope、CAS/TTL/nonce、事务原子性与 receipt 分级有独立正证；01–07 旧探针通过 | signed payload 未与实际 action target 等值绑定；消费事件不保留 payload；审批签发端未建；生产 issuer/receipt 未实弹 |
+222:| P0-3 契约链/Gate | **FAIL / PARTIAL** | 残缺 v2、缺站、空 required、冲突、四态等直接修复有效 | required/scope/coverage 自举；非法时间假绿；弱重复等价键 |
+223:| P0-4 Schema 不变量 | **FAIL / PARTIAL** | 第四轮五类指定反例已关闭 | 正式 schema `PASS 65/66` 漏洞；FINDING_REOPENED 目标态仍有解释/约束残差 |
+224:| P0-5 Runner/CAS | **FAIL / PARTIAL** | Darwin 重挂接后台 3/3 收拢；环境哨兵、CAS 竞态回归通过 | Linux 通路未实测；主动清空环境仍是实现自述边界；无容器/低权限/网络/资源强隔离 |
+225:| P0-6 EventStore | **FAIL / PARTIAL** | 事件重放 nonce、并发幂等、链头通过 | `pipeline_events` 与 migrator `events` 唯一正源未统一；W5 未完成 |
+226:| P0-7 部署/回滚 | **FAIL / PARTIAL** | 安装体 CLI、深层相对链接回滚、候选 tar/hash 有效 | 无签名/SBOM/attestation；candidate 名义绑定 f2；现役 direct-file/非 immutable release |
+227:| P0-8 auto-merge | **PASS / 保持关闭** | GitHub allow=false；PR autoMerge=null；b259 源码 `system/daemons/auto-merge.sh` 为单行 fail-closed stub、实跑 rc=1；live 正确安装路径 absent；精确复核无 active writer/launchd/cron 进程 | stub 仍存在是刻意封存，不等于自动合流方案已建；证据 `root/13-auto-merge-*` |
+228:| P0-9 7789 控制面 | **FAIL / PARTIAL** | 只监听回环；health 如实显示 Gate=failure | active 非 b259、仍 legacy 单文件 POST 写版；无模块化只读部署/真实 UI 验收 |
+229:| P0-10 证据/追踪/制品 | **FAIL** | §20/§25 基础集合、直接文本变异与七文件实跑有正证 | coverage 可全删/空断言；parser fail-open；索引 0/20；矩阵 stale；无签名/SBOM |
+235:## 8. W0–W10 同口径评分
+239:| W0 快照与危险面隔离 | 8 | 3 | **2** | -1：有 clean b259 与冻结副本，但共享源、远端 main、运行体在验收中漂移，目标身份不能持续冻结。 |
+240:| W1 契约/Schema/威胁/TLA/红探针 | 10 | 7 | **7** | 不升：指定不变量/语义变异有进步；但 formal schema >64、format 镜像不等价、trace parser fail-open，且仍无 Wenqu TLA/TLC 完整证明。 |
+241:| W2 Runner/事件/授权/CAS | 15 | 10 | **12** | +2：Runner reparent、授权存在性/receipt/原子消费、旧探针均有异源正证；但 signed payload 未绑定实际 target，另扣 Linux/容器隔离、issuer 和 EventStore 正源边界。 |
+242:| W3 Gate/CI/合流控制 | 15 | 6 | **8** | +2：真实 CLI gate、12+66 required、双平台 CI/保护门属实；扣 Gate 自举假绿、七专属未 required、无 review/CODEOWNERS/merge_group/action SHA pin。 |
+243:| W4 调度/Outbox/通知/备份 | 10 | 3 | **3** | 不升：局部测试不能替代统一 scheduler/outbox/receipt/备份恢复生产闭环。 |
+244:| W5 旧账迁移 | 8 | 1 | **1** | 不升：未到期且唯一正源/逐项对账未完成；MIG-04 抽查与冻结注入不匹配。 |
+245:| W6 Bug 八站 | 15 | 8 | **9** | +1：七文件 99/99 实跑且部分为真实现；但 21 抽查仅 11 完整，站5/6 placeholder，32 产品缺口，七文件不在 required；station4 首次正确运行还出现一次超时断言抖动，后续六次通过。 |
+246:| W7 制品/安装/部署/回滚 | 8 | 5 | **6** | +1：安装 CLI、回滚和 candidate tar/hash 成立；扣无签名/SBOM、索引错绑、非不可变现役部署。 |
+247:| W8 Dashboard/健康/控制面 | 7 | 5 | **4** | -1：回环与 fail-closed health 保留；但 b259 运行身份在验收中失效，仍 legacy POST 写版且无真实 UI 证据。 |
+248:| W9 Shadow/Canary/切换 | 2 | 0 | **0** | 不升：shadow 启动但 modular=503、比较为 null，未形成有效同 SHA shadow 证据。 |
+249:| W10 观察窗/演练/收官 | 2 | 1 | **0** | -1：首样本错 SHA+dirty，modular=503/比较 null 时采样器仍 `ok=true`、launchd exit0；该时钟不是 fail-closed，有文件不计有效观察。 |
+254:## 9. 99/131 专属覆盖真实性抽查
+256:### 9.1 实跑
+266:### 9.2 逐 ID 抽查（21 条，跨七文件）
+281:### 9.3 不可实现登记
+289:## 10. 常规核验
+291:### 10.1 三移除锚点
+301:### 10.2 Schema 变异
+307:### 10.3 §20 ID 集合与语义文本
+317:### 10.4 本地回归与 acceptance
+325:### 10.5 CI 37745638008 与分支保护
+335:### 10.6 证据索引 20 条
+345:### 10.7 7789 身份
+356:### 10.8 时钟样本
+362:## 11. 已知诚实缺口（不重复升格为本轮新发现）
+367:| W5/W9/W10 时序未到期 | 仍未到期；且首样本不能计入 b259 |
+375:## 12. 剩余整改顺序
+389:## 13. 第六轮证据索引
+411:## 14. 最终结论
+417:# **最终固定判定：52/100 — BLOCKED**

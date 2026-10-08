@@ -1,0 +1,1264 @@
+UTC_START=2026-10-08T12:51:57Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-tree-evidence.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+cd /Users/maccc/Documents/wenqu-dist
+echo '=== tracked evidence/sample paths at d32c859 ==='
+git ls-tree -r --name-only d32c859 | rg '(^|/)(evidence|samples|shadow|dist|specs/tla|test_w4|reconcil|release_attest|index)' | sed -n '1,1200p'
+echo '=== frozen top dirs ==='; find /private/tmp/reaudit7-d32c859-runtime -maxdepth 2 -type d -print | sort
+echo '=== all index candidate files ==='; git ls-tree -r --name-only d32c859 | rg -i 'index|manifest|evidence' | sed -n '1,800p'
+echo '=== sample references at frozen commit ==='; rg -n 'samples/2026-10-08|c9de6a4|d32c859|observation/samples|evidence/07-migration-reconcile|1620c7c' /private/tmp/reaudit7-d32c859-runtime | head -1000
+--- OUTPUT ---
+=== tracked evidence/sample paths at d32c859 ===
+dist/SHA256-vNext-candidate-f2b8fc3.txt
+dist/wenqu-dist-1620c7c.manifest.json
+dist/wenqu-dist-1620c7c.release.sig
+dist/wenqu-dist-1620c7c.sbom.spdx.json
+dist/wenqu-dist-1620c7c.tar.gz
+dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+evidence/00-baseline/README.md
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.rc
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.stderr
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/agent-default-ci-blindness.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/artifact-inventory.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/baseline.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/cli-version.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/compile.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dashboard-security-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dod-evidence-presence.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/final-repo-status.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.body
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.headers
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.body
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.headers
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/integration-markers.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/mid-acceptance-source-drift.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-exact-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-log-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-artifacts.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-check.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner-cas-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner_cas_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-dashboard-identity.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-source-identity.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-targeted-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-bugscan_orchestrator.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station3_contract.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station4_behavior.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station7_runtime.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/source-drift-followup-1.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store-migrator-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store_migrator_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/workflow-release-check-reproduction.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/branch-required-checks.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/bugscan-summary.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/captured_at.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-health.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-runtime-diff.patch
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/git-identities.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/launchctl-selected.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/manifest.sha256
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json.sha256
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/outside.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/escaped.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/pipeline-ledger.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/r1.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/r1.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-neg/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/runtime-source-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/skill-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/validate_plan.py
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/waiting-states.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/acceptance-mutated-worktree.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/capacity-and-identity.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/git-status-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/post-restore-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/repo-tree.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/source-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/acceptance-full.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/dashboard-new-self-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/release-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/test-core-wiring.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/test-wenqu-pipeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/workflow-release-check-python3.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/workflow-release-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/auto-merge-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/dashboard-identity-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/dashboard-installed-source-diff.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/observation-window-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/contract_chain_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/deploy-residual.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/deploy_residual_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/eventstore-residual.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/eventstore_residual_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/p0-3-contract-chain.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/pipeline-extra-cases.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/pipeline_extra_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-module.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-root.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-schema.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-tool.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/schema-tamper-crosscheck.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/ac-traceability-live.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/independent-id-set-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/independent_id_set_check.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/snapshot-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/branch-protection.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-log.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/EVIDENCE-INDEX.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/agent-core-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/agent-evidence-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/final-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/preliminary-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/release-and-workpack-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/report-pointer.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/00-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/01-tree.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/02-headings.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/03-code-outline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/04-wenqu_pipeline-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/05-test_wenqu_pipeline-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/06-test_core_wiring-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/07-approval-schema-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/08-test-wenqu-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/09-removal-temp-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/09-removal-wenqu_pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/10-core-wiring-callsites.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/11-adversarial-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/12-final-worktree.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/13-static-security-gaps.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/14-approval-schema-cross-type.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/15-contract-source-excerpts.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/16-removal-installer-still-green.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/17-nonresume-cas-bypass.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/18-final-integrity.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/adversarial_pipeline.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/00-baseline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/01-plan-report-headings.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/02-prior-report-full.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/03-plan-core-workpacks.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/04-plan-probes-matrix.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/06-evidence-content.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/07-acceptance-and-workflow-source.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/08-traceability-tool-source.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/09-traceability-live.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/10-independent-trace-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/11-acceptance-isolated.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/12-tool-removal-anchor.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/13-p0-3-source-review.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14-p0-3-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14b-p0-3-import-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14c-p0-3-import-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/15-p0-3-contract-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/16-p0-6-store-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/17-p0-7-source-review.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/18-p0-7-deploy-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19-evidence-index-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19b-evidence-index-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/20-ci-run-json.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/21-ci-run-log.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/22-trace-plan20-tamper-default.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/23-trace-plan20-tamper-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/24-trace-plan251-tamper-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/25-acceptance-plan20-tamper.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/26-branch-protection.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/27-repo-rulesets.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/28-increment-diff.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/29-final-repo-status.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/INDEX.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/evidence_reconcile.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/import_graph.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/independent_trace_check.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_3_contract_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_6_store_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_7_deploy_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/plan20-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/plan251-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/run-capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/tamper_plan20.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/tamper_plan251.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/00-repo-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/01-baseline-keywords.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/02-requirements-excerpts.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/03-schema-security-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/04-all-schemas-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/05-approval-validator-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/06-runner-security-diff-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/07-dashboard-security-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/08-runtime-dashboard-identity-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/09-runtime-dashboard-code-drift.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/10-runtime-old-write-handler.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/11-test-coverage-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/12-approval-binding-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/13-authorization-binding-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/14-plan-state-schema-requirements.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/15-schema-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/16-approval-broker-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/17-cas-runner-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/approval_broker_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/cas_runner_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/schema_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/archive-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/diff-stat-ff050bb-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/environment.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/git-log-be50cb8-e4aba84.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/mid-audit-source-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/post-root-regression-worktree.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-tree.txt
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\346\226\271\346\241\210.md"
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\344\270\211\350\275\256.md"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-copy.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-mid-git-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-start-git-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-third-round-12-source.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/01-results-rollup.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/99-end-git-status-and-cleanup.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-01-forged-signature-missing-bindings.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-02-risk-masquerade-resume.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-03-false-preconditions.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-04-nonresume-cas.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-05-timeout-p1-launder.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-06-control-event-direct-write.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-07-events-only-replay.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-08-station-v2-chain.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-09-eventstore-retry.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-10-cas-parent-race.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-initial.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-repeat.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-12-upgrade-rollback.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/03-workpackages/inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/00-source-identity.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/02-module-core-wiring.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/03-module-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-wrapper-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/06-schema-core-wiring.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/07-schema-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/10-tool-direct.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/13-schema-independent-crosscheck.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/14-schema-pipeline-crosscheck.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/99-source-postcondition.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/independent-schema-crosscheck.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/03-section20-id-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/06-section251-meta-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/08-section20-semantic-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/09-section20-semantic-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/10-independent-trace-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/12-independent-trace-audit-source-live.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-audit.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-results.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/traceability-live-source.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/00-gh-environment.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run-log.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/10-branch-evidence-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/13-workflow-source.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/14-required-check-coverage.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15-all-workflow-suite-search.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15b-suite-wiring-search.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-pr-check-runs-timeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/18-pr-merge-required-check-timeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/19-plan-vs-live-gate.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-NOTE.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-SCAN.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/00-runtime-path-discovery.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-print.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-redaction-note.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/02-listener-process.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/03-runtime-hash.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.body
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.headers
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/05-deploy-evidence-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/06-control-path-static-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/07-plan-vs-active-dashboard.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/08-release-deployment-boundary.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09-auto-merge-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09b-auto-merge-process-correction.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/head-wenqu-dashboard.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/merge540-dashboard.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/00-isolated-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/01-clone.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/02-before.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/03-acceptance-full.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/04-after-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/00-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/01-third-report-and-index.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/02-third-w-scores.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/03-index-entry-summary.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/04-evidence-file-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/05-sidecar-manifest-verification.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/06-evidence-index-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/07-declared-hash-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/08-trace-matrix-metadata.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/10-repo-integrity-mid.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/11-plan-w-p0-excerpts.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/12-final-repo-integrity.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/13-redaction-scan-result.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/audit_evidence_index.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-acceptance.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/dashboard-active-static.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-host-side-effect-restored.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-normal.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-prefix.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/installed-wenquctl-help.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-core-wiring.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-infra-hardening.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-adversarial.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-pipeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/root-source-callsites.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-bugscan_orchestrator.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station2_static.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station3_contract.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station4_behavior.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station7_runtime.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-outlines.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-wenquctl-help.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/test_core_wiring-1858a75.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/wave4-claims-and-index.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/final-source-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/manifest-method.txt
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md"
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md.sha256"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/EVIDENCE-INDEX.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/capture.sh
+evidence/01-threat-model-and-contracts/README.md
+evidence/02-schemas-and-tla/README.md
+evidence/02-schemas-and-tla/tla-wenqu-pipeline-run-2026-10-08.md
+evidence/02-schemas-and-tla/tlc-wenqu-pipeline-2026-10-08.log
+evidence/02-schemas-and-tla/tlc-wenqu-pipeline-mutation-probes-2026-10-08.log
+evidence/03-red-probes-before/README.md
+evidence/04-unit-property-mutation/README.md
+evidence/04-unit-property-mutation/ac-act-run.json
+evidence/04-unit-property-mutation/ac-auth-cond.json
+evidence/04-unit-property-mutation/ac-deploy-release.json
+evidence/04-unit-property-mutation/ac-gate-family.json
+evidence/04-unit-property-mutation/ac-ops-families.json
+evidence/04-unit-property-mutation/ac-state-mig.json
+evidence/04-unit-property-mutation/ac-station-families.json
+evidence/04-unit-property-mutation/ac-ui-family.json
+evidence/05-concurrency-crash-chaos/README.md
+evidence/06-scanner-goldens/README.md
+evidence/07-migration-reconcile/README.md
+evidence/07-migration-reconcile/migrated-events.db
+evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl
+evidence/07-migration-reconcile/reconcile-report.json
+evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl
+evidence/07-migration-reconcile/summary.md
+evidence/08-ci-and-branch-rules/README.md
+evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+evidence/09-release-manifest-attestation/README.md
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+evidence/10-ui-launchd-alert-backup/README.md
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json
+evidence/10-ui-launchd-alert-backup/launchd-inventory.json
+evidence/11-shadow-canary/README.md
+evidence/12-rollback-drill/README.md
+evidence/13-observation-window/README.md
+evidence/README.md
+evidence/evidence-index.json
+evidence/traceability-matrix.json
+specs/tla/README.md
+specs/tla/wenqu_pipeline.cfg
+specs/tla/wenqu_pipeline.tla
+system/dashboard/index.html
+system/schemas/evidence-v2.schema.json
+system/tests/test_w4_production.py
+tools/release_attest.py
+=== frozen top dirs ===
+/private/tmp/reaudit7-d32c859-runtime
+/private/tmp/reaudit7-d32c859-runtime/.github
+/private/tmp/reaudit7-d32c859-runtime/.github/workflows
+/private/tmp/reaudit7-d32c859-runtime/cli
+/private/tmp/reaudit7-d32c859-runtime/dist
+/private/tmp/reaudit7-d32c859-runtime/docs
+/private/tmp/reaudit7-d32c859-runtime/evidence
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline
+/private/tmp/reaudit7-d32c859-runtime/evidence/01-threat-model-and-contracts
+/private/tmp/reaudit7-d32c859-runtime/evidence/02-schemas-and-tla
+/private/tmp/reaudit7-d32c859-runtime/evidence/03-red-probes-before
+/private/tmp/reaudit7-d32c859-runtime/evidence/04-unit-property-mutation
+/private/tmp/reaudit7-d32c859-runtime/evidence/05-concurrency-crash-chaos
+/private/tmp/reaudit7-d32c859-runtime/evidence/06-scanner-goldens
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile
+/private/tmp/reaudit7-d32c859-runtime/evidence/08-ci-and-branch-rules
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation
+/private/tmp/reaudit7-d32c859-runtime/evidence/10-ui-launchd-alert-backup
+/private/tmp/reaudit7-d32c859-runtime/evidence/11-shadow-canary
+/private/tmp/reaudit7-d32c859-runtime/evidence/12-rollback-drill
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window
+/private/tmp/reaudit7-d32c859-runtime/probes
+/private/tmp/reaudit7-d32c859-runtime/specs
+/private/tmp/reaudit7-d32c859-runtime/specs/tla
+/private/tmp/reaudit7-d32c859-runtime/system
+/private/tmp/reaudit7-d32c859-runtime/system/bin
+/private/tmp/reaudit7-d32c859-runtime/system/ci
+/private/tmp/reaudit7-d32c859-runtime/system/config
+/private/tmp/reaudit7-d32c859-runtime/system/daemons
+/private/tmp/reaudit7-d32c859-runtime/system/dashboard
+/private/tmp/reaudit7-d32c859-runtime/system/db
+/private/tmp/reaudit7-d32c859-runtime/system/docs
+/private/tmp/reaudit7-d32c859-runtime/system/schemas
+/private/tmp/reaudit7-d32c859-runtime/system/sentinels
+/private/tmp/reaudit7-d32c859-runtime/system/specs
+/private/tmp/reaudit7-d32c859-runtime/system/templates
+/private/tmp/reaudit7-d32c859-runtime/system/tests
+/private/tmp/reaudit7-d32c859-runtime/system/wenqu_core
+/private/tmp/reaudit7-d32c859-runtime/tests
+/private/tmp/reaudit7-d32c859-runtime/tools
+=== all index candidate files ===
+dist/wenqu-dist-1620c7c.manifest.json
+evidence/00-baseline/README.md
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.rc
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.stderr
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/agent-default-ci-blindness.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/artifact-inventory.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/baseline.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/cli-version.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/compile.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dashboard-security-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dod-evidence-presence.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/final-repo-status.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.body
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.headers
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.body
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.headers
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/integration-markers.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/mid-acceptance-source-drift.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-exact-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-log-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-artifacts.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-check.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner-cas-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner_cas_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-dashboard-identity.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-source-identity.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-targeted-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-bugscan_orchestrator.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station3_contract.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station4_behavior.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station7_runtime.log
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/source-drift-followup-1.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store-migrator-probes.json
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store_migrator_probes.py
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/workflow-release-check-reproduction.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/branch-required-checks.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/bugscan-summary.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/captured_at.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-health.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-runtime-diff.patch
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/git-identities.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/launchctl-selected.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/manifest.sha256
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json.sha256
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/outside.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.out
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/escaped.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/pipeline-ledger.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/r1.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/r1.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-neg/rounds.jsonl
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.json
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.log
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.rc
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/runtime-source-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/skill-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/validate_plan.py
+evidence/00-baseline/codex-external/evidence/reaudit-20261007/waiting-states.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/acceptance-mutated-worktree.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/capacity-and-identity.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/git-status-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/post-restore-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/repo-tree.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/source-hashes.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/acceptance-full.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/dashboard-new-self-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/release-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/test-core-wiring.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/test-wenqu-pipeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/workflow-release-check-python3.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/01-regression/workflow-release-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/auto-merge-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/dashboard-identity-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/dashboard-installed-source-diff.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/observation-window-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/contract_chain_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/deploy-residual.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/deploy_residual_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/eventstore-residual.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/eventstore_residual_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/p0-3-contract-chain.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/pipeline-extra-cases.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/pipeline_extra_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-module.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-root.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-schema.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/removal-tool.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/03-adversarial/schema-tamper-crosscheck.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/ac-traceability-live.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/independent-id-set-check.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/independent_id_set_check.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/snapshot-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/04-evidence/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/branch-protection.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-log.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/EVIDENCE-INDEX.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/agent-core-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/agent-evidence-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/final-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/preliminary-manifest-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/release-and-workpack-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/report-pointer.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/00-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/01-tree.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/02-headings.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/03-code-outline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/04-wenqu_pipeline-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/05-test_wenqu_pipeline-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/06-test_core_wiring-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/07-approval-schema-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/08-test-wenqu-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/09-removal-temp-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/09-removal-wenqu_pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/10-core-wiring-callsites.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/11-adversarial-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/12-final-worktree.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/13-static-security-gaps.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/14-approval-schema-cross-type.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/15-contract-source-excerpts.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/16-removal-installer-still-green.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/17-nonresume-cas-bypass.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/18-final-integrity.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/adversarial_pipeline.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/00-baseline.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/01-plan-report-headings.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/02-prior-report-full.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/03-plan-core-workpacks.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/04-plan-probes-matrix.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/06-evidence-content.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/07-acceptance-and-workflow-source.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/08-traceability-tool-source.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/09-traceability-live.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/10-independent-trace-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/11-acceptance-isolated.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/12-tool-removal-anchor.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/13-p0-3-source-review.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14-p0-3-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14b-p0-3-import-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/14c-p0-3-import-callgraph.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/15-p0-3-contract-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/16-p0-6-store-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/17-p0-7-source-review.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/18-p0-7-deploy-probe.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19-evidence-index-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/19b-evidence-index-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/20-ci-run-json.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/21-ci-run-log.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/22-trace-plan20-tamper-default.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/23-trace-plan20-tamper-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/24-trace-plan251-tamper-check.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/25-acceptance-plan20-tamper.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/26-branch-protection.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/27-repo-rulesets.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/28-increment-diff.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/29-final-repo-status.log
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/INDEX.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/evidence_reconcile.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/import_graph.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/independent_trace_check.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_3_contract_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_6_store_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/p0_7_deploy_probe.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/plan20-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/plan251-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/run-capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/tamper_plan20.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/tamper_plan251.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/00-repo-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/01-baseline-keywords.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/02-requirements-excerpts.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/03-schema-security-inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/04-all-schemas-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/05-approval-validator-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/06-runner-security-diff-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/07-dashboard-security-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/08-runtime-dashboard-identity-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/09-runtime-dashboard-code-drift.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/10-runtime-old-write-handler.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/11-test-coverage-numbered.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/12-approval-binding-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/13-authorization-binding-code.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/14-plan-state-schema-requirements.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/15-schema-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/16-approval-broker-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/17-cas-runner-adversarial-results.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/approval_broker_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/cas_runner_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/schema_adversarial.py
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/archive-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/diff-stat-ff050bb-head.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/environment.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/git-log-be50cb8-e4aba84.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/mid-audit-source-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/post-root-regression-worktree.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/root-isolation-tree.txt
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\346\226\271\346\241\210.md"
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/00-baseline/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\344\270\211\350\275\256.md"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-copy.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-isolation-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-mid-git-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-start-git-status.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/00-third-round-12-source.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/01-results-rollup.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/02-code-line-evidence.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/99-end-git-status-and-cleanup.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-01-forged-signature-missing-bindings.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-02-risk-masquerade-resume.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-03-false-preconditions.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-04-nonresume-cas.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-05-timeout-p1-launder.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-06-control-event-direct-write.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-07-events-only-replay.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-08-station-v2-chain.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-09-eventstore-retry.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-10-cas-parent-race.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-initial.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape-repeat.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-11-runner-escape.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/logs/probe-12-upgrade-rollback.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/capture.sh
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/01-probes/scripts/reaudit4_probe_suite.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/03-workpackages/inventory.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/00-source-identity.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/01-module-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/02-module-core-wiring.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/03-module-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/04-module-wrapper-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/05-schema-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/06-schema-core-wiring.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/07-schema-pipeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/08-schema-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/09-tool-remove.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/10-tool-direct.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/11-tool-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/12-schema-tamper.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/13-schema-independent-crosscheck.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/14-schema-pipeline-crosscheck.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/15-schema-tamper-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/99-source-postcondition.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/04-mutations/independent-schema-crosscheck.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/01-section20-id-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/02-section20-id-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/03-section20-id-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/04-section251-meta-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/05-section251-meta-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/06-section251-meta-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-mutation.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/07-section20-semantic-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/08-section20-semantic-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/09-section20-semantic-acceptance.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/10-independent-trace-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/11-live-tool-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/12-independent-trace-audit-source-live.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/13-code-slice-runtime-check.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-audit.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/independent-trace-results.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/section20-semantic-live.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/05-trace/traceability-live-source.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/00-gh-environment.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/01-gh-run-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02-run-jobs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/02b-run-jobs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/03-check-runs.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run-log.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/04-gh-run.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/05-branch-main.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/06-branch-protection.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/07-required-status-checks.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/08-enforce-admins.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/09-rulesets.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/10-branch-evidence-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr1-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/11-pr2-view.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/12-run-api.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/13-workflow-source.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/14-required-check-coverage.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15-all-workflow-suite-search.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/15b-suite-wiring-search.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.command.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.exit.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/16-run-artifacts.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-pr-check-runs-timeline.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732624290.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37732630449.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733093290.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/17-run-37733100994.stderr.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/18-pr-merge-required-check-timeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/19-plan-vs-live-gate.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-NOTE.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/06-ci-branch/REDACTION-SCAN.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/00-runtime-path-discovery.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-print.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/01-launchctl-redaction-note.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/02-listener-process.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/03-runtime-hash.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.body
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.headers
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/04-health.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/05-deploy-evidence-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/06-control-path-static-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/07-plan-vs-active-dashboard.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/08-release-deployment-boundary.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09-auto-merge-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/09b-auto-merge-process-correction.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/head-wenqu-dashboard.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/07-runtime/merge540-dashboard.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/00-isolated-path.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/01-clone.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/02-before.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/03-acceptance-full.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/04-after-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/05-p1c-readonly.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/08-acceptance/traceability-live.json
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/00-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/01-third-report-and-index.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/02-third-w-scores.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/03-index-entry-summary.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/04-evidence-file-inventory.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/05-sidecar-manifest-verification.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/06-evidence-index-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/07-declared-hash-reconcile.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/08-trace-matrix-metadata.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/10-repo-integrity-mid.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/11-plan-w-p0-excerpts.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/12-final-repo-integrity.log
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/13-redaction-scan-result.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/CAPTURED_AT.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/action-without-authorization-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/aggregator-invalid-v2-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/audit_evidence_index.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-acceptance.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/ci-critical-tests-removed-summary.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/dashboard-active-static.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/findings.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-host-side-effect-restored.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-normal.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/install-prefix.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/installed-wenquctl-help.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-core-wiring.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-infra-hardening.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-adversarial.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/regression-test-wenqu-pipeline.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/root-source-callsites.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/runner-doublefork-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/schema-residual-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-bugscan_orchestrator.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station2_static.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station3_contract.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station4_behavior.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/selftest-station7_runtime.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-outlines.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/source-wenquctl-help.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/test_core_wiring-1858a75.py
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/wave4-claims-and-index.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/final-source-integrity.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/manifest-method.txt
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md"
+"evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/10-final/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md.sha256"
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/EVIDENCE-INDEX.md
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime-verify.txt
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST-external-runtime.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/MANIFEST.sha256
+evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/capture.sh
+"evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+"evidence/00-baseline/codex-external/\346\226\271\346\241\210.md.sha256"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\344\270\211\350\275\256.md"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\344\270\211\350\275\256.md.sha256"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212-\347\254\254\345\233\233\350\275\256.md.sha256"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212.md"
+"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212.md.sha256"
+evidence/01-threat-model-and-contracts/README.md
+evidence/02-schemas-and-tla/README.md
+evidence/02-schemas-and-tla/tla-wenqu-pipeline-run-2026-10-08.md
+evidence/02-schemas-and-tla/tlc-wenqu-pipeline-2026-10-08.log
+evidence/02-schemas-and-tla/tlc-wenqu-pipeline-mutation-probes-2026-10-08.log
+evidence/03-red-probes-before/README.md
+evidence/04-unit-property-mutation/README.md
+evidence/04-unit-property-mutation/ac-act-run.json
+evidence/04-unit-property-mutation/ac-auth-cond.json
+evidence/04-unit-property-mutation/ac-deploy-release.json
+evidence/04-unit-property-mutation/ac-gate-family.json
+evidence/04-unit-property-mutation/ac-ops-families.json
+evidence/04-unit-property-mutation/ac-state-mig.json
+evidence/04-unit-property-mutation/ac-station-families.json
+evidence/04-unit-property-mutation/ac-ui-family.json
+evidence/05-concurrency-crash-chaos/README.md
+evidence/06-scanner-goldens/README.md
+evidence/07-migration-reconcile/README.md
+evidence/07-migration-reconcile/migrated-events.db
+evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl
+evidence/07-migration-reconcile/reconcile-report.json
+evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl
+evidence/07-migration-reconcile/summary.md
+evidence/08-ci-and-branch-rules/README.md
+evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+evidence/09-release-manifest-attestation/README.md
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+evidence/10-ui-launchd-alert-backup/README.md
+evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json
+evidence/10-ui-launchd-alert-backup/launchd-inventory.json
+evidence/11-shadow-canary/README.md
+evidence/12-rollback-drill/README.md
+evidence/13-observation-window/README.md
+evidence/README.md
+evidence/evidence-index.json
+evidence/traceability-matrix.json
+system/dashboard/index.html
+system/schemas/evidence-v2.schema.json
+=== sample references at frozen commit ===
+/private/tmp/reaudit7-d32c859-runtime/system/sentinels/backup-restore-drill.sh:6:#   observation/heartbeat.json、observation/samples 与 shadow 的最新 JSON）。
+/private/tmp/reaudit7-d32c859-runtime/system/sentinels/backup-restore-drill.sh:117:for rel in "$(latest_json observation/samples)" "$(latest_json observation/shadow)"; do
+/private/tmp/reaudit7-d32c859-runtime/evidence/traceability-matrix.json:6:    "repo_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+/private/tmp/reaudit7-d32c859-runtime/tools/w5_reconcile.py:719:                    help="正式模式：产物落 evidence/07-migration-reconcile/")
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.sbom.spdx.json:15: "documentNamespace": "https://wenqu-dist.invalid/spdx/rel-1620c7c-20261008T094952Z/e2243329c33eb003",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.sbom.spdx.json:8081:   "fileName": "./evidence/07-migration-reconcile/README.md",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.sbom.spdx.json:9648: "name": "wenqu-dist-1620c7c",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.sbom.spdx.json:9669:   "summary": "wenqu-dist 发行版（git archive 干净树制品）——source_commit 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:12:  "path": "wenqu-dist-1620c7c.tar.gz",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:15:  "source": "git archive 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (clean tree from commit object)"
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:17: "build_id": "rel-1620c7c-20261008T094952Z",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:3788:   "path": "evidence/07-migration-reconcile/README.md",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:4527: "source_commit": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.manifest.json:4528: "source_commit_short": "1620c7c",
+/private/tmp/reaudit7-d32c859-runtime/dist/wenqu-dist-1620c7c.release.sig:8: "signed_manifest_build_id": "rel-1620c7c-20261008T094952Z",
+/private/tmp/reaudit7-d32c859-runtime/tools/observation_daily.py:4:W10 观察窗样本（~/.wenqu/observation/samples/YYYY-MM-DD.json）：
+/private/tmp/reaudit7-d32c859-runtime/evidence/13-observation-window/README.md:31:- **首样本作废**：观察窗首个样本（`~/.wenqu/observation/samples/2026-10-08.json`）
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/summary.md:3:- 生成：2026-10-08T09:29:58.137411+00:00（mode=formal，tool=tools/w5_reconcile.py，git_head=1620c7c030bd1ea5eb096e0509b7f864c4e90a6d）
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/summary.md:5:- 事件正源：pipeline_events（写入 API=EventStore.append；db=`/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db`）
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:4:  "title": "tools/release_attest.py 全链实跑（build+sign+sbom+verify）——HEAD 1620c7c",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:7:    "full": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:8:    "short": "1620c7c",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:19:    {"path": "dist/wenqu-dist-1620c7c.tar.gz", "size": 7095163, "sha256": "e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607"},
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:20:    {"path": "dist/wenqu-dist-1620c7c.manifest.json", "size": 155696, "sha256": "6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560"},
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:21:    {"path": "dist/wenqu-dist-1620c7c.release.sig", "size": 620, "sha256": "8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3"},
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:22:    {"path": "dist/wenqu-dist-1620c7c.sbom.spdx.json", "size": 360080, "sha256": "76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:26:    "build_id": "rel-1620c7c-20261008T094952Z",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:44:    "report": "evidence/09-release-manifest-attestation/verify-report-1620c7c.json",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:45:    "console_log": "evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log"
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:63:    "python3 tools/release_attest.py sign --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring> --key-id key_release_w6p1f",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:64:    "python3 tools/release_attest.py sbom --manifest dist/wenqu-dist-1620c7c.manifest.json",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json:65:    "python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring <keyring>"
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:1:# release_attest 全链实跑（HEAD=1620c7c，2026-10-08T09:49:51Z）
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:5:BUILD OK  wenqu-dist-1620c7c
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:6:  commit   : 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数)
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:8:  tar.gz   : /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.tar.gz
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:10:  manifest : /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:13:SIGN OK  key_id=key_release_w6p1f  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:17:SBOM OK  →  /Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.sbom.spdx.json
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:21:$ python3 tools/release_attest.py verify --report evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:22:  PASS  manifest-schema  build_id=rel-1620c7c-20261008T094952Z
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:27:  PASS  build-identity  commit=1620c7c030bd… built_at=2026-10-08T09:49:52Z tool=release_attest.py@1.0.0
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log:28:  report → evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:33:- `release-attest-run-1620c7c.json` —— HEAD 1620c7c 全链实跑登记（build+sign+sbom+verify 全绿，含四件套 sha256）；
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:34:- `release-attest-run-1620c7c.log` —— 全链控制台日志（keyring 路径与 key_id 可见，**无 secret**）；
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:35:- `verify-report-1620c7c.json` —— verify 机器可读报告（六检查项全 PASS）。
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:41:| `dist/wenqu-dist-1620c7c.tar.gz`（642 文件，7,095,163 B） | `e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607` |
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:42:| `dist/wenqu-dist-1620c7c.manifest.json` | `6fd61cfef62d80a9dd87b0930065df6c94713d9f476678af6c08ab687eacd560` |
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:43:| `dist/wenqu-dist-1620c7c.release.sig`（key_release_w6p1f） | `8858b211594944bd3f129878cabef4f0adb7e68fdd63455fe3ae7bdf7dc138c3` |
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:44:| `dist/wenqu-dist-1620c7c.sbom.spdx.json`（SPDX 2.3，642 files，deps=0） | `76e765b25513b8fe630dd29cf5251903a18543f88b090cf24d12927aa583c57e` |
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/README.md:46:复验：`python3 tools/release_attest.py verify --manifest dist/wenqu-dist-1620c7c.manifest.json --keyring ~/.wenqu-dist-release/release-keyring.json`
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:5:   "detail": "build_id=rel-1620c7c-20261008T094952Z",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:30:   "detail": "commit=1620c7c030bd… built_at=2026-10-08T09:49:52Z tool=release_attest.py@1.0.0",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:35: "manifest": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.manifest.json",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:37: "sbom": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.sbom.spdx.json",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:39: "sig": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.release.sig",
+/private/tmp/reaudit7-d32c859-runtime/evidence/09-release-manifest-attestation/verify-report-1620c7c.json:40: "tar": "/Users/maccc/Documents/wenqu-dist/dist/wenqu-dist-1620c7c.tar.gz",
+/private/tmp/reaudit7-d32c859-runtime/system/tests/test_ac_ops_families.py:1524:            "observation/heartbeat.json", "observation/samples/2026-10-08.json",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:22:    "db_path": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:37:  "git_head": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23689:          "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23699:      "sidecar_path": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23700:      "source_dir": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23701:      "sqlite_path": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23719:          "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23729:      "sidecar_path": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23730:      "source_dir": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/reconcile-report.json:23731:      "sqlite_path": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db",
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:1:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 1, "line_sha": "940b10c3e3bd5952a11b5fe49cd746c4d817d78cda24144313aa3f9217561ff0", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:2:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 2, "line_sha": "af74b762ac483d97e211048e23a7888914275401cfe8f7a9892bf87432a6b343", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:3:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 3, "line_sha": "3ab1e3cd2b96ba17a0bed10a628322d739474d86b29f5d823d44f988c490626d", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:4:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 4, "line_sha": "e6b1d555fead1f570aec0730f03f1d87522358eac1b16af5b309a2c446ea405b", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:5:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 5, "line_sha": "2dff23d50e1db60c12a0c916dba85b8a18f90f8350d88b78a516a07ad0de943e", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:6:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 6, "line_sha": "80c0625e9d937abe0fa313a27f63108420307e8e9a78b2b10b1bdb21f970f139", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:7:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 7, "line_sha": "04384b59764083a00455a50a3a88613ad1ee9a7afb0ea2890eacba5c23975ef3", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:8:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 8, "line_sha": "d00362fe533eed899c07a08dfb2c8b684366d7f5f57321b116f7f70db67462ee", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:9:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 9, "line_sha": "3d3d6906a7ad990ea1429c8f3d3f1174551e5ea5e94416290c8c67edceb9fa18", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:10:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 10, "line_sha": "e2f179d6c20d082746235578853b40f1b051e98efb0d2359c043d34b666e1f0d", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:11:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 11, "line_sha": "24e3a56e22efe09c85f13bd1c39e05b298b3b801b0f1f5e22b815f5068b6afcc", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:12:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 12, "line_sha": "fb0df07d8fbec9e03dc7ae594cdfb8b4f92b6a9f0b5005f38201d25a5d79f954", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:13:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 13, "line_sha": "8811d5adf9f8efa25a0a4ce89ddf776e22139e2efc85c86f302d5ed3409520ed", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:14:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 14, "line_sha": "9c7fe286cccec43b556a35d62149f9b7d89e20b10882807c2d123d578c38fbd8", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:15:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 15, "line_sha": "6ab80af85c62dc235a30814c72f3e0b559ef83df0ca844f1dd11ee64bb03c2e3", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:16:{"decision": "quarantined", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 16, "line_sha": "3b42fcc58e2e9a9674037834cf5e0a0b08320ea9718d7a3a12a81627bf1fc8a1", "preview": "{\"evidence\": \"quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）\", \"gate\": \"用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1\", \"round\": \"r1630\", \"status\": \"ACCEPTED", "reason": "unknown_status:ACCEPTED-CLOSED"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:17:{"decision": "imported", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 17, "line_sha": "dfad37da9f5295840f32e38a08498bacff22ecad1e597b4d186e11331ecc9645", "status": "PASS"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:18:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 1, "line_sha": "940b10c3e3bd5952a11b5fe49cd746c4d817d78cda24144313aa3f9217561ff0"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:19:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 2, "line_sha": "af74b762ac483d97e211048e23a7888914275401cfe8f7a9892bf87432a6b343"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:20:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 3, "line_sha": "3ab1e3cd2b96ba17a0bed10a628322d739474d86b29f5d823d44f988c490626d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:21:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 4, "line_sha": "e6b1d555fead1f570aec0730f03f1d87522358eac1b16af5b309a2c446ea405b"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:22:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 5, "line_sha": "2dff23d50e1db60c12a0c916dba85b8a18f90f8350d88b78a516a07ad0de943e"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:23:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 6, "line_sha": "80c0625e9d937abe0fa313a27f63108420307e8e9a78b2b10b1bdb21f970f139"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:24:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 7, "line_sha": "04384b59764083a00455a50a3a88613ad1ee9a7afb0ea2890eacba5c23975ef3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:25:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 8, "line_sha": "d00362fe533eed899c07a08dfb2c8b684366d7f5f57321b116f7f70db67462ee"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:26:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 9, "line_sha": "3d3d6906a7ad990ea1429c8f3d3f1174551e5ea5e94416290c8c67edceb9fa18"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:27:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 10, "line_sha": "e2f179d6c20d082746235578853b40f1b051e98efb0d2359c043d34b666e1f0d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:28:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 11, "line_sha": "24e3a56e22efe09c85f13bd1c39e05b298b3b801b0f1f5e22b815f5068b6afcc"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:29:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 12, "line_sha": "fb0df07d8fbec9e03dc7ae594cdfb8b4f92b6a9f0b5005f38201d25a5d79f954"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:30:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 13, "line_sha": "8811d5adf9f8efa25a0a4ce89ddf776e22139e2efc85c86f302d5ed3409520ed"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:31:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 14, "line_sha": "9c7fe286cccec43b556a35d62149f9b7d89e20b10882807c2d123d578c38fbd8"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:32:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 15, "line_sha": "6ab80af85c62dc235a30814c72f3e0b559ef83df0ca844f1dd11ee64bb03c2e3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:33:{"decision": "quarantined", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 16, "line_sha": "3b42fcc58e2e9a9674037834cf5e0a0b08320ea9718d7a3a12a81627bf1fc8a1", "preview": "{\"evidence\": \"quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）\", \"gate\": \"用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1\", \"round\": \"r1630\", \"status\": \"ACCEPTED", "reason": "unknown_status:ACCEPTED-CLOSED"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:34:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 17, "line_sha": "dfad37da9f5295840f32e38a08498bacff22ecad1e597b4d186e11331ecc9645"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:35:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 1, "line_sha": "940b10c3e3bd5952a11b5fe49cd746c4d817d78cda24144313aa3f9217561ff0"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:36:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 2, "line_sha": "af74b762ac483d97e211048e23a7888914275401cfe8f7a9892bf87432a6b343"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:37:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 3, "line_sha": "3ab1e3cd2b96ba17a0bed10a628322d739474d86b29f5d823d44f988c490626d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:38:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 4, "line_sha": "e6b1d555fead1f570aec0730f03f1d87522358eac1b16af5b309a2c446ea405b"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:39:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 5, "line_sha": "2dff23d50e1db60c12a0c916dba85b8a18f90f8350d88b78a516a07ad0de943e"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:40:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 6, "line_sha": "80c0625e9d937abe0fa313a27f63108420307e8e9a78b2b10b1bdb21f970f139"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:41:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 7, "line_sha": "04384b59764083a00455a50a3a88613ad1ee9a7afb0ea2890eacba5c23975ef3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:42:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 8, "line_sha": "d00362fe533eed899c07a08dfb2c8b684366d7f5f57321b116f7f70db67462ee"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:43:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 9, "line_sha": "3d3d6906a7ad990ea1429c8f3d3f1174551e5ea5e94416290c8c67edceb9fa18"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:44:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 10, "line_sha": "e2f179d6c20d082746235578853b40f1b051e98efb0d2359c043d34b666e1f0d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:45:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 11, "line_sha": "24e3a56e22efe09c85f13bd1c39e05b298b3b801b0f1f5e22b815f5068b6afcc"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:46:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 12, "line_sha": "fb0df07d8fbec9e03dc7ae594cdfb8b4f92b6a9f0b5005f38201d25a5d79f954"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:47:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 13, "line_sha": "8811d5adf9f8efa25a0a4ce89ddf776e22139e2efc85c86f302d5ed3409520ed"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:48:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 14, "line_sha": "9c7fe286cccec43b556a35d62149f9b7d89e20b10882807c2d123d578c38fbd8"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:49:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 15, "line_sha": "6ab80af85c62dc235a30814c72f3e0b559ef83df0ca844f1dd11ee64bb03c2e3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:50:{"decision": "quarantined", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 16, "line_sha": "3b42fcc58e2e9a9674037834cf5e0a0b08320ea9718d7a3a12a81627bf1fc8a1", "preview": "{\"evidence\": \"quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）\", \"gate\": \"用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1\", \"round\": \"r1630\", \"status\": \"ACCEPTED", "reason": "unknown_status:ACCEPTED-CLOSED"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:51:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 17, "line_sha": "dfad37da9f5295840f32e38a08498bacff22ecad1e597b4d186e11331ecc9645"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:52:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 1, "line_sha": "940b10c3e3bd5952a11b5fe49cd746c4d817d78cda24144313aa3f9217561ff0"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:53:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 2, "line_sha": "af74b762ac483d97e211048e23a7888914275401cfe8f7a9892bf87432a6b343"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:54:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 3, "line_sha": "3ab1e3cd2b96ba17a0bed10a628322d739474d86b29f5d823d44f988c490626d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:55:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 4, "line_sha": "e6b1d555fead1f570aec0730f03f1d87522358eac1b16af5b309a2c446ea405b"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:56:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 5, "line_sha": "2dff23d50e1db60c12a0c916dba85b8a18f90f8350d88b78a516a07ad0de943e"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:57:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 6, "line_sha": "80c0625e9d937abe0fa313a27f63108420307e8e9a78b2b10b1bdb21f970f139"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:58:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 7, "line_sha": "04384b59764083a00455a50a3a88613ad1ee9a7afb0ea2890eacba5c23975ef3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:59:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 8, "line_sha": "d00362fe533eed899c07a08dfb2c8b684366d7f5f57321b116f7f70db67462ee"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:60:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 9, "line_sha": "3d3d6906a7ad990ea1429c8f3d3f1174551e5ea5e94416290c8c67edceb9fa18"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:61:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 10, "line_sha": "e2f179d6c20d082746235578853b40f1b051e98efb0d2359c043d34b666e1f0d"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:62:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 11, "line_sha": "24e3a56e22efe09c85f13bd1c39e05b298b3b801b0f1f5e22b815f5068b6afcc"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:63:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 12, "line_sha": "fb0df07d8fbec9e03dc7ae594cdfb8b4f92b6a9f0b5005f38201d25a5d79f954"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:64:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 13, "line_sha": "8811d5adf9f8efa25a0a4ce89ddf776e22139e2efc85c86f302d5ed3409520ed"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:65:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 14, "line_sha": "9c7fe286cccec43b556a35d62149f9b7d89e20b10882807c2d123d578c38fbd8"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:66:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 15, "line_sha": "6ab80af85c62dc235a30814c72f3e0b559ef83df0ca844f1dd11ee64bb03c2e3"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:67:{"decision": "quarantined", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 16, "line_sha": "3b42fcc58e2e9a9674037834cf5e0a0b08320ea9718d7a3a12a81627bf1fc8a1", "preview": "{\"evidence\": \"quality-system evidence/wenqu-v351-bugdeck（rounds.jsonl 4轮+ok判定行）\", \"gate\": \"用户验收（三连确认）·auto-close双0·done-gate gaps=0·S5七修·CI双绿·现役7789/7788=v3.5.1\", \"round\": \"r1630\", \"status\": \"ACCEPTED", "reason": "unknown_status:ACCEPTED-CLOSED"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl:68:{"decision": "duplicate", "file": "/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/staging-normalized/engine-rounds.jsonl", "line_no": 17, "line_sha": "dfad37da9f5295840f32e38a08498bacff22ecad1e597b4d186e11331ecc9645"}
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/06-final/release-and-workpack-inventory.txt:120:evidence/07-migration-reconcile direct_non_readme=0
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/03-workpackages/inventory.txt:9:evidence/07-migration-reconcile direct=1 recursive=1
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/06-evidence-content.log:489:====evidence/07-migration-reconcile/README.md====
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/06-evidence-content.log:725:evidence/07-migration-reconcile/README.md|1467|1791432401
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/28-increment-diff.log:103: evidence/07-migration-reconcile/README.md          |   36 +
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/28-increment-diff.log:229:A	evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log:442:./evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log:589:evidence/07-migration-reconcile
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log:590:evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-evidence/05-repo-inventory.log:717: evidence/07-migration-reconcile/README.md          |   36 +
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-schema/00-repo-inventory.txt:101:./evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/agent-core/01-tree.log:129:./evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/04-evidence-file-inventory.log:18:evidence/07-migration-reconcile	total=1	non_README=0
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/00-inventory.log:45:evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log:2:--- evidence/07-migration-reconcile
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log:3:evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit4-20261008-141341/09-review/09-timing-evidence-audit.log:4:79c8cc21b660ac8bf958f80c11d568c0980477fd8d8bf1ad717408c16c824b0d  evidence/07-migration-reconcile/README.md
+/private/tmp/reaudit7-d32c859-runtime/evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/00-baseline/repo-tree.txt:83:./evidence/07-migration-reconcile/README.md
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:51:57Z

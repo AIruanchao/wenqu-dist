@@ -1,0 +1,7 @@
+COMMAND: cp '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/13-p1f-delete-required-red.log' '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43a-p1f-delete-required-red.log'; cp '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/15-p1f-noop-semantic-bypass.log' '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43b-p1f-noop-full-acceptance-green.log'; shasum -a 256 '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43a-p1f-delete-required-red.log' '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43b-p1f-noop-full-acceptance-green.log'
+WORKDIR: /tmp
+EXIT_CODE: 0
+--- STDOUT ---
+b8b80224812d3ea2337b8dd26433566a1d111002be8321d668efdac3a3d0a29a  /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43a-p1f-delete-required-red.log
+8996a7d2d8aefcda6c85507585ee88e90a0dc30fd442692ecb1b8f3e34d964a8  /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/43b-p1f-noop-full-acceptance-green.log
+--- STDERR ---

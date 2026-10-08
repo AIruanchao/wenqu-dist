@@ -1,0 +1,16 @@
+[PASS] manifest 正门全对账: {'rc': 0, 'verdict': 'PASS', 'counts': {'required_total': 2, 'required_reported': 2, 'required_missing': 0, 'bypass_stations': 0, 'duplicates_ignored': 0, 'conflicts': 0, 'malformed': 0, 'scope_violations': 0}}
+[PASS] required 缺站必红: {'rc': 2, 'reasons': ['denominator_shrinkage: missing required stations [1]']}
+[PASS] 自报 coverage 分母缩水必红: {'rc': 2, 'reasons': ['scope_binding_violation [1:self_declared_denominator] (F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator 必须对账冻结 manifest)']}
+[PASS] scope_hash 漂移必红: {'rc': 2, 'reasons': ['scope_binding_violation [1:scope_hash_mismatch] (F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator 必须对账冻结 manifest)']}
+[PASS] manifest required 篡改 hash 复核必红: {'rc': 3, 'mode': 'manifest_invalid', 'reason': "run-manifest 不可用/验签失败 (/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit7-gate-gidse96d/manifest-tampered.json): /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit7-gate-gidse96d/manifest-tampered.json: manifest_hash mismatch (stored '09a92a1e4a2138b1df7ebd6178f618bbfe83226667fefd5addb0c6343663814c' != rec（manifest_hash 复核拒绝=冻结件被篡改或损坏）"}
+[PASS] 无 manifest 裸调用拒绝: {'rc': 3, 'mode': 'self_declared_refused'}
+[PASS] 全等等价重复仅按幂等重发: {'rc': 0, 'counts': {'required_total': 2, 'required_reported': 2, 'required_missing': 0, 'bypass_stations': 0, 'duplicates_ignored': 1, 'conflicts': 0, 'malformed': 0, 'scope_violations': 0}}
+[PASS] 重复站 attempt 不同必红: {'rc': 2, 'reasons': ['duplicate_station_conflict/duplicate_conflict [0] (attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)'], 'counts': {'required_total': 2, 'required_reported': 2, 'required_missing': 0, 'bypass_stations': 0, 'duplicates_ignored': 0, 'conflicts': 1, 'malformed': 0, 'scope_violations': 0}}
+[PASS] 重复站 artifact 不同必红: {'rc': 2, 'reasons': ['duplicate_station_conflict/duplicate_conflict [0] (attempt_id+scope_hash+coverage+artifact 摘要等价键不等——非幂等重发)'], 'counts': {'required_total': 2, 'required_reported': 2, 'required_missing': 0, 'bypass_stations': 0, 'duplicates_ignored': 0, 'conflicts': 1, 'malformed': 0, 'scope_violations': 0}}
+[PASS] 非 RFC3339 纯日期必红: {'rc': 2, 'reasons': ['station-result-v2 schema violation x1 [first=execution.started_at must be an RFC3339 date-time (full date+time+timezone; bare date/timezone-less rejected)]', 'malformed_station_result x1 [first=schema_invalid: execution.started_at must be an RFC3339 date-time (full date+time+timezone; bare date/timezone-less rejected)]', 'station_hard_failure [1]'], 'counts': {'required_total': 2, 'required_reported': 2, 'required_missing': 0, 'bypass_stations': 0, 'duplicates_ignored': 0, 'conflicts': 0, 'malformed': 1, 'scope_violations': 0}}
+[PASS] 正式 Draft-07 >64 边界如实存在: {'formal_error_count': 0, 'coverage': {'denominator': 10007, 'scanned': 10006}}
+[PASS] 镜像无界等值强制拒绝: {'mirror_errors': ['PASS coverage.scanned(10006) != denominator(10007) — denominator shrinkage']}
+[PASS] 聚合器把 >64 不等值强制 BLOCKED: {'verdict': 'BLOCKED', 'reasons': ['malformed_station_result x1 [first=schema_invalid: PASS coverage.scanned(10006) != denominator(10007) — denominator shrinkage]', 'station_hard_failure [0]']}
+[PASS] 镜像接受 >64 等值正控: {'coverage': {'denominator': 10007, 'scanned': 10007}}
+[PASS] schema 合法嵌套扩展不被镜像误拒: {'formal_errors': [], 'mirror_errors': [], 'verdict': 'PASS'}
+SUMMARY total=16 failures=0

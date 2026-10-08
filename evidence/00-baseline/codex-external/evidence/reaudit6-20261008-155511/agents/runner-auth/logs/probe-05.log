@@ -1,0 +1,12 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 05
+START=2026-10-08T16:01:19+0800
+{
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-05-o9dkzz8p",
+  "medium_p1_risk_rejected": "ApprovalRejected: approval rejected: risk payload.finding_fingerprints 必须与 run 实际可风险接受 finding 指纹精确匹配",
+  "probe": "05",
+  "timeout_conditional_attempt": "FAILED",
+  "timeout_run_terminal": "FAILED",
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:20+0800

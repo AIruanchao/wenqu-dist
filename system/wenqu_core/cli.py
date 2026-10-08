@@ -16,7 +16,12 @@
                  GateAggregator 的第一个生产消费者；F6-GATE-SCOPE-001：正门
                  须 --manifest <run-manifest.json>（required/分母取冻结值逐站
                  对账），无 manifest 裸调用默认拒绝、仅诊断可显式
-                 --allow-self-declared；退出码 PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
+                 --allow-self-declared；R7-GATE-MANIFEST-AUTH-001：--manifest
+                 正门必须 --verify-key <keyring> 验签（HMAC-SHA256 签名——
+                 无签名/验签失败/key 未知或已吊销一律 ERROR），无签名 manifest
+                 仅诊断可显式 --allow-unsigned，顶层与 planner 不一致
+                 （required/TTL/scope/分母）一律 BLOCKED；退出码
+                 PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
 
 审批 JSON 即 approval-v2 信封（含 key_id + HMAC-SHA256 签名）——签发侧用
 wenqu_core.approval_keys.sign_envelope 生成；CLI 只消费不签发（权限分离）。
@@ -48,7 +53,7 @@ from wenqu_core.approval_keys import (  # noqa: E402
     ensure_keyring_dir, generate_secret, save_key_meta, write_key_to_dir,
 )
 from wenqu_core.bugscan_orchestrator import (  # noqa: E402
-    ManifestFreezeError, RunManifest,
+    ManifestFreezeError, RunManifest, validate_manifest_consistency,
 )
 from wenqu_core.gate_aggregator import (  # noqa: E402
     BLOCKED, GateAggregator, mirror_validate_station_result_v2,
@@ -583,6 +588,14 @@ def cmd_gate(args: argparse.Namespace) -> int:
     station result 的 identity.scope_hash/commit_sha 与 coverage.denominator
     ——缺站/缩水/自报分母一律 BLOCKED（exit 2）。
 
+    可信根（R7-GATE-MANIFEST-AUTH-001，第七轮洞1 根修）：--manifest 正门
+    必须 --verify-key <keyring>——manifest 冻结件须携带 release/manifest
+    专用 key 的 HMAC-SHA256 签名并验签通过；无签名/验签失败/key 未知或
+    已吊销一律 ERROR(3)。无签名 manifest 仅诊断可显式 --allow-unsigned
+    降级（默认拒）。顶层与 planner 的 required/TTL/scope/分母任何不一致
+    → manifest_consistency_violation 并整线 BLOCKED（一致性校验独立于
+    签名——第七轮反例：改顶层 required 重算 hash/删 TTL/内部不一致）。
+
     无 manifest 裸调用默认拒绝（exit 3）：required/coverage 自报不具上绿
     效力背书，必须显式 --allow-self-declared（仅诊断用途）。
 
@@ -596,6 +609,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     """
     # 0. 模式裁定：--manifest 正门 / --allow-self-declared 诊断豁免 / 默认拒绝。
     manifest: Optional[RunManifest] = None
+    manifest_keyring: Optional[ApprovalKeyring] = None
+    manifest_unsigned_downgrade = False
     if args.manifest:
         if args.allow_self_declared:
             return _gate_error_json(
@@ -611,25 +626,64 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 mode="flag_conflict",
                 inputs={"paths": 0, "docs": 0, "load_errors": 0,
                         "schema_invalid": 0})
+        if args.verify_key:
+            try:
+                manifest_keyring = ApprovalKeyring.from_path(args.verify_key)
+            except (OSError, ValueError) as exc:
+                return _gate_error_json(
+                    f"--verify-key keyring 加载失败 ({args.verify_key}): "
+                    f"{str(exc)[:160]}",
+                    mode="verify_key_invalid",
+                    inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                            "schema_invalid": 0})
+        elif not args.allow_unsigned:
+            return _gate_error_json(
+                "--manifest 正门必须 --verify-key <keyring>"
+                "（R7-GATE-MANIFEST-AUTH-001：冻结件须以 release/manifest "
+                "专用 key 验签——纯 manifest_hash 任何人都能重算，不构成"
+                "可信根）。无签名 manifest 仅诊断可显式 --allow-unsigned",
+                mode="manifest_key_required",
+                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                        "schema_invalid": 0})
         try:
-            manifest = RunManifest.load(args.manifest)
+            manifest = RunManifest.load(
+                args.manifest, keyring=manifest_keyring,
+                allow_unsigned=args.allow_unsigned)
         except (OSError, json.JSONDecodeError, ManifestFreezeError,
                 KeyError, TypeError, ValueError) as exc:
             return _gate_error_json(
                 f"run-manifest 不可用/验签失败 ({args.manifest}): "
-                f"{str(exc)[:200]}（manifest_hash 复核拒绝=冻结件被篡改或损坏）",
+                f"{str(exc)[:200]}（manifest_hash 复核拒绝=冻结件被篡改或损坏；"
+                "签名验签拒绝=无密钥伪造/未知或已吊销 key）",
                 mode="manifest_invalid",
                 inputs={"paths": 0, "docs": 0, "load_errors": 0,
                         "schema_invalid": 0})
-    elif not args.allow_self_declared:
-        return _gate_error_json(
-            "gate 拒绝自报模式：无 --manifest 的裸调用默认拒绝"
-            "（F6-GATE-SCOPE-001：required 站集合与 coverage 分母不得由结果自报）。"
-            "正门路径：--manifest <run-manifest.json>（freeze_run_manifest 冻结"
-            "产物）；仅诊断用途可显式 --allow-self-declared",
-            mode="self_declared_refused",
-            inputs={"paths": 0, "docs": 0, "load_errors": 0,
-                    "schema_invalid": 0})
+        if not manifest.signature:
+            # 显式 --allow-unsigned 才能走到这里（load 默认拒无签名件）
+            manifest_unsigned_downgrade = True
+    else:
+        if args.verify_key:
+            return _gate_error_json(
+                "--verify-key 仅与 --manifest 搭配（无 manifest 即无信任根可验）",
+                mode="flag_conflict",
+                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                        "schema_invalid": 0})
+        if args.allow_unsigned:
+            return _gate_error_json(
+                "--allow-unsigned 仅与 --manifest 搭配（自报路径本就无 manifest）",
+                mode="flag_conflict",
+                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                        "schema_invalid": 0})
+        if not args.allow_self_declared:
+            return _gate_error_json(
+                "gate 拒绝自报模式：无 --manifest 的裸调用默认拒绝"
+                "（F6-GATE-SCOPE-001：required 站集合与 coverage 分母不得由结果自报）。"
+                "正门路径：--manifest <run-manifest.json>（freeze_run_manifest 冻结"
+                "产物）+ --verify-key <keyring>；仅诊断用途可显式 "
+                "--allow-self-declared",
+                mode="self_declared_refused",
+                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                        "schema_invalid": 0})
 
     # 1. 展开 --results：文件直取；目录按名序取 *.json。
     paths: List[str] = []
@@ -770,6 +824,19 @@ def cmd_gate(args: argparse.Namespace) -> int:
             strict_violations.append(
                 {"error": errors[0] if isinstance(errors, list) else str(errors)})
 
+    # 5b. manifest 自一致性校验（R7-GATE-MANIFEST-AUTH-001：独立于签名——
+    #     顶层与 planner 的 required/TTL/scope/分母任何不一致都 BLOCKED，
+    #     即使签名合法或显式 --allow-unsigned 降级也不例外）。
+    manifest_violations: List[str] = []
+    if manifest is not None:
+        try:
+            with open(args.manifest, "r", encoding="utf-8") as fh:
+                manifest_raw = json.load(fh)
+        except (OSError, json.JSONDecodeError):  # 理论不可达（load 已复核过）
+            manifest_violations = ["manifest_raw_unreadable"]
+        else:
+            manifest_violations = validate_manifest_consistency(manifest_raw)
+
     # 6. 聚合（GateAggregator 宽松读+严格出；C1-C6 全在 aggregate 内裁决）。
     agg_kwargs: Dict[str, Any] = {}
     if manifest is not None:
@@ -793,6 +860,19 @@ def cmd_gate(args: argparse.Namespace) -> int:
         result["reasons"] = [reason] + list(result.get("reasons", []))
         result["reason"] = reason
 
+    # 7b. manifest 一致性违例强制 BLOCKED（R7-GATE-MANIFEST-AUTH-001：
+    #     顶层/planner 的 required/TTL/scope/分母不一致——重算 hash 洗不白）。
+    if manifest_violations:
+        if result.get("aggregate_outcome") != BLOCKED:
+            result["aggregate_outcome"] = BLOCKED
+            result["policy_verdict"] = BLOCKED
+            result["technical_eligible"] = False
+        first_m = manifest_violations[0]
+        reason_m = (f"manifest_consistency_violation x{len(manifest_violations)} "
+                    f"[first={first_m[:160]}]")
+        result["reasons"] = [reason_m] + list(result.get("reasons", []))
+        result["reason"] = reason_m
+
     result["inputs"] = {
         "paths": len(paths),
         "docs": len(docs),
@@ -812,6 +892,15 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "required_stations": sorted(manifest.required_stations),
             "commit_sha": manifest.commit_sha,
             "environment": manifest.environment,
+            # R7-GATE-MANIFEST-AUTH-001：信任根证据（签名/验签/降级口径）
+            "signature": {
+                "signed": bool(manifest.signature),
+                "key_id": manifest.key_id,
+                "verified": bool(manifest.signature)
+                            and manifest_keyring is not None,
+                "allow_unsigned_downgrade": bool(manifest_unsigned_downgrade),
+            },
+            "consistency_violations": len(manifest_violations),
         }
     else:
         result["mode"] = "self_declared_diagnostic"
@@ -906,7 +995,7 @@ def build_parser() -> argparse.ArgumentParser:
         "gate",
         help="聚合 station-result-v2 结果为整线 gate 判定（退出码 "
              "PASS=0/FAIL=1/BLOCKED=2/ERROR=3；F6-GATE-SCOPE-001：正门须 "
-             "--manifest，裸调用默认拒绝）")
+             "--manifest + --verify-key，裸调用默认拒绝）")
     p.add_argument("--results", nargs="+", required=True, metavar="PATH",
                    help="station-result-v2 JSON 文件或目录（目录按名序取 "
                         "*.json；可给多个）")
@@ -915,12 +1004,27 @@ def build_parser() -> argparse.ArgumentParser:
                         "正门路径：required 站集合/coverage 分母/身份一律取 "
                         "manifest 冻结值（manifest_hash 防篡改复核），逐站对账 "
                         "identity.scope_hash+commit_sha 与 coverage.denominator，"
-                        "缺站/缩水/自报分母一律 BLOCKED")
+                        "缺站/缩水/自报分母一律 BLOCKED；正门必须搭配 "
+                        "--verify-key（R7-GATE-MANIFEST-AUTH-001）")
+    p.add_argument("--verify-key", default=None, dest="verify_key",
+                   metavar="KEYRING",
+                   help="manifest 验签 keyring（目录或 JSON 文件；与 "
+                        "--manifest 搭配必填）——manifest 冻结件须携带 "
+                        "release/manifest 专用 key 的 HMAC-SHA256 签名；"
+                        "无签名/验签失败/key 未知或已吊销一律 ERROR(3)"
+                        "（R7-GATE-MANIFEST-AUTH-001：纯 manifest_hash "
+                        "可被任何人重算，不构成可信根）")
+    p.add_argument("--allow-unsigned", dest="allow_unsigned",
+                   action="store_true",
+                   help="仅诊断用途：显式接受无签名 manifest（默认拒——"
+                        "无信任根的冻结件不具上绿效力背书；生产判定必须 "
+                        "--verify-key 验签。一致性校验仍强制：顶层与 planner "
+                        "的 required/TTL/scope/分母不一致照样 BLOCKED）")
     p.add_argument("--allow-self-declared", dest="allow_self_declared",
                    action="store_true",
                    help="仅诊断用途：显式承认无 manifest 的自报模式（required "
                         "站集合与 coverage 分母由结果自报，判定不具上绿效力"
-                        "背书）；生产判定必须走 --manifest")
+                        "背书）；生产判定必须走 --manifest + --verify-key")
     p.add_argument("--required", default=None, metavar="IDS",
                    help="必报站 id 逗号分隔（如 2,7）；缺省=全部已上报站"
                         "（任何站缺报/硬失败都不得 PASS）；与 --manifest 互斥"

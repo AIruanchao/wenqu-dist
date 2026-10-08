@@ -1,0 +1,16 @@
+CAPTURED_AT=2026-10-08T15:56:03,074258000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_wenqu_pipeline.py 
+--- OUTPUT ---
+  ok  规则引擎（七段/转换/双轴/九类前置/bool 客观化）
+  ok  全流程七段 PASS → SUCCEEDED + 重放一致
+  ok  FAIL 重试 → 新 attempt_id，旧 attempt 不可变
+  ok  九类停等 raise→resume（必要且充分）
+  ok  审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希/验签）
+  ok  并发双消费：恰好一个成功
+  ok  COMPLETED_CONDITIONAL 终态 + risk 授权指纹匹配
+  ok  cancel/supersede/not_found/FAILED
+  ok  与 EventStore.append 交错链完整性
+  ok  与 approval-v2 schema 交叉验证
+
+P0-2 状态机+审批 Broker: 10 PASS / 0 FAIL
+--- EXIT_CODE=0 ---

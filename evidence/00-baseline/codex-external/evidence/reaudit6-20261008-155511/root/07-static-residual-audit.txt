@@ -1,0 +1,887 @@
+=== identity frozen copy ===
+3343dc9537f7daeab1ad984601371ee1c024a761f02067fb6209dbfb8b318001  system/wenqu_core/runner.py
+3.7.0
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+=== TODO/placeholder/stub/not implemented ===
+evidence/12-rollback-drill/README.md:21:- 相邻：acceptance.sh P0 节验证「升级安装将旧 auto-merge writer 覆盖为安全 stub」，是安装收敛
+system/tests/test_ac_gate_family.py:26:- system/daemons/auto-merge.sh        P0 封存 stub（MRG-01 执行器腿：不合流）
+system/tests/test_ac_gate_family.py:84:AUTO_MERGE_STUB = SYSTEM_DIR / "daemons" / "auto-merge.sh"
+system/tests/test_ac_gate_family.py:451:        # 对照组：TTL 内的证据可正常适配为 PASS
+system/tests/test_ac_gate_family.py:502:        # 执行器腿：真实 auto-merge stub（P0 封存）在该场景下同样拒绝合流
+system/tests/test_ac_gate_family.py:504:            ["bash", str(AUTO_MERGE_STUB), "ignored"],
+system/tests/test_ac_gate_family.py:508:            "auto-merge stub 必须拒绝执行（不合流）")
+evidence/09-release-manifest-attestation/README.md:25:| `system/install.sh` 安装行为证据 | acceptance.sh P0 节覆盖「升级覆盖旧 writer 为安全 stub」（绿），但 doctor 吞错修复的完整正反例未落档 |
+system/tests/test_ac_state_mig.py:947:            pass
+system/tests/test_ac_state_mig.py:960:            pass
+system/tests/test_ac_state_mig.py:1007:        pass
+evidence/03-red-probes-before/README.md:9:重放边界（§20 强制）：旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；
+system/install.sh:81:# P0 containment：安装面始终收敛为不可启动的审计 stub。
+tools/ac_traceability.py:584:        pass
+system/tests/test_ac_act_run.py:862:                    pass
+system/tests/test_runner_daemon.py:155:                pass
+system/tests/test_wenqu_pipeline.py:159:    # 推进 7 段：首次不带 outcome 启动 S1，随后逐段 PASS
+system/tests/test_wenqu_pipeline.py:502:    for i in range(6):  # S1..S6 PASS
+system/tests/test_wenqu_adversarial.py:12:  #7  控制事件直写：公共 EventStore.append 注入 RUN_COMPLETED/PASS
+system/tests/test_wenqu_adversarial.py:303:            pass
+system/tests/test_wenqu_adversarial.py:305:        pass
+system/tests/test_wenqu_adversarial.py:608:            pass
+system/tests/test_wenqu_adversarial.py:616:        pass
+tools/observation_daily.py:121:            pass
+tools/observation_daily.py:251:            pass
+tools/observation_daily.py:262:                pass
+tools/observation_daily.py:266:            pass
+tools/observation_daily.py:405:                pass
+system/bin/wenqu-dashboard.py:589:        pass
+system/bin/wenqu-dashboard.py:785:                    pass
+system/bin/wenqu-dashboard.py:850:        pass
+system/bin/wenqu-dashboard.py:940:                pass
+system/bin/wenqu-dashboard.py:950:                        pass
+system/bin/wenqu-dashboard.py:974:                    pass
+system/bin/wenqu-dashboard.py:998:                            pass
+system/bin/wenqu-dashboard.py:1003:                pass
+system/bin/wenqu-dashboard.py:1043:                        pass
+system/bin/wenqu-dashboard.py:1062:                        pass
+system/bin/wenqu-dashboard.py:1075:                pass
+system/bin/wenqu-dashboard.py:1111:                pass
+system/bin/wenqu-dashboard.py:1129:                pass
+system/bin/wenqu-dashboard.py:1151:                        pass
+system/bin/wenqu-dashboard.py:1232:                pass
+system/bin/wenqu-dashboard.py:1246:                            pass
+system/bin/wenqu-dashboard.py:1263:            except Exception: pass
+system/bin/wenqu-dashboard.py:1270:            except Exception: pass
+system/bin/wenqu-dashboard.py:1276:            except Exception: pass
+system/tests/test_ac_ops_families.py:23:被测体（全部真实注入、真实断言，零 mock 产品行为）：
+system/tests/test_ac_ops_families.py:216:                pass
+system/tests/test_ac_ops_families.py:1250:        pass
+system/wenqu_core/station7_runtime.py:31:- Station5LiveFirePlaceholder：实弹面需所有者明确口令（一次性
+system/wenqu_core/station7_runtime.py:33:- Station6AdversarialPlaceholder：对抗面需 ≥2 独立上下文（S3 对抗/
+system/wenqu_core/station7_runtime.py:82:    "Station5LiveFirePlaceholder",
+system/wenqu_core/station7_runtime.py:83:    "Station6AdversarialPlaceholder",
+system/wenqu_core/station7_runtime.py:681:                "strings containing the {token} placeholder"
+system/wenqu_core/station7_runtime.py:700:            pass
+system/wenqu_core/station7_runtime.py:930:class Station5LiveFirePlaceholder:
+system/wenqu_core/station7_runtime.py:951:    IMPLEMENTED = False
+system/wenqu_core/station7_runtime.py:964:        argv = ["wenqu_core.station7_runtime", "station5-live-fire-placeholder",
+system/wenqu_core/station7_runtime.py:969:            attempt_id=_attempt_id(self._manifest.run_id, "st5-placeholder"),
+system/wenqu_core/station7_runtime.py:974:                "name": "wenqu_core.station7_runtime.Station5LiveFirePlaceholder",
+system/wenqu_core/station7_runtime.py:990:class Station6AdversarialPlaceholder:
+system/wenqu_core/station7_runtime.py:1001:      Station5LiveFirePlaceholder（占位判定进程内完成）。
+system/wenqu_core/station7_runtime.py:1005:    IMPLEMENTED = False
+system/wenqu_core/station7_runtime.py:1018:        argv = ["wenqu_core.station7_runtime", "station6-adversarial-placeholder",
+system/wenqu_core/station7_runtime.py:1023:            attempt_id=_attempt_id(self._manifest.run_id, "st6-placeholder"),
+system/wenqu_core/station7_runtime.py:1028:                "name": "wenqu_core.station7_runtime.Station6AdversarialPlaceholder",
+system/wenqu_core/station7_runtime.py:1274:        st5 = Station5LiveFirePlaceholder(manifest).scan(
+system/wenqu_core/station7_runtime.py:1279:        st6 = Station6AdversarialPlaceholder(manifest).scan(
+system/wenqu_core/station7_runtime.py:1283:        assert Station5LiveFirePlaceholder.IMPLEMENTED is False
+system/wenqu_core/station7_runtime.py:1284:        assert Station6AdversarialPlaceholder.IMPLEMENTED is False
+system/wenqu_core/station7_runtime.py:1285:        print("[5] placeholders OK: 站5/站6 占位 → BLOCKED/NOT_APPLICABLE（含授权参数亦然）")
+system/tests/test_gate_schema_hardening.py:6:  F4-GATE-001  聚合器吃 Schema-invalid 输入判 PASS
+system/bin/gate-learner.py:105:        "pattern": r"vi\.clearAllMocks|mock.*语义漂移",
+system/bin/gate-learner.py:106:        "rule_id": "AUTO_MOCK_DRIFT",
+system/bin/gate-learner.py:107:        "check": "vi.clearAllMocks 后依赖默认 impl",
+system/bin/gate-learner.py:108:        "fix": "改用 vi.restoreAllMocks 或显式 mock",
+system/bin/gate-learner.py:155:                pass
+system/wenqu_core/gate_aggregator.py:30:    PASS                        -> PASS
+system/wenqu_core/gate_aggregator.py:46:    PASS/PASSED/OK/SUCCESS/GREEN                            -> PASS
+system/wenqu_core/gate_aggregator.py:415:            return PASS
+system/wenqu_core/gate_aggregator.py:664:            outcome = PASS
+system/docs/constitution-template.md:19:完成语义｜收敛纪律（N 轮异源+工件落账）｜实现/验证分离（禁自证）｜生产写口令｜mock 不掩盖契约断链｜fail-closed｜口径唯一（语义变更三件套）｜基线只进不退｜账本留痕｜战训闭环｜守护文件原命令重算｜事故回流规格。
+system/tests/test_ac_station_families.py:19:- 全部走模块内既有的桩/合成数据通道（_StubRunner 罐头应答、结构化 payload、
+system/tests/test_ac_station_families.py:133:class _StubRunner(RawTrustedRunner):
+system/tests/test_ac_station_families.py:149:        raise AssertionError(f"stub runner: no canned response for {argv}")
+system/tests/test_ac_station_families.py:347:        pass
+system/tests/test_ac_station_families.py:438:        runner = _StubRunner([
+system/tests/test_ac_station_families.py:477:        runner = _StubRunner([
+system/tests/test_ac_station_families.py:685:            pass
+system/tests/test_ac_station_families.py:726:        pass
+system/tests/test_ac_station_families.py:748:        pass
+system/tests/test_ac_station_families.py:755:        pass
+system/tests/test_ac_station_families.py:762:        pass
+system/tests/test_ac_station_families.py:770:        pass
+system/tests/test_ac_station_families.py:808:        pass
+system/tests/test_ac_station_families.py:818:    runner = _StubRunner([
+system/tests/test_ac_station_families.py:867:        runner = _StubRunner([
+system/tests/test_ac_station_families.py:903:        runner = _StubRunner([
+system/tests/test_ac_station_families.py:1023:        pass
+system/tests/test_ac_station_families.py:1270:        pass
+system/tests/test_ac_station_families.py:1286:            pass
+system/tests/test_ac_auth_cond.py:1099:        time.sleep(3)  # 真实等待过期（非 mock）
+system/wenqu_core/runner.py:210:                pass
+system/wenqu_core/runner.py:219:                pass
+system/wenqu_core/runner.py:509:                pass
+system/wenqu_core/runner.py:514:            pass
+system/docs/specs/wenqu-vNext-contract.md:24:- `UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT` 均是阻断态，不得折算为 PASS
+system/docs/specs/wenqu-vNext-contract.md:82:1. 任一 required probe 非 PASS 时整线不得 PASS
+system/wenqu_core/source_gate.py:712:                result["exit_code"] = EXIT_PASS
+system/wenqu_core/source_gate.py:740:                    result["exit_code"] = EXIT_PASS
+system/wenqu_core/station3_contract.py:1728:        pass
+system/wenqu_core/station3_contract.py:1766:        pass
+system/wenqu_core/station3_contract.py:1772:        pass
+system/wenqu_core/station3_contract.py:1783:        pass
+system/wenqu_core/station3_contract.py:1790:        pass
+system/wenqu_core/station3_contract.py:1820:        pass
+system/wenqu_core/station2_static.py:372:    return _EXIT_PASS
+system/wenqu_core/station2_static.py:1723:    class _StubRunner(RawTrustedRunner):
+system/wenqu_core/station2_static.py:1735:            raise AssertionError(f"stub runner: no canned response for {argv}")
+system/wenqu_core/station2_static.py:1835:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1847:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1860:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1868:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1873:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1879:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1891:        runner = _StubRunner([(lambda a: a[0] == "npx", jscpd_respond(jscpd_report))])
+system/wenqu_core/station2_static.py:1901:        runner = _StubRunner([(lambda a: a[0] == "npx", jscpd_respond(jscpd_report))])
+system/wenqu_core/station2_static.py:1907:        runner = _StubRunner([(lambda a: a[0] == "npx", jscpd_respond(jscpd_report))])
+system/wenqu_core/station2_static.py:1912:        runner = _StubRunner([(lambda a: a[0] == "npx", jscpd_respond(bad_report))])
+system/wenqu_core/station2_static.py:1921:        rep = EngineFiveTypesScanner(runner=_StubRunner([]), engine_state_path=str(engine_state), **base_kwargs).scan()
+system/wenqu_core/station2_static.py:1928:        rep = EngineFiveTypesScanner(runner=_StubRunner([]), engine_state_path=str(engine_state), **base_kwargs).scan()
+system/wenqu_core/station2_static.py:1934:        rep = EngineFiveTypesScanner(runner=_StubRunner([]), engine_state_path=str(engine_state), **base_kwargs).scan()
+system/wenqu_core/station2_static.py:1938:        rep = EngineFiveTypesScanner(runner=_StubRunner([]), engine_state_path=str(tmp_path / "absent.json"), **base_kwargs).scan()
+system/wenqu_core/station2_static.py:1945:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1953:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1959:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1964:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:1969:        rep = RouteIntegrityScanner(runner=_StubRunner([]), route_probe_argv=None, **base_kwargs).scan()
+system/wenqu_core/station2_static.py:1974:            runner=_StubRunner([]), route_probe_argv=probe,
+system/wenqu_core/station2_static.py:1986:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:2008:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:2027:        runner = _StubRunner([
+system/wenqu_core/station2_static.py:2054:                pass
+system/wenqu_core/station2_static.py:2057:            runner=_StubRunner([
+system/wenqu_core/station4_behavior.py:281:                "the {output_file} placeholder (report contract)"
+system/wenqu_core/station4_behavior.py:1178:                pass
+system/wenqu_core/bugscan_orchestrator.py:894:                pass
+system/wenqu_core/bugscan_orchestrator.py:1663:        pass
+system/wenqu_core/bugscan_orchestrator.py:1677:        pass
+system/wenqu_core/bugscan_orchestrator.py:1687:        pass
+system/wenqu_core/bugscan_orchestrator.py:1697:        pass
+system/wenqu_core/wenqu_pipeline.py:953:        # 契约 §2：阻断态不得折算为 PASS——执行非 COMPLETED 时策略不得 PASS
+system/dashboard/server.py:173:                    pass
+system/dashboard/server.py:188:        pass
+system/dashboard/server.py:210:        pass
+system/dashboard/server.py:225:                pass
+system/dashboard/server.py:257:            pass
+system/dashboard/server.py:278:            pass
+system/dashboard/server.py:299:                    pass
+system/dashboard/server.py:321:        pass
+system/dashboard/server.py:344:        pass
+system/dashboard/server.py:515:                    pass
+system/dashboard/server.py:919:        pass
+=== scheduler/outbox/backup symbols ===
+tools/observation_daily.py:2:"""W10 观察窗 + W9 shadow 每日采样器（只读，不改产品码，仓外落盘）。
+tools/observation_daily.py:7:W9 shadow 时钟（~/.wenqu/observation/shadow/YYYY-MM-DD.json）：
+tools/observation_daily.py:19:  shadow 比对优先取 /api/v1/health 的 200 JSON；两条路径的原始探测结果都会落盘。
+tools/observation_daily.py:38:SHADOW_DIR = os.path.join(OBS_ROOT, "shadow")
+tools/observation_daily.py:230:# ---------------------------------------------------------------- W9 shadow
+tools/observation_daily.py:306:def probe_shadow():
+tools/observation_daily.py:314:    server_log_path = os.path.join(LOGS_DIR, "shadow-server-" + date.today().isoformat() + ".log")
+tools/observation_daily.py:429:    shadow = {
+tools/observation_daily.py:430:        "window": "W9-shadow-clock",
+tools/observation_daily.py:432:        "shadow": safe(probe_shadow),
+tools/observation_daily.py:436:    shadow_path = os.path.join(SHADOW_DIR, today + ".json")
+tools/observation_daily.py:438:    write_json_atomic(shadow_path, shadow)
+tools/observation_daily.py:443:    sh = shadow["shadow"]
+tools/observation_daily.py:448:        "shadow_path": shadow_path,
+tools/observation_daily.py:450:        "shadow_compare": cmp_,
+tools/observation_daily.py:451:        "shadow_ready": sh.get("ready") if isinstance(sh, dict) else None,
+tools/ac_traceability.py:42:    "ACT": ("REQ-ACT-001", "AC-ACT-SAGA", "W2/W3B/W7B", "outbox、external receipt、reconcile"),
+tools/ac_traceability.py:52:    "ALT": ("REQ-ALERT-001", "AC-ALERT-DELIVERED", "W4", "outbox/attempt/receipt/dead-letter"),
+tools/ac_traceability.py:53:    "BAK": ("REQ-BACKUP-001", "AC-BACKUP-RESTORABLE", "W4/W7A", "checkpoint/restore drill"),
+tools/ac_traceability.py:61:    "DEP": ("REQ-DEPLOY-001", "AC-DEPLOY-FENCED", "W7A/W7B", "lease/migration/activation events"),
+tools/ac_traceability.py:67:    "DR": ("REQ-DR-001", "AC-DR-RPO-RTO", "W4/W7B/W10", "restored state/RPO/RTO timing"),
+tools/ac_traceability.py:89:    ("ACT", 1): ("technical PASS，但无 exact merge/release action authorization",
+tools/ac_traceability.py:93:    ("ACT", 3): ("check 发布前/后 crash 或回执丢失", "outbox 幂等恢复；同一 check_run 更新，不产生伪双绿"),
+tools/ac_traceability.py:94:    ("ACT", 4): ("merge/release 调用前/后 crash 或回执丢失", "先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试"),
+tools/ac_traceability.py:96:    ("ACT", 6): ("merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段", "schema 拒绝"),
+tools/ac_traceability.py:140:    ("ALT", 1): ("provider 500/超时", "outbox 重试/dead-letter"),
+tools/ac_traceability.py:141:    ("BAK", 1): ("磁盘满/tar/backup 失败", "不更新 success"),
+tools/ac_traceability.py:190:    ("SCH", 5): ("scheduler 整体故障", "独立 watchdog 仍告警"),
+tools/ac_traceability.py:193:    ("DEP", 1): ("两个部署者争 lease", "最多一个成功"),
+tools/ac_traceability.py:196:    ("DEP", 4): ("自签/替换/revoked release key", "拒绝"),
+tools/ac_traceability.py:197:    ("DEP", 5): ("previous release 超 schema 范围", "拒绝回滚"),
+tools/ac_traceability.py:200:    ("DEP", 8): ("ROLLBACK_FAILED", "writer/merge/release 熔断并停等人工恢复"),
+tools/ac_traceability.py:201:    ("DEP", 9): ("观察窗内夹带 contract/down migration", "拒绝；要求独立授权变更"),
+tools/ac_traceability.py:208:    ("DOC", 3): ("policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本", "CI 阻断"),
+tools/ac_traceability.py:210:    ("ALT", 2): ("waiting 到期但零 send attempt/receipt", "ERROR+告警，不能以 watchdog exit0 记健康"),
+system/bin/wenqu-dashboard.py:83:.scard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;transition:transform .18s,border-color .18s,opacity .3s,box-shadow .18s;animation:pop .45s both}
+system/bin/wenqu-dashboard.py:85:.scard.now{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok),0 0 18px #3fb95033}
+system/bin/wenqu-dashboard.py:96:#ringcard.now{border-color:var(--ok);border-style:solid;box-shadow:0 0 22px #3fb95033}
+system/bin/wenqu-dashboard.py:316: {n:'C',name:'验收三法（跨模型审最高优先）',tier:'§9b C',exec:'跨模型审（v2.0 新增）：GLM 收敛到零后必须送至少一个异族模型终审（Codex/K3/M3）——实证 GLM 12 轮收敛到 0，Codex 一轮 8 HIGH + K3 一轮 3 Critical 全漏（同族认知盲区=结构性限制，无法靠更多轮修复）；变异测试=夹具有效性唯一可信法（把修复还原为坏形态→全套测试必须红，绿了=假绿夹具）；文档修复验收=逐变更点 assert + git diff 非零',pass:'工具通道：codex exec --skip-git-repo-check -s read-only ／ mmx text chat --model kimi-k3；机械闸（release-check 类）——首跑即抓漏=防线生效实证'}
+system/bin/wenqu-dashboard.py:322: {n:4,name:'DB 漂移周哨兵',st:'站3',badge:'✅现役',one:'db-schema-recon-4track 漂移白名单周扫',det:'launchd 周一 08:00 + erp_readonly 只读账户 + watchdog；首跑 CLEAN（基线 27 还在收敛）'},
+system/bin/wenqu-dashboard.py:910:                    _DECIDE_LOCK.release()
+system/bin/wenqu-dashboard.py:1210:                _SSE_SEM.release()
+system/wenqu_core/station7_runtime.py:618:                           "station7-canary", "{token}"],   # 必含 {token}
+system/wenqu_core/station7_runtime.py:619:         "receipt_path": "/tmp/canary-receipt.json"}
+system/wenqu_core/station7_runtime.py:624:    3. 回执含 ``{"delivered": true, "canary_token": "<本次令牌>"}``
+system/wenqu_core/station7_runtime.py:697:                if payload.get("delivered") is True and payload.get("canary_token") == token:
+system/wenqu_core/station7_runtime.py:1183:            "payload = {'delivered': True, 'canary_token': token}\n"
+system/wenqu_core/station7_runtime.py:1185:            "    payload['canary_token'] = 'preset-forged-token'\n"
+system/bin/spec-reconcile.py:2:"""spec-reconcile —— 月度域规格对账（v2.1 风险表 S5 必改④，W2 起每月）
+system/bin/spec-reconcile.py:9:用法：python3 scripts/gates/spec-reconcile.py [--repo-root .]
+system/bin/spec-reconcile.py:21:LEDGER = "sdd/spec-reconcile-log.jsonl"
+system/bin/spec-reconcile.py:58:    print("spec-reconcile: PASS（零疑似未回写）")
+system/bin/blast-radius.py:5:消灭"修复即新攻击面"——Z11 修了 reconcile，blast-radius 自动发现 finance-receivable-apply
+system/bin/gate-learner.py:108:        "fix": "改用 vi.restoreAllMocks 或显式 mock",
+system/wenqu_core/scheduler.py:1:"""scheduler.py——Codex 方案 W4（§13）：统一调度 / Watchdog / Outbox。
+system/wenqu_core/scheduler.py:6:                       catch_up/watchdog；负责到期计算、睡眠/唤醒补跑、
+system/wenqu_core/scheduler.py:10:                       actual_exit_code + commit_sha；run+heartbeat+outbox
+system/wenqu_core/scheduler.py:11:                       落在**同一事务**（事务性 outbox）。
+system/wenqu_core/scheduler.py:12:- NotificationOutbox   事务内落 outbox → 指数退避重试 → 最大尝试 →
+system/wenqu_core/scheduler.py:73:log = logging.getLogger("wenqu.scheduler")
+system/wenqu_core/scheduler.py:279:            raise SchedulerError("watchdog freshness_seconds must be > 0")
+system/wenqu_core/scheduler.py:281:            raise SchedulerError("watchdog grace_seconds must be >= 0")
+system/wenqu_core/scheduler.py:299:    watchdog: WatchdogPolicy = field(default_factory=WatchdogPolicy)
+system/wenqu_core/scheduler.py:413:CREATE TABLE IF NOT EXISTS scheduler_jobs (
+system/wenqu_core/scheduler.py:429:    watchdog_freshness_seconds  REAL NOT NULL,
+system/wenqu_core/scheduler.py:430:    watchdog_grace_seconds      REAL NOT NULL,
+system/wenqu_core/scheduler.py:444:CREATE TABLE IF NOT EXISTS scheduler_runs (
+system/wenqu_core/scheduler.py:466:CREATE INDEX IF NOT EXISTS idx_scheduler_runs_job
+system/wenqu_core/scheduler.py:467:    ON scheduler_runs (job_id, started_at);
+system/wenqu_core/scheduler.py:469:CREATE TABLE IF NOT EXISTS scheduler_heartbeats (
+system/wenqu_core/scheduler.py:483:CREATE TABLE IF NOT EXISTS scheduler_outbox (
+system/wenqu_core/scheduler.py:500:CREATE INDEX IF NOT EXISTS idx_outbox_dispatch
+system/wenqu_core/scheduler.py:501:    ON scheduler_outbox (status, next_attempt_at);
+system/wenqu_core/scheduler.py:503:CREATE TABLE IF NOT EXISTS scheduler_skips (
+system/wenqu_core/scheduler.py:595:                "INSERT OR REPLACE INTO scheduler_jobs ("
+system/wenqu_core/scheduler.py:599:                " watchdog_freshness_seconds, watchdog_grace_seconds, ttl_seconds,"
+system/wenqu_core/scheduler.py:610:                    job.max_catch_up_runs, job.watchdog.freshness_seconds,
+system/wenqu_core/scheduler.py:611:                    job.watchdog.grace_seconds, job.ttl_seconds, job.commit_sha,
+system/wenqu_core/scheduler.py:622:                "DELETE FROM scheduler_jobs WHERE job_id = ?", (job_id,)
+system/wenqu_core/scheduler.py:629:                "UPDATE scheduler_jobs SET enabled = ? WHERE job_id = ?",
+system/wenqu_core/scheduler.py:637:            "SELECT * FROM scheduler_jobs WHERE job_id = ?", (job_id,)
+system/wenqu_core/scheduler.py:643:            rows = self._store.query("SELECT * FROM scheduler_jobs ORDER BY job_id")
+system/wenqu_core/scheduler.py:646:                "SELECT * FROM scheduler_jobs WHERE enabled = ? ORDER BY job_id",
+system/wenqu_core/scheduler.py:654:            "FROM scheduler_jobs WHERE job_id = ?",
+system/wenqu_core/scheduler.py:674:            " FROM scheduler_jobs WHERE enabled = 1 ORDER BY job_id"
+system/wenqu_core/scheduler.py:762:            watchdog=WatchdogPolicy(freshness_seconds=float(wd_fresh),
+system/wenqu_core/scheduler.py:778:            "SELECT next_due_at FROM scheduler_jobs WHERE job_id = ?",
+system/wenqu_core/scheduler.py:786:            "UPDATE scheduler_jobs SET next_due_at = ?, last_consumed_at = ? "
+system/wenqu_core/scheduler.py:800:                "INSERT OR IGNORE INTO scheduler_skips"
+system/wenqu_core/scheduler.py:901:        """事务内落一行 outbox（dedup 命中返回 None）。"""
+system/wenqu_core/scheduler.py:904:            "INSERT OR IGNORE INTO scheduler_outbox ("
+system/wenqu_core/scheduler.py:922:            " attempts, max_attempts FROM scheduler_outbox"
+system/wenqu_core/scheduler.py:950:                        "UPDATE scheduler_outbox SET status='SENT', sent_at=?,"
+system/wenqu_core/scheduler.py:960:                            "UPDATE scheduler_outbox SET status='DEAD_LETTER',"
+system/wenqu_core/scheduler.py:973:                            "UPDATE scheduler_outbox SET attempts=?,"
+system/wenqu_core/scheduler.py:1023:            "SELECT status, COUNT(*) FROM scheduler_outbox GROUP BY status"
+system/wenqu_core/scheduler.py:1031:            " FROM scheduler_outbox WHERE status='DEAD_LETTER'"
+system/wenqu_core/scheduler.py:1063:        " FROM scheduler_heartbeats"
+system/wenqu_core/scheduler.py:1068:                 outbox: Optional[NotificationOutbox] = None) -> None:
+system/wenqu_core/scheduler.py:1070:        self._outbox = outbox
+system/wenqu_core/scheduler.py:1106:                "INSERT INTO scheduler_heartbeats ("
+system/wenqu_core/scheduler.py:1132:            "UPDATE scheduler_heartbeats SET input_fingerprint=?,"
+system/wenqu_core/scheduler.py:1165:            " j.watchdog_freshness_seconds, j.watchdog_grace_seconds,"
+system/wenqu_core/scheduler.py:1170:            " FROM scheduler_jobs j LEFT JOIN scheduler_heartbeats h"
+system/wenqu_core/scheduler.py:1237:            if notify and self._outbox is not None and severity in (
+system/wenqu_core/scheduler.py:1240:                self._outbox.notify(
+system/wenqu_core/scheduler.py:1285:        outbox: Optional[NotificationOutbox] = None,
+system/wenqu_core/scheduler.py:1295:        self._outbox = outbox or NotificationOutbox(self._store)
+system/wenqu_core/scheduler.py:1296:        self._heartbeat = heartbeat or HeartbeatMonitor(self._store, self._outbox)
+system/wenqu_core/scheduler.py:1395:        # ---- 事务：run + heartbeat + outbox 原子落库（事务性 outbox） ----
+system/wenqu_core/scheduler.py:1400:                "INSERT OR IGNORE INTO scheduler_runs ("
+system/wenqu_core/scheduler.py:1428:                "UPDATE scheduler_runs SET refreshed_heartbeat=?,"
+system/wenqu_core/scheduler.py:1464:            "SELECT * FROM scheduler_runs WHERE job_id=? AND scheduled_at=?",
+system/wenqu_core/scheduler.py:1489:            self._outbox.critical_channels
+system/wenqu_core/scheduler.py:1507:                max_attempts=self._outbox._max_attempts,
+system/wenqu_core/scheduler.py:1535:            "actor": "wenqu-scheduler",
+system/wenqu_core/scheduler.py:1543:            self._outbox.notify(
+system/wenqu_core/deploy_framework.py:6:       再经同目录 rename 原子发布为不可变 release 目录；绝不向既有 release
+system/wenqu_core/deploy_framework.py:11:    D3 rename 原子性：release 目录发布（os.rename）与 current symlink 切换
+system/wenqu_core/deploy_framework.py:15:manifest 契约（manifest.json，随 release 一起发布）::
+system/wenqu_core/deploy_framework.py:18:      "release_id":     "<UTC 时间戳>-<内容摘要前 12 位>",
+system/wenqu_core/deploy_framework.py:26:不可变性：release 常规文件按「源文件 exec 位」定权限——含 exec 位的文件
+system/wenqu_core/deploy_framework.py:28:带 shebang 的 .py 也不强加 exec）。目录级不可变由构建协议保证（release
+system/wenqu_core/deploy_framework.py:29:命名空间只增不改，绝不复用已存在且 divergent 的 release_id；内容完全一致
+system/wenqu_core/deploy_framework.py:32:install_self_check 契约：``callable(release_dir) -> truthy`` 表示安装自检
+system/wenqu_core/deploy_framework.py:61:    """release 构建失败。"""
+system/wenqu_core/deploy_framework.py:108:    def __init__(self, releases_root: str, current_link: str,
+system/wenqu_core/deploy_framework.py:110:        self.releases_root = os.path.abspath(releases_root)
+system/wenqu_core/deploy_framework.py:115:    # 构建：不可变 release 目录 + manifest
+system/wenqu_core/deploy_framework.py:118:        """将 source_dir 构建为不可变 release 目录（全文件 SHA256+mode manifest）。
+system/wenqu_core/deploy_framework.py:120:        D1：staging 全新构建 + rename 原子发布；绝不向既有 release 写入/覆盖。
+system/wenqu_core/deploy_framework.py:121:        同秒同内容重复构建 -> 幂等复用已存在且完好的 release（reused=True）；
+system/wenqu_core/deploy_framework.py:122:        release_id 冲突但内容 divergent/损坏 -> BuildError。
+system/wenqu_core/deploy_framework.py:131:        os.makedirs(self.releases_root, exist_ok=True)
+system/wenqu_core/deploy_framework.py:134:        staging = tempfile.mkdtemp(prefix=".staging-", dir=self.releases_root)
+system/wenqu_core/deploy_framework.py:146:                release_mode = 0o555 if exec_bit else 0o444
+system/wenqu_core/deploy_framework.py:147:                os.chmod(dst, release_mode)
+system/wenqu_core/deploy_framework.py:152:                    "mode": "%04o" % release_mode,
+system/wenqu_core/deploy_framework.py:157:            release_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{content_digest[:12]}"
+system/wenqu_core/deploy_framework.py:158:            final_dir = os.path.join(self.releases_root, release_id)
+system/wenqu_core/deploy_framework.py:161:                "release_id": release_id,
+system/wenqu_core/deploy_framework.py:174:                # 幂等复用：仅当既有 release 完好且内容摘要一致
+system/wenqu_core/deploy_framework.py:180:                        "release_dir": final_dir,
+system/wenqu_core/deploy_framework.py:182:                        "release_id": release_id,
+system/wenqu_core/deploy_framework.py:188:                    f"release_id collision with divergent/broken existing release: {final_dir}")
+system/wenqu_core/deploy_framework.py:196:            "release_dir": final_dir,
+system/wenqu_core/deploy_framework.py:198:            "release_id": release_id,
+system/wenqu_core/deploy_framework.py:238:    def verify(self, release_dir: str, strict: bool = True) -> Dict[str, Any]:
+system/wenqu_core/deploy_framework.py:246:        release = os.path.abspath(release_dir)
+system/wenqu_core/deploy_framework.py:247:        manifest_path = os.path.join(release, MANIFEST_NAME)
+system/wenqu_core/deploy_framework.py:250:                "ok": False, "release_dir": release, "release_id": None,
+system/wenqu_core/deploy_framework.py:262:        actual = set(_collect_files(release)) - {MANIFEST_NAME}  # manifest 自身不在清单内
+system/wenqu_core/deploy_framework.py:269:            if _sha256_file(os.path.join(release, p)) != expected[p]
+system/wenqu_core/deploy_framework.py:275:            and _stat_mode(os.path.join(release, p)) != int(entries[p]["mode"], 8)
+system/wenqu_core/deploy_framework.py:280:            "release_dir": release,
+system/wenqu_core/deploy_framework.py:281:            "release_id": manifest.get("release_id"),
+system/wenqu_core/deploy_framework.py:331:        """切回兼容版：先对 previous release 做 manifest 完好性对账，再原子切回。
+system/wenqu_core/deploy_framework.py:360:        verify_report = self.verify(build_result["release_dir"])  # 切换前对账
+system/wenqu_core/deploy_framework.py:372:        switch_report = self.switch(self.current_link, build_result["release_dir"])
+system/wenqu_core/deploy_framework.py:376:                check = self.install_self_check(build_result["release_dir"])
+system/wenqu_core/deploy_framework.py:380:            rollback_note = "no previous release to roll back to"
+system/wenqu_core/deploy_framework.py:399:                                     f"current link remains on failed release "
+system/wenqu_core/deploy_framework.py:400:                                     f"{build_result['release_dir']}")
+system/wenqu_core/deploy_framework.py:405:                    rollback_note = "first deploy: current link removed (no failed release active)"
+system/wenqu_core/deploy_framework.py:407:                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
+system/wenqu_core/deploy_framework.py:414:            "release_id": build_result["release_id"],
+system/wenqu_core/deploy_framework.py:415:            "release_dir": build_result["release_dir"],
+system/wenqu_core/station2_static.py:1820:            {"rule": "shadowed-route", "file": "app/sales/[id]/page.tsx", "line": 3,
+system/bin/hardening-doctor.sh:20:for s in dupscan-weekly weekly-watchdog ci-event-sentinel conservation-sentinel; do
+system/bin/hardening-doctor.sh:24:    weekly-watchdog)      PLIST=com.maccc.bugscan.weekly-watchdog;     FRESH=20160; LOGP="$Q/sentinel/weekly.log" ;;
+system/bin/hardening-doctor.sh:41:ssh -o ConnectTimeout=8 ${WENQU_DB_SSH} 'test -f /etc/cron.d/erp-backup-rotate' >/dev/null 2>&1 && ok "cloud4 备份轮转 cron" || bad "cloud4 备份轮转 cron 缺失"
+system/bin/hardening-doctor.sh:42:ssh -o ConnectTimeout=8 ${WENQU_DB_SSH} 'test -x /opt/erp-backups/dump-rotate.sh' >/dev/null 2>&1 && ok "dump-rotate.sh" || bad "dump-rotate.sh 缺失"
+system/bin/hardening-doctor.sh:86:  ok "DB 守恒触发器×3（shadow mode 活跃）"
+system/wenqu_core/cli.py:446:                   choices=["ambiguity", "prod-write", "ddl", "release",
+system/wenqu_core/wenqu_pipeline.py:74:      COMMITTED / FAILED_UNKNOWN；control_outbox 事件；receipt 对账占位）。
+system/wenqu_core/wenqu_pipeline.py:77:reserve→start→commit 对 release/production 照样走通、receipt 为调用方
+system/wenqu_core/wenqu_pipeline.py:81:    payload 判别（merge/release/ddl/prod_write/fund_auth/rollback 封闭
+system/wenqu_core/wenqu_pipeline.py:229:    RELEASE = "release"            # 发布：exact release/SHA/env 授权 + Gate/manifest/回滚预案
+system/wenqu_core/wenqu_pipeline.py:269:    "release": {
+system/wenqu_core/wenqu_pipeline.py:270:        "description": "一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案",
+system/wenqu_core/wenqu_pipeline.py:272:            ("release_id", "commit_sha", "environment"),
+system/wenqu_core/wenqu_pipeline.py:338:    "resume", "risk", "merge", "release", "ddl", "prod_write",
+system/wenqu_core/wenqu_pipeline.py:349:    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+system/wenqu_core/wenqu_pipeline.py:350:                "environment", "previous_release_id"),
+system/wenqu_core/wenqu_pipeline.py:352:            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+system/wenqu_core/wenqu_pipeline.py:357:    "rollback": ("failed_deployment_id", "exact_previous_release_id",
+system/wenqu_core/wenqu_pipeline.py:468:    "release": "release",
+system/wenqu_core/wenqu_pipeline.py:693:def _reconciled_receipt_str(rc: Mapping[str, Any]) -> str:
+system/wenqu_core/wenqu_pipeline.py:764:    - actions：ActionSaga 聚合状态（ACTION_* control_outbox 事件）。
+system/wenqu_core/wenqu_pipeline.py:1309:        if atype == "release" and payload.get("environment") not in ENVIRONMENTS:
+system/wenqu_core/wenqu_pipeline.py:1964:            else:  # ACTION_* control_outbox 事件
+system/wenqu_core/wenqu_pipeline.py:2111:        """ACTION_* control_outbox 事件的 saga 折叠（非法转换即 Corruption）。
+system/wenqu_core/wenqu_pipeline.py:2676:        """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。
+system/wenqu_core/wenqu_pipeline.py:2812:            receipt_str = _reconciled_receipt_str(rc)
+system/wenqu_core/wenqu_pipeline.py:2836:                                    "outcome unknown; pending reconcile")
+system/wenqu_core/wenqu_pipeline.py:2876:    def reconcile_receipt(self, run_id: str, action_id: str,
+system/wenqu_core/wenqu_pipeline.py:2882:        - 对账通过（outcome=COMMITTED）→ reconciled=True——同回执可经
+system/wenqu_core/wenqu_pipeline.py:2884:        - 验签/一致性失败或 outcome=FAILED → reconciled=False——对账不了
+system/wenqu_core/wenqu_pipeline.py:2886:        - FAILED_UNKNOWN 终态动作 → reconciled=None（终态不可再裁决）。
+system/wenqu_core/wenqu_pipeline.py:2894:                    "reconciled": None,
+system/wenqu_core/wenqu_pipeline.py:2905:                    "reconciled": False, "reason": str(exc),
+system/wenqu_core/wenqu_pipeline.py:2909:                    "reconciled": False, "outcome": rc["outcome"],
+system/wenqu_core/wenqu_pipeline.py:2913:                "reconciled": True, "outcome": "COMMITTED",
+system/wenqu_core/wenqu_pipeline.py:2914:                "receipt_ref": _reconciled_receipt_str(rc),
+system/wenqu_core/wenqu_pipeline.py:2930:    control_outbox（ACTION_* 事件，带 seal），重放由
+system/wenqu_core/ledger_migrator.py:64:CREATE TABLE IF NOT EXISTS migration_runs (
+system/wenqu_core/ledger_migrator.py:103:            else self.sqlite_path + ".migration-sidecar.jsonl"
+system/wenqu_core/ledger_migrator.py:176:        汇总不守恒 -> 抛 ConservationError（migration_runs 表同时记账 conserved=0）。
+system/wenqu_core/ledger_migrator.py:252:                "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
+system/wenqu_core/ledger_migrator.py:278:            raise RuntimeError("no migration report yet: run migrate() first")
+system/bin/risk-scorer.py:77:        "inventory": 8, "migration": 10, "middleware": 12, "auth": 15,
+system/wenqu_core/bugscan_orchestrator.py:112:    "touches_migration": LANE_STANDARD,      # 迁移 → 至少 STANDARD
+system/wenqu_core/bugscan_orchestrator.py:1616:    plan = planner.plan("FAST", scope_flags=("touches_migration",))
+system/wenqu_core/bugscan_orchestrator.py:1620:    print(f"[2] planner auto-escalation OK: FAST --touches_migration--> "
+system/wenqu_core/station3_contract.py:637:          "reconciled"?: [{"method": …, "path": …}, …] # 底层件实际已对账的端点；
+system/wenqu_core/station3_contract.py:644:    - reconciled 只覆盖部分端点 → scanned < denominator → BLOCKED；
+system/wenqu_core/station3_contract.py:645:      reconciled 含 universe 外端点 → 载荷自矛盾，直接拒绝；
+system/wenqu_core/station3_contract.py:649:    slug = "openapi_reconcile"
+system/wenqu_core/station3_contract.py:698:        parsed = self._extract_common(payload, what="openapi_reconciler payload")
+system/wenqu_core/station3_contract.py:711:        reconciled_raw = payload.get("reconciled")
+system/wenqu_core/station3_contract.py:712:        if reconciled_raw is None:
+system/wenqu_core/station3_contract.py:716:            if not isinstance(reconciled_raw, list):
+system/wenqu_core/station3_contract.py:718:                    "reconciled must be a list of {method, path} objects"
+system/wenqu_core/station3_contract.py:720:            declared = set(self._norm_routes(reconciled_raw))
+system/wenqu_core/station3_contract.py:725:                    f"reconciled contains endpoints outside the universe "
+system/wenqu_core/station3_contract.py:740:            "kind": "station3/openapi-reconcile",
+system/wenqu_core/station3_contract.py:1345:        st_openapi = contract.openapi_reconciler(openapi_spec=spec) \\
+system/wenqu_core/station3_contract.py:1402:    def openapi_reconciler(self, **kwargs: Any) -> OpenApiReconciler:
+system/wenqu_core/station3_contract.py:1443:            "openapi": self.openapi_reconciler,
+system/wenqu_core/station3_contract.py:1631:    base = {"tool": {"name": "openapi-reconciler", "version": "1.0"},
+system/wenqu_core/station3_contract.py:1634:    st = contract.openapi_reconciler(openapi_spec=spec).adapt(
+system/wenqu_core/station3_contract.py:1640:    print(f"[2] openapi reconcile PASS: coverage "
+system/wenqu_core/station3_contract.py:1643:    st_bad = contract.openapi_reconciler(openapi_spec=spec).adapt({
+system/wenqu_core/station3_contract.py:1654:    st_shrink = contract.openapi_reconciler(openapi_spec=spec).adapt({
+system/wenqu_core/station3_contract.py:1656:        "reconciled": [{"method": "GET", "path": "/api/orders"}],  # 只对账了 1 个
+system/wenqu_core/station3_contract.py:1661:          "partial reconcile→BLOCKED")
+=== db tables ===
+system/db/conservation-triggers.sql:8:CREATE TABLE IF NOT EXISTS conservation_violations (
+system/wenqu_core/ledger_migrator.py:53:CREATE TABLE IF NOT EXISTS events (
+system/wenqu_core/ledger_migrator.py:62:CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+system/wenqu_core/ledger_migrator.py:63:CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_file, source_line);
+system/wenqu_core/ledger_migrator.py:64:CREATE TABLE IF NOT EXISTS migration_runs (
+system/wenqu_core/ledger_migrator.py:91:        mig = LedgerMigrator(source_dir=".../ledgers", sqlite_path=".../events.db")
+system/wenqu_core/ledger_migrator.py:229:                            "INSERT INTO events (line_sha, status, source_file, source_line, payload)"
+system/wenqu_core/scheduler.py:413:CREATE TABLE IF NOT EXISTS scheduler_jobs (
+system/wenqu_core/scheduler.py:444:CREATE TABLE IF NOT EXISTS scheduler_runs (
+system/wenqu_core/scheduler.py:469:CREATE TABLE IF NOT EXISTS scheduler_heartbeats (
+system/wenqu_core/scheduler.py:483:CREATE TABLE IF NOT EXISTS scheduler_outbox (
+system/wenqu_core/scheduler.py:503:CREATE TABLE IF NOT EXISTS scheduler_skips (
+system/wenqu_core/cli.py:407:        p.add_argument("--db", required=True, help="pipeline_events SQLite 路径")
+system/wenqu_core/store.py:5:- events 表由 ABORT 触发器强制 append-only：UPDATE / DELETE 直接报错。
+system/wenqu_core/store.py:59:-- P0-6 修：表名改为 pipeline_events 避免与 LedgerMigrator 的 events 表冲突
+system/wenqu_core/store.py:60:CREATE TABLE IF NOT EXISTS pipeline_events (
+system/wenqu_core/store.py:69:CREATE TRIGGER IF NOT EXISTS pipeline_events_append_only_no_update
+system/wenqu_core/store.py:70:BEFORE UPDATE ON pipeline_events
+system/wenqu_core/store.py:72:    SELECT RAISE(ABORT, 'pipeline_events is append-only: UPDATE is forbidden');
+system/wenqu_core/store.py:75:CREATE TRIGGER IF NOT EXISTS pipeline_events_append_only_no_delete
+system/wenqu_core/store.py:76:BEFORE DELETE ON pipeline_events
+system/wenqu_core/store.py:78:    SELECT RAISE(ABORT, 'pipeline_events is append-only: DELETE is forbidden');
+system/wenqu_core/store.py:122:                "pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/"
+system/wenqu_core/store.py:133:                "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+system/wenqu_core/store.py:138:                "INSERT OR IGNORE INTO pipeline_events "
+system/wenqu_core/store.py:149:                    "SELECT event_hash FROM pipeline_events WHERE event_id = ?",
+system/wenqu_core/store.py:172:            "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+system/wenqu_core/store.py:177:            "SELECT COUNT(*) FROM pipeline_events"
+system/wenqu_core/store.py:187:            "FROM pipeline_events ORDER BY seq ASC"
+system/wenqu_core/wenqu_pipeline.py:39:   - 全部可变状态由 ``pipeline_events`` 重放（replay）推导，本模块不持有
+system/wenqu_core/wenqu_pipeline.py:69:  #8 第二正源 → nonce/risk 消费以 pipeline_events 的 APPROVAL_CONSUMED
+system/wenqu_core/wenqu_pipeline.py:385:#: - "仅复制 pipeline_events 重建新库"（Codex 实锤 #8 的正源迁移场景）必须
+system/wenqu_core/wenqu_pipeline.py:758:    """由 pipeline_events 重放推导的 run 只读状态（无第二正源）。
+system/wenqu_core/wenqu_pipeline.py:1056:            "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+system/wenqu_core/wenqu_pipeline.py:1061:            "INSERT OR IGNORE INTO pipeline_events "
+system/wenqu_core/wenqu_pipeline.py:1075:            "SELECT seq, event_hash, payload FROM pipeline_events ORDER BY seq ASC"
+system/wenqu_core/wenqu_pipeline.py:1113:    已消费以事件流为正源判定——仅复制 pipeline_events 重建的新库中，
+system/wenqu_core/wenqu_pipeline.py:1122:    CREATE TABLE IF NOT EXISTS approval_consumptions (
+system/wenqu_core/wenqu_pipeline.py:1767:        仅复制 pipeline_events 重建的新库中，该方法同样还原消费面——
+=== gate caller references ===
+system/wenqu_core/station7_runtime.py:799:    """把站7 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+system/wenqu_core/station4_behavior.py:14:整站结果由 combine_station4_results 合并为单一条目——GateAggregator 同站
+system/wenqu_core/station4_behavior.py:911:    """把站4 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+system/wenqu_core/gate_aggregator.py:5:消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
+system/wenqu_core/gate_aggregator.py:57:## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
+system/wenqu_core/gate_aggregator.py:59:aggregate() 输出除原有字段外必须包含：
+system/wenqu_core/gate_aggregator.py:63:端到端保证：合法 v2 输入聚合出的 JSON 喂给 dashboard 的 read_gate_aggregate()
+system/wenqu_core/gate_aggregator.py:67:全部通过；与 aggregate_outcome == PASS 不等价——CONDITIONAL 时 technical_eligible
+system/wenqu_core/gate_aggregator.py:68:可为 True，但放行判断必须且只能以 aggregate_outcome == PASS 为准。
+system/wenqu_core/gate_aggregator.py:84:    "GateAggregator", "PASS", "CONDITIONAL", "BLOCKED",
+system/wenqu_core/gate_aggregator.py:124:# allOf-if-then 跨字段）。system/tests/test_gate_schema_hardening.py 内置
+system/wenqu_core/gate_aggregator.py:185:    无外部依赖（纯标准库）；GateAggregator.add() 对每个 v2 条目前置调用，
+system/wenqu_core/gate_aggregator.py:371:class GateAggregator:
+system/wenqu_core/gate_aggregator.py:372:    """消费 station-result JSON（v2 正式契约优先、legacy 兼容），输出整线统一 gate 判定。
+system/wenqu_core/gate_aggregator.py:376:        agg = GateAggregator(required_stations={"2", "7"},   # v2 站点键 = str(station_id)
+system/wenqu_core/gate_aggregator.py:379:        verdict = agg.aggregate()          # 含 generated_at/policy_verdict（dashboard 契约）
+system/wenqu_core/gate_aggregator.py:388:            raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
+system/wenqu_core/gate_aggregator.py:390:            raise ValueError("environment is required: gate evidence must be bound to an environment")
+system/wenqu_core/gate_aggregator.py:553:    def add(self, station_result: dict) -> "GateAggregator":
+system/wenqu_core/gate_aggregator.py:560:        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+system/wenqu_core/gate_aggregator.py:573:            return self  # 已记 malformed，aggregate() 时 BLOCKED
+system/wenqu_core/gate_aggregator.py:587:            return self  # 首条为准；冲突已记账，aggregate() 时 BLOCKED
+system/wenqu_core/gate_aggregator.py:612:    def aggregate(self) -> Dict[str, Any]:
+system/wenqu_core/gate_aggregator.py:613:        """聚合为统一 gate 判定；不修改登记状态（generated_at 为当下时刻）。"""
+system/wenqu_core/gate_aggregator.py:686:            # dashboard/server.py read_gate_aggregate() 强制要求的契约字段（P0-3 修）
+system/wenqu_core/gate_aggregator.py:690:            "aggregate_outcome": outcome,
+system/wenqu_core/gate_aggregator.py:708:    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+system/wenqu_core/gate_aggregator.py:714:        result = aggregate_result if aggregate_result is not None else self.aggregate()
+system/wenqu_core/gate_aggregator.py:715:        outcome = result.get("aggregate_outcome", BLOCKED)
+system/wenqu_core/gate_aggregator.py:717:        description = f"gate {outcome}: {result.get('reason', '')}".strip()
+system/wenqu_core/gate_aggregator.py:722:            "context": f"wenqu-gate/{self.environment}",
+system/wenqu_core/bugscan_orchestrator.py:333:        slug="source_gate",
+system/wenqu_core/bugscan_orchestrator.py:336:        tools=("ci-fast.yml", "iron-gate.sh"),
+system/wenqu_core/bugscan_orchestrator.py:1423:    1. 绑定校验：gate_result.commit_sha 必须等于冻结 manifest 的 commit_sha
+system/wenqu_core/bugscan_orchestrator.py:1426:    2. 时效校验：gate 结束时刻 + 站 TTL ≥ now（铁律 4），过期抛
+system/wenqu_core/bugscan_orchestrator.py:1433:    正源，绝不采信 gate_result 自报身份。
+system/wenqu_core/bugscan_orchestrator.py:1455:    def _extract_gate_fields(gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/bugscan_orchestrator.py:1456:        if not isinstance(gate_result, Mapping):
+system/wenqu_core/bugscan_orchestrator.py:1458:                f"gate_result must be a mapping, got {type(gate_result).__name__}"
+system/wenqu_core/bugscan_orchestrator.py:1460:        missing = [k for k in ("commit_sha", "exit_code") if k not in gate_result]
+system/wenqu_core/bugscan_orchestrator.py:1462:            raise GateResultMalformed(f"gate_result missing fields: {missing}")
+system/wenqu_core/bugscan_orchestrator.py:1464:            sha = _require_sha40(gate_result["commit_sha"], what="gate_result.commit_sha")
+system/wenqu_core/bugscan_orchestrator.py:1467:        exit_code = gate_result["exit_code"]
+system/wenqu_core/bugscan_orchestrator.py:1470:                f"gate_result.exit_code must be an int, got {exit_code!r}"
+system/wenqu_core/bugscan_orchestrator.py:1474:                f"gate_result.exit_code {exit_code} not in §7 contract "
+system/wenqu_core/bugscan_orchestrator.py:1477:        tool = gate_result.get("tool")
+system/wenqu_core/bugscan_orchestrator.py:1480:                "gate_result.tool must be an object with non-empty name/version"
+system/wenqu_core/bugscan_orchestrator.py:1483:            if ts_key not in gate_result:
+system/wenqu_core/bugscan_orchestrator.py:1484:                raise GateResultMalformed(f"gate_result missing {ts_key}")
+system/wenqu_core/bugscan_orchestrator.py:1486:                _parse_iso(gate_result[ts_key], what=f"gate_result.{ts_key}")
+system/wenqu_core/bugscan_orchestrator.py:1489:        components = gate_result.get("components", [])
+system/wenqu_core/bugscan_orchestrator.py:1494:                "gate_result.components must be a list of objects with a name"
+system/wenqu_core/bugscan_orchestrator.py:1500:            "started_at": gate_result["started_at"],
+system/wenqu_core/bugscan_orchestrator.py:1501:            "ended_at": gate_result["ended_at"],
+system/wenqu_core/bugscan_orchestrator.py:1502:            "argv_digest": gate_result.get("argv_digest"),
+system/wenqu_core/bugscan_orchestrator.py:1507:    def adapt(self, gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/bugscan_orchestrator.py:1509:        parsed = self._extract_gate_fields(gate_result)
+system/wenqu_core/bugscan_orchestrator.py:1514:                f"gate ran at {parsed['commit_sha']} but manifest froze "
+system/wenqu_core/bugscan_orchestrator.py:1521:        ended = _parse_iso(parsed["ended_at"], what="gate_result.ended_at")
+system/wenqu_core/bugscan_orchestrator.py:1525:                f"gate evidence aged out: ended {parsed['ended_at']} + TTL "
+system/wenqu_core/bugscan_orchestrator.py:1579:        # 站1 工件：gate 原始结果自身的内容寻址摘要（PASS 必须携带非空工件——
+system/wenqu_core/bugscan_orchestrator.py:1581:        gate_payload = json.dumps(
+system/wenqu_core/bugscan_orchestrator.py:1582:            dict(gate_result), separators=(",", ":"),
+system/wenqu_core/bugscan_orchestrator.py:1585:            "cas_digest": f"sha256:{_sha256_hex(gate_payload)}",
+system/wenqu_core/bugscan_orchestrator.py:1586:            "size": len(gate_payload),
+system/wenqu_core/bugscan_orchestrator.py:1640:    gate = {
+system/wenqu_core/bugscan_orchestrator.py:1653:    st1 = adapter.adapt(gate)
+system/wenqu_core/bugscan_orchestrator.py:1655:    print(f"[4] source-gate adapt OK: exit 0 → COMPLETED/PASS "
+system/wenqu_core/bugscan_orchestrator.py:1660:        adapter.adapt({**gate, "commit_sha": "2" * 40})
+system/wenqu_core/bugscan_orchestrator.py:1665:        **gate,
+system/wenqu_core/cli.py:15:  gate           聚合 station-result-v2 结果为整线 gate 判定（F4-GATE-001：
+system/wenqu_core/cli.py:16:                 GateAggregator 的第一个生产消费者；退出码 PASS=0/FAIL=1/
+system/wenqu_core/cli.py:41:from wenqu_core.gate_aggregator import BLOCKED, GateAggregator  # noqa: E402
+system/wenqu_core/cli.py:220:def _gate_exit_code(outcome: str) -> int:
+system/wenqu_core/cli.py:221:    """aggregate_outcome -> CLI 退出码（F4-GATE-001 契约）。
+system/wenqu_core/cli.py:230:def _gate_error_json(reason: str, **extra: Any) -> int:
+system/wenqu_core/cli.py:231:    """ERROR(3) 路径：gate 工具自身无法执行（输入不可读/无法绑定身份）。
+system/wenqu_core/cli.py:233:    仍打印一个 aggregate 形状的 JSON（policy_verdict=ERROR）供脚本消费，
+system/wenqu_core/cli.py:239:        "aggregate_outcome": "ERROR",
+system/wenqu_core/cli.py:245:    print(f"wenquctl: gate ERROR: {reason}", file=sys.stderr)
+system/wenqu_core/cli.py:250:def cmd_gate(args: argparse.Namespace) -> int:
+system/wenqu_core/cli.py:251:    """gate 子命令——读入 station-result-v2 JSON，聚合为整线 gate 判定。
+system/wenqu_core/cli.py:254:    等价物）+ GateAggregator 严格登记（宽松读、聚合 fail-closed）；
+system/wenqu_core/cli.py:258:    缩水）。退出码映射见 _gate_exit_code / _gate_error_json。
+system/wenqu_core/cli.py:266:                return _gate_error_json(
+system/wenqu_core/cli.py:274:            return _gate_error_json(
+system/wenqu_core/cli.py:295:        return _gate_error_json(
+system/wenqu_core/cli.py:323:        return _gate_error_json(
+system/wenqu_core/cli.py:325:            f"identity.{missing}（gate 证据必须绑定 SHA+环境）",
+system/wenqu_core/cli.py:352:                return _gate_error_json(
+system/wenqu_core/cli.py:359:            return _gate_error_json(
+system/wenqu_core/cli.py:367:    # 5. 聚合（GateAggregator 宽松读+严格出；C1-C5 全在 aggregate 内裁决）。
+system/wenqu_core/cli.py:368:    agg = GateAggregator(required_stations=required, target_sha=sha,
+system/wenqu_core/cli.py:372:    result = agg.aggregate()
+system/wenqu_core/cli.py:376:        if result.get("aggregate_outcome") != BLOCKED:
+system/wenqu_core/cli.py:377:            result["aggregate_outcome"] = BLOCKED
+system/wenqu_core/cli.py:396:    return _gate_exit_code(result["aggregate_outcome"])
+system/wenqu_core/cli.py:482:        "gate",
+system/wenqu_core/cli.py:483:        help="聚合 station-result-v2 结果为整线 gate 判定（退出码 "
+system/wenqu_core/cli.py:497:    p.set_defaults(func=cmd_gate)
+system/wenqu_core/__init__.py:10:- source_gate.py：W3A 源闸基础件（fetch/merge-base diff/affected 范围/
+system/wenqu_core/__init__.py:11:  TrustedRunner 测试执行/精确 SHA 校验，产出 source-gate-result.json）
+system/wenqu_core/station2_static.py:42:   （契约映射，与 source_gate 的 EXIT_TIMEOUT 同语义，非推测美化）。
+system/wenqu_core/station2_static.py:145:#: 统一退出码（wenqu-vNext-contract §7 子集；与 source_gate EXIT_* 同源）。
+system/wenqu_core/station2_static.py:361:    """双轴 → §7 统一退出码（契约映射，与 source_gate/SOURCE_GATE 映射同源）。"""
+system/wenqu_core/station2_static.py:597:        # 报告工件，与站0 manifest 工件、站1 gate 工件同一寻址范式
+system/wenqu_core/station2_static.py:1113:      source_gate 结果件 exit_code 同语义（契约映射，非 waitpid 实测）。
+system/wenqu_core/station2_static.py:1402:            # 非路由仓：唯一合法免跑（对齐 source_gate 纯非行为变更→NOT_APPLICABLE）
+system/wenqu_core/station2_static.py:1516:    - 聚合 execution.actual_exit_code=§7 统一退出码（契约映射，与 source_gate
+system/wenqu_core/station2_static.py:1650:            aggregate_verdict = "NOT_EVALUATED"
+system/wenqu_core/station2_static.py:1652:            aggregate_verdict = "FAIL"
+system/wenqu_core/station2_static.py:1654:            aggregate_verdict = "PASS"
+system/wenqu_core/station2_static.py:1665:        aggregate_body = json.dumps(
+system/wenqu_core/station2_static.py:1670:        aggregate = build_station_result(
+system/wenqu_core/station2_static.py:1675:            policy_verdict=aggregate_verdict,
+system/wenqu_core/station2_static.py:1688:                "actual_exit_code": _unified_exit(intended_status, aggregate_verdict),
+system/wenqu_core/station2_static.py:1691:                    "PASS" if aggregate_verdict in ("PASS", "NOT_APPLICABLE")
+system/wenqu_core/station2_static.py:1692:                    else ("FAIL" if aggregate_verdict == "FAIL" else "ERROR")
+system/wenqu_core/station2_static.py:1702:                "cas_digest": f"sha256:{_sha256_hex(aggregate_body)}",
+system/wenqu_core/station2_static.py:1703:                "size": len(aggregate_body),
+system/wenqu_core/station2_static.py:1706:        validate_station_result(aggregate)
+system/wenqu_core/station2_static.py:1709:            "station_result": aggregate,
+system/wenqu_core/station2_static.py:2005:        print("[7a] aggregate OK: supply FAIL -> station FAIL, coverage 4/4 scanners, "
+system/wenqu_core/station2_static.py:2024:        print("[7b] aggregate negative OK: any non-COMPLETED scanner -> station BLOCKED "
+system/wenqu_core/station2_static.py:2042:        print("[7c] aggregate all-green OK: station PASS, unified exit 0")
+system/wenqu_core/source_gate.py:1:"""source_gate.py——W3A 源闸基础件（Codex 方案 §12.2）。
+system/wenqu_core/source_gate.py:7:4. execute_gate()       基于 TrustedRunner 执行测试（affected 或 full），
+system/wenqu_core/source_gate.py:8:                        产出 source-gate-result.json（统一双轴结果 + 统一退出码）；
+system/wenqu_core/source_gate.py:21:- affected 与 full 是两道不同的门：结果 gate_scope 字段区分两者；
+system/wenqu_core/source_gate.py:45:try:  # 包内正则导入（wenqu_core.source_gate）
+system/wenqu_core/source_gate.py:47:except ImportError:  # 顶层直接加载兜底（如 python3 wenqu_core/source_gate.py）
+system/wenqu_core/source_gate.py:187:        gate = SourceGate(
+system/wenqu_core/source_gate.py:193:        result = gate.execute_gate()           # 产出 source-gate-result.json
+system/wenqu_core/source_gate.py:196:    工件位置注意：结果默认写在仓根 source-gate-result.json（CI 拾取惯例）。
+system/wenqu_core/source_gate.py:268:            resolved = repo / "source-gate-result.json"
+system/wenqu_core/source_gate.py:335:                "(timeout must propagate; empty output is NOT 'no changes')",
+system/wenqu_core/source_gate.py:391:                "(failure must propagate; empty stdout is NOT 'no changes')",
+system/wenqu_core/source_gate.py:539:                    f"({len(non_behavioral)} file(s)); source-gate tests "
+system/wenqu_core/source_gate.py:631:                "must not gate a merge (T-02)",
+system/wenqu_core/source_gate.py:641:    # 公开能力 4：execute_gate
+system/wenqu_core/source_gate.py:643:    def execute_gate(self) -> Dict[str, Any]:
+system/wenqu_core/source_gate.py:644:        """执行完整源闸并产出 source-gate-result.json；返回结果字典。
+system/wenqu_core/source_gate.py:652:        self._git_calls = []  # 每次 execute_gate 独立成账
+system/wenqu_core/source_gate.py:655:            "schema": "wenqu/source-gate-result/1",
+system/wenqu_core/source_gate.py:656:            "gate": "source-gate",
+system/wenqu_core/source_gate.py:674:            "gate_scope": None,
+system/wenqu_core/source_gate.py:703:            result["gate_scope"] = scope.mode
+system/wenqu_core/source_gate.py:720:                            "behavioral changes require the FULL gate but no "
+system/wenqu_core/source_gate.py:725:                            detail={"gate_scope": "full"},
+system/wenqu_core/source_gate.py:745:                            "separate gates)"
+system/wenqu_core/source_gate.py:756:                    "head SHA moved during the gate run; all evidence from "
+system/wenqu_core/cli.py:15:  gate           聚合 station-result-v2 结果为整线 gate 判定（F4-GATE-001：
+system/wenqu_core/cli.py:16:                 GateAggregator 的第一个生产消费者；退出码 PASS=0/FAIL=1/
+system/wenqu_core/cli.py:41:from wenqu_core.gate_aggregator import BLOCKED, GateAggregator  # noqa: E402
+system/wenqu_core/cli.py:220:def _gate_exit_code(outcome: str) -> int:
+system/wenqu_core/cli.py:221:    """aggregate_outcome -> CLI 退出码（F4-GATE-001 契约）。
+system/wenqu_core/cli.py:230:def _gate_error_json(reason: str, **extra: Any) -> int:
+system/wenqu_core/cli.py:231:    """ERROR(3) 路径：gate 工具自身无法执行（输入不可读/无法绑定身份）。
+system/wenqu_core/cli.py:233:    仍打印一个 aggregate 形状的 JSON（policy_verdict=ERROR）供脚本消费，
+system/wenqu_core/cli.py:239:        "aggregate_outcome": "ERROR",
+system/wenqu_core/cli.py:245:    print(f"wenquctl: gate ERROR: {reason}", file=sys.stderr)
+system/wenqu_core/cli.py:250:def cmd_gate(args: argparse.Namespace) -> int:
+system/wenqu_core/cli.py:251:    """gate 子命令——读入 station-result-v2 JSON，聚合为整线 gate 判定。
+system/wenqu_core/cli.py:254:    等价物）+ GateAggregator 严格登记（宽松读、聚合 fail-closed）；
+system/wenqu_core/cli.py:258:    缩水）。退出码映射见 _gate_exit_code / _gate_error_json。
+system/wenqu_core/cli.py:266:                return _gate_error_json(
+system/wenqu_core/cli.py:274:            return _gate_error_json(
+system/wenqu_core/cli.py:295:        return _gate_error_json(
+system/wenqu_core/cli.py:323:        return _gate_error_json(
+system/wenqu_core/cli.py:325:            f"identity.{missing}（gate 证据必须绑定 SHA+环境）",
+system/wenqu_core/cli.py:352:                return _gate_error_json(
+system/wenqu_core/cli.py:359:            return _gate_error_json(
+system/wenqu_core/cli.py:367:    # 5. 聚合（GateAggregator 宽松读+严格出；C1-C5 全在 aggregate 内裁决）。
+system/wenqu_core/cli.py:368:    agg = GateAggregator(required_stations=required, target_sha=sha,
+system/wenqu_core/cli.py:372:    result = agg.aggregate()
+system/wenqu_core/cli.py:376:        if result.get("aggregate_outcome") != BLOCKED:
+system/wenqu_core/cli.py:377:            result["aggregate_outcome"] = BLOCKED
+system/wenqu_core/cli.py:396:    return _gate_exit_code(result["aggregate_outcome"])
+system/wenqu_core/cli.py:482:        "gate",
+system/wenqu_core/cli.py:483:        help="聚合 station-result-v2 结果为整线 gate 判定（退出码 "
+system/wenqu_core/cli.py:497:    p.set_defaults(func=cmd_gate)
+system/wenqu_core/station3_contract.py:1530:            "kind": "station3/aggregate",
+system/wenqu_core/station3_contract.py:1821:    print(f"[7] aggregate OK: 全绿→PASS (coverage "
+system/wenqu_core/wenqu_pipeline.py:254:        "required": (("gate_reference",), ("rollback_level",)),
+system/wenqu_core/wenqu_pipeline.py:273:            ("gate_reference", "manifest_sha256", "rollback_plan"),
+=== station 5/6 ===
+system/wenqu_core/station7_runtime.py:31:- Station5LiveFirePlaceholder：实弹面需所有者明确口令（一次性
+system/wenqu_core/station7_runtime.py:33:- Station6AdversarialPlaceholder：对抗面需 ≥2 独立上下文（S3 对抗/
+system/wenqu_core/station7_runtime.py:35:- 两者与站7 同属生产/事件域，占位集中放本文件；IMPLEMENTED=False 是
+system/wenqu_core/station7_runtime.py:82:    "Station5LiveFirePlaceholder",
+system/wenqu_core/station7_runtime.py:83:    "Station6AdversarialPlaceholder",
+system/wenqu_core/station7_runtime.py:930:class Station5LiveFirePlaceholder:
+system/wenqu_core/station7_runtime.py:951:    IMPLEMENTED = False
+system/wenqu_core/station7_runtime.py:974:                "name": "wenqu_core.station7_runtime.Station5LiveFirePlaceholder",
+system/wenqu_core/station7_runtime.py:990:class Station6AdversarialPlaceholder:
+system/wenqu_core/station7_runtime.py:1001:      Station5LiveFirePlaceholder（占位判定进程内完成）。
+system/wenqu_core/station7_runtime.py:1005:    IMPLEMENTED = False
+system/wenqu_core/station7_runtime.py:1028:                "name": "wenqu_core.station7_runtime.Station6AdversarialPlaceholder",
+system/wenqu_core/station7_runtime.py:1274:        st5 = Station5LiveFirePlaceholder(manifest).scan(
+system/wenqu_core/station7_runtime.py:1279:        st6 = Station6AdversarialPlaceholder(manifest).scan(
+system/wenqu_core/station7_runtime.py:1283:        assert Station5LiveFirePlaceholder.IMPLEMENTED is False
+system/wenqu_core/station7_runtime.py:1284:        assert Station6AdversarialPlaceholder.IMPLEMENTED is False
+system/wenqu_core/bugscan_orchestrator.py:396:        station_id=5,
+system/wenqu_core/bugscan_orchestrator.py:413:        station_id=6,
+=== security/action TODO ===
+system/wenqu_core/approval_keys.py:2:"""approval_keys.py——审批签发密钥登记 + HMAC-SHA256 真实验签（P0-2/P0-4 加固）。
+system/wenqu_core/approval_keys.py:4:Codex 第三轮对抗实锤 #1：approval.signature 只验长度（>= 32 字符），
+system/wenqu_core/approval_keys.py:5:伪造任意字符串即可通过并把缺字段的 envelope 消费掉。本模块把 signature
+system/wenqu_core/approval_keys.py:8:- keyring：key_id → secret 的受管登记，两种载体（目录型 / JSON 文件型）；
+system/wenqu_core/approval_keys.py:9:- 签名：signature = hex(hmac_sha256(secret,
+system/wenqu_core/approval_keys.py:10:              canonical_json(envelope_without_signature)))；
+system/wenqu_core/approval_keys.py:16:- secret 以明文落在 keyring 路径——与仓库/事件库/审批文件的物理隔离、
+system/wenqu_core/approval_keys.py:19:- key 撤销 = 从 keyring 移除该 key_id（未知 key 即拒，天然 fail-closed）；
+system/wenqu_core/approval_keys.py:36:    "sign_envelope",
+system/wenqu_core/approval_keys.py:40:#: key_id 命名约束（与 approval-v2.schema.json 的 pattern 一致）
+system/wenqu_core/approval_keys.py:47:    """key_id 未在 keyring 登记。"""
+system/wenqu_core/approval_keys.py:63:def sign_envelope(secret: str, envelope: Mapping[str, Any]) -> str:
+system/wenqu_core/approval_keys.py:64:    """对 envelope（不含 signature 字段）计算 HMAC-SHA256 签名（64 hex）。"""
+system/wenqu_core/approval_keys.py:67:    body = {k: v for k, v in dict(envelope).items() if k != "signature"}
+system/wenqu_core/approval_keys.py:74:                    signature: str) -> bool:
+system/wenqu_core/approval_keys.py:76:    if not isinstance(signature, str) or len(signature) != _SIGNATURE_LEN:
+system/wenqu_core/approval_keys.py:79:        expected = sign_envelope(secret, envelope)
+system/wenqu_core/approval_keys.py:82:    return hmac.compare_digest(expected, signature)
+system/wenqu_core/approval_keys.py:113:        """从目录或 JSON 文件加载 keyring。
+system/wenqu_core/approval_keys.py:120:            raise FileNotFoundError(f"keyring path not found: {path!r}")
+system/wenqu_core/approval_keys.py:135:            raise ValueError(f"keyring file {path!r} must hold a JSON object")
+system/wenqu_core/approval_keys.py:139:                f"keyring file {path!r}: 'keys' must be an object")
+system/wenqu_core/approval_keys.py:146:        """生成单 key keyring（测试/初始化用；secret 省略则 crypto 随机）。"""
+system/wenqu_core/approval_keys.py:151:        """把 keyring 落盘为 JSON 文件（0600，供下次 from_path 加载）。"""
+system/wenqu_core/approval_keys.py:167:                f"key_id {key_id!r} not registered in keyring "
+system/wenqu_core/approval_keys.py:177:    def verify(self, approval: Mapping[str, Any]) -> bool:
+system/wenqu_core/approval_keys.py:178:        """按 envelope.key_id 查 key 并验 signature；任何缺失即 False。"""
+system/wenqu_core/approval_keys.py:179:        if not isinstance(approval, Mapping):
+system/wenqu_core/approval_keys.py:181:        key_id = approval.get("key_id")
+system/wenqu_core/approval_keys.py:182:        signature = approval.get("signature")
+system/wenqu_core/approval_keys.py:185:        return verify_envelope(self._keys[key_id], approval, signature)
+system/wenqu_core/wenqu_pipeline.py:23:3. ``ApprovalBroker``——消费 approval-v2 schema（``schemas/approval-v2.schema.json``）
+system/wenqu_core/wenqu_pipeline.py:26:   - 一次性：nonce 经 ``approval_consumptions`` 表 PRIMARY KEY 约束原子消费，
+system/wenqu_core/wenqu_pipeline.py:32:   - state_version CAS：approval.expected_state_version 必须等于消费时的
+system/wenqu_core/wenqu_pipeline.py:49:``approval_id``/``nonce_digest`` 等）已正式声明进 schema（含 ``seal`` 内部
+system/wenqu_core/wenqu_pipeline.py:55:      （keyring 见 ``approval_keys.py``；input_watermark 强制 40-hex 且
+system/wenqu_core/wenqu_pipeline.py:70:      事件为唯一正源（approval_consumptions 旁表仅加速），仅复制事件到
+system/wenqu_core/wenqu_pipeline.py:76:F4-AUTH-001 根修（Codex 第四轮验收实锤：``approval_consumptions=0`` 时
+system/wenqu_core/wenqu_pipeline.py:79:  - ``reserve_action`` 必传 approval——消费 action 类型 HMAC 审批（复用
+system/wenqu_core/wenqu_pipeline.py:87:    HMAC-SHA256 keyring 验签 + 与 ACTION_STARTED 事件的水印/动作一致性），
+system/wenqu_core/wenqu_pipeline.py:91:    APPROVAL_CONSUMED 且 approval_type 与 action_type 匹配）与 receipt
+system/wenqu_core/wenqu_pipeline.py:108:from .approval_keys import ApprovalKeyring, sign_envelope
+system/wenqu_core/wenqu_pipeline.py:224:    """九类停等（契约 §6）——枚举值与 approval-v2 schema 的 stop_type 完全一致。"""
+system/wenqu_core/wenqu_pipeline.py:321:# approval-v2 结构规格（镜像 schemas/approval-v2.schema.json）
+system/wenqu_core/wenqu_pipeline.py:323:# payload 按 approval_type 互斥封闭（键集=该类型专属字段，混入他类即拒）。
+system/wenqu_core/wenqu_pipeline.py:329:    "schema_version", "approval_id", "approval_type", "key_id", "run_id",
+system/wenqu_core/wenqu_pipeline.py:333:    "decision", "signature", "payload",
+system/wenqu_core/wenqu_pipeline.py:425:def default_keyring() -> ApprovalKeyring:
+system/wenqu_core/wenqu_pipeline.py:426:    """默认 keyring：环境变量 ``WENQU_APPROVAL_KEYRING`` 指向目录/JSON 文件。
+system/wenqu_core/wenqu_pipeline.py:428:    未配置或路径不存在 → 空 keyring（登记 0 把密钥）——fail-closed：
+system/wenqu_core/wenqu_pipeline.py:463:#: action_type → 必须消费的 approval-v2 审批类型（封闭映射）。resume/risk
+system/wenqu_core/wenqu_pipeline.py:487:#: 签名声明。键集封闭；signature = HMAC-SHA256(keyring[key_id],
+system/wenqu_core/wenqu_pipeline.py:488:#: canonical_json(除 signature 外全字段))，与审批验签同一 keyring 体系。
+system/wenqu_core/wenqu_pipeline.py:494:    "signature",
+system/wenqu_core/wenqu_pipeline.py:565:        super().__init__(f"approval rejected: {reason}")
+system/wenqu_core/wenqu_pipeline.py:644:    ``RunManager._verify_external_receipt``（keyring），一致性比对同处。
+system/wenqu_core/wenqu_pipeline.py:647:        raise ActionError("external receipt must be a JSON object")
+system/wenqu_core/wenqu_pipeline.py:651:        raise ActionError(f"external receipt missing fields: {missing}")
+system/wenqu_core/wenqu_pipeline.py:654:        raise ActionError(f"external receipt forbidden fields: {stray}（键集封闭）")
+system/wenqu_core/wenqu_pipeline.py:657:            f"external receipt schema_version must be "
+system/wenqu_core/wenqu_pipeline.py:661:            f"external receipt receipt_type must be {_EXTERNAL_RECEIPT_TYPE!r}")
+system/wenqu_core/wenqu_pipeline.py:663:        raise ActionError("external receipt action_id must match ^act_*")
+system/wenqu_core/wenqu_pipeline.py:665:        raise ActionError("external receipt run_id must be a non-empty string")
+system/wenqu_core/wenqu_pipeline.py:669:                f"external receipt {key} must be a non-empty string")
+system/wenqu_core/wenqu_pipeline.py:672:            "external receipt watermark must be a 40-hex git sha（强制绑定）")
+system/wenqu_core/wenqu_pipeline.py:675:            f"external receipt outcome must be one of "
+system/wenqu_core/wenqu_pipeline.py:678:        raise ActionError("external receipt ts must be a non-empty string")
+system/wenqu_core/wenqu_pipeline.py:682:        raise ActionError(f"external receipt ts invalid: {exc}") from None
+system/wenqu_core/wenqu_pipeline.py:684:        raise ActionError("external receipt key_id must match ^key_*（验签必填）")
+system/wenqu_core/wenqu_pipeline.py:685:    if not (isinstance(rc["signature"], str) and len(rc["signature"]) == 64
+system/wenqu_core/wenqu_pipeline.py:686:            and all(c in _HEX64 for c in rc["signature"].lower())
+system/wenqu_core/wenqu_pipeline.py:687:            and rc["signature"] == rc["signature"].lower()):
+system/wenqu_core/wenqu_pipeline.py:689:            "external receipt signature must be a lowercase 64-hex HMAC-SHA256")
+system/wenqu_core/wenqu_pipeline.py:763:      （APPROVAL_CONSUMED 事件——approval_consumptions 旁表仅加速查询）；
+system/wenqu_core/wenqu_pipeline.py:779:    # F4-AUTH-001：nonce_digest → 已消费 approval_type（ACTION_AUTH_RESERVED
+system/wenqu_core/wenqu_pipeline.py:1084:# ApprovalBroker——approval-v2 审批消费
+system/wenqu_core/wenqu_pipeline.py:1089:    """消费 approval-v2 审批事件：fail-closed 校验 + 一次性原子消费。
+system/wenqu_core/wenqu_pipeline.py:1095:        2. P0-4：HMAC-SHA256 真实验签（key_id → keyring secret → 重算比对；
+system/wenqu_core/wenqu_pipeline.py:1097:        3. API 路由（Codex 实锤 #2）：consume() 只收 approval_type=resume，
+system/wenqu_core/wenqu_pipeline.py:1114:    同一 nonce 依旧被拒；approval_consumptions 旁表只是查询加速。
+system/wenqu_core/wenqu_pipeline.py:1122:    CREATE TABLE IF NOT EXISTS approval_consumptions (
+system/wenqu_core/wenqu_pipeline.py:1124:        approval_id       TEXT NOT NULL,
+system/wenqu_core/wenqu_pipeline.py:1125:        approval_type     TEXT NOT NULL,
+system/wenqu_core/wenqu_pipeline.py:1135:    CREATE INDEX IF NOT EXISTS idx_approval_consumptions_run
+system/wenqu_core/wenqu_pipeline.py:1136:        ON approval_consumptions(run_id);
+system/wenqu_core/wenqu_pipeline.py:1141:                 keyring: Optional[ApprovalKeyring] = None) -> None:
+system/wenqu_core/wenqu_pipeline.py:1145:        # P0-4：keyring 缺省取环境默认；无任何登记密钥时验签必然拒绝
+system/wenqu_core/wenqu_pipeline.py:1146:        # （fail-closed——未知 key_id 即拒，不因 keyring 为空而放行）。
+system/wenqu_core/wenqu_pipeline.py:1147:        self._keyring = keyring if keyring is not None else default_keyring()
+system/wenqu_core/wenqu_pipeline.py:1150:    # 结构校验（镜像 approval-v2.schema.json，无外部依赖；纯结构不含验签）
+system/wenqu_core/wenqu_pipeline.py:1153:    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/wenqu_pipeline.py:1154:        if not isinstance(approval, Mapping):
+system/wenqu_core/wenqu_pipeline.py:1155:            raise ApprovalRejected("approval is not a JSON object")
+system/wenqu_core/wenqu_pipeline.py:1156:        ap = dict(approval)
+system/wenqu_core/wenqu_pipeline.py:1170:        if not (isinstance(ap["approval_id"], str)
+system/wenqu_core/wenqu_pipeline.py:1171:                and ap["approval_id"].startswith("apr_")
+system/wenqu_core/wenqu_pipeline.py:1172:                and len(ap["approval_id"]) > 4
+system/wenqu_core/wenqu_pipeline.py:1173:                and all(c.isalnum() or c == "_" for c in ap["approval_id"][4:])):
+system/wenqu_core/wenqu_pipeline.py:1175:                "approval_id must match ^apr_[a-zA-Z0-9_]+$")
+system/wenqu_core/wenqu_pipeline.py:1176:        if ap["approval_type"] not in _APPROVAL_TYPES:
+system/wenqu_core/wenqu_pipeline.py:1178:                f"invalid approval_type {ap['approval_type']!r}; "
+system/wenqu_core/wenqu_pipeline.py:1226:        # P0-4（Codex 实锤 #1）：signature 必须是 HMAC-SHA256 hex（64 位），
+system/wenqu_core/wenqu_pipeline.py:1227:        # 真实验签在 _verify_signature（keyring 查 key 重算比对）。
+system/wenqu_core/wenqu_pipeline.py:1228:        if not (isinstance(ap["signature"], str)
+system/wenqu_core/wenqu_pipeline.py:1229:                and len(ap["signature"]) == 64
+system/wenqu_core/wenqu_pipeline.py:1230:                and all(c in _HEX64 for c in ap["signature"].lower())
+system/wenqu_core/wenqu_pipeline.py:1231:                and ap["signature"] == ap["signature"].lower()):
+system/wenqu_core/wenqu_pipeline.py:1233:                "signature must be a lowercase 64-hex HMAC-SHA256")
+system/wenqu_core/wenqu_pipeline.py:1248:        # payload 判别封闭（Codex 实锤 #2）：键集 = 该 approval_type 的专属
+system/wenqu_core/wenqu_pipeline.py:1253:        atype = ap["approval_type"]
+system/wenqu_core/wenqu_pipeline.py:1259:                f"payload not closed for approval_type={atype!r}: "
+system/wenqu_core/wenqu_pipeline.py:1266:                f"approval_type={atype!r}: missing {missing}")
+system/wenqu_core/wenqu_pipeline.py:1317:    def _verify_signature(self, ap: Mapping[str, Any]) -> None:
+system/wenqu_core/wenqu_pipeline.py:1319:        if not self._keyring.has(key_id):
+system/wenqu_core/wenqu_pipeline.py:1321:                f"unknown signing key_id {key_id!r}（未登记的签发密钥一律拒）",
+system/wenqu_core/wenqu_pipeline.py:1323:                 "known_keys": self._keyring.key_ids()})
+system/wenqu_core/wenqu_pipeline.py:1324:        if not self._keyring.verify(ap):
+system/wenqu_core/wenqu_pipeline.py:1326:                "HMAC-SHA256 signature verification failed（伪签名拒绝）",
+system/wenqu_core/wenqu_pipeline.py:1327:                {"key_id": key_id, "approval_id": ap.get("approval_id")})
+system/wenqu_core/wenqu_pipeline.py:1337:                "run is terminal; approval cannot resume a finished run",
+system/wenqu_core/wenqu_pipeline.py:1350:                "approval outside TTL window (issued_at <= now < expires_at)",
+system/wenqu_core/wenqu_pipeline.py:1357:                {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+system/wenqu_core/wenqu_pipeline.py:1362:                {"approval_stop_event_id": ap["stop_event_id"],
+system/wenqu_core/wenqu_pipeline.py:1367:                {"approval_stop_type": ap["stop_type"],
+system/wenqu_core/wenqu_pipeline.py:1372:                {"approval_stage": ap["stage"], "waiting_stage": waiting.stage})
+system/wenqu_core/wenqu_pipeline.py:1376:                {"approval_task_id": ap["task_id"],
+system/wenqu_core/wenqu_pipeline.py:1382:                {"approval_environment": ap["environment"],
+system/wenqu_core/wenqu_pipeline.py:1392:                {"approval_policy_hash": ap["policy_hash"],
+system/wenqu_core/wenqu_pipeline.py:1397:                {"approval_ruleset_hash": ap["ruleset_hash"],
+system/wenqu_core/wenqu_pipeline.py:1426:    def _approval_consumed_event(
+system/wenqu_core/wenqu_pipeline.py:1442:            "approval_id": ap["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:1443:            "approval_type": ap["approval_type"],
+system/wenqu_core/wenqu_pipeline.py:1451:        if ap["approval_type"] == "risk":
+system/wenqu_core/wenqu_pipeline.py:1461:        approval: Mapping[str, Any],
+system/wenqu_core/wenqu_pipeline.py:1471:        P0-4（Codex 实锤 #2）：本方法只接受 approval_type=resume——risk 等
+system/wenqu_core/wenqu_pipeline.py:1477:            resume_event_builder —— (run_state, normalized_approval, nonce_digest)
+system/wenqu_core/wenqu_pipeline.py:1482:        ap = self.validate_structure(approval)          # 1. 结构（纯函数）
+system/wenqu_core/wenqu_pipeline.py:1483:        self._verify_signature(ap)                      # 2. HMAC 真实验签
+system/wenqu_core/wenqu_pipeline.py:1484:        if ap["approval_type"] != "resume":             # 3. API 路由判别
+system/wenqu_core/wenqu_pipeline.py:1486:                f"consume() only accepts approval_type=resume; got "
+system/wenqu_core/wenqu_pipeline.py:1487:                f"{ap['approval_type']!r}（risk/action 类走 consume_authorization）")
+system/wenqu_core/wenqu_pipeline.py:1496:                    f"nonce already consumed (approval {ap['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1498:            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+system/wenqu_core/wenqu_pipeline.py:1501:                    f"nonce already consumed (approval {ap['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1521:                    "INSERT INTO approval_consumptions "
+system/wenqu_core/wenqu_pipeline.py:1522:                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+system/wenqu_core/wenqu_pipeline.py:1526:                    (bound["nonce"], bound["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:1527:                     bound["approval_type"], state.run_id, bound["stop_type"],
+system/wenqu_core/wenqu_pipeline.py:1533:                    f"nonce already consumed (approval {bound['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1537:                self._approval_consumed_event(state, bound, nonce_digest,
+system/wenqu_core/wenqu_pipeline.py:1545:                "UPDATE approval_consumptions SET resume_event_hash = ? "
+system/wenqu_core/wenqu_pipeline.py:1550:                "approval_id": bound["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:1551:                "approval_type": bound["approval_type"],
+system/wenqu_core/wenqu_pipeline.py:1569:        approval: Mapping[str, Any],
+system/wenqu_core/wenqu_pipeline.py:1573:        expected_approval_type: str = "risk",
+system/wenqu_core/wenqu_pipeline.py:1578:        （只收 expected_approval_type，resume 一律拒）→ decision=approve →
+system/wenqu_core/wenqu_pipeline.py:1584:        ap = self.validate_structure(approval)
+system/wenqu_core/wenqu_pipeline.py:1585:        self._verify_signature(ap)
+system/wenqu_core/wenqu_pipeline.py:1586:        if ap["approval_type"] == "resume":
+system/wenqu_core/wenqu_pipeline.py:1589:        if ap["approval_type"] != expected_approval_type:
+system/wenqu_core/wenqu_pipeline.py:1591:                f"authorization route mismatch: expected approval_type="
+system/wenqu_core/wenqu_pipeline.py:1592:                f"{expected_approval_type!r}, got {ap['approval_type']!r}")
+system/wenqu_core/wenqu_pipeline.py:1596:                conn, ap, run_loader, now, expected_approval_type))
+system/wenqu_core/wenqu_pipeline.py:1605:        expected_approval_type: str,
+system/wenqu_core/wenqu_pipeline.py:1612:        调用方须已完成结构校验、验签与 approval_type 路由判定。
+system/wenqu_core/wenqu_pipeline.py:1623:                    "approval outside TTL window",
+system/wenqu_core/wenqu_pipeline.py:1628:                    {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+system/wenqu_core/wenqu_pipeline.py:1632:                    {"approval_task_id": ap["task_id"],
+system/wenqu_core/wenqu_pipeline.py:1660:                    {"approval_stage": ap["stage"], "anchor_stage": anchor_stage})
+system/wenqu_core/wenqu_pipeline.py:1692:                    f"nonce already consumed (approval {ap['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1694:            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+system/wenqu_core/wenqu_pipeline.py:1697:                    f"nonce already consumed (approval {ap['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1700:            if expected_approval_type == "risk":
+system/wenqu_core/wenqu_pipeline.py:1704:                    "INSERT INTO approval_consumptions "
+system/wenqu_core/wenqu_pipeline.py:1705:                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+system/wenqu_core/wenqu_pipeline.py:1709:                    (ap["nonce"], ap["approval_id"], ap["approval_type"],
+system/wenqu_core/wenqu_pipeline.py:1717:                    f"nonce already consumed (approval {ap['approval_id']} "
+system/wenqu_core/wenqu_pipeline.py:1721:                self._approval_consumed_event(
+system/wenqu_core/wenqu_pipeline.py:1725:                "approval_id": ap["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:1726:                "approval_type": ap["approval_type"],
+system/wenqu_core/wenqu_pipeline.py:1736:    def consumed_approvals(self, run_id: Optional[str] = None,
+system/wenqu_core/wenqu_pipeline.py:1737:                           approval_type: Optional[str] = None
+system/wenqu_core/wenqu_pipeline.py:1740:        sql = ("SELECT nonce, approval_id, approval_type, run_id, stop_type, "
+system/wenqu_core/wenqu_pipeline.py:1743:               "FROM approval_consumptions")
+system/wenqu_core/wenqu_pipeline.py:1748:        if approval_type is not None:
+system/wenqu_core/wenqu_pipeline.py:1749:            conds.append("approval_type = ?")
+system/wenqu_core/wenqu_pipeline.py:1750:            args.append(approval_type)
+system/wenqu_core/wenqu_pipeline.py:1755:        keys = ("nonce", "approval_id", "approval_type", "run_id", "stop_type",
+system/wenqu_core/wenqu_pipeline.py:1768:        旁表 approval_consumptions 不在场也不影响判定。
+system/wenqu_core/wenqu_pipeline.py:1774:                    or payload.get("approval_type") != "risk"
+system/wenqu_core/wenqu_pipeline.py:1782:                "approval_id": payload.get("approval_id"),
+system/wenqu_core/wenqu_pipeline.py:1818:                 keyring: Optional[ApprovalKeyring] = None) -> None:
+system/wenqu_core/wenqu_pipeline.py:1824:            store, db=self._db, keyring=keyring)
+system/wenqu_core/wenqu_pipeline.py:1922:                atype = ev.get("approval_type")
+system/wenqu_core/wenqu_pipeline.py:1926:                        f"approval_type（F4-AUTH-001 授权消费链损坏）")
+system/wenqu_core/wenqu_pipeline.py:1931:                if ev.get("approval_type") == "risk":
+system/wenqu_core/wenqu_pipeline.py:1933:                        "approval_id": ev.get("approval_id"),
+system/wenqu_core/wenqu_pipeline.py:2114:        - RESERVED 必须携带 approval_id + nonce_digest，且事件流中此前存在
+system/wenqu_core/wenqu_pipeline.py:2115:          对应 APPROVAL_CONSUMED（其 approval_type 与 action_type 匹配）；
+system/wenqu_core/wenqu_pipeline.py:2132:            approval_id = ev.get("approval_id")
+system/wenqu_core/wenqu_pipeline.py:2135:            if not (isinstance(approval_id, str)
+system/wenqu_core/wenqu_pipeline.py:2136:                    and approval_id.startswith("apr_")):
+system/wenqu_core/wenqu_pipeline.py:2139:                    f"缺合法 approval_id（无授权预留——F4-AUTH-001）")
+system/wenqu_core/wenqu_pipeline.py:2160:                "approval_id": approval_id,
+system/wenqu_core/wenqu_pipeline.py:2445:        approval: Mapping[str, Any],
+system/wenqu_core/wenqu_pipeline.py:2475:                approval_id=ap["approval_id"], nonce_digest=nonce_digest)
+system/wenqu_core/wenqu_pipeline.py:2478:            approval,
+system/wenqu_core/wenqu_pipeline.py:2492:                       approval: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/wenqu_pipeline.py:2495:            approval, run_loader=lambda conn: self._load_state(run_id, conn))
+system/wenqu_core/wenqu_pipeline.py:2497:    def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
+system/wenqu_core/wenqu_pipeline.py:2550:                if risk is None or (risk_approval_id is not None
+system/wenqu_core/wenqu_pipeline.py:2551:                                    and risk["approval_id"] != risk_approval_id):
+system/wenqu_core/wenqu_pipeline.py:2559:                    f"risk authorization {risk['approval_id']} active; "
+system/wenqu_core/wenqu_pipeline.py:2674:                       approval: Optional[Mapping[str, Any]] = None, *,
+system/wenqu_core/wenqu_pipeline.py:2679:        （approval-v2：结构校验 → HMAC 验签 → approval_type 与 action_type
+system/wenqu_core/wenqu_pipeline.py:2690:        if approval is None:
+system/wenqu_core/wenqu_pipeline.py:2693:                "（approval 参数，F4-AUTH-001）——无授权预留一律拒绝")
+system/wenqu_core/wenqu_pipeline.py:2700:        ap = self.broker.validate_structure(approval)
+system/wenqu_core/wenqu_pipeline.py:2701:        self.broker._verify_signature(ap)  # noqa: SLF001 —— 同模块受管复用
+system/wenqu_core/wenqu_pipeline.py:2702:        if ap["approval_type"] != expected:
+system/wenqu_core/wenqu_pipeline.py:2704:                f"action_type={action_type!r} 要求 approval_type="
+system/wenqu_core/wenqu_pipeline.py:2705:                f"{expected!r}，got {ap['approval_type']!r}（类型不符拒绝）")
+system/wenqu_core/wenqu_pipeline.py:2722:                approval_id=ap["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:2728:                    "approval_id": ap["approval_id"],
+system/wenqu_core/wenqu_pipeline.py:2788:        验签（keyring；伪回执拒绝）→ 与 ACTION_STARTED 事件的一致性
+system/wenqu_core/wenqu_pipeline.py:2845:        结构（键集封闭）→ HMAC-SHA256 验签（keyring）→ 与 ACTION_STARTED
+system/wenqu_core/wenqu_pipeline.py:2849:        keyring = self.broker._keyring  # noqa: SLF001 —— 同模块受管复用
+system/wenqu_core/wenqu_pipeline.py:2850:        if not keyring.has(key_id):
+system/wenqu_core/wenqu_pipeline.py:2852:                f"external receipt unknown signing key_id {key_id!r}"
+system/wenqu_core/wenqu_pipeline.py:2854:        if not keyring.verify(rc):
+system/wenqu_core/wenqu_pipeline.py:2856:                "external receipt HMAC-SHA256 signature verification failed"
+system/wenqu_core/wenqu_pipeline.py:2880:        - 校验链与 commit_action 完全一致：结构 → HMAC 验签（keyring）→

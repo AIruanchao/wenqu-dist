@@ -1,0 +1,8 @@
+2026-10-08 第七轮真实 UI 验证尝试（只读）
+1) cua.createBrowserTab("iab", "http://127.0.0.1:7789/", {visible:true})
+   结果: Browser is not available: iab
+2) cua.getState()
+   结果: js execution timed out; kernel reset
+3) cua.createBrowserTab("chrome", "http://127.0.0.1:7789/", {sessionName:"🔍 问渠验收"})
+   结果: js execution timed out; kernel reset
+判定: 本轮 CUA 真实浏览器通道不可用；未将 curl/协议测试冒充真实 UI。按失败两次换法纪律停止重复。

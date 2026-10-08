@@ -271,6 +271,39 @@ def _sign_ap(ap: Dict[str, Any]) -> Dict[str, Any]:
     return ap
 
 
+# ---------------------------------------------------------------------------
+# R7-AUTH-DUAL-CONSUME-005（Codex 第七轮 P0 根修）消费端新契约助手：
+# 高危类型（prod_write/ddl/release/fund_auth）审批在 reserve_action 消费时
+# 必须携带嵌入 cosignatures（两名不同 key 对同一信封体的独立 HMAC），且
+# reserve_action 必须携带与审批 payload 逐字段等值的 action_descriptor。
+# ACT 族既有断言全部保留不动（只增不减），仅成功路径的审批构造按新契约
+# 补联签、reserve 调用补 descriptor（拒绝腿的既有拒绝原因先于新门生效，
+# 调用形态不变）。
+# ---------------------------------------------------------------------------
+
+
+def _cosign_ap(
+    ap: Dict[str, Any], *, second_key_id: str = "key_test_2",
+    second_actor: str = "erge", primary_actor: str = "approver-human",
+) -> Dict[str, Any]:
+    """给已主签的高危审批补嵌入联签数组（主签人 + 第二签发人，独立 HMAC）。"""
+    body = {k: v for k, v in ap.items()
+            if k not in ("signature", "cosignatures")}
+    out = dict(ap)
+    out["cosignatures"] = [
+        {"key_id": ap["key_id"], "actor": primary_actor,
+         "signature": ap["signature"]},
+        {"key_id": second_key_id, "actor": second_actor,
+         "signature": sign_envelope(KEYRING.get(second_key_id), body)},
+    ]
+    return out
+
+
+def _descriptor(ap: Dict[str, Any]) -> Dict[str, Any]:
+    """exact action descriptor（调用方实参声明的动作描述=审批 payload 副本）。"""
+    return dict(ap["payload"])
+
+
 def _make_approval(
     run_id: str, task: str, state_version: int, approval_type: str, *,
     stage: str = "S1_REQUIREMENT", nonce: Optional[str] = None,
@@ -394,8 +427,11 @@ def test_ACT_01_technical_pass_without_exact_authorization_controller_holds(
         _assert_zero_action_side(mgr, run_c, "活 run 无授权预留后")
 
         # exact authorization 到位后 controller 才动作（精确授权半边，非全面禁止）
-        rel_ap = _make_approval(run_c, "task_act01_live2", v_c, "release")
-        r = mgr.reserve_action(run_c, "release", "prod://erp/rel-77", rel_ap)
+        # R7：release 高危——补嵌入双联签 + exact descriptor（新消费契约）
+        rel_ap = _cosign_ap(_make_approval(run_c, "task_act01_live2", v_c,
+                                           "release"))
+        r = mgr.reserve_action(run_c, "release", "prod://erp/rel-77", rel_ap,
+                               action_descriptor=_descriptor(rel_ap))
         _ok(r["action_state"] == "RESERVED", "exact 授权预留应成功")
         _ok(_count_events(mgr, "APPROVAL_CONSUMED", run_c) == 1,
             "预留成功应恰消费一次授权")
@@ -483,8 +519,9 @@ def test_ACT_03_outbox_idempotent_recovery_no_double_green(
     with _tmp(root) as td:
         store, mgr = _fresh(td)
         run_id, v = _s1_running_run(mgr, "task_act03")
-        ap = _make_approval(run_id, "task_act03", v, "release")
-        reserved = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap)
+        ap = _cosign_ap(_make_approval(run_id, "task_act03", v, "release"))
+        reserved = mgr.reserve_action(run_id, "release", "prod://erp/rel-77",
+                                      ap, action_descriptor=_descriptor(ap))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="publish attempt 1")
 
@@ -569,8 +606,9 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
 
         # -- 动作 1（release）：调用发出后回执丢失 → 先查询外部事实（对账不了）
         #    → FAILED_UNKNOWN 终态；绝不盲重试（nonce 已消费、终态封死）
-        ap1 = _make_approval(run_id, "task_act04", v, "release")
-        a1 = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap1)
+        ap1 = _cosign_ap(_make_approval(run_id, "task_act04", v, "release"))
+        a1 = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap1,
+                                action_descriptor=_descriptor(ap1))
         mgr.start_action(run_id, a1["action_id"],
                          receipt="call issued; receipt lost in crash")
         lost = _make_receipt(a1, run_id)          # 从未到达的回执形态
@@ -595,7 +633,8 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
         # -- 动作 2（merge）：外部事实声明 COMMITTED → 查询通过后恰一次落账
         v_now = mgr.get_run(run_id).state_version
         ap2 = _make_approval(run_id, "task_act04", v_now, "merge")
-        a2 = mgr.reserve_action(run_id, "merge", "repo://erp-main/pr-42", ap2)
+        a2 = mgr.reserve_action(run_id, "merge", "repo://erp-main/pr-42", ap2,
+                                action_descriptor=_descriptor(ap2))
         mgr.start_action(run_id, a2["action_id"], receipt="merge issued")
         fact2 = _make_receipt(a2, run_id, outcome="COMMITTED",
                               external_ref="gh-merge-42")
@@ -610,8 +649,9 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
         # -- 动作 3（ddl）：外部事实声明 FAILED → 不得 COMMITTED，
         #    走 fail_action → FAILED_UNKNOWN
         v_now = mgr.get_run(run_id).state_version
-        ap3 = _make_approval(run_id, "task_act04", v_now, "ddl")
-        a3 = mgr.reserve_action(run_id, "ddl", "db://staging/erp", ap3)
+        ap3 = _cosign_ap(_make_approval(run_id, "task_act04", v_now, "ddl"))
+        a3 = mgr.reserve_action(run_id, "ddl", "db://staging/erp", ap3,
+                                action_descriptor=_descriptor(ap3))
         mgr.start_action(run_id, a3["action_id"])
         fact3 = _make_receipt(a3, run_id, outcome="FAILED",
                               external_ref="ddl-exec-9")
@@ -645,7 +685,8 @@ def test_ACT_05_stale_green_or_dispatcher_loss_keeps_action_blocked(
         run_id, v = _s1_running_run(mgr, "task_act05")
         ap = _make_approval(run_id, "task_act05", v, "merge")
         reserved = mgr.reserve_action(run_id, "merge",
-                                      "repo://erp-main/pr-42", ap)
+                                      "repo://erp-main/pr-42", ap,
+                                      action_descriptor=_descriptor(ap))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="merge started; awaiting receipt")
 

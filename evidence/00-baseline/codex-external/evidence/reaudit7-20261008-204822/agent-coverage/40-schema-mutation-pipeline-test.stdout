@@ -1,0 +1,12 @@
+  ok  规则引擎（七段/转换/双轴/九类前置/bool 客观化）
+  ok  全流程七段 PASS → SUCCEEDED + 重放一致
+  ok  FAIL 重试 → 新 attempt_id，旧 attempt 不可变
+  ok  九类停等 raise→resume（必要且充分）
+  ok  审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希/验签）
+  ok  并发双消费：恰好一个成功
+  ok  COMPLETED_CONDITIONAL 终态 + risk 授权指纹匹配
+  ok  cancel/supersede/not_found/FAILED
+  ok  与 EventStore.append 交错链完整性
+  FAIL 与 approval-v2 schema 交叉验证: AssertionError: 分歧: schema=False mine=True on {'schema_version': '2.0', 'approval_id': 'apr_resume_1', 'approval_type': 'resume', 'key_id': 'key_test_1', 'run_id': 'run_20261008T210411Z_b46a5699', 'task_id': 'task_x', 'stop_event_id': '38f79d7b309cb6e9198f3f92b8d39e2ab6024f2de698dc38e368fcaf5c27688e', 'stop_type': 'prod-write', 'stage': 'S1_REQUIREMENT', 'environment': 'staging', 'authorized_scope': 'scope-hash-001', 'policy_hash': 'policy-sha-001', 'ruleset_hash': 'rules-7', 'input_watermark': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'actor': 'chaoge', 'issued_at': '2026-10-08T00:00:00Z', 'expires_at': '2099-01-01T00:00:00Z', 'expected_state_version': 3, 'nonce': 'short', 'decision': 'approve', 'payload': {'stop_event_id': '38f79d7b309cb6e9198f3f92b8d39e2ab6024f2de698dc38e368fcaf5c27688e', 'stop_type': 'prod-write', 'objective_precondition_hash': '2f678321afe42f5e89e03d9afd72894893bdd35312ac2b76562eede846c94684'}, 'signature': '7b28a593e6e3d442a060439c1449ea23bce60122ae932c6c766d3221738c9871'}
+
+P0-2 状态机+审批 Broker: 9 PASS / 1 FAIL

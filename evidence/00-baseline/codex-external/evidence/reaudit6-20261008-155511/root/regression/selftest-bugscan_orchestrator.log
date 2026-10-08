@@ -1,0 +1,11 @@
+CAPTURED_AT=2026-10-08T15:57:35,867964000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 system/wenqu_core/bugscan_orchestrator.py 
+--- OUTPUT ---
+[1] registry w6a-1.0.0 OK: 8 stations, digest=fb0b44af9edb…
+[2] planner auto-escalation OK: FAST --touches_migration--> STANDARD, required=(0, 1, 2, 3, 4), rounds=2
+[3] freeze OK: run=selftest-run-001 scope_hash=05b0dcade1a2… manifest_hash=d5a4056a6088… ; station-0 result PASS (coverage 2/2)
+[4] source-gate adapt OK: exit 0 → COMPLETED/PASS (coverage 3/3)
+[5] negative paths OK: cross-SHA refused / shrink→BLOCKED / downgrade requires valid 5-element record (30d sunset + floor {0,1} enforced)
+[6] manifest save/load OK: run-manifest.json idempotent + hash verified
+SELF-TEST PASS
+--- EXIT_CODE=0 ---

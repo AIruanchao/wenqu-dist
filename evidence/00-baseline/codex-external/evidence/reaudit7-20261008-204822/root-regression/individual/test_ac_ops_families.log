@@ -1,0 +1,25 @@
+========================================================================
+§20 验收 ID 专属测试——SCH/ALT/BAK/HLT/DOC/CAP/DR 七族 17 条（真实注入/真实断言）
+repo: /private/tmp/wenqu-reaudit7-20261008-204822  HEAD: d32c859f9043798d9e8a4984e8f57aa64567e33c
+========================================================================
+  PASS  ALT-01   test_ALT_01_provider_500_and_timeout_retry_then_dead_letter
+  PASS  ALT-02   test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health
+  PASS  BAK-01   test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success
+  PASS  CAP-01   test_CAP_01_peak_budget_over_margin_or_disk_full_switches_blocked
+  PASS  DOC-01   test_DOC_01_stop_type_count_and_enumeration_drift_blocks_ci
+  [DOC-02 观察项] 真实仓存在验收数量漂移（未硬凑进断言）: README 宣称 66 项，机器实测 68 检查单元（ck=39 + inline=29）——按 §20 应 CI 阻断并修文档
+  PASS  DOC-02   test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci
+  PASS  DOC-03   test_DOC_03_policy_forbidden_bypass_text_blocks_ci
+  PASS  DOC-04   test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci
+  PASS  DR-01    test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets
+  PASS  HLT-01   test_HLT_01_input_watermark_change_invalidates_snapshot
+  PASS  SCH-01   test_SCH_01_env_permission_denied_yields_error_and_alert
+  PASS  SCH-02   test_SCH_02_fake_touch_heartbeat_after_fail_keeps_last_success
+  PASS  SCH-03   test_SCH_03_sleep_missed_period_wakes_up_and_catches_up
+  PASS  SCH-04   test_SCH_04_catchup_and_normal_race_single_logical_run
+  PASS  SCH-05   test_SCH_05_scheduler_down_independent_watchdog_still_alerts
+  PASS  SCH-06   test_SCH_06_one_shot_job_writes_only_wenqu_namespace
+  PASS  SCH-07   test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes
+------------------------------------------------------------------------
+RESULT: PASS=17 FAIL=0
+证据工件: evidence/04-unit-property-mutation/ac-ops-families.json

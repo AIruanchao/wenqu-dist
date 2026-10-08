@@ -18,6 +18,20 @@
 - freeze_run_manifest()：站0 冻结 run-manifest.json——项目身份/commit SHA/
   scope/ruleset/data config/required 站集合全部哈希绑定；冻结后不可变
   （同内容幂等、异内容拒绝覆写）。
+- R7-GATE-MANIFEST-AUTH-001（第七轮洞1 根修，2026-10-08）：manifest 无可信根
+  ——纯 manifest_hash 任何人都能重算，篡改顶层 required/删 TTL 后自行重算
+  hash 即可让 gate 按缩水口径上绿。修法三件套：
+  1. freeze_run_manifest 增签名面（signing_keyring/signing_key_id）：以
+     wenqu_core.approval_keys 的 HMAC-SHA256 对 manifest 签发
+     ``signature`` + ``key_id`` 字段（release/manifest 专用 key——只读
+     import，不引入写路径）；``manifest_hash`` 改为覆盖**含签名的整体
+     内容**（重算 hash 不再能洗白篡改——签名覆盖 key_id 外全部内容）。
+  2. RunManifest.load(path, keyring=…, allow_unsigned=…)：keyring 给定时
+     验签——无签名默认拒（仅诊断可显式 allow_unsigned）、key 未知/已吊销/
+     验签失败一律 ManifestFreezeError（fail-closed）。
+  3. validate_manifest_consistency()：顶层与 planner 的 required/TTL/scope/
+     分母自一致性校验（独立于签名——即使合法签名/诊断降级路径，任何不一致
+     由 CLI 记 manifest_consistency_violation 并整线 BLOCKED）。
 - SourceGateAdapter：站1 源闸适配——只消费 SourceGate 在 exact-SHA 上的
   既有结果并按 §7 退出码契约机械映射，不自行判定、不重跑；SHA 不匹配/
   证据过期/载荷畸形一律 fail-closed 抛错，绝不折算为 PASS（不变量：审批与
@@ -47,6 +61,22 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+# R7-GATE-MANIFEST-AUTH-001：只读复用审批密钥域（HMAC 签名/验签原语与 keyring
+# 生命周期语义——revoked 验签即拒）。独立脚本执行（python3 bugscan_orchestrator.py）
+# 时补 sys.path，包内导入时零副作用。
+try:  # pragma: no cover —— 分支取决于执行形态
+    from wenqu_core.approval_keys import (  # noqa: E402
+        ApprovalKeyring, KeyNotFoundError, KeyStateError, sign_envelope,
+    )
+except ImportError:  # pragma: no cover —— 脚本直跑回退
+    import sys as _sys
+    _PKG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _PKG_PARENT not in _sys.path:
+        _sys.path.insert(0, _PKG_PARENT)
+    from wenqu_core.approval_keys import (  # noqa: E402
+        ApprovalKeyring, KeyNotFoundError, KeyStateError, sign_envelope,
+    )
+
 __all__ = [
     "SCHEMA_VERSION",
     "REGISTRY_VERSION",
@@ -67,6 +97,7 @@ __all__ = [
     "build_station_result",
     "validate_station_result",
     "freeze_run_manifest",
+    "validate_manifest_consistency",
     "default_registry",
     "CONVERGENCE_ROUNDS_MIN",
     "CONVERGENCE_ROUNDS_MAX",
@@ -815,6 +846,8 @@ class BugscanPlanner:
         base_sha: Optional[str] = None,
         lockfile_hash: Optional[str] = None,
         now: Optional[datetime] = None,
+        signing_keyring: Optional[ApprovalKeyring] = None,
+        signing_key_id: Optional[str] = None,
     ) -> "RunManifest":
         return freeze_run_manifest(
             plan,
@@ -829,6 +862,8 @@ class BugscanPlanner:
             lockfile_hash=lockfile_hash,
             now=now,
             registry=self._registry,
+            signing_keyring=signing_keyring,
+            signing_key_id=signing_key_id,
         )
 
 
@@ -840,6 +875,11 @@ class BugscanPlanner:
 class RunManifest:
     """冻结后的 run manifest（不可变值对象）。
 
+    - R7-GATE-MANIFEST-AUTH-001：``signature``/``key_id``（可选）为
+      release/manifest 专用 key 的 HMAC-SHA256 签名——签名覆盖
+      key_id 外的全部 manifest 内容；``manifest_hash`` 覆盖**含签名的
+      整体内容**。未签名（legacy/诊断）manifest 两者为 None，hash 语义
+      退化为不含签名字段的旧口径。
     - manifest_hash = sha256(canonical(内容 sans manifest_hash))。
     - save() 幂等且防篡改：已存在文件与本次内容逐字节一致 → no-op；
       不一致 → ManifestFreezeError（冻结后不可变）。
@@ -865,6 +905,8 @@ class RunManifest:
     required_stations: Tuple[int, ...]
     station_ttls: Dict[int, int]
     manifest_hash: str
+    signature: Optional[str] = None   # R7-GATE-MANIFEST-AUTH-001（HMAC hex）
+    key_id: Optional[str] = None      # 签发 key（keyring 验签用）
 
     # -- 序列化 -------------------------------------------------------------
     def to_dict(self) -> Dict[str, Any]:
@@ -898,6 +940,10 @@ class RunManifest:
             out["identity"]["base_sha"] = self.base_sha
         if self.lockfile_hash is not None:
             out["identity"]["lockfile_hash"] = self.lockfile_hash
+        if self.key_id is not None:
+            out["key_id"] = self.key_id
+        if self.signature is not None:
+            out["signature"] = self.signature
         return out
 
     def to_json(self) -> str:
@@ -945,8 +991,20 @@ class RunManifest:
         return target
 
     @classmethod
-    def load(cls, path: str | os.PathLike[str]) -> "RunManifest":
-        """读回并校验 manifest_hash（防篡改）。"""
+    def load(cls, path: str | os.PathLike[str], *,
+             keyring: Optional[ApprovalKeyring] = None,
+             allow_unsigned: bool = False) -> "RunManifest":
+        """读回并校验（R7-GATE-MANIFEST-AUTH-001：hash 复核 + 可选 HMAC 验签）。
+
+        - manifest_hash 复核（始终执行，覆盖含签名的整体内容）：不符即
+          ManifestFreezeError——冻结件被篡改或损坏。
+        - keyring 给定时验签：无签名默认拒（仅诊断可显式 allow_unsigned
+          降级）；signature/key_id 残缺、key 未登记、key 已吊销、HMAC
+          不符一律 ManifestFreezeError（fail-closed——重算 manifest_hash
+          洗不掉签名，无密钥不可伪造）。
+        - keyring 缺省：hash 复核即全部信任根（legacy 口径；正门验签由
+          CLI --verify-key 强制，见 wenquctl gate）。
+        """
         raw = Path(path).read_bytes()
         data = json.loads(raw.decode("utf-8"))
         if not isinstance(data, Mapping):
@@ -959,6 +1017,35 @@ class RunManifest:
                 f"{path}: manifest_hash mismatch (stored {stored_hash!r} != "
                 f"recomputed {recomputed!r})——冻结件被篡改或损坏"
             )
+        signature = data.get("signature")
+        key_id = data.get("key_id")
+        if keyring is not None:
+            if signature is None and key_id is None:
+                if not allow_unsigned:
+                    raise ManifestFreezeError(
+                        f"{path}: manifest 无签名（R7-GATE-MANIFEST-AUTH-001："
+                        "正门冻结件必须由 release/manifest 专用 key 签发；"
+                        "仅诊断用途可显式 allow-unsigned）"
+                    )
+            elif signature is None or key_id is None:
+                raise ManifestFreezeError(
+                    f"{path}: manifest 签名字段残缺（signature/key_id 必须成对）"
+                )
+            elif not isinstance(key_id, str) or not keyring.has(key_id):
+                raise ManifestFreezeError(
+                    f"{path}: manifest 签名 key_id {key_id!r} 未在验签 keyring "
+                    "登记（未知 key——fail-closed 拒绝）"
+                )
+            else:
+                # HMAC 覆盖 manifest_hash 外全部内容（含 key_id）；
+                # keyring.verify 同时执行 revoked 验签即拒 + 常量时间比对。
+                envelope = {k: v for k, v in data.items() if k != "manifest_hash"}
+                if not keyring.verify(envelope):
+                    raise ManifestFreezeError(
+                        f"{path}: manifest 签名验签失败（R7-GATE-MANIFEST-"
+                        "AUTH-001：内容与签发时不符或 key 已吊销——冻结件"
+                        "被篡改/伪造）"
+                    )
         return cls._from_verified_dict(data)
 
     @classmethod
@@ -998,8 +1085,14 @@ class RunManifest:
             scope_paths=tuple(data["scope"]["paths"]),
             scope_exclusions=tuple(data["scope"].get("exclusions", ())),
             required_stations=tuple(data["required_stations"]),
-            station_ttls={int(k): int(v) for k, v in data["station_ttls"].items()},
+            # R7-GATE-MANIFEST-AUTH-001：station_ttls 容缺失读入（默认空），
+            # 删 TTL 类攻击交 validate_manifest_consistency 记 BLOCKED，
+            # 而不是在解析层塌缩成 ERROR（结构面/语义面分流）。
+            station_ttls={int(k): int(v)
+                          for k, v in dict(data.get("station_ttls") or {}).items()},
             manifest_hash=data["manifest_hash"],
+            signature=data.get("signature"),
+            key_id=data.get("key_id"),
         )
 
     # -- 站0 station-result --------------------------------------------------
@@ -1087,12 +1180,21 @@ def freeze_run_manifest(
     lockfile_hash: Optional[str] = None,
     now: Optional[datetime] = None,
     registry: Optional[StationRegistry] = None,
+    signing_keyring: Optional[ApprovalKeyring] = None,
+    signing_key_id: Optional[str] = None,
 ) -> RunManifest:
     """冻结 run-manifest.json 的内容（返回 RunManifest，由调用方 .save() 落盘）。
 
     绑定（不变量 #2/#3）：run_id + commit_sha + environment + scope_hash +
     ruleset_hash + data_config_hash + required 站集合 + 各站 TTL。
     run 起跑后任一指纹变化 → 旧证据立即失效，须重新冻结（新 run）。
+
+    签名面（R7-GATE-MANIFEST-AUTH-001）：signing_keyring 给定时以
+    release/manifest 专用 key 对 manifest 签发 ``signature``+``key_id``
+    （HMAC-SHA256，覆盖 key_id 外全部内容）；``manifest_hash`` 覆盖含签名
+    的整体内容。key 解析 fail-closed：多 active key 未显式指定
+    signing_key_id、key rotated/revoked/expired/未登记一律
+    ManifestFreezeError（绝不猜 key、绝不用不可签发态的 key）。
     """
     registry = registry or default_registry()
     if not isinstance(plan, BugscanPlan):
@@ -1182,7 +1284,42 @@ def freeze_run_manifest(
         body["identity"]["base_sha"] = base_sha
     if lockfile_digest is not None:
         body["identity"]["lockfile_hash"] = lockfile_digest
-    manifest_hash = _hash_obj(body)
+
+    # -- 签名面（R7-GATE-MANIFEST-AUTH-001）---------------------------------
+    # 签发 key 解析：显式 signing_key_id > 唯一 active key；绝不猜。
+    resolved_key_id: Optional[str] = None
+    signature: Optional[str] = None
+    if signing_keyring is not None:
+        if not isinstance(signing_keyring, ApprovalKeyring):
+            raise ManifestFreezeError(
+                "signing_keyring must be an ApprovalKeyring, got "
+                f"{type(signing_keyring).__name__}"
+            )
+        active = signing_keyring.active_key_ids()
+        if signing_key_id is None:
+            if len(active) != 1:
+                raise ManifestFreezeError(
+                    "signing_key_id 必须显式指定（active key 数="
+                    f"{len(active)}：{active or '无 active key'}）——"
+                    "manifest 签发不得猜 key（R7-GATE-MANIFEST-AUTH-001）"
+                )
+            resolved_key_id = active[0]
+        else:
+            resolved_key_id = signing_key_id
+        try:
+            secret = signing_keyring.get_for_signing(resolved_key_id)
+        except (KeyNotFoundError, KeyStateError) as exc:
+            raise ManifestFreezeError(
+                f"manifest 签发 key 不可用（{resolved_key_id!r}）: {exc}"
+            ) from exc
+
+    if resolved_key_id is not None:
+        # 签名覆盖 key_id 外全部内容；manifest_hash 覆盖含签名的整体。
+        signature = sign_envelope(secret, {**body, "key_id": resolved_key_id})
+        manifest_hash = _hash_obj(
+            {**body, "key_id": resolved_key_id, "signature": signature})
+    else:
+        manifest_hash = _hash_obj(body)
     return RunManifest(
         run_id=run_id,
         created_at=created_at,
@@ -1203,7 +1340,126 @@ def freeze_run_manifest(
         required_stations=required,
         station_ttls=station_ttls,
         manifest_hash=manifest_hash,
+        signature=signature,
+        key_id=resolved_key_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# manifest 自一致性校验（R7-GATE-MANIFEST-AUTH-001 洞1 修·独立于签名）
+# ---------------------------------------------------------------------------
+
+def validate_manifest_consistency(data: Any) -> List[str]:
+    """run-manifest 冻结面的自一致性校验（对原始 JSON dict）；返回违例清单。
+
+    第七轮反例（R7-GATE-MANIFEST-AUTH-001）：篡改顶层 required=[0,1]→[0]
+    保留 planner.required=[0,1]、删 station_ttls、自报 scope.denominator——
+    攻击者无密钥也可重算 manifest_hash（纯 hash 无信任根）。本校验独立于
+    签名：顶层与 planner 的 required/TTL、scope 与分母、identity 三源任何
+    不一致都记违例，由 CLI 记 manifest_consistency_violation 并整线
+    BLOCKED（即使签名合法或显式 --allow-unsigned 诊断降级也不例外）。
+    """
+    issues: List[str] = []
+
+    def _err(msg: str) -> None:
+        issues.append(msg)
+
+    if not isinstance(data, Mapping):
+        return ["manifest must be a JSON object"]
+
+    if data.get("schema_version") != SCHEMA_VERSION:
+        _err(f"schema_version must be {SCHEMA_VERSION!r}, got {data.get('schema_version')!r}")
+    if data.get("manifest_kind") != "bugscan/run-manifest":
+        _err(f"manifest_kind must be 'bugscan/run-manifest', got {data.get('manifest_kind')!r}")
+
+    top_req = data.get("required_stations")
+    if not isinstance(top_req, list) or not top_req or not all(
+            isinstance(i, int) and not isinstance(i, bool) and 0 <= i <= 7
+            for i in top_req):
+        _err(f"required_stations must be a non-empty list of station ids 0-7, "
+             f"got {top_req!r}")
+        top_req = None
+    elif sorted(set(top_req)) != sorted(top_req):
+        _err(f"required_stations must be sorted-unique, got {top_req!r}")
+
+    planner = data.get("planner")
+    if not isinstance(planner, Mapping):
+        _err("planner section missing/malformed")
+    else:
+        plan_req = planner.get("required_stations")
+        if not isinstance(plan_req, list) or not plan_req:
+            _err(f"planner.required_stations must be a non-empty list, got {plan_req!r}")
+        elif top_req is not None and sorted(plan_req) != sorted(top_req):
+            _err(f"required_stations_conflict: top-level {sorted(top_req)} != "
+                 f"planner {sorted(plan_req)}（第七轮反例：顶层缩水 required 洗白）")
+        if planner.get("lane_effective") not in LANE_REQUIRED_STATIONS:
+            _err(f"planner.lane_effective must be one of {LANES}, "
+                 f"got {planner.get('lane_effective')!r}")
+        rounds = planner.get("convergence_rounds")
+        if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
+            _err(f"planner.convergence_rounds must be an int >= 1, got {rounds!r}")
+
+    ttls = data.get("station_ttls")
+    if not isinstance(ttls, Mapping):
+        _err(f"station_ttls must be an object, got {type(ttls).__name__}")
+    else:
+        expected_keys = sorted(str(i) for i in (top_req or []))
+        if sorted(ttls) != expected_keys:
+            _err(f"station_ttls_conflict: keys {sorted(ttls)} != required set "
+                 f"{expected_keys}（删 TTL/漂移 TTL 都不得按缩水口径上绿）")
+        for key, value in ttls.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                _err(f"station_ttls[{key!r}] must be an int >= 1, got {value!r}")
+
+    scope = data.get("scope")
+    if not isinstance(scope, Mapping):
+        _err(f"scope section missing/malformed, got {type(scope).__name__}")
+    else:
+        paths = scope.get("paths")
+        if (not isinstance(paths, list) or not paths
+                or not all(isinstance(p, str) and p.strip() for p in paths)):
+            _err("scope.paths must be a non-empty list of non-empty strings")
+            paths = None
+        denom = scope.get("denominator")
+        if (paths is not None
+                and (isinstance(denom, bool) or not isinstance(denom, int)
+                     or denom != len(paths))):
+            _err(f"scope_denominator_conflict: denominator {denom!r} != "
+                 f"len(paths)={len(paths) if paths is not None else '?'}")
+        exclusions = scope.get("exclusions", [])
+        if not isinstance(exclusions, list) or not all(
+                isinstance(e, str) for e in exclusions):
+            _err("scope.exclusions must be a list of strings")
+
+    identity = data.get("identity")
+    if not isinstance(identity, Mapping):
+        _err(f"identity section missing/malformed, got {type(identity).__name__}")
+    else:
+        sha = identity.get("commit_sha")
+        if not isinstance(sha, str) or not _RE_SHA40.match(sha):
+            _err("identity.commit_sha must be a 40-char lowercase hex commit SHA")
+        if identity.get("environment") not in ENVIRONMENTS:
+            _err(f"identity.environment must be one of {ENVIRONMENTS}, "
+                 f"got {identity.get('environment')!r}")
+        for hash_field in ("scope_hash", "ruleset_hash", "data_config_hash"):
+            value = identity.get(hash_field)
+            if not isinstance(value, str) or not _RE_SHA64.match(value):
+                _err(f"identity.{hash_field} must be a 64-hex digest, got {value!r}")
+
+    for text_field in ("registry_version", "registry_digest"):
+        value = data.get(text_field)
+        if not isinstance(value, str) or not value.strip():
+            _err(f"{text_field} must be a non-empty string")
+    run_id = data.get("run_id")
+    if not isinstance(run_id, str) or not _RE_RUN_ID.match(run_id):
+        _err(f"run_id must match {_RE_RUN_ID.pattern}, got {run_id!r}")
+
+    signature = data.get("signature")
+    key_id = data.get("key_id")
+    if (signature is None) != (key_id is None):
+        _err("signature/key_id must appear as a pair (half-signed manifest)")
+
+    return issues
 
 
 # ---------------------------------------------------------------------------

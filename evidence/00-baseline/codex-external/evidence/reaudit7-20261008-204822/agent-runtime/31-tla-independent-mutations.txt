@@ -1,0 +1,56 @@
+UTC_START=2026-10-08T12:54:01Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-tla-mutations.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+BASE=/private/tmp/reaudit7-release-d32c859
+M=/private/tmp/reaudit7-tla-mut-model
+rm -rf "$M"; mkdir -p "$M"
+cp "$BASE/specs/tla/wenqu_pipeline.tla" "$M/wenqu_pipeline.tla"
+cp "$BASE/specs/tla/wenqu_pipeline.cfg" "$M/wenqu_pipeline.cfg"
+python3 - "$M/wenqu_pipeline.tla" <<'PY'
+import sys
+p=sys.argv[1]; s=open(p).read()
+a='OutcomeStatus(e, v) == IF e # "COMPLETED" THEN "FAILED" ELSE VerdictToStatus[v]'
+b='OutcomeStatus(e, v) == IF e # "COMPLETED" THEN VerdictToStatus[v] ELSE "FAILED"'
+assert s.count(a)==1
+open(p,'w').write(s.replace(a,b))
+PY
+set +e
+java -Xmx2g -XX:+UseParallelGC -cp "$BASE/system/bin/tla2tools.jar" tlc2.TLC -workers 4 "$M/wenqu_pipeline.tla" > "$M/tlc.out" 2>&1
+mrc=$?
+set -e
+echo MODEL_MUTATION_TLC_RC=$mrc
+rg -n 'Invariant .* violated|states generated|Error:' "$M/tlc.out" | head -80
+if test "$mrc" -eq 0 || ! grep -q 'Invariant DoubleAxisNoWash is violated' "$M/tlc.out"; then echo 'MODEL_MUTATION_EXPECTATION_FAILED'; exit 1; fi
+C=/private/tmp/reaudit7-tla-mut-code
+rm -rf "$C"
+git clone --shared --no-checkout /Users/maccc/Documents/wenqu-dist "$C" >/dev/null
+git -C "$C" checkout --detach d32c859f9043798d9e8a4984e8f57aa64567e33c >/dev/null
+python3 - "$C/specs/tla/wenqu_pipeline.tla" <<'PY'
+import sys
+p=sys.argv[1]; s=open(p).read()
+a='"S1_CONSTRAINT_FREEZE",'
+b='"S1_MUTATED_FREEZE",'
+assert s.count(a)==1
+open(p,'w').write(s.replace(a,b))
+PY
+cd "$C"
+set +e
+python3 -m pytest system/tests/test_tla_spec.py -q > /tmp/reaudit7-tla-mut-code.out 2>&1
+crc=$?
+set -e
+echo CODE_MAPPING_MUTATION_PYTEST_RC=$crc
+sed -n '1,160p' /tmp/reaudit7-tla-mut-code.out
+if test "$crc" -eq 0 || ! grep -q 'StageOrder' /tmp/reaudit7-tla-mut-code.out; then echo 'CODE_MAPPING_MUTATION_EXPECTATION_FAILED'; exit 1; fi
+echo 'EXPECTED_RED_PROBES_PASS'
+--- OUTPUT ---
+MODEL_MUTATION_TLC_RC=12
+12:Error: Invariant AttemptImmutable is violated.
+13:Error: The behavior up to this point is:
+41:6 states generated, 4 distinct states found, 0 states left on queue.
+MODEL_MUTATION_EXPECTATION_FAILED
+--- END OUTPUT ---
+EXIT_CODE=1
+UTC_END=2026-10-08T12:54:02Z

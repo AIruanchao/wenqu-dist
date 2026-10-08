@@ -1,0 +1,188 @@
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_gate_family.py =====
+========================================================================
+§20 GATE/MRG/CI 族专属验收测试（实现 20 条；跳过 4 条见 NOT_IMPLEMENTABLE）
+  SKIP GATE-09: N=-1 已被 tests/acceptance.sh（--convergence -1 拒绝）覆盖；N=0 在 cli/wenqu 是合法『关闭收敛要求』开关而非参数错误、N 超上限无上限校验——注入面后两态无产品语义
+  SKIP GATE-10: 超过 N+1 轮 BLOCKED 等人工裁定：仓内无可执行的轮数上限/人工裁定实现（仅 dashboard 文案）
+  SKIP GATE-11: 同命令换 S 标签不计异源轮：无可执行的异源轮来源追踪/命令身份判定实现
+  SKIP CI-06: CODEOWNERS 存在但 ruleset 未强制 → doctor ERROR：hardening-doctor.sh 体检 launchd/哨兵/CI 卡死，无 CODEOWNERS/ruleset 校验语义
+------------------------------------------------------------------------
+  PASS CI-05  test_CI_05_fork_merge_group_or_missing_check_explicit_failure
+  PASS CI-07  test_CI_07_unauthorized_app_same_context_untrusted_blocked
+  PASS CI-08  test_CI_08_wenqu_gate_missing_bugscan_green_no_merge
+  PASS CI-09  test_CI_09_recursive_aggregate_or_duplicate_publish_rejected
+  PASS GATE-01  test_GATE_01_fetch_fail_or_missing_base_ref_is_error
+  PASS GATE-02  test_GATE_02_zero_tests_scope_not_pure_docs_is_blocked
+  PASS GATE-03  test_GATE_03_missing_runner_or_dependency_is_error
+  PASS GATE-04  test_GATE_04_inner_exit7_selfreport_zero_findings_fails
+  PASS GATE-05  test_GATE_05_artifact_symlink_hardlink_outside_root_blocked
+  PASS GATE-06  test_GATE_06_artifact_hash_tamper_blocked
+  PASS GATE-07  test_GATE_07_commit_env_scope_ruleset_mismatch_blocked
+  PASS GATE-08  test_GATE_08_evidence_past_ttl_refused
+  PASS GATE-12  test_GATE_12_unsigned_flip_or_adjudication_blocked
+  PASS MRG-01  test_MRG_01_fast_green_security_red_no_merge
+  PASS MRG-02  test_MRG_02_missing_fast_and_gate_red_no_merge
+  PASS MRG-03  test_MRG_03_same_name_forgery_or_old_sha_no_merge
+  PASS MRG-04  test_MRG_04_pending_skipped_neutral_cancelled_no_merge
+  PASS MRG-05  test_MRG_05_head_moves_during_aggregation_invalidates
+  PASS MRG-06  test_MRG_06_remote_429_empty_json_timeout_circuit_breaker
+  PASS MRG-07  test_MRG_07_head_changed_after_final_validation_atomic_reject
+------------------------------------------------------------------------
+结果: 20/20 passed
+========================================================================
+exit_code=0 elapsed_s=4
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_auth_cond.py =====
+========================================================================
+§20 AUTH/STOP/RISK/COND 四族专属验收测试（16 条；不可实现 0 条）
+  NOTE AUTH-06: 「无 user-presence」映射为 decision!=approve（approval-v2 无独立 UV 位）
+  NOTE RISK-01: REVOKED/INVALIDATED/立即重开/修复链半边以冻结 finding-event-v2.schema.json （jsonschema 真实验证）断言；管线半边验证 finding 面改变使已消费授权失效且 run 可修复
+  NOTE COND-01: 「技术 context failure」= gate_aggregator technical_eligible=False+GitHub failure ＋ complete_run 无 risk 授权 fail-closed
+  NOTE COND-03: 「success/AUTHORIZED_CONDITIONAL」产品落地面 = COMPLETED_CONDITIONAL 终态（verdict 仍 CONDITIONAL，terminal_reason 记授权在案）
+------------------------------------------------------------------------
+  PASS AUTH-01  test_AUTH_01_resume_without_authorization_rejected
+  PASS AUTH-02  test_AUTH_02_expired_replay_scope_widening_stale_version_rejected
+  PASS AUTH-03  test_AUTH_03_ai_self_issued_high_risk_approval_rejected
+  PASS AUTH-04  test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails
+  PASS AUTH-05  test_AUTH_05_concurrent_double_consume_exactly_one_wins
+  PASS AUTH-06  test_AUTH_06_key_revoked_clock_rollback_no_user_presence_rejected
+  PASS COND-01  test_COND_01_conditional_without_risk_authorization_not_eligible
+  PASS COND-02  test_COND_02_authorization_cross_sha_env_widened_set_replay_rejected
+  PASS COND-03  test_COND_03_authorized_conditional_action_gate_exactly_once
+  PASS COND-04  test_COND_04_p0_p1_risk_acceptance_or_conditional_auth_rejected_stays_blocked
+  PASS COND-05  test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated
+  PASS COND-06  test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once
+  PASS RISK-01  test_RISK_01_revoke_or_invalidate_appends_event_reopens_repairs
+  PASS STOP-01  test_STOP_01_nine_types_wrong_type_stale_version_replay_all_rejected
+  PASS STOP-02  test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked
+  PASS STOP-03  test_STOP_03_nine_types_preconditions_met_but_no_authorization_rejected
+------------------------------------------------------------------------
+结果: 16/16 passed
+========================================================================
+exit_code=0 elapsed_s=4
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_act_run.py =====
+========================================================================
+§20 ACT/RUN 族专属验收测试（实现 9 条：ACT-01~06 + RUN-01~03）
+  BOUNDARY RUN-01: 容器级隔离未实现：macOS Keychain 直读、SSH agent Unix socket 直连、任意路径生产配置文件读不在 TrustedRunner 防线内（全仓无 sandboxexec/seatbelt/文件系统边界语义）；已实现半边=env 白名单剥除——进程环境通道（SSH_AUTH_SOCK/配置路径变量）在子进程中不存在，隔离拒绝以该腿验证
+  BOUNDARY RUN-03: 输出爆量字节配额（stdout 上限截断）与网络 egress allowlist 无产品实现（TrustedRunner 只有可执行 allowlist opt-in 与超时击杀）；三条注入形态均经验证的事实是：allowlist 未列名可执行一律 PermissionError 前置阻断、零进程产生——『配额阻断』仅此腿成立
+  BOUNDARY ACT-03: 真实 GitHub check_run 发布 outbox（CI check 发布通道）不在本仓被测体（无 GitHub API client）；本地等价=ActionSaga control_outbox 事件幂等（event_id INSERT OR IGNORE）+ APPROVAL_CONSUMED/ACTION_AUTH_RESERVED 同事务原子 + 重放授权消费链守卫
+  BOUNDARY ACT-05: dispatcher/App 失联检测（heartbeat/熔断）无独立实现；本地等价=回执不可得时动作停留 STARTED/PROVISIONAL 不可 COMMITTED（BLOCKED），陈旧水印/跨 run/伪签名回执全部拒绝
+------------------------------------------------------------------------
+  PASS ACT-01  test_ACT_01_technical_pass_without_exact_authorization_controller_holds
+  PASS ACT-02  test_ACT_02_any_mismatch_fails_action_authorization_gate
+  PASS ACT-03  test_ACT_03_outbox_idempotent_recovery_no_double_green
+  PASS ACT-04  test_ACT_04_query_external_fact_committed_or_failed_unknown
+  PASS ACT-05  test_ACT_05_stale_green_or_dispatcher_loss_keeps_action_blocked
+  PASS ACT-06  test_ACT_06_wrong_discriminator_or_missing_fields_schema_rejected
+  PASS RUN-01  test_RUN_01_secret_env_channels_isolation_denied
+  PASS RUN-02  test_RUN_02_timeout_kills_all_descendants_no_orphan_writes
+  PASS RUN-03  test_RUN_03_fork_bomb_blast_network_blocked_by_allowlist
+------------------------------------------------------------------------
+结果: 9/9 passed
+逐 ID 结果已写: /private/tmp/reaudit6-trace.dxHErV/evidence/04-unit-property-mutation/ac-act-run.json
+========================================================================
+exit_code=0 elapsed_s=5
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_state_mig.py =====
+§20 验收 ID 专属测试：STATE-01~11 / MIG-01~05（store + ledger_migrator）
+被测体: system/wenqu_core/store.py + system/wenqu_core/ledger_migrator.py（不 import wenqu_pipeline）
+
+  ok   STATE-01  任意 stage/status → schema 拒绝
+  ok   STATE-03  100×100 并发写 → 零丢失/重复
+  ok   STATE-04  事务各点 kill -9 → 全有或全无
+  ok   STATE-06  WAITING 终态残留 → SUPERSEDED 事件，不静默删
+  ok   STATE-07  普通事件把 PASSED 改回 RUNNING → 拒绝
+  ok   STATE-08  FAILED 重试 → 新 attempt，旧证据不覆盖
+  ok   STATE-10  WAITING/FAILED attempt 直接改回 RUNNING → 拒绝；追加新 attempt 后由 stage projection 指向它
+  ok   MIG-01  坏 JSON/未知状态 → quarantine+BLOCKED
+  ok   MIG-02  缺审批信息的 ACCEPTED → invalid/reopen
+  ok   MIG-03  两次迁移 → 结果幂等一致
+  ok   MIG-04  源行数不守恒 → 迁移失败
+
+不可实现登记（被测体无对应产品语义；不硬凑、不 xfail）：
+  --   STATE-02  `../`、绝对路径、NUL、超长 ID → 拒绝（详见证据工件 reason）
+  --   STATE-05  双 writer epoch → 所有写入拒绝（详见证据工件 reason）
+  --   STATE-09  SHA/scope/policy 变化 → 强制新 run（详见证据工件 reason）
+  --   STATE-11  S7 CONDITIONAL 缺 risk authorization → S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING（详见证据工件 reason）
+  --   MIG-05  project key 冲突 → 明确冲突，不拆成假项目（详见证据工件 reason）
+
+结果: 11 PASS / 0 FAIL；范围内不可实现 5 条；exit=0
+证据工件: /private/tmp/reaudit6-trace.dxHErV/evidence/04-unit-property-mutation/ac-state-mig.json
+exit_code=0 elapsed_s=4
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_station_families.py =====
+  ok  STA-01 任一站 denominator 缩小 → 整线 BLOCKED
+  ok  STA-02 站2/3/4/7 逐站故障 → 独立取证 + aggregate BLOCKED
+  ok  DB-01 [+]/[-]/[*] → 全识别
+  ok  DB-02 仅一条 DROP COLUMN/删 FK → FAIL 不因数量少放行
+  ok  DB-03 未知格式/空输出（命令非零同型面）→ ERROR 类拒绝
+  ok  DB-04 allowlist 到期/对象 hash 变化 → FAIL
+  ok  DB-05 错 DB/role/transaction_read_only=off → BLOCKED（fail-closed 拒绝）
+  ok  DB-06 golden 规范化：catalog 键序 canonical + 对象全集去重（边界见 docstring）
+  ok  SC-01 有效 JSON+HIGH/CRITICAL → FAIL
+  ok  SC-02 空 JSON/registry 超时 → ERROR
+  ok  SC-04 标题含 [skip-audit] → 无绕过效果
+  ok  ADV-01 version parser 异常 → UNKNOWN（保守升 HIGH）不写 seen（不静默跳过）
+  ok  ADV-02 多页/多 range → 全遍历（截断=ERROR）
+  ok  TEN-01 Prisma alias/re-export/wrapper → 纳入分析（DMMF 分母）
+  ok  TEN-02 注释含 organizationId → 不能欺骗
+  ok  TEN-03 builder 超 300 字符 → 纳入分析（超长路径入分母并被判定）
+  ok  TEN-05 路径不含 export/download 的下载 → 纳入扫描
+  ok  TEN-06 Org A 访问/导出 Org B → 动态拒绝
+  ok  TEN-07 target SHA 新增 tenant model → 分母自动增加
+  ok  TEN-08 合法管理员跨租户正例/普通角色负例 → 前者通、后者拒
+  ok  PERF-01 HTTP 500 但很快 → FAIL
+  ok  PERF-02 SSH/TCC/null 指标 → ERROR 类（采集缺口缩水折叠）
+  ok  PERF-05 修改 baseline/阈值试图洗绿 → policy hash 阻断
+  ok  PERF-06 样本/时长/endpoint 分母缩水 → 不得晋升 baseline
+
+§20 六族验收测试: 24 PASS / 0 FAIL （负责 29 条；实现 24；不可实现 5）
+  [不可实现] PERF-03: 尾部极慢样本进入 p95/p99 需要分位数计算面；SloMonitorScanner 只消费上游已算好的快照指标值，本包无原始延迟样本聚合通道，无法做真实注入。
+  [不可实现] PERF-04: 输入 1→100 query count 线性度（N+1）检测需要 DB 查询计数探针；本包无该剖析通道。
+  [不可实现] SC-03: install script/resolved/integrity 变化检测需要 lockfile 内容 diff 面；本发行包 SupplyChainScanner 仅消费 npm audit JSON 输出，无 package-lock 解析/比对通道，无真实注入口。
+  [不可实现] SC-05: 离线 registry 快照的签名/时效/分页完整性校验件不在本发行包（SupplyChainScanner 假定在线 audit stdout；无快照签名验证通道）。注：『分页不全=自报计数与解析列表不一致→ERROR（证据损坏）』的机制已在 ADV-02 的截断子例中侧面覆盖。
+  [不可实现] TEN-04: $queryRaw 跨租户阻断需要 SQL/查询构建器分析面；本包站3 只消费结构化探针结果（org_guard/permission_matrix payload），无 SQL 解析/拦截通道。
+exit_code=0 elapsed_s=3
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_ops_families.py =====
+========================================================================
+§20 验收 ID 专属测试——SCH/ALT/HLT/DOC 四族 14 条（真实注入/真实断言）
+repo: /private/tmp/reaudit6-trace.dxHErV  HEAD: unknown
+========================================================================
+  PASS  ALT-01   test_ALT_01_provider_500_and_timeout_retry_then_dead_letter
+  PASS  ALT-02   test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health
+  PASS  DOC-01   test_DOC_01_stop_type_count_and_enumeration_drift_blocks_ci
+  [DOC-02 观察项] 真实仓存在验收数量漂移（未硬凑进断言）: README 宣称 64 项，机器实测 66 检查单元（ck=39 + inline=27）——按 §20 应 CI 阻断并修文档
+  PASS  DOC-02   test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci
+  PASS  DOC-03   test_DOC_03_policy_forbidden_bypass_text_blocks_ci
+  PASS  DOC-04   test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci
+  PASS  HLT-01   test_HLT_01_input_watermark_change_invalidates_snapshot
+  PASS  SCH-01   test_SCH_01_env_permission_denied_yields_error_and_alert
+  PASS  SCH-02   test_SCH_02_fake_touch_heartbeat_after_fail_keeps_last_success
+  PASS  SCH-03   test_SCH_03_sleep_missed_period_wakes_up_and_catches_up
+  PASS  SCH-04   test_SCH_04_catchup_and_normal_race_single_logical_run
+  PASS  SCH-05   test_SCH_05_scheduler_down_independent_watchdog_still_alerts
+  PASS  SCH-06   test_SCH_06_one_shot_job_writes_only_wenqu_namespace
+  PASS  SCH-07   test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes
+------------------------------------------------------------------------
+RESULT: PASS=14 FAIL=0
+证据工件: evidence/04-unit-property-mutation/ac-ops-families.json
+exit_code=0 elapsed_s=4
+===== CMD: PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_deploy_release.py =====
+========================================================================
+§20 DEP/RB/REL 族专属验收测试（实现 5 条；跳过 8 条见 NOT_IMPLEMENTABLE 登记表）
+  SKIP DEP-01: 「两个部署者争 lease→最多一个成功」：DeployManager 无 lease/互斥原语——全仓 system/（wenqu_core/*.py、daemons/、install.sh）无 lease/flock/部署锁语义（grep 实证）；switch() 仅单次 os.replace 原子，两次并发 deploy 不同内容各建 release 后先后 switch（后者胜），无『最多一个成功』仲裁可注入。
+  SKIP DEP-02: 「smoke 访问生产 DB/state→隔离拒绝」：产品无部署后 smoke runner 与隔离层（全仓 grep 无 smoke 语义）；install_self_check 钩子只收 release_dir 一个参数，无 DB/state 访问边界或沙箱判定。
+  SKIP DEP-04: 「自签/替换/revoked release key→拒绝」：release 签名体系未实现——manifest.json 无 signature/key 字段，build/verify 只做 SHA256 内容与 mode 对账（deploy_framework D1/D4），无 release key 验证语义；approval_keys.py 的 HMAC 属审批 envelope 域，非 release 域。（SBOM/签名按工单预告属未实现面。）
+  SKIP DEP-05: 「previous release 超 schema 范围→拒绝回滚」：manifest 无 schema_version/版本范围字段，rollback() 只做完好性对账（missing/extra/drift/mode），无 schema 范围判定；『未来 schema manifest』在 verify 中以未设计异常（KeyError/ValueError）崩溃而非设计内拒绝，不冒充通过。
+  SKIP DEP-06: 「无迁移锁/未验证备份/expand 超授权→激活前 BLOCKED」：deploy_framework 无迁移锁/备份验证/expand 授权语义（switch 前仅 manifest 对账）；wenqu_pipeline 的 ddl 审批 payload 字段只是授权账本 schema，无部署激活前的迁移门执行体。
+  SKIP DEP-07: 「ACTIVATING 失败且无预授权→FAILED_BLOCKED；不得自动回滚」：产品无 ACTIVATING/FAILED_BLOCKED 部署状态机；deploy_framework D2 契约恰为『自检失败自动回滚到上一版』——与该 ID『不得自动回滚』的 fenced 语义相反，不可反向断言硬凑。
+  SKIP DEP-08: 「ROLLBACK_FAILED→writer/merge/release 熔断并停等人工恢复」：回滚失败仅如实上报（DeployError 消息含 ROLLBACK FAILED、current 留在失败版），无 writer/merge/release 熔断器与停等人工恢复语义（后续 deploy 不受阻断）。
+  SKIP DEP-09: 「观察窗内夹带 contract/down migration→拒绝；要求独立授权变更」：部署面无观察窗（observation window）概念，也不解析/甄别 release 内 migration 文件内容，无对应拒绝语义。
+------------------------------------------------------------------------
+  PASS DEP-03  test_DEP_03_rollback_compatible_binary_zero_event_loss
+  PASS RB-01  test_RB_01_no_preauth_rollback_and_wrong_previous_refused
+  PASS REL-01  test_REL_01_manifest_missing_extra_hash_drift_deploy_fails
+  PASS REL-02  test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current
+  PASS REL-03  test_REL_03_doctor_red_deploy_fails_and_rolls_back
+------------------------------------------------------------------------
+结果: 5/5 passed
+逐 ID 结果已写: /private/tmp/reaudit6-trace.dxHErV/evidence/04-unit-property-mutation/ac-deploy-release.json
+========================================================================
+exit_code=0 elapsed_s=1
+overall_exit_code=0

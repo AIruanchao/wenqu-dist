@@ -1,0 +1,17 @@
+CAPTURED_AT=2026-10-08T15:57:45,474875000+08:00
+COMMAND=env PYTHONDONTWRITEBYTECODE=1 python3 -m system.wenqu_core.station4_behavior 
+--- OUTPUT ---
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/private/tmp/wenqu-reaudit6-root-1791446155/system/wenqu_core/station4_behavior.py", line 1312, in <module>
+    raise SystemExit(_self_test())
+                     ~~~~~~~~~~^^
+  File "/private/tmp/wenqu-reaudit6-root-1791446155/system/wenqu_core/station4_behavior.py", line 1163, in _self_test
+    assert st["execution"]["actual_exit_code"] == -1
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+[1] e2e PASS OK: coverage 3/3, exit=0
+[2] e2e FAIL OK: findings=['fnd_e2e_e3b226484e35']
+[3] e2e shrink OK: 2/3 → BLOCKED (铁律2)
+--- EXIT_CODE=1 ---

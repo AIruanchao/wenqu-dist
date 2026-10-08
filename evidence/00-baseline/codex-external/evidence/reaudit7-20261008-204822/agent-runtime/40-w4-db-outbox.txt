@@ -1,0 +1,103 @@
+UTC_START=2026-10-08T12:56:39Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-w4-db-audit.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -u
+SRC="$HOME/.wenqu/state/scheduler.db"
+DST="/private/tmp/reaudit7-scheduler-copy-$$.db"
+cp "$SRC" "$DST"
+chmod u+w "$DST"
+echo "source_sha=$(shasum -a 256 "$SRC" | awk '{print $1}')"
+echo "copy_sha=$(shasum -a 256 "$DST" | awk '{print $1}')"
+echo '=== tables/schema ==='
+sqlite3 "$DST" '.tables'
+sqlite3 "$DST" '.schema scheduler_outbox'
+echo '=== outbox selected rows (body excluded) ==='
+sqlite3 -header -column "$DST" "SELECT message_id,channel,severity,subject,status,attempts,max_attempts,next_attempt_at,sent_at,last_error,created_at,meta_json FROM scheduler_outbox ORDER BY created_at,message_id;"
+echo '=== outbox aggregate ==='
+sqlite3 -header -column "$DST" "SELECT channel,status,count(*) AS n,min(created_at) AS first_created,max(sent_at) AS last_sent,max(attempts) AS max_attempts FROM scheduler_outbox GROUP BY channel,status ORDER BY channel,status;"
+echo '=== explicit dead letters ==='
+sqlite3 -header -column "$DST" "SELECT message_id,channel,severity,subject,status,attempts,max_attempts,last_error FROM scheduler_outbox WHERE status='DEAD_LETTER' ORDER BY created_at;"
+echo '=== heartbeat and runs latest ==='
+sqlite3 "$DST" '.schema scheduler_runs'
+sqlite3 -header -column "$DST" "SELECT run_id,job_id,scheduled_at,started_at,finished_at,execution_status,policy_verdict,actual_exit_code FROM scheduler_runs ORDER BY started_at DESC LIMIT 12;"
+rm -f "$DST"
+--- OUTPUT ---
+source_sha=75d6ed9ec26176599523b4aebace979ddf39e15e0b9d5d519071da57f3d1e3d8
+copy_sha=75d6ed9ec26176599523b4aebace979ddf39e15e0b9d5d519071da57f3d1e3d8
+=== tables/schema ===
+scheduler_heartbeats  scheduler_outbox      scheduler_skips     
+scheduler_jobs        scheduler_runs      
+CREATE TABLE scheduler_outbox (
+    message_id       TEXT PRIMARY KEY,
+    dedup_key        TEXT UNIQUE,
+    channel          TEXT NOT NULL,
+    severity         TEXT NOT NULL,
+    subject          TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    meta_json        TEXT,
+    status           TEXT NOT NULL DEFAULT 'PENDING',  -- PENDING|SENT|DEAD_LETTER
+    attempts         INTEGER NOT NULL DEFAULT 0,
+    max_attempts     INTEGER NOT NULL,
+    next_attempt_at  REAL NOT NULL,
+    created_at       REAL NOT NULL,
+    sent_at          REAL,
+    dead_lettered_at REAL,
+    last_error       TEXT
+);
+CREATE INDEX idx_outbox_dispatch
+    ON scheduler_outbox (status, next_attempt_at);
+=== outbox selected rows (body excluded) ===
+message_id                        channel   severity  subject                  status  attempts  max_attempts  next_attempt_at   sent_at           last_error  created_at        meta_json                  
+--------------------------------  --------  --------  -----------------------  ------  --------  ------------  ----------------  ----------------  ----------  ----------------  ---------------------------
+aecedff27d574204a0942485b42109d2  alertbox  INFO      [wenqu] W4 调度上线通告  SENT    1         5             1791451089.36455  1791451089.36488              1791451089.36455  {"kind":"w4_launch_notice"}
+aefa473135d348ebbceaf78746906599  macos     INFO      [wenqu] W4 调度上线通告  SENT    1         5             1791451089.36455  1791451089.36488              1791451089.36455  {"kind":"w4_launch_notice"}
+=== outbox aggregate ===
+channel   status  n  first_created     last_sent         max_attempts
+--------  ------  -  ----------------  ----------------  ------------
+alertbox  SENT    1  1791451089.36455  1791451089.36488  1           
+macos     SENT    1  1791451089.36455  1791451089.36488  1           
+=== explicit dead letters ===
+=== heartbeat and runs latest ===
+CREATE TABLE scheduler_runs (
+    run_id              TEXT PRIMARY KEY,
+    job_id              TEXT NOT NULL,
+    probe_id            TEXT NOT NULL,
+    station_id          INTEGER NOT NULL,
+    environment         TEXT NOT NULL,
+    scheduled_at        REAL,
+    started_at          REAL NOT NULL,
+    finished_at         REAL NOT NULL,
+    execution_status    TEXT NOT NULL,
+    policy_verdict      TEXT NOT NULL,
+    actual_exit_code    INTEGER,
+    commit_sha          TEXT,
+    argv_digest         TEXT NOT NULL,
+    input_fingerprint   TEXT NOT NULL,
+    evidence_digest     TEXT,
+    timed_out           INTEGER NOT NULL DEFAULT 0,
+    refreshed_heartbeat INTEGER NOT NULL DEFAULT 0,
+    notifications_enqueued INTEGER NOT NULL DEFAULT 0,
+    warnings_json       TEXT NOT NULL DEFAULT '[]',
+    UNIQUE (job_id, scheduled_at)
+);
+CREATE INDEX idx_scheduler_runs_job
+    ON scheduler_runs (job_id, started_at);
+run_id                                   job_id                 scheduled_at      started_at        finished_at       execution_status  policy_verdict  actual_exit_code
+---------------------------------------  ---------------------  ----------------  ----------------  ----------------  ----------------  --------------  ----------------
+job-w4.observation-sample-1791463931011  w4.observation-sample  1791463931.01099  1791464182.58654  1791464185.98646  COMPLETED         PASS            0               
+job-w4.observation-sample-1791463631011  w4.observation-sample  1791463631.01099  1791463876.58399  1791463881.68794  COMPLETED         PASS            0               
+job-w4.observation-sample-1791463331011  w4.observation-sample  1791463331.01099  1791463550.16338  1791463570.22389  COMPLETED         PASS            0               
+job-w4.observation-sample-1791463031011  w4.observation-sample  1791463031.01099  1791463216.11836  1791463242.50745  COMPLETED         PASS            0               
+job-w4.observation-sample-1791462731011  w4.observation-sample  1791462731.01099  1791462890.88626  1791462910.139    COMPLETED         PASS            0               
+job-w4.observation-sample-1791462431011  w4.observation-sample  1791462431.01099  1791462578.63212  1791462583.70824  COMPLETED         PASS            0               
+job-w4.observation-sample-1791462131011  w4.observation-sample  1791462131.01099  1791462274.8049   1791462277.69569  COMPLETED         PASS            0               
+job-w4.observation-sample-1791461831011  w4.observation-sample  1791461831.01099  1791461969.53732  1791461973.75792  COMPLETED         PASS            0               
+job-w4.observation-sample-1791461531011  w4.observation-sample  1791461531.01099  1791461664.28606  1791461667.61941  COMPLETED         PASS            0               
+job-w4.observation-sample-1791461231011  w4.observation-sample  1791461231.01099  1791461357.71654  1791461363.72998  COMPLETED         PASS            0               
+job-w4.observation-sample-1791460931011  w4.observation-sample  1791460931.01099  1791461050.69485  1791461056.5014   COMPLETED         PASS            0               
+job-w4.observation-sample-1791460631011  w4.observation-sample  1791460631.01099  1791460745.62696  1791460750.02797  COMPLETED         PASS            0               
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:56:39Z

@@ -1,0 +1,638 @@
+$ gh run view 37745638008 -R AIruanchao/wenqu-dist --log
+matrix (macos-latest)	Set up job	﻿2026-10-08T07:47:42.4707400Z Current runner version: '2.337.0'
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4723240Z ##[group]Runner Image Provisioner
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4723790Z Hosted Compute Agent
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4724170Z Version: 20260828.587
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4724590Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4725040Z Build Date: 2026-08-28T16:44:25Z
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4725460Z Worker ID: {5a73b4ca-8af8-43e9-9c35-faa150e5fe3f}
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4725910Z Azure Region: westus
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4726250Z ##[endgroup]
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4727040Z ##[group]Operating System
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4727410Z macOS
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4727720Z 26.6.2
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4728020Z 25G83
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4728350Z ##[endgroup]
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4728690Z ##[group]Runner Image
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4729040Z Image: macos-26-arm64
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4729380Z Version: 20260907.0351.1
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4730140Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4769410Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4770020Z ##[endgroup]
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4770730Z ##[group]GITHUB_TOKEN Permissions
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4771810Z Contents: read
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4772140Z Metadata: read
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4772550Z Packages: read
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4772890Z ##[endgroup]
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4774170Z Secret source: Actions
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4774690Z Cache mode: write
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4775180Z Prepare workflow directory
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.4986950Z Prepare all required actions
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.5019070Z Getting action download info
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.6411830Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.8105240Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+matrix (macos-latest)	Set up job	2026-10-08T07:47:42.9498150Z Complete job name: matrix (macos-latest)
+matrix (macos-latest)	Run actions/checkout@v4	﻿2026-10-08T07:47:42.9934150Z ##[group]Run actions/checkout@v4
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9934750Z with:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9935090Z   repository: AIruanchao/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9937780Z   token: ***
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9938170Z   ssh-strict: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9938540Z   ssh-user: git
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9938940Z   persist-credentials: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9939370Z   clean: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9939700Z   sparse-checkout-cone-mode: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9940160Z   fetch-depth: 1
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9940480Z   fetch-tags: false
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9940780Z   show-progress: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9941090Z   lfs: false
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9941370Z   submodules: false
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9941680Z   set-safe-directory: true
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9942020Z   allow-unsafe-pr-checkout: false
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9942490Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1343660Z Syncing repository: AIruanchao/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1344930Z ##[group]Getting Git version info
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1345430Z Working directory is '/Users/runner/work/wenqu-dist/wenqu-dist'
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1346340Z [command]/opt/homebrew/bin/git version
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1845440Z git version 2.55.0
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1855680Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1861900Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/25a27e01-289f-4e8d-a5c6-6aa0aa44eac6/.gitconfig'
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1869260Z Temporarily overriding HOME='/Users/runner/work/_temp/25a27e01-289f-4e8d-a5c6-6aa0aa44eac6' before making global git config changes
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1870380Z Adding repository directory to the temporary git global config as a safe directory
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1872860Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/wenqu-dist/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1972570Z Deleting the contents of '/Users/runner/work/wenqu-dist/wenqu-dist'
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1974560Z ##[group]Initializing the repository
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.1978210Z [command]/opt/homebrew/bin/git init /Users/runner/work/wenqu-dist/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2172290Z hint: Using 'master' as the name for the initial branch. This default branch name
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2173270Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2173960Z hint: to use in all of your new repositories, which will suppress this warning,
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2174610Z hint: call:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2174970Z hint:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2175400Z hint: 	git config --global init.defaultBranch <name>
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2175900Z hint:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2176360Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2177140Z hint: 'development'. The just-created branch can be renamed via this command:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2177650Z hint:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2177950Z hint: 	git branch -m <name>
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2178270Z hint:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2189180Z hint: Disable this message with "git config set advice.defaultBranchName false"
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2189880Z Initialized empty Git repository in /Users/runner/work/wenqu-dist/wenqu-dist/.git/
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2191150Z [command]/opt/homebrew/bin/git remote add origin https://github.com/AIruanchao/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2246480Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2247040Z ##[group]Disabling automatic garbage collection
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2249170Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2296990Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2297540Z ##[group]Setting up auth
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2300680Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.2356870Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.3133440Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.3185220Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.3864710Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.3920330Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.4598810Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.4665140Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.4665720Z ##[group]Fetching the repository
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.4669850Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b259dac4248b14af6ec05e1b3fc7f61401aba6b6:refs/remotes/origin/main
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7023380Z From https://github.com/AIruanchao/wenqu-dist
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7024840Z  * [new ref]         b259dac4248b14af6ec05e1b3fc7f61401aba6b6 -> origin/main
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7027470Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7028490Z ##[group]Determining the checkout info
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7029520Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7031770Z [command]/opt/homebrew/bin/git sparse-checkout disable
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7093710Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7157700Z ##[group]Checking out the ref
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7159500Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7924890Z Switched to a new branch 'main'
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7927740Z branch 'main' set up to track 'origin/main'.
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.7933530Z ##[endgroup]
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.8014060Z [command]/opt/homebrew/bin/git log -1 --format=%H
+matrix (macos-latest)	Run actions/checkout@v4	2026-10-08T07:47:44.8072770Z b259dac4248b14af6ec05e1b3fc7f61401aba6b6
+matrix (macos-latest)	Run actions/setup-python@v5	﻿2026-10-08T07:47:44.8355230Z ##[group]Run actions/setup-python@v5
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8356380Z with:
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8357070Z   python-version: 3.11
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8357790Z   check-latest: false
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8365270Z   token: ***
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8366080Z   update-environment: true
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8366880Z   allow-prereleases: false
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8368190Z   freethreaded: false
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.8369190Z ##[endgroup]
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.9587910Z ##[group]Installed versions
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.9632370Z (node:1613) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.9634400Z (Use `node --trace-deprecation ...` to show where the warning was created)
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.9635510Z Successfully set up CPython (3.11.9)
+matrix (macos-latest)	Run actions/setup-python@v5	2026-10-08T07:47:44.9636690Z ##[endgroup]
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	﻿2026-10-08T07:47:44.9757750Z ##[group]Run V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9759480Z ^[[36;1mV=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')^[[0m
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9760940Z ^[[36;1mDV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)^[[0m
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9762100Z ^[[36;1mecho "Checking: v$DV $V"^[[0m
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9762960Z ^[[36;1mbash tests/release-check.sh v$DV $V^[[0m
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9826770Z shell: /bin/bash -e {0}
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9827500Z env:
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9828340Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9829800Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9831120Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9832540Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9833910Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:44.9834950Z ##[endgroup]
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:45.3183470Z Checking: vv2.0 fork24
+matrix (macos-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:45.3757360Z release-check PASS（零旧版本残留+VERSION 对齐）
+matrix (macos-latest)	acceptance	﻿2026-10-08T07:47:45.3796170Z ##[group]Run bash tests/acceptance.sh
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3796540Z ^[[36;1mbash tests/acceptance.sh^[[0m
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3827720Z shell: /bin/bash -e {0}
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3827900Z env:
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3828200Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3828600Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3829030Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3829420Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3829770Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.3830070Z ##[endgroup]
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.4192270Z == A. selftest 契约 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.5088750Z   ✅ selftest (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.5089220Z == B. 新仓三步（预埋缺陷全中+verify 门红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.5474000Z   ✅ init (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.6119790Z   ✅ 探测器真命中 trap-double（标记行在日志）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.6776960Z   ✅ 探测器真命中 guard-comment-swallow（标记行在日志）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.7703860Z   ✅ 探测器真命中 cred-cli-expose（标记行在日志）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.8101400Z   ✅ verify 门红（OPEN 3/0） (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.8102200Z == C. 干净仓不误报 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.9326110Z   ✅ 干净仓 PASS (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.9326750Z   ✅ --home 零写入仓
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.9327050Z == D. fork2：convergence 空转拒绝 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.9792080Z   ✅ 空轮次拒绝 Converged (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:45.9793020Z == E. fork2：run --round 参与收敛判定（独立 home 防 OPEN 残留掩蔽，F10 修正）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:46.2157230Z   ✅ 有轮次新发现=未收敛 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:46.2157850Z == F. fork2/3：超时不落账+值域 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.3529280Z   ✅ 超时 exit 2 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.3558350Z   ✅ 超时不落账
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.3558820Z == G2. fork3：参数值域守卫 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.3973420Z   ✅ --round 负数拒绝 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.4399110Z   ✅ --convergence 负数拒绝 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.4823330Z   ✅ timeout 非数字拒绝 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.5259050Z   ✅ timeout 负数拒绝 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.5270860Z == G. 未知站位兜底 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.5692290Z   ✅ 未知站位 exit 2 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:47.5692960Z == I. 并发写账本安全（8 进程撞锁）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.2940200Z   ✅ 并发 8 进程账本零损坏 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.2941100Z == J. fork4：repair 不伤审计行+隔离正常+追加式 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.3357300Z   ✅ repair exit 0 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.3392000Z   ✅ run 审计行经 repair 存活
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.4313160Z   ✅ quarantine 追加式（0到       1）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.4413800Z == K. fork5：sweep 精确匹配+空格文件名 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.6741010Z   ✅ 子串站名不被误关
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.7917030Z   ✅ 空格文件名真命中 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.7917420Z == L. fork6：四高防线（并发/非对象行/铸轮/状态机）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.9278970Z   ✅ 并发 ingest 后账本可用 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.9312840Z   ✅ 同 id 不双入账（1 条）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:48.9790980Z   ✅ 非对象行 repair 自愈 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.2259250Z   ✅ charter 铸轮被拒 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.4074410Z   ✅ ingest 状态机横跳被拒 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.5192900Z == M. fork7：GBK 字节行不锁死写路径 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.5193380Z   ✅ GBK 行共存下 run 可写 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.5620480Z   ✅ GBK 行共存下 close 可写 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.6065310Z   ✅ repair 对 GBK 账本自愈可用 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.6065680Z == N. fork8：U+2028 往返/伪造 kind/行序无关 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.7193170Z   ✅ U+2028 往返不锁死 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.7624140Z   ✅ U+2028 账本可查 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.8071440Z   ✅ 伪造 run 行被拒 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.8516940Z   ✅ 转移引用同批后行 finding=行序无关 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.8517300Z == O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.9525380Z   ✅ rc≥2 die(2) 不落账 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.9556190Z   ✅ 环境错误 run 行未落账
+matrix (macos-latest)	acceptance	2026-10-08T07:47:49.9997650Z   ✅ 纯环境错误轮不铸 Converged (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.0671430Z   ✅ 权限拒泄露文件=环境错误 2 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.0692660Z == P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.1815840Z   ✅ GBK .sh 真命中（LC_ALL=C） (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.1868760Z   ✅ GBK 文件命中标记在日志
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.2526040Z   ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.2550130Z   ✅ note 回填行在账本
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.3035880Z   ✅ repair 后 note 行存活
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.3617410Z   ✅ rc≥2+只读 runs 降级分支触发
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.4131750Z   ✅ 环境错误站 die(2) (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.4132120Z == Q. fork16：symlink 排除与 CLI 对齐（S10-FA）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.5211890Z   ✅ symlink 指向仓外目标被排除 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.5433080Z   ✅ CLI 冻结范围排除 symlink（1 文件）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.5433410Z == R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.6472020Z   ✅ CX3：信号终止(-15)归环境错误 exit 2 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.6835840Z   ✅ CX4：拼错 --status OEPEN exit 2 (exit=2)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.8668020Z   ✅ CX8：跨仓 PASS 不洗白本仓 finding
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.8668350Z == S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9820680Z   ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9842300Z == H. pytest 契约套件（若 pytest 可用）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9987440Z   ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:50.9987730Z == T. P0 auto-merge containment ==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.0034510Z   ✅ wenqu start 永久拒绝 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.0035390Z   ✅ start 精确报错且未执行 writer/写 PID
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.0062640Z   ✅ 源码 auto-merge stub 拒绝 (exit=1)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.0147590Z   ✅ 源码 stub 唯一内容、单行且消息精确
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.5908490Z   ✅ 隔离安装 (exit=0)
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.5956230Z   ✅ 升级安装覆盖旧 writer 为安全 stub
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.5956590Z == P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.6846640Z   ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.6847060Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.7991900Z   ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:51.7992340Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:52.4203210Z   ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:52.4204250Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:47:53.7605020Z   ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）
+matrix (macos-latest)	acceptance	2026-10-08T07:47:53.7605530Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5158690Z   ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）
+matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159080Z ================================
+matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159330Z RESULT: PASS=63 FAIL=0
+matrix (macos-latest)	acceptance	2026-10-08T07:48:01.5159520Z ALL GREEN
+matrix (macos-latest)	pytest 契约	﻿2026-10-08T07:48:01.5319660Z ##[group]Run pip install pytest && python -m pytest cli/test_wenqu.py -q
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5325200Z ^[[36;1mpip install pytest && python -m pytest cli/test_wenqu.py -q^[[0m
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5352840Z shell: /bin/bash -e {0}
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5352980Z env:
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353150Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353480Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5353800Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354080Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354410Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:01.5354620Z ##[endgroup]
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2024810Z Collecting pytest
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2498540Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2641960Z Collecting iniconfig>=1.0.1 (from pytest)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2711700Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2858100Z Collecting packaging>=22 (from pytest)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.2925790Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3064370Z Collecting pluggy<2,>=1.5 (from pytest)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3131940Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3289160Z Collecting pygments>=2.7.2 (from pytest)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3360550Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3477640Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3741920Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3835270Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.3929120Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4022130Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4171590Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 82.6 MB/s  0:00:00
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:02.4498290Z Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:03.0353380Z 
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:03.0360020Z Successfully installed iniconfig-2.3.1 packaging-26.3 pluggy-1.6.0 pygments-2.21.0 pytest-9.1.1
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:05.5185910Z ....................                                                     [100%]
+matrix (macos-latest)	pytest 契约	2026-10-08T07:48:05.5186230Z 20 passed in 2.33s
+matrix (macos-latest)	selftest	﻿2026-10-08T07:48:05.5349510Z ##[group]Run python cli/wenqu selftest
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5349820Z ^[[36;1mpython cli/wenqu selftest^[[0m
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380230Z shell: /bin/bash -e {0}
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380560Z env:
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5380770Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381120Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.11.9/arm64/lib/pkgconfig
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381530Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5381810Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5382140Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.11.9/arm64
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.5382360Z ##[endgroup]
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6604430Z OK ingest：原子拒绝——0 条入账，2 处问题（--partial 可恢复逐行模式）
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6604970Z   拒绝：第2行：id 重复 X-1
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6605210Z   拒绝：第3行：sev 非法（须为 HIGH/MEDIUM/LOW）
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6784750Z OK init：范围冻结 1 文件，scope_hash=0a23e51566e5e471，账本在 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/findings.jsonl
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6785810Z OK fake PASS，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-628-fake.log
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6786580Z FAIL fakebad（exit=1）——已落账 OPEN，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-644-fakebad.log
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787010Z OK ingest：入账 1 条
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787260Z OK close：X-9 OPEN → CLOSED（append-only 转移已入账）
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787520Z FAIL verify：schema 净；OPEN 1/0 限额；总 2 条
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6787750Z   OPEN：AUTO-20261008074805-2704-fakebad-442e
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788090Z OK close：AUTO-20261008074805-2704-fakebad-442e OPEN → FIXED（append-only 转移已入账）
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788440Z OK verify：schema 净；OPEN 0/0 限额；总 2 条
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6788840Z OK fake PASS，日志 /var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/tmpkfduj035/wh/runs/20261008-074805-661-fake.log
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6789260Z OK repair：保留 7 行，隔离 0 行 → findings.jsonl.quarantine
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6789600Z FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+matrix (macos-latest)	selftest	2026-10-08T07:48:05.6790010Z OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）
+matrix (macos-latest)	Post Run actions/setup-python@v5	﻿2026-10-08T07:48:05.7101030Z Post job cleanup.
+matrix (macos-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:05.8105970Z (node:2709) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+matrix (macos-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:05.8207650Z (Use `node --trace-deprecation ...` to show where the warning was created)
+matrix (macos-latest)	Post Run actions/checkout@v4	﻿2026-10-08T07:48:05.8807270Z Post job cleanup.
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9662990Z [command]/opt/homebrew/bin/git version
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9717980Z git version 2.55.0
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9735790Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/8e1d7d1b-c24c-4a2c-a8d6-bd1cbd8cdfb2/.gitconfig'
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9742280Z Temporarily overriding HOME='/Users/runner/work/_temp/8e1d7d1b-c24c-4a2c-a8d6-bd1cbd8cdfb2' before making global git config changes
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9742860Z Adding repository directory to the temporary git global config as a safe directory
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9745790Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/wenqu-dist/wenqu-dist
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9799570Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:05.9848740Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.0458930Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.0505430Z http.https://github.com/.extraheader
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.0511910Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.0566470Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.1180720Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+matrix (macos-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.1227800Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+matrix (macos-latest)	Complete job	﻿2026-10-08T07:48:06.2105070Z Cleaning up orphan processes
+matrix (macos-latest)	Complete job	2026-10-08T07:48:06.7403610Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+matrix (ubuntu-latest)	Set up job	﻿2026-10-08T07:47:40.9125925Z Current runner version: '2.337.0'
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9154203Z ##[group]Runner Image Provisioner
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9155276Z Hosted Compute Agent
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9156005Z Version: 20261002.596
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9156747Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9157586Z Build Date: 2026-10-02T22:28:27Z
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9158347Z Worker ID: {f9cf52a4-2ea3-43dc-81b0-c85a9f8dd2a0}
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9159190Z Region: westus
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9160032Z Cloud: Azure
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9160609Z ##[endgroup]
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9162395Z ##[group]Operating System
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9163123Z Ubuntu
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9163783Z 24.04.5
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9164493Z LTS
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9165023Z ##[endgroup]
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9165686Z ##[group]Runner Image
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9166323Z Image: ubuntu-24.04
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9166963Z Version: 20261004.327.1
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9168159Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9170579Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9171654Z ##[endgroup]
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9173078Z ##[group]GITHUB_TOKEN Permissions
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9175408Z Contents: read
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9176497Z Metadata: read
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9177179Z Packages: read
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9177776Z ##[endgroup]
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9180404Z Secret source: Actions
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9181502Z Cache mode: write
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9182572Z Prepare workflow directory
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9606889Z Prepare all required actions
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:40.9657092Z Getting action download info
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:41.4110792Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:41.5391213Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+matrix (ubuntu-latest)	Set up job	2026-10-08T07:47:41.7433572Z Complete job name: matrix (ubuntu-latest)
+matrix (ubuntu-latest)	Run actions/checkout@v4	﻿2026-10-08T07:47:41.8260804Z ##[group]Run actions/checkout@v4
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8261842Z with:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8262376Z   repository: AIruanchao/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8266219Z   token: ***
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8266718Z   ssh-strict: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8267209Z   ssh-user: git
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8267686Z   persist-credentials: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8268193Z   clean: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8268659Z   sparse-checkout-cone-mode: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8269204Z   fetch-depth: 1
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8270019Z   fetch-tags: false
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8270682Z   show-progress: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8271149Z   lfs: false
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8271624Z   submodules: false
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8272122Z   set-safe-directory: true
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8272693Z   allow-unsafe-pr-checkout: false
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.8273582Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9728700Z Syncing repository: AIruanchao/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9733120Z ##[group]Getting Git version info
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9735591Z Working directory is '/home/runner/work/wenqu-dist/wenqu-dist'
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9739242Z [command]/usr/bin/git version
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9741357Z git version 2.55.0
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9790164Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9862962Z Temporarily overriding HOME='/home/runner/work/_temp/43e22d00-8745-4fe5-8049-7a91b3f62564' before making global git config changes
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9866114Z Adding repository directory to the temporary git global config as a safe directory
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9870608Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wenqu-dist/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9961678Z Deleting the contents of '/home/runner/work/wenqu-dist/wenqu-dist'
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9964285Z ##[group]Initializing the repository
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:41.9967234Z [command]/usr/bin/git init /home/runner/work/wenqu-dist/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0130379Z hint: Using 'master' as the name for the initial branch. This default branch name
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0132888Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0136102Z hint: to use in all of your new repositories, which will suppress this warning,
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0137959Z hint: call:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0139227Z hint:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0140866Z hint: 	git config --global init.defaultBranch <name>
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0142621Z hint:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0145739Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0147312Z hint: 'development'. The just-created branch can be renamed via this command:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0148579Z hint:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0149239Z hint: 	git branch -m <name>
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0150341Z hint:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0151388Z hint: Disable this message with "git config set advice.defaultBranchName false"
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0152950Z Initialized empty Git repository in /home/runner/work/wenqu-dist/wenqu-dist/.git/
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0155689Z [command]/usr/bin/git remote add origin https://github.com/AIruanchao/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.0287014Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1433017Z ##[group]Disabling automatic garbage collection
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1505531Z [command]/usr/bin/git config --local gc.auto 0
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1509568Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1512482Z ##[group]Setting up auth
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1514055Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1518511Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1523413Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1528486Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1727652Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.1773279Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.2050959Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.2103137Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.2105122Z ##[group]Fetching the repository
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.2116739Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b259dac4248b14af6ec05e1b3fc7f61401aba6b6:refs/remotes/origin/main
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9618470Z From https://github.com/AIruanchao/wenqu-dist
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9620954Z  * [new ref]         b259dac4248b14af6ec05e1b3fc7f61401aba6b6 -> origin/main
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9625907Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9637644Z ##[group]Determining the checkout info
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9640761Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9642140Z [command]/usr/bin/git sparse-checkout disable
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9696990Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9746315Z ##[group]Checking out the ref
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:42.9747490Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.0394962Z Switched to a new branch 'main'
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.0405109Z branch 'main' set up to track 'origin/main'.
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.0412761Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.0468658Z [command]/usr/bin/git log -1 --format=%H
+matrix (ubuntu-latest)	Run actions/checkout@v4	2026-10-08T07:47:43.0511019Z b259dac4248b14af6ec05e1b3fc7f61401aba6b6
+matrix (ubuntu-latest)	Run actions/setup-python@v5	﻿2026-10-08T07:47:43.0830088Z ##[group]Run actions/setup-python@v5
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0830602Z with:
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0830873Z   python-version: 3.11
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0831177Z   check-latest: false
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0834032Z   token: ***
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0834322Z   update-environment: true
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0834699Z   allow-prereleases: false
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0835246Z   freethreaded: false
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.0835528Z ##[endgroup]
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.2370143Z ##[group]Installed versions
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.2476941Z (node:2061) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.2478750Z Successfully set up CPython (3.11.17)
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.2480227Z (Use `node --trace-deprecation ...` to show where the warning was created)
+matrix (ubuntu-latest)	Run actions/setup-python@v5	2026-10-08T07:47:43.2502292Z ##[endgroup]
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	﻿2026-10-08T07:47:43.2757960Z ##[group]Run V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.2759340Z ^[[36;1mV=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')^[[0m
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.2760800Z ^[[36;1mDV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)^[[0m
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.2761525Z ^[[36;1mecho "Checking: v$DV $V"^[[0m
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.2762098Z ^[[36;1mbash tests/release-check.sh v$DV $V^[[0m
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3174960Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3175540Z env:
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3176011Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3247576Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3248778Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3249814Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3250806Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3251952Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.3252649Z ##[endgroup]
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.4712259Z Checking: vv1.0.18 fork24
+matrix (ubuntu-latest)	release-check（版本号残留机械闸·动态版本）	2026-10-08T07:47:43.5539312Z release-check PASS（零旧版本残留+VERSION 对齐）
+matrix (ubuntu-latest)	acceptance	﻿2026-10-08T07:47:43.5591967Z ##[group]Run bash tests/acceptance.sh
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5592540Z ^[[36;1mbash tests/acceptance.sh^[[0m
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5658881Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5659324Z env:
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5660133Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5660813Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5661475Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5662054Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5662649Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5663244Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5663742Z ##[endgroup]
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.5813607Z == A. selftest 契约 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.6890146Z   ✅ selftest (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.6891850Z == B. 新仓三步（预埋缺陷全中+verify 门红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.7501937Z   ✅ init (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.8326328Z   ✅ 探测器真命中 trap-double（标记行在日志）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:43.9241332Z   ✅ 探测器真命中 guard-comment-swallow（标记行在日志）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.0005830Z   ✅ 探测器真命中 cred-cli-expose（标记行在日志）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.0605443Z   ✅ verify 门红（OPEN 3/0） (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.0607437Z == C. 干净仓不误报 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.2249036Z   ✅ 干净仓 PASS (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.2257811Z   ✅ --home 零写入仓
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.2258532Z == D. fork2：convergence 空转拒绝 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.2844278Z   ✅ 空轮次拒绝 Converged (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.2845989Z == E. fork2：run --round 参与收敛判定（独立 home 防 OPEN 残留掩蔽，F10 修正）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.7156734Z   ✅ 有轮次新发现=未收敛 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:44.7157472Z == F. fork2/3：超时不落账+值域 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:45.8236976Z   ✅ 超时 exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:45.8258345Z   ✅ 超时不落账
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:45.8260193Z == G2. fork3：参数值域守卫 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:45.8945001Z   ✅ --round 负数拒绝 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:45.9531502Z   ✅ --convergence 负数拒绝 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.0105140Z   ✅ timeout 非数字拒绝 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.0683657Z   ✅ timeout 负数拒绝 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.0685410Z == G. 未知站位兜底 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.1275922Z   ✅ 未知站位 exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.1277247Z == I. 并发写账本安全（8 进程撞锁）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.9321814Z   ✅ 并发 8 进程账本零损坏 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.9324081Z == J. fork4：repair 不伤审计行+隔离正常+追加式 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.9873160Z   ✅ repair exit 0 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:46.9890264Z   ✅ run 审计行经 repair 存活
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.1102191Z   ✅ quarantine 追加式（0到1）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.1107448Z == K. fork5：sweep 精确匹配+空格文件名 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.4207473Z   ✅ 子串站名不被误关
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.5578571Z   ✅ 空格文件名真命中 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.5580682Z == L. fork6：四高防线（并发/非对象行/铸轮/状态机）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.7704992Z   ✅ 并发 ingest 后账本可用 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.7726653Z   ✅ 同 id 不双入账（1 条）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:47.8315965Z   ✅ 非对象行 repair 自愈 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.1282030Z   ✅ charter 铸轮被拒 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.3583077Z   ✅ ingest 状态机横跳被拒 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.3584690Z == M. fork7：GBK 字节行不锁死写路径 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.4921529Z   ✅ GBK 行共存下 run 可写 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.5501013Z   ✅ GBK 行共存下 close 可写 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.6081551Z   ✅ repair 对 GBK 账本自愈可用 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.6091250Z == N. fork8：U+2028 往返/伪造 kind/行序无关 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.7562792Z   ✅ U+2028 往返不锁死 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.8146305Z   ✅ U+2028 账本可查 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.8849216Z   ✅ 伪造 run 行被拒 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.9430507Z   ✅ 转移引用同批后行 finding=行序无关 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:48.9431683Z == O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.0660601Z   ✅ rc≥2 die(2) 不落账 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.0689315Z   ✅ 环境错误 run 行未落账
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.1258900Z   ✅ 纯环境错误轮不铸 Converged (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.2023721Z   ✅ 权限拒泄露文件=环境错误 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.2038322Z == P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.3389988Z   ✅ GBK .sh 真命中（LC_ALL=C） (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.3428396Z   ✅ GBK 文件命中标记在日志
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4188686Z   ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4208160Z   ✅ note 回填行在账本
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.4811917Z   ✅ repair 后 note 行存活
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.5472147Z   ✅ rc≥2+只读 runs 降级分支触发
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.6072330Z   ✅ 环境错误站 die(2) (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.6073887Z == Q. fork16：symlink 排除与 CLI 对齐（S10-FA）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7371136Z   ✅ symlink 指向仓外目标被排除 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7587278Z   ✅ CLI 冻结范围排除 symlink（1 文件）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.7588931Z == R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.8790605Z   ✅ CX3：信号终止(-15)归环境错误 exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:49.9399890Z   ✅ CX4：拼错 --status OEPEN exit 2 (exit=2)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.2343910Z   ✅ CX8：跨仓 PASS 不洗白本仓 finding
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.2345314Z == S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3696596Z   ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3709530Z == H. pytest 契约套件（若 pytest 可用）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3832725Z   ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3833839Z == T. P0 auto-merge containment ==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3884157Z   ✅ wenqu start 永久拒绝 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3901049Z   ✅ start 精确报错且未执行 writer/写 PID
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3926022Z   ✅ 源码 auto-merge stub 拒绝 (exit=1)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.3959401Z   ✅ 源码 stub 唯一内容、单行且消息精确
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9492990Z   ✅ 隔离安装 (exit=0)
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9528787Z   ✅ 升级安装覆盖旧 writer 为安全 stub
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:50.9530090Z == P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.1133312Z   ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.1135110Z == P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3456160Z   ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3457492Z == P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.3471990Z mktemp: too few X's in template ‘wq_matrix’
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9576128Z   ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:51.9591146Z == P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8582886Z   ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:47:53.8584663Z == P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）==
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2236511Z   ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2250800Z ================================
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251352Z RESULT: PASS=63 FAIL=0
+matrix (ubuntu-latest)	acceptance	2026-10-08T07:48:00.2251764Z ALL GREEN
+matrix (ubuntu-latest)	pytest 契约	﻿2026-10-08T07:48:00.2385342Z ##[group]Run pip install pytest && python -m pytest cli/test_wenqu.py -q
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2385901Z ^[[36;1mpip install pytest && python -m pytest cli/test_wenqu.py -q^[[0m
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2452844Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453136Z env:
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453438Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2453940Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454431Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2454872Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455327Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2455768Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:00.2456169Z ##[endgroup]
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.1882338Z Collecting pytest
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2707491Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2843166Z Collecting iniconfig>=1.0.1 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.2983720Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3138625Z Collecting packaging>=22 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3277573Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3408388Z Collecting pluggy<2,>=1.5 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3549511Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3739047Z Collecting pygments>=2.7.2 (from pytest)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.3879242Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4077586Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4666166Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4828328Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.4991863Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5167534Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.5572850Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 37.5 MB/s  0:00:00
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:01.6349521Z Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6829490Z 
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:02.6840938Z Successfully installed iniconfig-2.3.1 packaging-26.3 pluggy-1.6.0 pygments-2.21.0 pytest-9.1.1
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2772606Z ....................                                                     [100%]
+matrix (ubuntu-latest)	pytest 契约	2026-10-08T07:48:06.2773667Z 20 passed in 3.27s
+matrix (ubuntu-latest)	selftest	﻿2026-10-08T07:48:06.3076309Z ##[group]Run python cli/wenqu selftest
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3076703Z ^[[36;1mpython cli/wenqu selftest^[[0m
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3140910Z shell: /usr/bin/bash -e {0}
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141241Z env:
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3141576Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142366Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib/pkgconfig
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3142934Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143436Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3143945Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.17/x64
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144460Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.17/x64/lib
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.3144889Z ##[endgroup]
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4041505Z OK ingest：原子拒绝——0 条入账，2 处问题（--partial 可恢复逐行模式）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4042697Z   拒绝：第2行：id 重复 X-1
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4043609Z   拒绝：第3行：sev 非法（须为 HIGH/MEDIUM/LOW）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4196839Z OK init：范围冻结 1 文件，scope_hash=0a23e51566e5e471，账本在 /tmp/tmp50iewptm/wh/findings.jsonl
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4198166Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-374-fake.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4199282Z FAIL fakebad（exit=1）——已落账 OPEN，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-387-fakebad.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4200727Z OK ingest：入账 1 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201307Z OK close：X-9 OPEN → CLOSED（append-only 转移已入账）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4201968Z FAIL verify：schema 净；OPEN 1/0 限额；总 2 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4202603Z   OPEN：AUTO-20261008074806-2853-fakebad-2b7c
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4203483Z OK close：AUTO-20261008074806-2853-fakebad-2b7c OPEN → FIXED（append-only 转移已入账）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4204313Z OK verify：schema 净；OPEN 0/0 限额；总 2 条
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205075Z OK fake PASS，日志 /tmp/tmp50iewptm/wh/runs/20261008-074806-405-fake.log
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4205878Z OK repair：保留 7 行，隔离 0 行 → findings.jsonl.quarantine
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4206698Z FAIL verify：schema 净；OPEN 0/0 限额；总 2 条；收敛环=证据不足（已标 0/2 轮，拒绝 Converged）
+matrix (ubuntu-latest)	selftest	2026-10-08T07:48:06.4207713Z OK selftest：契约全过（init/run 双态/ingest 拒脏/账本 append-only/close/verify 门+fork6 两断言）
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	﻿2026-10-08T07:48:06.4384788Z Post job cleanup.
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:06.5727527Z (node:2857) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+matrix (ubuntu-latest)	Post Run actions/setup-python@v5	2026-10-08T07:48:06.5729298Z (Use `node --trace-deprecation ...` to show where the warning was created)
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	﻿2026-10-08T07:48:06.6040458Z Post job cleanup.
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7317802Z [command]/usr/bin/git version
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7460732Z git version 2.55.0
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7641103Z Temporarily overriding HOME='/home/runner/work/_temp/0eae98a3-bb34-4db4-a669-6b024ab0a63f' before making global git config changes
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7660780Z Adding repository directory to the temporary git global config as a safe directory
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7670593Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/wenqu-dist/wenqu-dist
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7773632Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.7915076Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8793061Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8878530Z http.https://github.com/.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.8998084Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9036873Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9810470Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+matrix (ubuntu-latest)	Post Run actions/checkout@v4	2026-10-08T07:48:06.9861080Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+matrix (ubuntu-latest)	Complete job	﻿2026-10-08T07:48:07.0280826Z Cleaning up orphan processes
+matrix (ubuntu-latest)	Complete job	2026-10-08T07:48:07.0569409Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+exit_code=0

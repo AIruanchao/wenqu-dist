@@ -1,0 +1,665 @@
+{
+  "meta": {
+    "tool": "tools/ac_traceability.py",
+    "generated_at": "2026-10-08T15:33:41+08:00",
+    "repo_root": "/Users/maccc/Documents/wenqu-dist",
+    "repo_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+    "plan_source": "/private/tmp/codex-test/方案.md",
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "catalog_integrity": "OK",
+    "catalog_problems": [],
+    "plan_cross_check": {
+      "ok": true,
+      "plan_only": [],
+      "frozen_only": [],
+      "plan_ids_count": 131,
+      "frozen_count": 131,
+      "semantic_ok": true,
+      "semantic_problems": [],
+      "semantic_rows_parsed": 131
+    },
+    "scanned_files": [
+      "tests/release-check.sh",
+      "tests/acceptance.sh",
+      "system/tests/test_wenqu_adversarial.py",
+      "system/tests/test_ac_auth_cond.py",
+      "system/tests/test_ac_act_run.py",
+      "system/tests/test_ac_station_families.py",
+      "system/tests/test_infra_hardening.py",
+      "system/tests/test_ac_deploy_release.py",
+      "system/tests/test_runner_daemon.py",
+      "system/tests/test_gate_schema_hardening.py",
+      "system/tests/test_ac_ops_families.py",
+      "system/tests/test_wenqu_pipeline.py",
+      "system/tests/test_core_wiring.py",
+      "system/tests/test_cli_install_ci.py",
+      "system/tests/test_ac_state_mig.py",
+      "system/tests/test_ac_gate_family.py",
+      "cli/test_wenqu.py",
+      "system/wenqu_core/station3_contract.py",
+      "system/wenqu_core/store.py",
+      "system/wenqu_core/wenqu_pipeline.py",
+      "system/wenqu_core/runner.py",
+      "system/wenqu_core/station4_behavior.py",
+      "system/wenqu_core/deploy_framework.py",
+      "system/wenqu_core/__init__.py",
+      "system/wenqu_core/bugscan_orchestrator.py",
+      "system/wenqu_core/ledger_migrator.py",
+      "system/wenqu_core/cli.py",
+      "system/wenqu_core/source_gate.py",
+      "system/wenqu_core/station2_static.py",
+      "system/wenqu_core/scheduler.py",
+      "system/wenqu_core/gate_aggregator.py",
+      "system/wenqu_core/station7_runtime.py",
+      "system/wenqu_core/approval_keys.py"
+    ],
+    "scan_roots": [
+      "tests",
+      "system/tests",
+      "cli",
+      "system/wenqu_core",
+      "probes"
+    ],
+    "proxy_policy": "代理测试不冒充专属验收：implemented 仅在存在以该 ID 命名/标注的测试函数或用例时为 true"
+  },
+  "stats": {
+    "total_ids": 131,
+    "dedicated_implemented": 99,
+    "proxy_partial": 0,
+    "missing": 32,
+    "dedicated_coverage_pct": 75.57,
+    "dedicated_plus_proxy_pct": 75.57,
+    "by_prefix": {
+      "ACT": {
+        "total": 6,
+        "dedicated": 6,
+        "proxy": 0
+      },
+      "ADV": {
+        "total": 2,
+        "dedicated": 2,
+        "proxy": 0
+      },
+      "ALT": {
+        "total": 2,
+        "dedicated": 2,
+        "proxy": 0
+      },
+      "AUTH": {
+        "total": 6,
+        "dedicated": 6,
+        "proxy": 0
+      },
+      "BAK": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "CAP": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "CI": {
+        "total": 5,
+        "dedicated": 4,
+        "proxy": 0
+      },
+      "COND": {
+        "total": 6,
+        "dedicated": 6,
+        "proxy": 0
+      },
+      "DB": {
+        "total": 6,
+        "dedicated": 6,
+        "proxy": 0
+      },
+      "DEP": {
+        "total": 9,
+        "dedicated": 1,
+        "proxy": 0
+      },
+      "DOC": {
+        "total": 4,
+        "dedicated": 4,
+        "proxy": 0
+      },
+      "DR": {
+        "total": 1,
+        "dedicated": 0,
+        "proxy": 0
+      },
+      "GATE": {
+        "total": 12,
+        "dedicated": 9,
+        "proxy": 0
+      },
+      "HLT": {
+        "total": 1,
+        "dedicated": 1,
+        "proxy": 0
+      },
+      "MIG": {
+        "total": 5,
+        "dedicated": 4,
+        "proxy": 0
+      },
+      "MRG": {
+        "total": 7,
+        "dedicated": 7,
+        "proxy": 0
+      },
+      "PERF": {
+        "total": 6,
+        "dedicated": 4,
+        "proxy": 0
+      },
+      "RB": {
+        "total": 1,
+        "dedicated": 1,
+        "proxy": 0
+      },
+      "REL": {
+        "total": 3,
+        "dedicated": 3,
+        "proxy": 0
+      },
+      "RISK": {
+        "total": 1,
+        "dedicated": 1,
+        "proxy": 0
+      },
+      "RUN": {
+        "total": 3,
+        "dedicated": 3,
+        "proxy": 0
+      },
+      "SC": {
+        "total": 5,
+        "dedicated": 3,
+        "proxy": 0
+      },
+      "SCH": {
+        "total": 7,
+        "dedicated": 7,
+        "proxy": 0
+      },
+      "STA": {
+        "total": 2,
+        "dedicated": 2,
+        "proxy": 0
+      },
+      "STATE": {
+        "total": 11,
+        "dedicated": 7,
+        "proxy": 0
+      },
+      "STOP": {
+        "total": 3,
+        "dedicated": 3,
+        "proxy": 0
+      },
+      "TEN": {
+        "total": 8,
+        "dedicated": 7,
+        "proxy": 0
+      },
+      "UI": {
+        "total": 7,
+        "dedicated": 0,
+        "proxy": 0
+      }
+    }
+  },
+  "missing": {
+    "BAK-01": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "磁盘满/tar/backup 失败",
+      "expectation": "不更新 success",
+      "req": "REQ-BACKUP-001",
+      "ac": "AC-BACKUP-RESTORABLE",
+      "work_packages": "W4/W7A",
+      "evidence_class": "checkpoint/restore drill"
+    },
+    "CAP-01": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "峰值空间超过安全余量或磁盘满",
+      "expectation": "切换 BLOCKED，旧证据和 current 均完整",
+      "req": "REQ-CAP-001",
+      "ac": "AC-CAP-SAFE-MARGIN",
+      "work_packages": "W0/W7A",
+      "evidence_class": "peak budget/disk-full injection"
+    },
+    "CI-06": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "CODEOWNERS 文件存在但 ruleset 未强制",
+      "expectation": "doctor ERROR",
+      "req": "REQ-CI-001",
+      "ac": "AC-CI-TERMINAL",
+      "work_packages": "W3B",
+      "evidence_class": "check runs/ruleset/DAG validation"
+    },
+    "DEP-01": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "两个部署者争 lease",
+      "expectation": "最多一个成功",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-02": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "smoke 访问生产 DB/state",
+      "expectation": "隔离拒绝",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-04": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "自签/替换/revoked release key",
+      "expectation": "拒绝",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-05": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "previous release 超 schema 范围",
+      "expectation": "拒绝回滚",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-06": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "无迁移锁/未验证备份/expand 超授权",
+      "expectation": "激活前 BLOCKED，旧 current 不变",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-07": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "ACTIVATING 失败且无预授权",
+      "expectation": "FAILED_BLOCKED；不得自动回滚或继续发布",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-08": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "ROLLBACK_FAILED",
+      "expectation": "writer/merge/release 熔断并停等人工恢复",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DEP-09": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "观察窗内夹带 contract/down migration",
+      "expectation": "拒绝；要求独立授权变更",
+      "req": "REQ-DEPLOY-001",
+      "ac": "AC-DEPLOY-FENCED",
+      "work_packages": "W7A/W7B",
+      "evidence_class": "lease/migration/activation events"
+    },
+    "DR-01": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "恢复演练",
+      "expectation": "实测满足冻结 RPO/RTO",
+      "req": "REQ-DR-001",
+      "ac": "AC-DR-RPO-RTO",
+      "work_packages": "W4/W7B/W10",
+      "evidence_class": "restored state/RPO/RTO timing"
+    },
+    "GATE-09": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.1",
+      "injection": "N=-1/0/超上限",
+      "expectation": "参数错误",
+      "req": "REQ-EVID-001",
+      "ac": "AC-EVID-FAIL-CLOSED",
+      "work_packages": "W2/W3A/W3B",
+      "evidence_class": "raw rc、CAS、before/after"
+    },
+    "GATE-10": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.1",
+      "injection": "超过 N+1",
+      "expectation": "BLOCKED 等人工裁定",
+      "req": "REQ-EVID-001",
+      "ac": "AC-EVID-FAIL-CLOSED",
+      "work_packages": "W2/W3A/W3B",
+      "evidence_class": "raw rc、CAS、before/after"
+    },
+    "GATE-11": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.1",
+      "injection": "同命令换 S 标签",
+      "expectation": "不计异源轮",
+      "req": "REQ-EVID-001",
+      "ac": "AC-EVID-FAIL-CLOSED",
+      "work_packages": "W2/W3A/W3B",
+      "evidence_class": "raw rc、CAS、before/after"
+    },
+    "MIG-05": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.2",
+      "injection": "project key 冲突",
+      "expectation": "明确冲突，不拆成假项目",
+      "req": "REQ-MIG-001",
+      "ac": "AC-MIG-RECONCILE",
+      "work_packages": "W5",
+      "evidence_class": "row mapping、decision、quarantine"
+    },
+    "PERF-03": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.3",
+      "injection": "尾部极慢样本",
+      "expectation": "正确进入 p95/p99",
+      "req": "REQ-PERF-001",
+      "ac": "AC-PERF-VALID",
+      "work_packages": "W6D",
+      "evidence_class": "raw samples/profile/baseline auth"
+    },
+    "PERF-04": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.3",
+      "injection": "输入 1→100，query count 线性",
+      "expectation": "FAIL",
+      "req": "REQ-PERF-001",
+      "ac": "AC-PERF-VALID",
+      "work_packages": "W6D",
+      "evidence_class": "raw samples/profile/baseline auth"
+    },
+    "SC-03": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.3",
+      "injection": "install script/resolved/integrity 变化",
+      "expectation": "FAIL/人工审",
+      "req": "REQ-SC-001",
+      "ac": "AC-SC-FAIL-CLOSED",
+      "work_packages": "W6B",
+      "evidence_class": "audit JSON、SBOM、signature"
+    },
+    "SC-05": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "离线快照签名错误/过期/分页不全",
+      "expectation": "BLOCKED",
+      "req": "REQ-SC-001",
+      "ac": "AC-SC-FAIL-CLOSED",
+      "work_packages": "W6B",
+      "evidence_class": "audit JSON、SBOM、signature"
+    },
+    "STATE-02": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.2",
+      "injection": "../、绝对路径、NUL、超长 ID",
+      "expectation": "拒绝",
+      "req": "REQ-STATE-001",
+      "ac": "AC-STATE-APPEND-ONLY",
+      "work_packages": "W1/W2",
+      "evidence_class": "event log、property/crash run"
+    },
+    "STATE-05": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.2",
+      "injection": "双 writer epoch",
+      "expectation": "所有写入拒绝",
+      "req": "REQ-STATE-001",
+      "ac": "AC-STATE-APPEND-ONLY",
+      "work_packages": "W1/W2",
+      "evidence_class": "event log、property/crash run"
+    },
+    "STATE-09": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "SHA/scope/policy 变化",
+      "expectation": "强制新 run",
+      "req": "REQ-STATE-001",
+      "ac": "AC-STATE-APPEND-ONLY",
+      "work_packages": "W1/W2",
+      "evidence_class": "event log、property/crash run"
+    },
+    "STATE-11": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "S7 CONDITIONAL 缺 risk authorization",
+      "expectation": "S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING",
+      "req": "REQ-STATE-001",
+      "ac": "AC-STATE-APPEND-ONLY",
+      "work_packages": "W1/W2",
+      "evidence_class": "event log、property/crash run"
+    },
+    "TEN-04": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.3",
+      "injection": "$queryRaw 跨租户",
+      "expectation": "阻断",
+      "req": "REQ-TENANT-001",
+      "ac": "AC-TENANT-DENOMINATOR",
+      "work_packages": "W6C",
+      "evidence_class": "DMMF/AST/runtime probes"
+    },
+    "UI-01": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "少一个闭合标签",
+      "expectation": "构建/启动门失败",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-02": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "XSS 日志/账本文本",
+      "expectation": "不执行",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-03": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "CSRF/伪 Origin/text/plain 写入",
+      "expectation": "拒绝",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-04": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "Gate 红、其他项高分",
+      "expectation": "总体 BLOCKED",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-05": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.4",
+      "injection": "ACCEPTED/OTHER/quarantine",
+      "expectation": "均可钻取",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-06": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "DNS rebinding/伪 Host/未认证日志读取",
+      "expectation": "拒绝",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    },
+    "UI-07": {
+      "implemented": false,
+      "test_file": "",
+      "evidence_path": "evidence/00-baseline/codex-external/方案.md",
+      "match_type": "missing",
+      "test_function": "",
+      "section": "20.5",
+      "injection": "慢请求/高并发/超大日志",
+      "expectation": "不耗尽资源",
+      "req": "REQ-UI-001",
+      "ac": "AC-UI-TRUTHFUL-SECURE",
+      "work_packages": "W8",
+      "evidence_class": "Playwright/DOM/security trace"
+    }
+  }
+}

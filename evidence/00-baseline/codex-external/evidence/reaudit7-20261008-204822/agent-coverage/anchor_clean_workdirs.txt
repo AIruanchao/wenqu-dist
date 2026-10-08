@@ -1,0 +1,3 @@
+/tmp/wq7b-anchor-pipeline-clean-7134-55687
+/tmp/wq7b-anchor-schema-clean-7134-55687
+/tmp/wq7b-anchor-trace-clean-7134-55687

@@ -1,0 +1,161 @@
+UTC_START=2026-10-08T12:50:37Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-http.zsh
+--- COMMAND ---
+#!/bin/zsh
+set +e
+for spec in 'GET /' 'GET /api/v1/ping' 'GET /api/v1/components' 'GET /api/v1/health' 'GET /api/health' 'POST /api/decide' 'POST /api/v1/decide' 'PUT /api/v1/health' 'OPTIONS /api/v1/ping'; do
+ method=${spec%% *}; path=${spec#* }
+ echo "===== $method $path ====="
+ body=$(mktemp /tmp/reaudit7-http.XXXXXX); hdr=$(mktemp /tmp/reaudit7-hdr.XXXXXX)
+ if [[ $method == POST ]]; then
+   code=$(curl -sS --max-time 8 -X "$method" -H 'Content-Type: application/json' --data '{}' -D "$hdr" -o "$body" -w '%{http_code}' "http://127.0.0.1:7789$path"); rc=$?
+ else
+   code=$(curl -sS --max-time 8 -X "$method" -D "$hdr" -o "$body" -w '%{http_code}' "http://127.0.0.1:7789$path"); rc=$?
+ fi
+ echo CURL_RC=$rc HTTP_CODE=$code
+ sed -n '1,40p' "$hdr"
+ echo BODY_SHA256=$(shasum -a 256 "$body"|awk '{print $1}')
+ echo BODY_BYTES=$(wc -c < "$body"|tr -d ' ')
+ head -c 8000 "$body"; echo
+ rm -f "$body" "$hdr"
+done
+--- OUTPUT ---
+===== GET / =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== GET /api/v1/ping =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== GET /api/v1/components =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== GET /api/v1/health =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== GET /api/health =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== POST /api/decide =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:8: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== POST /api/v1/decide =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:8: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== PUT /api/v1/health =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+===== OPTIONS /api/v1/ping =====
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:6: command not found: mktemp
+/private/tmp/reaudit7-cmd-http.zsh:10: command not found: curl
+CURL_RC=127 HTTP_CODE=
+/private/tmp/reaudit7-cmd-http.zsh:13: command not found: sed
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: shasum
+/private/tmp/reaudit7-cmd-http.zsh:14: command not found: awk
+BODY_SHA256=
+/private/tmp/reaudit7-cmd-http.zsh:15: no such file or directory: 
+/private/tmp/reaudit7-cmd-http.zsh:15: command not found: tr
+BODY_BYTES=
+/private/tmp/reaudit7-cmd-http.zsh:16: command not found: head
+
+/private/tmp/reaudit7-cmd-http.zsh:17: command not found: rm
+--- END OUTPUT ---
+EXIT_CODE=127
+UTC_END=2026-10-08T12:50:37Z

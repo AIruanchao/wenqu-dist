@@ -1,0 +1,4 @@
+station4_correct=1
+station7_correct=0
+trace_help=0
+trace_correct=0

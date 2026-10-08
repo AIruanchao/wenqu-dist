@@ -1,0 +1,161 @@
+TIMESTAMP_UTC: 2026-10-08T13:02:56Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: /tmp/reaudit7-targeted-p0.sh 
+OUTPUT_BEGIN
+=== RUN system/tests/test_core_wiring.py ===
+  ✓ test_core_modules_importable
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 8 PASS / 0 FAIL
+=== RC system/tests/test_core_wiring.py = 0 ===
+=== RUN system/tests/test_wenqu_pipeline.py ===
+  ok  规则引擎（七段/转换/双轴/九类前置/bool 客观化）
+  ok  全流程七段 PASS → SUCCEEDED + 重放一致
+  ok  FAIL 重试 → 新 attempt_id，旧 attempt 不可变
+  ok  九类停等 raise→resume（必要且充分）
+  ok  审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希/验签）
+  ok  并发双消费：恰好一个成功
+  ok  COMPLETED_CONDITIONAL 终态 + risk 授权指纹匹配
+  ok  cancel/supersede/not_found/FAILED
+  ok  与 EventStore.append 交错链完整性
+  ok  与 approval-v2 schema 交叉验证
+
+P0-2 状态机+审批 Broker: 10 PASS / 0 FAIL
+=== RC system/tests/test_wenqu_pipeline.py = 0 ===
+=== RUN system/tests/test_wenqu_adversarial.py ===
+/private/tmp/wenqu-reaudit7-f6p0-22971/system/tests/test_wenqu_adversarial.py:551: DeprecationWarning: FormatChecker.cls_checks is deprecated. Call FormatChecker.checks on a specific FormatChecker instance instead.
+  @FormatChecker.cls_checks("date-time")
+  ok  #1 伪签名+缺绑定 → envelope 封闭+HMAC 验签
+  ok  #2 跨类型 payload → 判别封闭+API 路由
+  ok  #3 前置自报字符串 → bool 客观化
+  ok  #4 绑定绕过 → watermark 强制 40-hex+policy/ruleset exact
+  ok  #5 risk 无 CAS → action 类授权同样 CAS
+  ok  #6 双轴洗白 → 非 COMPLETED 无完成态+P0/P1 机器拒绝
+  ok  #7 控制事件直写 → append 守卫+重放验封
+  ok  #8 第二正源 → APPROVAL_CONSUMED 事件为唯一正源
+  ok  #9 自产事件全过 run-event-v2（FormatChecker）
+  ok  #10 action saga（授权链/outbox/receipt 分级对账/重放）
+  ok  #11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门
+  ok  K：wenquctl CLI 端到端链
+
+P0-4 对抗回归: 12 PASS / 0 FAIL
+=== RC system/tests/test_wenqu_adversarial.py = 0 ===
+=== RUN system/tests/test_infra_hardening.py ===
+== 基础设施加固对抗自测（19 组）==
+-- test_install_component_damage_fails_closed
+  ✓ F install 组件损坏后 rc≠0（doctor 不再被 || true 吞掉）
+  ✓ F install 报组件缺失中止
+-- test_install_missing_core_module_fails_closed
+  ✓ F install 删 wenqu_pipeline 后 rc≠0（fail-closed）
+  ✓ F install 明确报 wenqu_pipeline 导入失败
+-- test_install_normal_succeeds
+  ✓ F install 完好安装 rc=0
+  ✓ F install 全模块验证输出（含 wenqu_pipeline 语义）
+  ✓ F install tar 管道保 exec 位（bin/wenqu 可执行）
+-- test_p03_empty_required_stations_blocked
+  ✓ P0-3 空 required_stations 仍 BLOCKED（真空 PASS 拒绝）
+-- test_p03_legacy_fields_backcompat
+  ✓ P0-3 legacy 双站 PASS 聚合为 PASS
+  ✓ P0-3 legacy 条目标记 input_version=legacy
+  ✓ P0-3 legacy 同站冲突证据 -> BLOCKED
+-- test_p03_v2_full_chain_aggregator_to_dashboard_accept
+  ✓ P0-3 v2 双站 PASS 聚合为 PASS
+  ✓ P0-3 聚合输出含 generated_at（dashboard 强制）
+  ✓ P0-3 聚合输出含 policy_verdict（dashboard 强制）
+  ✓ P0-3 v2 站点登记为 required（station_id 键）
+  ✓ P0-3 dashboard read_gate_aggregate 对聚合输出 ACCEPT
+-- test_p03_v2_hard_semantics_fail_closed
+  ✓ P0-3 v2 policy FAIL -> BLOCKED
+  ✓ P0-3 v2 NOT_APPLICABLE -> CONDITIONAL（绝不上绿）
+  ✓ P0-3 v2 execution TIMEOUT+声称 PASS -> 整站硬失败（铁律2 纵深）
+  ✓ P0-3 v2 identity 缺失 -> BLOCKED（missing_field:identity）
+  ✓ P0-3 v2 commit_sha 与 target_sha 不一致 -> BLOCKED
+-- test_p05_cas_hardlink_preplant_must_be_rejected
+  ✓ P0-5 CAS hardlink 预置被拒（st_nlink>1）
+  ✓ P0-5 CAS contains() 对 hardlink 返回 False
+  ✓ P0-5 CAS get() 对 hardlink 拒绝
+-- test_p05_cas_interrupted_write_leaves_no_poison
+  ✓ P0-5 CAS 中途写失败向上抛出
+  ✓ P0-5 CAS 中途失败后最终路径不存在
+  ✓ P0-5 CAS 中途失败后无 .tmp 残留
+-- test_p05_cas_poison_file_selfheals
+  ✓ P0-5 CAS 毒文件重试 put 自愈成功
+  ✓ P0-5 CAS 自愈后 get 返回完整证据
+  ✓ P0-5 CAS 完好幂等 put 成功
+-- test_p05_cas_shard_symlink_swap_attack_must_fail
+  ✓ P0-5 CAS shard symlink 替换攻击被拒（IntegrityError）
+  ✓ P0-5 CAS 攻击后根外目录零写入
+-- test_p05_cas_sigkill_midwrite_retry_recovers
+  ✓ P0-5 CAS 子进程写 tmp 已出现（攻击窗口成立）
+  ✓ P0-5 CAS SIGKILL 后最终路径无半写毒文件
+  ✓ P0-5 CAS SIGKILL 后重试 put 成功
+  ✓ P0-5 CAS 重试后 get 完整返回
+-- test_p05_runner_allowlist_rejects_bin_sh
+  ✓ P0-5 Runner allowlist 拒绝 /bin/sh -c
+  ✓ P0-5 Runner allowlist 放行表内命令
+  ✓ P0-5 Runner 默认无 allowlist 保持宽松（兼容既有调用方）
+  ✓ P0-5 Runner 旧参数 allowed_executables 仍有效
+-- test_p05_runner_env_whitelist_default
+  ✓ P0-5 Runner 默认剥除非白名单环境变量
+  ✓ P0-5 Runner 白名单核心键在位（PATH/HOME）
+  ✓ P0-5 Runner env_passthrough 显式放行生效
+  ✓ P0-5 Runner inherit_env=True 恢复完整继承（兼容口）
+-- test_p05_runner_setsid_descendant_marker_must_fail
+  ✓ P0-5 Runner setsid 攻击被记 timed_out
+  ✓ P0-5 Runner setsid 孙进程被进程树击杀（marker 未写）
+-- test_p06_duplicate_returns_db_hash_and_head_is_chain_tip
+  ✓ P0-6 A/B 均为新插入
+  ✓ P0-6 重试 A 为 duplicate
+  ✓ P0-6 重试 A 返回 DB 中 A 的真实 hash（非按当前 head 重算）
+  ✓ P0-6 重试未新增行（DB 恰 2 条）
+  ✓ P0-6 返回的 hash 存在于 DB
+  ✓ P0-6 head()==最后一条（链头 B）的 hash
+  ✓ P0-6 verify_chain 全链 ok
+-- test_p07_mode_policy_source_exec_bit
+  ✓ P0-7 manifest 逐文件记录 mode
+  ✓ P0-7 0755 无扩展可执行文件保持可执行（0555）
+  ✓ P0-7 0644 带 shebang 的 .py 不强加 exec（0444）
+  ✓ P0-7 0755 .sh 保持可执行
+  ✓ P0-7 0644 .json 保持 0444
+-- test_p07_mode_tamper_detected_by_verify
+  ✓ P0-7 mode 篡改被 verify 检出（VerifyError.mode_drifted）
+  ✓ P0-7 恢复 mode 后 verify 通过
+-- test_p07_upgrade_selfcheck_rolls_back_via_relative_link
+  ✓ P0-7 v1 部署成功
+  ✓ P0-7 current 为相对链接（非绝对）
+  ✓ P0-7 cwd≠deploy 根时 previous 相对链接解析为存在目录（对抗旧缺陷）
+  ✓ P0-7 v2 自检失败抛 DeployError（含回滚+再验记录）
+  ✓ P0-7 回滚后 current 指回 v1（cwd 无关）
+  ✓ P0-7 回滚后 v1 自检仍通过（回滚目标健康）
+========================================
+RESULT: PASS=66 FAIL=0
+=== RC system/tests/test_infra_hardening.py = 0 ===
+=== RUN system/tests/test_release_attest.py ===
+release_attest 全链自测  tool=/private/tmp/wenqu-reaudit7-f6p0-22971/tools/release_attest.py
+  ---- 全链绿（build+sign+sbom+verify）+ 确定性构建
+    ✅
+  ---- 篡改 tar 一字节 → verify 必拒
+    ✅
+  ---- 重打包攻击（自洽改 manifest）→ 签名拦截
+    ✅
+  ---- 换 key 验签必拒（未知 key_id/同 id 异 secret/改 sig key_id）
+    ✅
+  ---- SBOM 字段完整性（SPDX 2.3 必填面+逐文件对账+验证码）+ 篡改必拒
+    ✅
+  ---- 篡改 manifest/sig/缺件 → verify 必拒
+    ✅
+  ---- key 生命周期：rotated 不得签发/revoked 验签即拒
+    ✅
+  ---- verify --report 机器可读报告工件
+    ✅
+
+release_attest: 8 PASS / 0 FAIL
+=== RC system/tests/test_release_attest.py = 0 ===
+OUTPUT_END
+EXIT_CODE: 0

@@ -1,0 +1,54 @@
+UTC_START=2026-10-08T12:59:01Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-release-adversarial.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -e
+R=/private/tmp/reaudit7-release-d32c859
+ORIG=$R/dist/wenqu-dist-1620c7c.tar.gz
+W=/private/tmp/reaudit7-release-independent
+rm -rf "$W"; mkdir -p "$W/rebuild" "$W/tamper"
+cd "$R"
+echo '=== deterministic rebuild of declared source commit ==='
+python3 tools/release_attest.py build --commit 1620c7c --repo "$R" --dist-dir "$W/rebuild" --prefix wenqu-dist
+NEW="$W/rebuild/wenqu-dist-1620c7c.tar.gz"
+echo "original_sha=$(shasum -a 256 "$ORIG"|awk '{print $1}')"
+echo "rebuild_sha=$(shasum -a 256 "$NEW"|awk '{print $1}')"
+cmp -s "$ORIG" "$NEW"; echo "deterministic_cmp_rc=$?"
+echo '=== own tar tamper must fail ==='
+cp "$R/dist/wenqu-dist-1620c7c."{tar.gz,manifest.json,release.sig,sbom.spdx.json} "$W/tamper/"
+python3 - "$W/tamper/wenqu-dist-1620c7c.tar.gz" <<'PY'
+import sys
+p=sys.argv[1]
+b=bytearray(open(p,'rb').read()); i=len(b)//2; b[i]^=1; open(p,'wb').write(b)
+print('flipped_offset',i,'bytes',len(b))
+PY
+set +e
+PYTHONPATH="$R/system" python3 "$R/tools/release_attest.py" verify --manifest "$W/tamper/wenqu-dist-1620c7c.manifest.json" --keyring "$HOME/.wenqu-dist-release/release-keyring.json" > "$W/tamper.out" 2>&1
+rc=$?
+set -e
+echo "tamper_verify_rc=$rc"
+cat "$W/tamper.out"
+if [[ $rc -eq 0 ]]; then echo 'TAMPER_FALSE_GREEN'; exit 1; fi
+echo 'EXPECTED_RED_CONFIRMED'
+--- OUTPUT ---
+=== deterministic rebuild of declared source commit ===
+BUILD OK  wenqu-dist-1620c7c
+  commit   : 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d (fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数)
+  version  : 3.7.1  files: 642
+  tar.gz   : /private/tmp/reaudit7-release-independent/rebuild/wenqu-dist-1620c7c.tar.gz
+             sha256=e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607 size=7095163
+  manifest : /private/tmp/reaudit7-release-independent/rebuild/wenqu-dist-1620c7c.manifest.json
+original_sha=e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607
+rebuild_sha=e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607
+deterministic_cmp_rc=0
+=== own tar tamper must fail ===
+flipped_offset 3547581 bytes 7095163
+tamper_verify_rc=1
+  PASS  manifest-schema  build_id=rel-1620c7c-20261008T094952Z
+  FAIL  verify  制品 hash/size 不符: sha256 b98d14d2dcf56194a36885de9436c69d0b590dedb1c4e5d6beb45b14300303be vs e2243329c33eb003b40726cea41bc17410d7ecfc1797ba0a59fe84561c4c2607, size 7095163 vs 7095163
+VERIFY FAILED
+EXPECTED_RED_CONFIRMED
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:59:03Z

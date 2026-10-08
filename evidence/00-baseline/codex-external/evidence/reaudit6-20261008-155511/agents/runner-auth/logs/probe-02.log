@@ -1,0 +1,13 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 02
+START=2026-10-08T16:01:19+0800
+{
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-02-vbkderit",
+  "mixed_payload": "ApprovalRejected: approval rejected: payload not closed for approval_type='resume': foreign/unknown fields ['severity']（判别联合互斥封闭）",
+  "probe": "02",
+  "rejection_paths_zero_consumption": true,
+  "resume_via_risk": "ApprovalRejected: approval rejected: resume 审批必须经 consume() 与停等事件绑定消费",
+  "risk_via_resume": "ApprovalRejected: approval rejected: consume() only accepts approval_type=resume; got 'risk'（risk/action 类走 consume_authorization）",
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:19+0800

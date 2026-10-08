@@ -1,0 +1,8 @@
+cp -a '/tmp/wenqu-reaudit7-coverage-b-22841' '/tmp/reaudit7-ui01-span-51705'; python3 - <<'PY'
+from pathlib import Path
+p=Path('/tmp/reaudit7-ui01-span-51705/system/dashboard/index.html')
+s=p.read_text(encoding='utf-8')
+assert '</span>' in s
+p.write_text(s.replace('</span>','',1),encoding='utf-8')
+print('removed_first_span_close=1')
+PY

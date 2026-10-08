@@ -1,0 +1,386 @@
+{
+  "index_sha256": "1b6cd9246cf09dc2cfe6abeb80033a33815494ce316933af1474e2ffae108543",
+  "summary": {
+    "entries": 20,
+    "all_required_keys_present": 4,
+    "paths_exist": 20,
+    "paths_are_files": 16,
+    "artifact_sha_exact64": 4,
+    "artifact_sha_exact64_matches_evidence_path": 1,
+    "commit_full40": 3,
+    "size_field_present": 0
+  },
+  "rows": [
+    {
+      "entry_id": "EV-CI-001",
+      "path": "evidence/08-ci-and-branch-rules/",
+      "path_kind": "directory",
+      "size": null,
+      "actual_sha256": null,
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "37660552501",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)"
+    },
+    {
+      "entry_id": "EV-CI-002",
+      "path": "evidence/08-ci-and-branch-rules/",
+      "path_kind": "directory",
+      "size": null,
+      "actual_sha256": null,
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "37660144865",
+      "commit": "be50cb8",
+      "environment": "candidate (GitHub Actions, remote)"
+    },
+    {
+      "entry_id": "EV-TEST-001",
+      "path": "evidence/04-unit-property-mutation/",
+      "path_kind": "directory",
+      "size": null,
+      "actual_sha256": null,
+      "declared": "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823",
+      "declared_exact64": true,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "31e1d60501901f99f99ca8d0ed9747b27b5799264c9ef2709c130ff05549a823"
+      ],
+      "missing_or_empty": [],
+      "commit_full40": false,
+      "run_id": "37660552501 (随 CI acceptance 步骤)",
+      "commit": "1858a75",
+      "environment": "candidate (GitHub Actions, remote)"
+    },
+    {
+      "entry_id": "EV-TEST-002",
+      "path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log",
+      "path_kind": "file",
+      "size": 3511,
+      "actual_sha256": "60dcc26d73828b5cda00493c850945445a0902352a1e81fe48ac4e9fb33ee08d",
+      "declared": "外部证据目录 MANIFEST.sha256 自身 sha256 6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161",
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "6953a354d784f9a042abd5aed27abef90b698cc980e9dbcbfb21dc8372dd5161"
+      ],
+      "missing_or_empty": [],
+      "commit_full40": false,
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)"
+    },
+    {
+      "entry_id": "EV-TEST-003",
+      "path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log",
+      "path_kind": "file",
+      "size": 1309,
+      "actual_sha256": "f119f47ca98eb86d05b7f511301b6f2fa5aa66b67f591d3c093c6a297e41549d",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+      "commit": "1858a75",
+      "environment": "local (macOS, 只读复核)"
+    },
+    {
+      "entry_id": "EV-ACCEPT-001",
+      "path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
+      "path_kind": "file",
+      "size": 2033,
+      "actual_sha256": "269b834e20efea482503e2d7e0ab07d7c7ba2d651ecb287359243e8bc9f3c697",
+      "declared": "plan-self-validation.json.sha256 在快照目录",
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "commit"
+      ],
+      "commit_full40": false,
+      "run_id": "reaudit-20261007",
+      "commit": null,
+      "environment": "local (只读验证器)"
+    },
+    {
+      "entry_id": "EV-ACCEPT-002",
+      "path": "evidence/00-baseline/codex-external/验收报告.md",
+      "path_kind": "file",
+      "size": 21193,
+      "actual_sha256": "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "declared": "验收报告 sha256 5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593",
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "5c36a284f79841630cd09dd17ab03e1d48a1d10b0e5cd2a8a525c29da654a593"
+      ],
+      "missing_or_empty": [
+        "argv"
+      ],
+      "commit_full40": false,
+      "run_id": "acceptance-20261007-231333",
+      "commit": "1858a75 (验收基线 main@4aeb199 起算)",
+      "environment": "local (只读复核)"
+    },
+    {
+      "entry_id": "EV-REL-001",
+      "path": "evidence/09-release-manifest-attestation/",
+      "path_kind": "directory",
+      "size": null,
+      "actual_sha256": null,
+      "declared": "SHA256-v3.6.3.txt 自身 sha256 2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c",
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "2e7a2b353a586c66ec9f645084b735d28a36dc79715ba038436315d7a75fa50c"
+      ],
+      "missing_or_empty": [
+        "run_id",
+        "argv",
+        "real_rc"
+      ],
+      "commit_full40": false,
+      "run_id": null,
+      "commit": "随各版本提交",
+      "environment": "repo artifact"
+    },
+    {
+      "entry_id": "EV-TRACE-001",
+      "path": "evidence/traceability-matrix.json",
+      "path_kind": "file",
+      "size": 79079,
+      "actual_sha256": "7d7d9ffe4ddf5eb88d5e4045da3c8f550e3e70fd7d5267d24802c1a90076de74",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "p0-10-initial",
+      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)",
+      "environment": "local"
+    },
+    {
+      "entry_id": "EV-CI-003",
+      "path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt",
+      "path_kind": "file",
+      "size": 4372,
+      "actual_sha256": "21238f672b944a8ff115776608eae151d23dfe3ab864e65a6b94bc946bd7dc1b",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": true,
+      "run_id": "37727549548",
+      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+      "environment": "candidate (GitHub Actions, remote)"
+    },
+    {
+      "entry_id": "EV-R3-001",
+      "path": "evidence/00-baseline/codex-external/验收报告-第三轮.md",
+      "path_kind": "file",
+      "size": 30467,
+      "actual_sha256": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
+      "declared": "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee",
+      "declared_exact64": true,
+      "declared_matches_path": true,
+      "hashes_embedded": [
+        "b87d7613717a88a49ec409de12e8a0f1b51c0858e485ac8c7b1de03980bd03ee"
+      ],
+      "missing_or_empty": [],
+      "commit_full40": false,
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bb (验收基线)",
+      "environment": "local (只读独立复审)"
+    },
+    {
+      "entry_id": "EV-R3-002",
+      "path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/MANIFEST.sha256",
+      "path_kind": "file",
+      "size": 14780,
+      "actual_sha256": "088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+      "declared": "MANIFEST.sha256 自身 sha256 088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc",
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "088e00c78ee71a3bf87c4b6cfd161653b863ce8dfd5aa989d389351f191799dc"
+      ],
+      "missing_or_empty": [
+        "argv",
+        "real_rc"
+      ],
+      "commit_full40": true,
+      "run_id": "reaudit3-20261008-122924",
+      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+      "environment": "local"
+    },
+    {
+      "entry_id": "EV-TRACE-002",
+      "path": "tools/ac_traceability.py",
+      "path_kind": "file",
+      "size": 39845,
+      "actual_sha256": "80f69511eb879398f505f0a5758bfad26d0ad293802cd50a65c896ec17afb3f6",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "wave4-p1c-hardening",
+      "commit": "ff050bb 之后工作树（本波提交）",
+      "environment": "local (macOS)"
+    },
+    {
+      "entry_id": "EV-DEP-001",
+      "path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json",
+      "path_kind": "file",
+      "size": 485,
+      "actual_sha256": "0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "wave4-p09-deploy",
+      "commit": "5403220 (部署基线)",
+      "environment": "local (macOS launchd com.wenqu.dashboard)"
+    },
+    {
+      "entry_id": "EV-W5-001",
+      "path": "evidence/04-unit-property-mutation/ac-auth-cond.json",
+      "path_kind": "file",
+      "size": 2081,
+      "actual_sha256": "7752f6c5361ec785c03ea212f500ea1c96de0f43cbd9016e5de312cc4009523a",
+      "declared": "7d3b04a863988425d3f38532b2d7642b85004c1e4facc4627d50f086d7aca37e",
+      "declared_exact64": true,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "7d3b04a863988425d3f38532b2d7642b85004c1e4facc4627d50f086d7aca37e"
+      ],
+      "missing_or_empty": [],
+      "commit_full40": false,
+      "run_id": "wave5-one-shot (PR#4)",
+      "commit": "b08fa7a",
+      "environment": "local"
+    },
+    {
+      "entry_id": "EV-CI-004",
+      "path": "evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json",
+      "path_kind": "file",
+      "size": 1090,
+      "actual_sha256": "7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "37744948480",
+      "commit": "f2b8fc3",
+      "environment": "candidate (GitHub Actions)"
+    },
+    {
+      "entry_id": "EV-REL-002",
+      "path": "dist/SHA256-vNext-candidate-f2b8fc3.txt",
+      "path_kind": "file",
+      "size": 108,
+      "actual_sha256": "d9c83e11091968ce419790e0c17236464066c6f9f9360fc524f49a1ff7c75562",
+      "declared": "0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00",
+      "declared_exact64": true,
+      "declared_matches_path": false,
+      "hashes_embedded": [
+        "0c998a042aedbd7619a4b88b812cb8503e1b3270008d0115dca5c6246600fe00"
+      ],
+      "missing_or_empty": [
+        "run_id"
+      ],
+      "commit_full40": false,
+      "run_id": null,
+      "commit": "f2b8fc3",
+      "environment": "repo artifact"
+    },
+    {
+      "entry_id": "EV-TRACE-003",
+      "path": "evidence/traceability-matrix.json",
+      "path_kind": "file",
+      "size": 79079,
+      "actual_sha256": "7d7d9ffe4ddf5eb88d5e4045da3c8f550e3e70fd7d5267d24802c1a90076de74",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "wave5-final",
+      "commit": "f2b8fc3",
+      "environment": "local"
+    },
+    {
+      "entry_id": "EV-R4-001",
+      "path": "evidence/00-baseline/codex-external/验收报告-第四轮.md",
+      "path_kind": "file",
+      "size": 26116,
+      "actual_sha256": "5d86b3f0b86d17635377eeaff2827ffb5fa63805935ccfb042a5e28fb814e8a3",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": true,
+      "run_id": "reaudit4-20261008-141341",
+      "commit": "e4aba84c1dabe1342ea234321eea3d300bea24a5",
+      "environment": "local (只读独立复审)"
+    },
+    {
+      "entry_id": "EV-W9W10-001",
+      "path": "tools/observation_daily.py",
+      "path_kind": "file",
+      "size": 17075,
+      "actual_sha256": "5b168d1eb5b72250232d11fd4afc0b25a2cb760b712a2f12f8475cdc37e0ca1a",
+      "declared": null,
+      "declared_exact64": false,
+      "declared_matches_path": false,
+      "hashes_embedded": [],
+      "missing_or_empty": [
+        "artifact_sha256"
+      ],
+      "commit_full40": false,
+      "run_id": "com.wenqu.observation",
+      "commit": "f2b8fc3",
+      "environment": "local (macOS launchd)"
+    }
+  ]
+}

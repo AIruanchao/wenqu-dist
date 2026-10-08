@@ -1,0 +1,78 @@
+TIMESTAMP_UTC: 2026-10-08T12:59:05Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-f6-p0/approval_independent_probe.py 
+OUTPUT_BEGIN
+{
+  "audit_chain": {
+    "break_at": null,
+    "length": 1,
+    "ok": true,
+    "tail": "b30fd3ac03c6ebad45533c2430e8e09245114d1fe359aac9d87f71336b0c1cf6"
+  },
+  "event_surface": {
+    "consumed_count": 2,
+    "consumed_has_payload_digest": false,
+    "consumed_keys": [
+      "actor",
+      "approval_id",
+      "approval_type",
+      "event_type",
+      "execution_status",
+      "expires_at",
+      "identity",
+      "nonce_digest",
+      "policy_verdict",
+      "run_id",
+      "schema_version",
+      "seal",
+      "state_version",
+      "stop_event_id",
+      "stop_type",
+      "task_id",
+      "ts"
+    ],
+    "reserved_count": 2,
+    "reserved_has_approval_payload_digest": false
+  },
+  "loose_permission_probe": {
+    "dir_key_fingerprint": "8a45e2d4202344d32c19be04db0459ffe44cc1f471bbced6dfe5842eea981411",
+    "dir_loaded_key_ids": [
+      "key_loose_dir_7"
+    ],
+    "dir_mode": "0o755",
+    "json_key_fingerprint": "89b73be43de4354be2f193c34e3a01782817ae084e4de92e9a0e19e73ccb3281",
+    "json_loaded_key_ids": [
+      "key_loose_7"
+    ],
+    "json_mode": "0o644",
+    "raw_secret_emitted": false,
+    "secret_mode": "0o644"
+  },
+  "probe": "approval-independent-v1",
+  "reconciliation_after_bypass": {
+    "chain_ok": true,
+    "consumed_without_issuance_count": 1,
+    "ok": false,
+    "used_ok_count": 1
+  },
+  "repo_head": null,
+  "single_signer_high_risk_probe": {
+    "action_id_present": true,
+    "approval_has_co_signature": false,
+    "approval_id_fingerprint": "8ec4370bbe8e03d8e69aadb36befc744b807bbac6f778c82a4549935e20ea3d9",
+    "reserved": true
+  },
+  "target_binding_probe": {
+    "approved_payload_release_id": "rel-approved-A",
+    "different": true,
+    "reserved": true,
+    "reserved_action_target": "prod://release/UNAUTHORIZED-B"
+  },
+  "two_person_issued": {
+    "audit_two_person": true,
+    "co_signature_returned": true,
+    "envelope_has_co_signature": false
+  }
+}
+OUTPUT_END
+EXIT_CODE: 0

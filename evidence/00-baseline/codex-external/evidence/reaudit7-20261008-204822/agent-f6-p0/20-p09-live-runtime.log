@@ -1,0 +1,226 @@
+TIMESTAMP_UTC: 2026-10-08T12:51:27Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: bash -lc $'\nset -uo pipefail\nuid=$(id -u)\necho "=== launchctl ==="\nlaunchctl print gui/$uid/com.wenqu.dashboard 2>&1 | sed -n "1,180p"\necho "=== listener ==="\nlsof -nP -iTCP:7789 -sTCP:LISTEN 2>&1 || true\necho "=== process ==="\npid=$(lsof -nP -tiTCP:7789 -sTCP:LISTEN 2>/dev/null | head -1 || true)\necho "PID=$pid"\nif [ -n "$pid" ]; then ps -ww -p "$pid" -o pid=,ppid=,lstart=,command=; lsof -p "$pid" 2>/dev/null | grep -E "(wenqu-dashboard|dashboard/server| cwd )" | head -50 || true; fi\necho "=== runtime files metadata/hash ==="\nfor f in "$HOME/.wenqu/bin/wenqu-dashboard.py" "$HOME/.wenqu/dashboard/server.py" "$HOME/Library/LaunchAgents/com.wenqu.dashboard.plist"; do\n echo "FILE=$f"; ls -lOe "$f" 2>&1 || true; if [ -f "$f" ]; then shasum -a 256 "$f"; fi\ndone\necho "=== repo candidate ==="\nfor f in "$1/system/bin/wenqu-dashboard.py" "$1/system/dashboard/server.py"; do echo "FILE=$f"; shasum -a 256 "$f"; done\necho "=== endpoint probes ==="\nfor spec in "GET /" "GET /api/v1/health" "GET /api/health" "GET /api/decide" "OPTIONS /api/decide"; do set -- $spec; m=$1; p=$2; echo "--- $m $p"; curl -sS --max-time 5 -D - -o /tmp/f6p0-body.$$ -X "$m" "http://127.0.0.1:7789$p"; rc=$?; echo "curl_rc=$rc"; head -c 2000 /tmp/f6p0-body.$$ 2>/dev/null; echo; done\necho "--- POST /api/decide invalid harmless body"\ncurl -sS --max-time 5 -D - -o /tmp/f6p0-body.$$ -X POST -H "Content-Type: application/json" --data "{}" http://127.0.0.1:7789/api/decide; rc=$?; echo "curl_rc=$rc"; head -c 2000 /tmp/f6p0-body.$$ 2>/dev/null; echo\nrm -f /tmp/f6p0-body.$$\n' _ /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+=== launchctl ===
+gui/502/com.wenqu.dashboard = {
+	active count = 1
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	type = LaunchAgent
+	state = running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		/Users/maccc/.wenqu/dashboard/server.py
+		--port
+		7789
+	}
+
+	stdout path = /Users/maccc/.wenqu/logs/dashboard-modular.out.log
+	stderr path = /Users/maccc/.wenqu/logs/dashboard-modular.err.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		XPC_SERVICE_NAME => com.wenqu.dashboard
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 2
+	pid = 78778
+	immediate reason = inefficient
+	forks = 7010
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Terminated: 15
+
+	resource coalition = {
+		ID = 534816
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	jetsam coalition = {
+		ID = 534817
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}
+=== listener ===
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  78778 maccc    3u  IPv4 0x9927b5e8d82c6445      0t0  TCP 127.0.0.1:7789 (LISTEN)
+=== process ===
+PID=78778
+78778     1 Thu Oct  8 18:40:20 2026     /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/dashboard/server.py --port 7789
+Python  78778 maccc  cwd    DIR               1,16      704                   2 /
+=== runtime files metadata/hash ===
+FILE=/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+-rwxr-xr-x@ 1 maccc  staff  - 95580 Oct  8 18:54 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+e5736917322cf4ba2346671482f49662fb44213d5c39158366f81b52ee4b15ac  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+FILE=/Users/maccc/.wenqu/dashboard/server.py
+-rw-r--r--@ 1 maccc  staff  - 40554 Oct  7 21:33 /Users/maccc/.wenqu/dashboard/server.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/.wenqu/dashboard/server.py
+FILE=/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+-rw-r--r--@ 1 maccc  staff  - 710 Oct  8 18:16 /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+812c49241190c83dd741d5ca0202853ff83afcae79bd0bc831f8541e06f5e792  /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+=== repo candidate ===
+FILE=/tmp/wenqu-reaudit7-f6p0-22971/system/bin/wenqu-dashboard.py
+ee926b4ce7651cab07632df0f0b4a8ce608192c0e3fb567273902653dd6b2a8d  /tmp/wenqu-reaudit7-f6p0-22971/system/bin/wenqu-dashboard.py
+FILE=/tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/server.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /tmp/wenqu-reaudit7-f6p0-22971/system/dashboard/server.py
+=== endpoint probes ===
+--- GET /
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: text/html; charset=utf-8
+Content-Length: 11922
+
+curl_rc=0
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>问渠 wenqu · 仪表盘</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- W8 安全加固：CSP 禁内联脚本/样式；frame-ancestors 仅在服务器 CSP 响应头生效（meta 中为文档性声明） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head><body>
+<h1>问渠 wenqu <span class="badge" id="ver">…</span></h1>
+<div class="sub">本地质量工程体系 · <span id="ts"></span> · <span id="port"></span></div>
+<nav class="tabs-nav" id="tabs">
+  <button class="tab active" data-t="ov">总览</button>
+  <button class="tab" data-t="pipe">管线流程</button>
+  <button class="tab" data-t="deck">问渠全流程</button>
+  <button class="tab" data-t="bugdeck">bug 管线</button>
+</nav>
+<div id="pipe" class="hidden"><div class="pl"><h3>四轨出生制 v3.1</h3><div class="src">正源：optimal-quality-process（方案/规格/规则类自动触发；假设任何单轨不可信——任何错误至少被两层独立机制拦截）</div>
+<div class="flow">
+ <div class="frow"><div class="node"><b>S0 brief 起草</b><span>FACT 编号事实+TERM 术语表+ASSUMPTION 假设</span></div>
+ <div class="node"><b>S0.5 brief 复审</b><span>冻结前两轨异源审完备性（brief=全员上界）</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow">
+  <div class="node lane"><b>ZCode 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>Claude 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>M3
+--- GET /api/v1/health
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 793
+
+curl_rc=0
+{"generated_at": "2026-10-08T12:51:16Z", "policy_verdict": "BLOCKED", "aggregate_outcome": "BLOCKED", "technical_eligible": false, "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "reasons": ["wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"], "counts": {"required_total": 0, "required_reported": 0, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "source": "w4-scheduler", "cli_exit": 1}
+--- GET /api/health
+HTTP/1.1 404 Not Found
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 116
+
+curl_rc=0
+{"error": {"code": "API_VERSION_REQUIRED", "detail": "API 已版本化为 /api/v1/*；未版本化路径已废止"}}
+--- GET /api/decide
+HTTP/1.1 404 Not Found
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 116
+
+curl_rc=0
+{"error": {"code": "API_VERSION_REQUIRED", "detail": "API 已版本化为 /api/v1/*；未版本化路径已废止"}}
+--- OPTIONS /api/decide
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 73
+
+curl_rc=0
+{"error": {"code": "METHOD_NOT_ALLOWED", "detail": "方法不被允许"}}
+--- POST /api/decide invalid harmless body
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 12:51:27 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 126
+
+curl_rc=0
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+OUTPUT_END
+EXIT_CODE: 0

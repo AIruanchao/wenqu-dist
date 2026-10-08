@@ -1,0 +1,138 @@
+=== captured_at ===
+2026-10-08T13:11:11Z
+2026-10-08T21:11:11+0800
+=== source repo identity/status (read-only) ===
+1495913085eae13155f977fcebc8400b9789e04c
+rev_parse_rc=0
+wave6/p1f-gate
+branch_rc=0
+## wave6/p1f-gate...origin/wave6/p1f-gate
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+ M evidence/04-unit-property-mutation/ac-ui-family.json
+ M system/VERSION
+ M system/bin/wenqu-dashboard.py
+ D system/schemas/approval-v2.schema.json
+ D system/wenqu_core/wenqu_pipeline.py
+?? "\"\""
+?? SHA256-v3.8.4.txt
+status_rc=0
+=== remote main ===
+d32c859f9043798d9e8a4984e8f57aa64567e33c	refs/heads/main
+ls_remote_rc=0
+=== frozen audit object ===
+commit
+cat_file_rc=0
+=== plan/report hashes ===
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /Users/maccc/Documents/wenqu-dist/evidence/00-baseline/codex-external/方案.md
+1fa4a7f0ef3bb3af51c9276a9f1d9b3a31c43764caacbf0caf8d55854ed7330a  /private/tmp/codex-test/验收报告-第六轮.md
+shasum_rc=0
+=== launchd scheduler summary ===
+gui/502/com.wenqu.scheduler = {
+	active count = 0
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		-m
+		wenqu_core.scheduler
+		tick
+	}
+
+	working directory = /Users/maccc/Documents/wenqu-dist
+
+	stdout path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+	stderr path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_PYTHON => /opt/homebrew/bin/python3
+		PYTHONUNBUFFERED => 1
+		PATH => /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		PYTHONPATH => /Users/maccc/Documents/wenqu-dist/system
+		HOME => /Users/maccc
+		XPC_SERVICE_NAME => com.wenqu.scheduler
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 42
+	last exit code = 0
+
+	resource coalition = {
+		ID = 534409
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	jetsam coalition = {
+		ID = 534410
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 300 seconds
+
+	properties = runatload | inferred program
+}
+launchctl_pipeline_rc=0
+=== 7789 health ===
+HTTP/1.1 200 OK
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 13:11:16 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Content-Length: 793
+
+{"generated_at": "2026-10-08T13:06:38Z", "policy_verdict": "BLOCKED", "aggregate_outcome": "BLOCKED", "technical_eligible": false, "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）", "reasons": ["wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"], "counts": {"required_total": 0, "required_reported": 0, "required_missing": 0, "bypass_stations": 0, "duplicates_ignored": 0, "conflicts": 0, "malformed": 0}, "source": "w4-scheduler", "cli_exit": 1}
+curl_health_rc=0
+=== 7789 write denial ===
+HTTP/1.1 405 Method Not Allowed
+Server: wenqu-dashboard-w8/1.0 
+Date: Thu, 08 Oct 2026 13:11:16 GMT
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+Referrer-Policy: no-referrer
+Content-Type: application/json; charset=utf-8
+Allow: GET, HEAD
+Content-Length: 126
+
+{"error": {"code": "WRITE_DISABLED", "detail": "第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘"}}
+curl_post_rc=0

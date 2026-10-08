@@ -1,0 +1,33 @@
+COMMAND: python3 -m pytest -q $(tr '\n' ' ' < '/private/tmp/codex-test/evidence/reaudit7-20261008-204822/agent-coverage/selected-pytest-nodes.txt')
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+...........................                                              [100%]
+=============================== warnings summary ===============================
+system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected
+  /Users/maccc/Library/Python/3.9/lib/python/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected
+  /Users/maccc/Library/Python/3.9/lib/python/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run
+  /Users/maccc/Library/Python/3.9/lib/python/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed
+  /Users/maccc/Library/Python/3.9/lib/python/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+27 passed, 4 warnings in 32.91s
+--- STDERR ---

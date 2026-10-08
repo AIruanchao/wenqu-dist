@@ -1,0 +1,4 @@
+本子审开始时冻结并归档 clean main@b259dac4248b14af6ec05e1b3fc7f61401aba6b6。
+本人未执行 checkout/switch/commit/reset/merge/push，未写源仓。
+主审随后通知共享源仓被外部 writer 漂移到 release/v3.7.1@419e778；此后全部实跑仅使用既有 /tmp b259dac git-archive 隔离副本。
+本子审结论只认证 b259dac，不认证漂移后源树。

@@ -1,0 +1,3643 @@
+===== system/wenqu_core/gate_aggregator.py =====
+     1	# -*- coding: utf-8 -*-
+     2	"""统一 Gate 聚合器（Codex W3B；P0-3 二次加固：双契约消费 + dashboard 输出对齐；
+     3	F4-GATE-001 根修：v2 输入结构必须严格——add() 前置全量镜像校验）。
+     4	
+     5	消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
+     6	
+     7	## 输入契约一（station-result-v2，正式契约——schemas/station-result-v2.schema.json）
+     8	
+     9	判别为 v2（`schema_version == "2.0"`，或出现 v2 正式字段组合 station_id/
+    10	execution_status/policy_verdict）时，**结构必须严格**：add() 先经
+    11	:func:`mirror_validate_station_result_v2`（schema 的无外部依赖镜像校验器）
+    12	全量校验 required/类型/enum/pattern/const/allOf-if-then 跨字段语义——
+    13	任何 schema-invalid 输入一律记 malformed、该站强制 BLOCKED、
+    14	technical_eligible=false（Codex 第四轮实锤：残缺 v2 曾被判 PASS）。
+    15	字段语义保持双契约：v2 正式字段 + legacy 兼容字段并存消费。
+    16	
+    17	    {
+    18	      "schema_version":     "2.0",
+    19	      "station_id":         2,             # 必填：站点编号（0-7）；站点键 = str(station_id)
+    20	      "execution_status":   "COMPLETED",   # 必填：COMPLETED/ERROR/BLOCKED/TIMEOUT/CANCELLED
+    21	      "policy_verdict":     "PASS",        # 必填：PASS/FAIL/CONDITIONAL/NOT_APPLICABLE/NOT_EVALUATED
+    22	      "identity": {                        # 必填：证据身份绑定（C2/C5 的数据源）
+    23	        "commit_sha":       "<40-hex>",    #   与构造器 target_sha 比对
+    24	        "environment":      "staging",     #   与构造器 environment 比对
+    25	        ...
+    26	      },
+    27	    }
+    28	
+    29	v2 verdict 归一（fail-closed）：
+    30	    PASS                        -> PASS
+    31	    CONDITIONAL / NOT_APPLICABLE-> CONDITIONAL（软——不得上绿，需人工处置）
+    32	    FAIL / NOT_EVALUATED        -> BLOCKED（硬失败）
+    33	    execution_status != COMPLETED（ERROR/BLOCKED/TIMEOUT/CANCELLED）
+    34	                                -> 整站硬失败（铁律 2：执行未完成不得记 PASS）
+    35	
+    36	## 输入契约二（legacy 旧字段，向后兼容——按 entry 的 input_version 区分）::
+    37	
+    38	    {
+    39	      "station":     "lint",        # 站点名（required_stations 成员或旁路站点）
+    40	      "outcome":     "PASS",        # 见别名表；未知/缺失一律硬失败
+    41	      "sha":         "<full-sha>",  # 亦接受 target_sha / commit_sha
+    42	      "environment": "staging",     # 须与构造器 environment 一致
+    43	    }
+    44	
+    45	outcome 别名表（大小写不敏感）：
+    46	    PASS/PASSED/OK/SUCCESS/GREEN                            -> PASS
+    47	    CONDITIONAL/WARN/WARNING/SOFT_PASS/PASS_WITH_WARNINGS   -> CONDITIONAL
+    48	    FAIL/FAILED/FAILURE/ERROR/BLOCKED/TIMEOUT/未知/缺失     -> 硬失败（整线 BLOCKED）
+    49	
+    50	## 硬约束（不可降级）
+    51	    C1 任一 required 站非 PASS -> 整线非 PASS；
+    52	    C2 任一站点证据 SHA 与 target_sha 不一致（或缺失、无法绑定目标）-> BLOCKED；
+    53	    C3 分母缩水：required 站未全部上报 -> BLOCKED；空 required_stations 同样 BLOCKED；
+    54	    C4 CONDITIONAL != PASS：条件通过永不映射为绿判定 / GitHub success；
+    55	    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）。
+    56	
+    57	## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
+    58	
+    59	aggregate() 输出除原有字段外必须包含：
+    60	    generated_at   ISO8601 UTC（含 Z 后缀，dashboard 以 fromisoformat 解析并查 TTL）
+    61	    policy_verdict 整线判定（PASS/CONDITIONAL/BLOCKED；dashboard 要求
+    62	                   policy_verdict/overall/verdict 三者至少其一）
+    63	端到端保证：合法 v2 输入聚合出的 JSON 喂给 dashboard 的 read_gate_aggregate()
+    64	必须 ACCEPT（不触发 AGGREGATOR_MALFORMED/AGGREGATOR_STALE）。
+    65	
+    66	technical_eligible 语义：True 仅表示技术硬门（C2/C3/C5 及“无任何站点硬失败”）
+    67	全部通过；与 aggregate_outcome == PASS 不等价——CONDITIONAL 时 technical_eligible
+    68	可为 True，但放行判断必须且只能以 aggregate_outcome == PASS 为准。
+    69	
+    70	GitHub 状态映射（to_github_status）：
+    71	    PASS        -> state=success  / conclusion=success
+    72	    CONDITIONAL -> state=failure  / conclusion=action_required  # 条件项须人工处置，绝不上绿
+    73	    BLOCKED     -> state=failure  / conclusion=failure
+    74	"""
+    75	
+    76	from __future__ import annotations
+    77	
+    78	import re
+    79	import time
+    80	from datetime import datetime
+    81	from typing import Any, Dict, List, Mapping, Optional, Set
+    82	
+    83	__all__ = [
+    84	    "GateAggregator", "PASS", "CONDITIONAL", "BLOCKED",
+    85	    "mirror_validate_station_result_v2",
+    86	]
+    87	
+    88	PASS = "PASS"
+    89	CONDITIONAL = "CONDITIONAL"
+    90	BLOCKED = "BLOCKED"
+    91	
+    92	_PASS_ALIASES = frozenset({"PASS", "PASSED", "OK", "SUCCESS", "GREEN"})
+    93	_CONDITIONAL_ALIASES = frozenset(
+    94	    {"CONDITIONAL", "WARN", "WARNING", "SOFT_PASS", "PASS_WITH_WARNINGS"}
+    95	)
+    96	_SHA_FIELDS = ("sha", "target_sha", "commit_sha")
+    97	
+    98	# v2 正式字段（schemas/station-result-v2.schema.json）
+    99	_V2_SCHEMA_VERSION = "2.0"
+   100	_V2_EXECUTION_STATUS = ("COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED")
+   101	_V2_POLICY_VERDICTS = ("PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED")
+   102	_V2_EXEC_HARD_FAIL = frozenset({"ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+   103	# v2 policy_verdict -> 聚合 outcome（NOT_APPLICABLE 归 CONDITIONAL：不上绿、需人工确认豁免）
+   104	_V2_VERDICT_MAP = {
+   105	    "PASS": PASS,
+   106	    "CONDITIONAL": CONDITIONAL,
+   107	    "NOT_APPLICABLE": CONDITIONAL,
+   108	    "FAIL": BLOCKED,
+   109	    "NOT_EVALUATED": BLOCKED,
+   110	}
+   111	
+   112	_GITHUB_STATE = {
+   113	    PASS: ("success", "success"),
+   114	    CONDITIONAL: ("failure", "action_required"),
+   115	    BLOCKED: ("failure", "failure"),
+   116	}
+   117	
+   118	
+   119	# ====================================================================== #
+   120	# station-result-v2 镜像校验器（F4-GATE-001 根修，2026-10-08）
+   121	# ====================================================================== #
+   122	# schemas/station-result-v2.schema.json 的无外部依赖结构镜像——语义必须与
+   123	# schema 文件逐条同步（required/类型/enum/pattern/const/additionalProperties/
+   124	# allOf-if-then 跨字段）。system/tests/test_gate_schema_hardening.py 内置
+   125	# 一致性自测：对正负样例组，本镜像与 jsonschema+FormatChecker（严格
+   126	# date-time 检查注册后）结论必须一致。改 schema 文件时必须同步改这里。
+   127	#
+   128	# 与 jsonschema 的两处刻意差异（均有一致性自测护栏）：
+   129	#   1. date-time：镜像无条件做严格 ISO-8601 解析（jsonschema 的 FormatChecker
+   130	#      在未安装 rfc3339-validator 时对 date-time 空转——自测按仓内既有惯例
+   131	#      注册严格检查后对齐）；
+   132	#   2. PASS 的 scanned==denominator：schema 侧以 const 级联（1..64）机器判定
+   133	#      （draft-07 无法表达跨字段数值比较），分母>64 时不误拒合法全扫；镜像
+   134	#      侧做全量无界等式判定（缩水无论多大必拒）。
+   135	_MIRROR_TOP_KEYS = frozenset({
+   136	    "schema_version", "run_id", "station_id", "attempt_id",
+   137	    "execution_status", "policy_verdict", "identity", "tool", "execution",
+   138	    "coverage", "finding_ids", "artifacts",
+   139	})
+   140	_MIRROR_TOP_REQUIRED = (
+   141	    "schema_version", "run_id", "station_id", "attempt_id",
+   142	    "execution_status", "policy_verdict", "identity", "tool", "execution",
+   143	)
+   144	_MIRROR_IDENTITY_REQUIRED = ("commit_sha", "environment", "scope_hash")
+   145	_MIRROR_IDENTITY_OPTIONAL = (
+   146	    "project_id", "ruleset_hash", "data_config_hash", "lockfile_hash",
+   147	)
+   148	_MIRROR_EXEC_REQUIRED = (
+   149	    "argv_digest", "started_at", "ended_at", "actual_exit_code",
+   150	    "expected_exit_set", "assertion_verdict",
+   151	)
+   152	_MIRROR_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+   153	_MIRROR_SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+   154	_MIRROR_CAS_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+   155	_MIRROR_EXEC_STATUS = frozenset(
+   156	    {"COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+   157	_MIRROR_VERDICTS = frozenset(
+   158	    {"PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"})
+   159	_MIRROR_ASSERTION = frozenset({"PASS", "FAIL", "ERROR"})
+   160	_MIRROR_EXEC_HARD = frozenset({"ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"})
+   161	# F4-SCHEMA-001 #5（station 侧）：执行非完成态只允许阻断类裁决
+   162	_MIRROR_HARD_EXEC_VERDICTS = frozenset({"FAIL", "NOT_EVALUATED", "NOT_APPLICABLE"})
+   163	
+   164	
+   165	def _mirror_int(value: Any) -> bool:
+   166	    """schema "integer"：bool 不是 integer（JSON Schema 语义）。"""
+   167	    return isinstance(value, int) and not isinstance(value, bool)
+   168	
+   169	
+   170	def _mirror_iso_datetime(value: Any) -> bool:
+   171	    """format: date-time（严格 ISO-8601；Z/z 后缀按 UTC 接受）。"""
+   172	    if not isinstance(value, str):
+   173	        return False
+   174	    text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+   175	    try:
+   176	        datetime.fromisoformat(text)
+   177	        return True
+   178	    except ValueError:
+   179	        return False
+   180	
+   181	
+   182	def mirror_validate_station_result_v2(result: Any) -> List[str]:
+   183	    """station-result-v2.schema.json 的镜像校验；返回违例清单（空 == 合法）。
+   184	
+   185	    无外部依赖（纯标准库）；GateAggregator.add() 对每个 v2 条目前置调用，
+   186	    schema-invalid 一律记 malformed 并强制该站 BLOCKED（fail-closed）。
+   187	    """
+   188	    errors: List[str] = []
+   189	
+   190	    def _err(msg: str) -> None:
+   191	        errors.append(msg)
+   192	
+   193	    if not isinstance(result, Mapping):
+   194	        return ["station result must be a JSON object"]
+   195	
+   196	    # -- 顶层 required / additionalProperties:false ------------------------
+   197	    for key in _MIRROR_TOP_REQUIRED:
+   198	        if key not in result:
+   199	            _err(f"required: {key}")
+   200	    extra = sorted(set(result) - _MIRROR_TOP_KEYS)
+   201	    if extra:
+   202	        _err(f"additionalProperties not allowed: {extra}")
+   203	
+   204	    # -- 顶层标量 -----------------------------------------------------------
+   205	    if result.get("schema_version") != "2.0":
+   206	        _err("schema_version must be const '2.0'")
+   207	    run_id = result.get("run_id")
+   208	    if not isinstance(run_id, str) or not _MIRROR_RUN_ID_RE.match(run_id):
+   209	        _err("run_id must be a string matching ^[a-zA-Z0-9_-]+$")
+   210	    sid = result.get("station_id")
+   211	    if not _mirror_int(sid) or not 0 <= sid <= 7:
+   212	        _err("station_id must be an integer in [0,7]")
+   213	    if not isinstance(result.get("attempt_id"), str):
+   214	        _err("attempt_id must be a string")
+   215	    if result.get("execution_status") not in _MIRROR_EXEC_STATUS:
+   216	        _err("execution_status must be one of "
+   217	             f"{sorted(_MIRROR_EXEC_STATUS)}")
+   218	    if result.get("policy_verdict") not in _MIRROR_VERDICTS:
+   219	        _err("policy_verdict must be one of "
+   220	             f"{sorted(_MIRROR_VERDICTS)}")
+   221	
+   222	    # -- identity -----------------------------------------------------------
+   223	    identity = result.get("identity")
+   224	    if not isinstance(identity, Mapping):
+   225	        _err("identity must be an object")
+   226	    else:
+   227	        for key in _MIRROR_IDENTITY_REQUIRED:
+   228	            if key not in identity:
+   229	                _err(f"identity.required: {key}")
+   230	        sha = identity.get("commit_sha")
+   231	        if not isinstance(sha, str) or not _MIRROR_SHA40_RE.match(sha):
+   232	            _err("identity.commit_sha must be a string matching "
+   233	                 "^[0-9a-f]{40}$")
+   234	        if not isinstance(identity.get("environment"), str):
+   235	            _err("identity.environment must be a string")
+   236	        if not isinstance(identity.get("scope_hash"), str):
+   237	            _err("identity.scope_hash must be a string")
+   238	        for key in _MIRROR_IDENTITY_OPTIONAL:
+   239	            if key in identity and not isinstance(identity[key], str):
+   240	                _err(f"identity.{key} must be a string")
+   241	
+   242	    # -- tool ----------------------------------------------------------------
+   243	    tool = result.get("tool")
+   244	    if not isinstance(tool, Mapping):
+   245	        _err("tool must be an object")
+   246	    else:
+   247	        for key in ("name", "version"):
+   248	            if key not in tool:
+   249	                _err(f"tool.required: {key}")
+   250	            elif not isinstance(tool[key], str):
+   251	                _err(f"tool.{key} must be a string")
+   252	        if "digest" in tool and not isinstance(tool["digest"], str):
+   253	            _err("tool.digest must be a string")
+   254	
+   255	    # -- execution -----------------------------------------------------------
+   256	    execution = result.get("execution")
+   257	    if not isinstance(execution, Mapping):
+   258	        _err("execution must be an object")
+   259	    else:
+   260	        for key in _MIRROR_EXEC_REQUIRED:
+   261	            if key not in execution:
+   262	                _err(f"execution.required: {key}")
+   263	        if not isinstance(execution.get("argv_digest"), str):
+   264	            _err("execution.argv_digest must be a string")
+   265	        for key in ("started_at", "ended_at"):
+   266	            if key in execution and not _mirror_iso_datetime(execution[key]):
+   267	                _err(f"execution.{key} must be an ISO-8601 date-time")
+   268	        if "timeout_s" in execution and (
+   269	                not _mirror_int(execution["timeout_s"])
+   270	                or execution["timeout_s"] < 1):
+   271	            _err("execution.timeout_s must be an integer >= 1")
+   272	        if not _mirror_int(execution.get("actual_exit_code")):
+   273	            _err("execution.actual_exit_code must be an integer")
+   274	        expected = execution.get("expected_exit_set")
+   275	        if not isinstance(expected, list) or not all(
+   276	                _mirror_int(x) for x in expected):
+   277	            _err("execution.expected_exit_set must be an array of integers")
+   278	        if execution.get("assertion_verdict") not in _MIRROR_ASSERTION:
+   279	            _err("execution.assertion_verdict must be one of "
+   280	                 f"{sorted(_MIRROR_ASSERTION)}")
+   281	        if "cwd_digest" in execution and not isinstance(
+   282	                execution["cwd_digest"], str):
+   283	            _err("execution.cwd_digest must be a string")
+   284	
+   285	    # -- coverage（可选；PASS 时必填并升级约束）------------------------------
+   286	    coverage = result.get("coverage") if "coverage" in result else None
+   287	    if "coverage" in result:
+   288	        if not isinstance(coverage, Mapping):
+   289	            _err("coverage must be an object")
+   290	        else:
+   291	            for key in ("denominator", "scanned"):
+   292	                if key not in coverage:
+   293	                    _err(f"coverage.required: {key}")
+   294	                elif not _mirror_int(coverage[key]) or coverage[key] < 0:
+   295	                    _err(f"coverage.{key} must be an integer >= 0")
+   296	            if "exclusions" in coverage and (
+   297	                    not isinstance(coverage["exclusions"], list)
+   298	                    or not all(isinstance(x, str)
+   299	                               for x in coverage["exclusions"])):
+   300	                _err("coverage.exclusions must be an array of strings")
+   301	
+   302	    # -- finding_ids / artifacts ---------------------------------------------
+   303	    if "finding_ids" in result and (
+   304	            not isinstance(result["finding_ids"], list)
+   305	            or not all(isinstance(x, str) for x in result["finding_ids"])):
+   306	        _err("finding_ids must be an array of strings")
+   307	    artifacts = result.get("artifacts") if "artifacts" in result else None
+   308	    if "artifacts" in result:
+   309	        if not isinstance(artifacts, list):
+   310	            _err("artifacts must be an array")
+   311	        else:
+   312	            for idx, item in enumerate(artifacts):
+   313	                if not isinstance(item, Mapping):
+   314	                    _err(f"artifacts[{idx}] must be an object")
+   315	                    continue
+   316	                for key in ("cas_digest", "size"):
+   317	                    if key not in item:
+   318	                        _err(f"artifacts[{idx}].required: {key}")
+   319	                digest = item.get("cas_digest")
+   320	                if not isinstance(digest, str) or not _MIRROR_CAS_RE.match(digest):
+   321	                    _err(f"artifacts[{idx}].cas_digest must match "
+   322	                         "^sha256:[0-9a-f]{64}$")
+   323	                if not _mirror_int(item.get("size")) or item["size"] < 1:
+   324	                    _err(f"artifacts[{idx}].size must be an integer >= 1")
+   325	
+   326	    # -- allOf 跨字段 #1：PASS 分支（schema PASS if-then 的全量镜像）----------
+   327	    if result.get("policy_verdict") == "PASS":
+   328	        if "coverage" not in result:
+   329	            _err("PASS requires coverage")
+   330	        if "artifacts" not in result:
+   331	            _err("PASS requires artifacts")
+   332	        if isinstance(coverage, Mapping) and _mirror_int(
+   333	                coverage.get("denominator")) and _mirror_int(
+   334	                coverage.get("scanned")):
+   335	            if coverage["denominator"] < 1:
+   336	                _err("PASS coverage.denominator must be >= 1")
+   337	            if coverage["scanned"] < 1:
+   338	                _err("PASS coverage.scanned must be >= 1")
+   339	            # F4-SCHEMA-001 #2（分母缩水）：PASS 必须 scanned == denominator
+   340	            # （schema 侧 const 级联 1..64 的无界镜像）
+   341	            if coverage["scanned"] != coverage["denominator"]:
+   342	                _err("PASS coverage.scanned("
+   343	                     f"{coverage['scanned']}) != denominator("
+   344	                     f"{coverage['denominator']}) — denominator shrinkage")
+   345	        if isinstance(artifacts, list) and len(artifacts) < 1:
+   346	            _err("PASS requires non-empty artifacts (minItems 1)")
+   347	        if isinstance(execution, Mapping):
+   348	            if "actual_exit_code" in execution and (
+   349	                    execution["actual_exit_code"] != 0):
+   350	                _err("PASS requires execution.actual_exit_code == 0")
+   351	            if "assertion_verdict" in execution and (
+   352	                    execution["assertion_verdict"] != "PASS"):
+   353	                _err("PASS requires execution.assertion_verdict == PASS")
+   354	        # F4-SCHEMA-001 #5（station 侧）：PASS 必须执行完成
+   355	        if result.get("execution_status") != "COMPLETED":
+   356	            _err("PASS requires execution_status COMPLETED")
+   357	
+   358	    # -- allOf 跨字段 #2：执行非完成态只允许阻断类裁决 ------------------------
+   359	    # （F4-SCHEMA-001 #5：TIMEOUT+CONDITIONAL / TIMEOUT+PASS 等双轴洗白全拒）
+   360	    if result.get("execution_status") in _MIRROR_EXEC_HARD and (
+   361	            result.get("policy_verdict") is not None
+   362	            and result.get("policy_verdict")
+   363	            not in _MIRROR_HARD_EXEC_VERDICTS):
+   364	        _err(f"execution_status {result['execution_status']} forbids "
+   365	             f"policy_verdict {result.get('policy_verdict')} "
+   366	             "(only FAIL/NOT_EVALUATED allowed)")
+   367	
+   368	    return errors
+   369	
+   370	
+   371	class GateAggregator:
+   372	    """消费 station-result JSON（v2 正式契约优先、legacy 兼容），输出整线统一 gate 判定。
+   373	
+   374	    用法::
+   375	
+   376	        agg = GateAggregator(required_stations={"2", "7"},   # v2 站点键 = str(station_id)
+   377	                             target_sha="abc...", environment="staging")
+   378	        agg.add(station_result_v2).add(...)
+   379	        verdict = agg.aggregate()          # 含 generated_at/policy_verdict（dashboard 契约）
+   380	        status = agg.to_github_status()    # {"state": ..., "conclusion": ..., "description": ...}
+   381	
+   382	    required_stations 兼容 int 站点号（自动归一为字符串键，如 2 -> "2"）。
+   383	    """
+   384	
+   385	    def __init__(self, required_stations: Set[str], target_sha: str, environment: str) -> None:
+   386	        target_sha = str(target_sha or "").strip().lower()
+   387	        if not target_sha:
+   388	            raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
+   389	        if not isinstance(environment, str) or not environment:
+   390	            raise ValueError("environment is required: gate evidence must be bound to an environment")
+   391	
+   392	        self.required_stations: frozenset = frozenset(
+   393	            str(s).strip() for s in required_stations
+   394	            if isinstance(s, (str, int)) and not isinstance(s, bool) and str(s).strip()
+   395	        )
+   396	        self.target_sha: str = target_sha
+   397	        self.environment: str = environment
+   398	
+   399	        # 内部登记簿
+   400	        self._stations: Dict[str, Dict[str, Any]] = {}
+   401	        self._duplicates: List[str] = []
+   402	        self._conflicts: List[Dict[str, Any]] = []
+   403	        self._malformed: List[Dict[str, Any]] = []
+   404	        self._sha_violations: List[Dict[str, Any]] = []
+   405	        self._env_violations: List[Dict[str, Any]] = []
+   406	
+   407	    # ------------------------------------------------------------------ #
+   408	    # 登记阶段
+   409	    # ------------------------------------------------------------------ #
+   410	    @staticmethod
+   411	    def _normalize_outcome(raw: Any) -> str:
+   412	        """归一化 legacy outcome；未知/缺失一律按 BLOCKED（硬失败），绝不猜成好结果。"""
+   413	        token = str(raw if raw is not None else "").strip().upper()
+   414	        if token in _PASS_ALIASES:
+   415	            return PASS
+   416	        if token in _CONDITIONAL_ALIASES:
+   417	            return CONDITIONAL
+   418	        return BLOCKED
+   419	
+   420	    @staticmethod
+   421	    def _is_v2(station_result: Mapping) -> bool:
+   422	        """v2 判别：显式 schema_version=2.0，或出现 v2 正式字段组合。"""
+   423	        if str(station_result.get("schema_version", "")).strip() == _V2_SCHEMA_VERSION:
+   424	            return True
+   425	        return "station_id" in station_result and (
+   426	            "policy_verdict" in station_result or "execution_status" in station_result
+   427	        )
+   428	
+   429	    def _parse_v2(self, station_result: Mapping) -> Dict[str, Any]:
+   430	        """解析 v2 条目为内部登记结构；结构必须严格（F4-GATE-001 根修）。
+   431	
+   432	        先过 mirror_validate_station_result_v2（schema 全量镜像）：schema-invalid
+   433	        记一条 consolidated malformed（含违例明细），该站 outcome 强制 BLOCKED；
+   434	        identity/sha/environment 仍按现有方式尽力提取，供 C2/C5 证据绑定裁决
+   435	        （缺什么补什么违规——绝不因结构残缺而漏记账）。
+   436	        """
+   437	        schema_errors = mirror_validate_station_result_v2(station_result)
+   438	        sid = station_result.get("station_id")
+   439	        if not isinstance(sid, int) or isinstance(sid, bool):
+   440	            self._malformed.append({
+   441	                "reason": "missing_field:station_id",
+   442	                "entry_keys": sorted(map(str, station_result.keys())),
+   443	            })
+   444	            return {}
+   445	        station = str(sid)
+   446	
+   447	        if schema_errors:
+   448	            self._malformed.append({
+   449	                "reason": "schema_invalid: " + schema_errors[0],
+   450	                "station": station,
+   451	                "schema_violations": schema_errors[:8],
+   452	                "schema_violation_count": len(schema_errors),
+   453	            })
+   454	
+   455	        execution_status = str(station_result.get("execution_status") or "").strip().upper()
+   456	        policy_verdict = str(station_result.get("policy_verdict") or "").strip().upper()
+   457	
+   458	        identity = station_result.get("identity")
+   459	        sha = ""
+   460	        environment = None
+   461	        if isinstance(identity, Mapping):
+   462	            raw_sha = identity.get("commit_sha")
+   463	            if isinstance(raw_sha, str) and raw_sha.strip():
+   464	                sha = raw_sha.strip().lower()
+   465	            env_raw = identity.get("environment")
+   466	            if isinstance(env_raw, str):
+   467	                environment = env_raw
+   468	        else:
+   469	            # identity 缺失/非对象——schema_invalid 已记账（镜像 required:identity），
+   470	            # 这里继续提取其余字段并保持 C5 记账（宽松读不炸，聚合时 BLOCKED）
+   471	            if not schema_errors:
+   472	                self._malformed.append({
+   473	                    "reason": "missing_field:identity" if identity is None
+   474	                    else "malformed_field:identity",
+   475	                    "station": station,
+   476	                })
+   477	
+   478	        # 铁律 2：执行未完成（ERROR/BLOCKED/TIMEOUT/CANCELLED）→ 整站硬失败
+   479	        if schema_errors:
+   480	            # F4-GATE-001：schema-invalid 输入不具可信形态——该站一律硬失败
+   481	            outcome = BLOCKED
+   482	            outcome_raw = "SCHEMA_INVALID"
+   483	        elif execution_status in _V2_EXEC_HARD_FAIL:
+   484	            outcome = BLOCKED
+   485	            outcome_raw = f"{execution_status}/{policy_verdict or '-'}"
+   486	        elif execution_status == "COMPLETED":
+   487	            outcome = _V2_VERDICT_MAP.get(policy_verdict, BLOCKED)
+   488	            outcome_raw = f"{execution_status}/{policy_verdict or '-'}"
+   489	        else:
+   490	            # execution_status 缺失/未知（宽松读不炸）——fail-closed 硬失败
+   491	            outcome = BLOCKED
+   492	            outcome_raw = f"{execution_status or '-'}/{policy_verdict or '-'}"
+   493	
+   494	        if not schema_errors:
+   495	            # 枚举合法性已由镜像覆盖（schema_invalid 时不再重复记账，避免噪声）
+   496	            if execution_status and execution_status not in _V2_EXECUTION_STATUS:
+   497	                self._malformed.append({
+   498	                    "reason": f"invalid_field:execution_status:{execution_status}",
+   499	                    "station": station,
+   500	                })
+   501	            if policy_verdict and policy_verdict not in _V2_POLICY_VERDICTS:
+   502	                self._malformed.append({
+   503	                    "reason": f"invalid_field:policy_verdict:{policy_verdict}",
+   504	                    "station": station,
+   505	                })
+   506	
+   507	        return {
+   508	            "station": station,
+   509	            "outcome": outcome,
+   510	            "outcome_raw": outcome_raw,
+   511	            "sha": sha,
+   512	            "environment": environment,
+   513	            "required": station in self.required_stations,
+   514	            "input_version": "v2",
+   515	            "execution_status": execution_status or None,
+   516	            "policy_verdict_raw": policy_verdict or None,
+   517	            "schema_valid": not schema_errors,
+   518	        }
+   519	
+   520	    def _parse_legacy(self, station_result: Mapping) -> Dict[str, Any]:
+   521	        """解析 legacy 条目（station/outcome/sha/environment）为内部登记结构。"""
+   522	        station = station_result.get("station")
+   523	        if not isinstance(station, str) or not station.strip():
+   524	            self._malformed.append({
+   525	                "reason": "missing_field:station",
+   526	                "entry_keys": sorted(map(str, station_result.keys())),
+   527	            })
+   528	            return {}
+   529	        station = station.strip()
+   530	
+   531	        outcome = station_result.get("outcome")
+   532	        sha = ""
+   533	        for field in _SHA_FIELDS:
+   534	            value = station_result.get(field)
+   535	            if isinstance(value, str) and value.strip():
+   536	                sha = value.strip().lower()
+   537	                break
+   538	        environment = station_result.get("environment")
+   539	
+   540	        return {
+   541	            "station": station,
+   542	            "outcome": self._normalize_outcome(outcome),
+   543	            "outcome_raw": str(outcome if outcome is not None else "").strip(),
+   544	            "sha": sha,
+   545	            "environment": environment,
+   546	            "required": station in self.required_stations,
+   547	            "input_version": "legacy",
+   548	            "execution_status": None,
+   549	            "policy_verdict_raw": None,
+   550	            "schema_valid": True,
+   551	        }
+   552	
+   553	    def add(self, station_result: dict) -> "GateAggregator":
+   554	        """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
+   555	
+   556	        v2 条目先过镜像校验器（F4-GATE-001）：schema-invalid 一律记 malformed
+   557	        并强制该站 BLOCKED——聚合输出必为 BLOCKED、technical_eligible=false。
+   558	
+   559	        重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
+   560	        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+   561	        """
+   562	        if not isinstance(station_result, Mapping):
+   563	            self._malformed.append(
+   564	                {"reason": "not_a_json_object", "entry": repr(station_result)[:200]}
+   565	            )
+   566	            return self
+   567	
+   568	        if self._is_v2(station_result):
+   569	            entry = self._parse_v2(station_result)
+   570	        else:
+   571	            entry = self._parse_legacy(station_result)
+   572	        if not entry:
+   573	            return self  # 已记 malformed，aggregate() 时 BLOCKED
+   574	        station = entry["station"]
+   575	
+   576	        previous = self._stations.get(station)
+   577	        if previous is not None:
+   578	            identical = (
+   579	                previous["outcome"] == entry["outcome"]
+   580	                and previous["sha"] == entry["sha"]
+   581	                and previous["environment"] == entry["environment"]
+   582	            )
+   583	            if identical:
+   584	                self._duplicates.append(station)
+   585	            else:
+   586	                self._conflicts.append({"station": station, "first": previous, "second": entry})
+   587	            return self  # 首条为准；冲突已记账，aggregate() 时 BLOCKED
+   588	
+   589	        self._stations[station] = entry
+   590	
+   591	        # C2：SHA 证据绑定（缺失同样无法绑定 -> 违规）
+   592	        if entry["sha"] != self.target_sha:
+   593	            self._sha_violations.append({
+   594	                "station": station,
+   595	                "reason": "missing_sha" if not entry["sha"] else "sha_mismatch",
+   596	                "sha": entry["sha"] or None,
+   597	                "expected": self.target_sha,
+   598	            })
+   599	        # C5：环境证据绑定（缺失同样无法绑定 -> 违规）
+   600	        if entry["environment"] != self.environment:
+   601	            self._env_violations.append({
+   602	                "station": station,
+   603	                "reason": "missing_environment" if entry["environment"] is None else "environment_mismatch",
+   604	                "environment": entry["environment"],
+   605	                "expected": self.environment,
+   606	            })
+   607	        return self
+   608	
+   609	    # ------------------------------------------------------------------ #
+   610	    # 判定阶段
+   611	    # ------------------------------------------------------------------ #
+   612	    def aggregate(self) -> Dict[str, Any]:
+   613	        """聚合为统一 gate 判定；不修改登记状态（generated_at 为当下时刻）。"""
+   614	        reasons: List[str] = []
+   615	        hard = False
+   616	
+   617	        def block(reason: str) -> None:
+   618	            nonlocal hard
+   619	            hard = True
+   620	            reasons.append(reason)
+   621	
+   622	        # 1) C2/C5：证据完整性硬门
+   623	        if self._sha_violations:
+   624	            detail = "; ".join(f"{v['station']}:{v['reason']}" for v in self._sha_violations)
+   625	            block(f"sha_evidence_violation [{detail}]")
+   626	        if self._env_violations:
+   627	            detail = "; ".join(f"{v['reason']}" for v in self._env_violations)
+   628	            stations = ",".join(sorted({v["station"] for v in self._env_violations}))
+   629	            block(f"environment_evidence_violation [{stations}] ({detail})")
+   630	        if self._malformed:
+   631	            block(f"malformed_station_result x{len(self._malformed)} "
+   632	                  f"[first={self._malformed[0]['reason']}]")
+   633	        if self._conflicts:
+   634	            names = ",".join(sorted({c["station"] for c in self._conflicts}))
+   635	            block(f"duplicate_station_conflict [{names}]")
+   636	
+   637	        # 2) C3：分母缩水（required 站未全部上报）；空 required 同样拒绝（无真空 PASS）
+   638	        reported = set(self._stations)
+   639	        missing_required = sorted(self.required_stations - reported)
+   640	        bypass_reported = sorted(reported - self.required_stations)
+   641	        if missing_required or not self.required_stations:
+   642	            if not self.required_stations:
+   643	                block("denominator_shrinkage: no required stations configured "
+   644	                      "(refusing vacuous PASS)")
+   645	            else:
+   646	                block("denominator_shrinkage: missing required stations [" +
+   647	                      ",".join(missing_required) + "]")
+   648	
+   649	        # 3) 站点硬失败（required 或旁路站一视同仁；未知 outcome 已归入硬失败）
+   650	        hard_failed = sorted(s for s, e in self._stations.items() if e["outcome"] == BLOCKED)
+   651	        if hard_failed:
+   652	            block("station_hard_failure [" + ",".join(hard_failed) + "]")
+   653	
+   654	        # 4) C4：条件项（软，不 block 但整线不得为 PASS）
+   655	        conditional = sorted(s for s, e in self._stations.items() if e["outcome"] == CONDITIONAL)
+   656	        if conditional:
+   657	            reasons.append("conditional_stations [" + ",".join(conditional) + "]")
+   658	
+   659	        if hard:
+   660	            outcome = BLOCKED
+   661	        elif conditional:
+   662	            outcome = CONDITIONAL
+   663	        else:
+   664	            outcome = PASS
+   665	
+   666	        if not self.required_stations:
+   667	            reason = "BLOCKED: no required stations configured — refusing vacuous PASS (P0-3 fix)"
+   668	        elif outcome == PASS:
+   669	            reason = f"all {len(self.required_stations)} required stations PASS"
+   670	        else:
+   671	            reason = reasons[0] if reasons else outcome
+   672	
+   673	        stations_summary = {
+   674	            s: {
+   675	                "outcome": e["outcome"],
+   676	                "required": e["required"],
+   677	                "sha_bound": e["sha"] == self.target_sha,
+   678	                "environment_ok": e["environment"] == self.environment,
+   679	                "input_version": e["input_version"],
+   680	                "schema_valid": e.get("schema_valid", True),
+   681	            }
+   682	            for s, e in sorted(self._stations.items())
+   683	        }
+   684	
+   685	        return {
+   686	            # dashboard/server.py read_gate_aggregate() 强制要求的契约字段（P0-3 修）
+   687	            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+   688	            "policy_verdict": outcome,
+   689	            # 原有字段（保持稳定）
+   690	            "aggregate_outcome": outcome,
+   691	            "technical_eligible": (not hard) and outcome == PASS,
+   692	            "reason": reason,
+   693	            "reasons": reasons,
+   694	            "counts": {
+   695	                "required_total": len(self.required_stations),
+   696	                "required_reported": len(self.required_stations & reported),
+   697	                "required_missing": len(missing_required),
+   698	                "bypass_stations": len(bypass_reported),
+   699	                "duplicates_ignored": len(self._duplicates),
+   700	                "conflicts": len(self._conflicts),
+   701	                "malformed": len(self._malformed),
+   702	            },
+   703	            "stations": stations_summary,
+   704	            "target_sha": self.target_sha,
+   705	            "environment": self.environment,
+   706	        }
+   707	
+   708	    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+   709	        """映射为 GitHub 状态：Commit Status `state` + Checks API `conclusion` 双口径。
+   710	
+   711	        映射表（CONDITIONAL 绝不上绿，见 C4）：
+   712	            PASS->success/success；CONDITIONAL->failure/action_required；BLOCKED->failure/failure
+   713	        """
+   714	        result = aggregate_result if aggregate_result is not None else self.aggregate()
+   715	        outcome = result.get("aggregate_outcome", BLOCKED)
+   716	        state, conclusion = _GITHUB_STATE.get(outcome, ("failure", "failure"))
+   717	        description = f"gate {outcome}: {result.get('reason', '')}".strip()
+   718	        return {
+   719	            "state": state,                    # Commit Status API: success/failure/pending/error
+   720	            "conclusion": conclusion,          # Checks API conclusion
+   721	            "description": description[:140],  # GitHub description 上限 140 字符
+   722	            "context": f"wenqu-gate/{self.environment}",
+   723	            "target_sha": self.target_sha,
+   724	        }
+===== system/wenqu_core/cli.py =====
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""wenquctl——P0-2 七段管线 CLI（P0-1 残余接线：命令行直通 RunManager/Broker）。
+     4	
+     5	子命令（全部实际调用 wenqu_core.wenqu_pipeline 的 RunManager/ApprovalBroker，
+     6	无旁路、无第二实现）：
+     7	  create         创建七段 run（身份五要素必填：commit/environment/scope/policy/ruleset）
+     8	  advance        推进当前段（不带 outcome=启动 attempt；带双轴 outcome=完成）
+     9	  status         只读快照（重放推导）
+    10	  raise-waiting  触发九类停等之一
+    11	  resume         消费一次性 resume 审批恢复 WAITING（审批 JSON+前置条件 JSON）
+    12	  authorize-risk 消费一次性 risk 授权（审批 JSON）
+    13	  complete       终态判定（SUCCEEDED/COMPLETED_CONDITIONAL/FAILED）
+    14	  register-finding 在 run 登记面登记 finding（CONDITIONAL 完成核验基础）
+    15	  gate           聚合 station-result-v2 结果为整线 gate 判定（F4-GATE-001：
+    16	                 GateAggregator 的第一个生产消费者；退出码 PASS=0/FAIL=1/
+    17	                 BLOCKED=2/ERROR=3）
+    18	
+    19	审批 JSON 即 approval-v2 信封（含 key_id + HMAC-SHA256 签名）——签发侧用
+    20	wenqu_core.approval_keys.sign_envelope 生成；CLI 只消费不签发（权限分离）。
+    21	密钥登记经 --keys 或 WENQU_APPROVAL_KEYRING 指向 keyring 目录/JSON 文件。
+    22	"""
+    23	
+    24	from __future__ import annotations
+    25	
+    26	import argparse
+    27	import json
+    28	import os
+    29	import sys
+    30	import time
+    31	from typing import Any, Dict, List, Mapping, Optional, Set
+    32	
+    33	_SYS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    34	if _SYS_DIR not in sys.path:
+    35	    sys.path.insert(0, _SYS_DIR)
+    36	
+    37	from wenqu_core.approval_keys import ApprovalKeyring  # noqa: E402
+    38	from wenqu_core.bugscan_orchestrator import (  # noqa: E402
+    39	    StationResultValidationError, validate_station_result,
+    40	)
+    41	from wenqu_core.gate_aggregator import BLOCKED, GateAggregator  # noqa: E402
+    42	from wenqu_core.store import EventStore  # noqa: E402
+    43	from wenqu_core.wenqu_pipeline import (  # noqa: E402
+    44	    ENVIRONMENTS, STAGES, ApprovalBroker, ApprovalError, PipelineError,
+    45	    RunManager,
+    46	)
+    47	
+    48	
+    49	def _load_keyring(path: Optional[str]) -> Optional[ApprovalKeyring]:
+    50	    explicit = path or os.environ.get("WENQU_APPROVAL_KEYRING", "").strip()
+    51	    if not explicit:
+    52	        return None
+    53	    try:
+    54	        return ApprovalKeyring.from_path(explicit)
+    55	    except (OSError, ValueError) as exc:
+    56	        print(f"wenquctl: keyring 加载失败: {exc}", file=sys.stderr)
+    57	        raise SystemExit(2) from None
+    58	
+    59	
+    60	def _open_manager(db_path: str,
+    61	                  keyring: Optional[ApprovalKeyring]) -> RunManager:
+    62	    store = EventStore(db_path)
+    63	    return RunManager(store, keyring=keyring)
+    64	
+    65	
+    66	def _read_json_file(path: str, what: str) -> Any:
+    67	    try:
+    68	        with open(path, "r", encoding="utf-8") as fh:
+    69	            return json.load(fh)
+    70	    except (OSError, json.JSONDecodeError) as exc:
+    71	        print(f"wenquctl: {what} 文件不可读/非 JSON ({path}): {exc}",
+    72	              file=sys.stderr)
+    73	        raise SystemExit(2) from None
+    74	
+    75	
+    76	# ---------------------------------------------------------------------- #
+    77	def cmd_create(args: argparse.Namespace) -> int:
+    78	    keyring = _load_keyring(args.keys)
+    79	    mgr = _open_manager(args.db, keyring)
+    80	    try:
+    81	        result = mgr.create_run(
+    82	            args.task,
+    83	            {
+    84	                "commit_sha": args.commit_sha,
+    85	                "environment": args.environment,
+    86	                "scope_hash": args.scope_hash,
+    87	                "policy_hash": args.policy_hash,
+    88	                "ruleset_hash": args.ruleset_hash,
+    89	                **({"repo_id": args.repo_id} if args.repo_id else {}),
+    90	            },
+    91	            actor=args.actor,
+    92	        )
+    93	        print(json.dumps(result, ensure_ascii=False))
+    94	        return 0
+    95	    finally:
+    96	        mgr.close()
+    97	
+    98	
+    99	def cmd_advance(args: argparse.Namespace) -> int:
+   100	    if (args.execution_status is None) != (args.policy_verdict is None):
+   101	        print("wenquctl: --execution-status 与 --policy-verdict 必须成对提供",
+   102	              file=sys.stderr)
+   103	        return 2
+   104	    keyring = _load_keyring(args.keys)
+   105	    mgr = _open_manager(args.db, keyring)
+   106	    try:
+   107	        findings: List[str] = list(args.finding or [])
+   108	        result = mgr.advance_stage(
+   109	            args.run,
+   110	            execution_status=args.execution_status,
+   111	            policy_verdict=args.policy_verdict,
+   112	            evidence_refs=list(args.evidence or []),
+   113	            findings=findings,
+   114	            actor=args.actor,
+   115	        )
+   116	        print(json.dumps(result, ensure_ascii=False))
+   117	        return 0
+   118	    finally:
+   119	        mgr.close()
+   120	
+   121	
+   122	def cmd_status(args: argparse.Namespace) -> int:
+   123	    keyring = _load_keyring(args.keys)
+   124	    mgr = _open_manager(args.db, keyring)
+   125	    try:
+   126	        st = mgr.get_run(args.run)
+   127	        out: Dict[str, Any] = {
+   128	            "run_id": st.run_id, "task_id": st.task_id, "state": st.state,
+   129	            "state_version": st.state_version,
+   130	            "terminal": st.terminal,
+   131	            "stages": st.stage_statuses(),
+   132	            "identity": st.identity,
+   133	            "findings": {fid: {"severity": f["severity"],
+   134	                               "priority": f["priority"],
+   135	                               "fingerprint": f["fingerprint"]}
+   136	                         for fid, f in st.findings.items()},
+   137	            "consumed_nonce_count": len(st.consumed_nonce_digests),
+   138	            "risk_authorizations": st.risk_authorizations,
+   139	            "actions": st.actions,
+   140	        }
+   141	        if st.waiting is not None:
+   142	            out["waiting"] = {
+   143	                "stop_type": st.waiting.stop_type,
+   144	                "stop_event_id": st.waiting.stop_event_id,
+   145	                "stage": st.waiting.stage, "reason": st.waiting.reason,
+   146	                "required_preconditions":
+   147	                    list(st.waiting.required_preconditions),
+   148	            }
+   149	        print(json.dumps(out, ensure_ascii=False))
+   150	        return 0
+   151	    finally:
+   152	        mgr.close()
+   153	
+   154	
+   155	def cmd_raise_waiting(args: argparse.Namespace) -> int:
+   156	    keyring = _load_keyring(args.keys)
+   157	    mgr = _open_manager(args.db, keyring)
+   158	    try:
+   159	        result = mgr.raise_waiting(args.run, args.stop_type, args.reason,
+   160	                                   actor=args.actor)
+   161	        print(json.dumps(result, ensure_ascii=False))
+   162	        return 0
+   163	    finally:
+   164	        mgr.close()
+   165	
+   166	
+   167	def cmd_resume(args: argparse.Namespace) -> int:
+   168	    approval = _read_json_file(args.approval, "approval")
+   169	    preconditions = _read_json_file(args.preconditions, "preconditions")
+   170	    keyring = _load_keyring(args.keys)
+   171	    mgr = _open_manager(args.db, keyring)
+   172	    try:
+   173	        result = mgr.resume_waiting(args.run, approval, preconditions,
+   174	                                    actor=args.actor)
+   175	        print(json.dumps(result, ensure_ascii=False))
+   176	        return 0
+   177	    finally:
+   178	        mgr.close()
+   179	
+   180	
+   181	def cmd_authorize_risk(args: argparse.Namespace) -> int:
+   182	    approval = _read_json_file(args.approval, "approval")
+   183	    keyring = _load_keyring(args.keys)
+   184	    mgr = _open_manager(args.db, keyring)
+   185	    try:
+   186	        result = mgr.authorize_risk(args.run, approval)
+   187	        print(json.dumps(result, ensure_ascii=False))
+   188	        return 0
+   189	    finally:
+   190	        mgr.close()
+   191	
+   192	
+   193	def cmd_complete(args: argparse.Namespace) -> int:
+   194	    keyring = _load_keyring(args.keys)
+   195	    mgr = _open_manager(args.db, keyring)
+   196	    try:
+   197	        result = mgr.complete_run(args.run, risk_approval_id=args.risk_approval_id,
+   198	                                  reason=args.reason, actor=args.actor)
+   199	        print(json.dumps(result, ensure_ascii=False))
+   200	        return 0
+   201	    finally:
+   202	        mgr.close()
+   203	
+   204	
+   205	def cmd_register_finding(args: argparse.Namespace) -> int:
+   206	    keyring = _load_keyring(args.keys)
+   207	    mgr = _open_manager(args.db, keyring)
+   208	    try:
+   209	        result = mgr.register_finding(args.run, args.finding_id,
+   210	                                      args.fingerprint, args.severity,
+   211	                                      args.priority, detail=args.detail,
+   212	                                      actor=args.actor)
+   213	        print(json.dumps(result, ensure_ascii=False))
+   214	        return 0
+   215	    finally:
+   216	        mgr.close()
+   217	
+   218	
+   219	# ---------------------------------------------------------------------- #
+   220	def _gate_exit_code(outcome: str) -> int:
+   221	    """aggregate_outcome -> CLI 退出码（F4-GATE-001 契约）。
+   222	
+   223	    PASS=0；CONDITIONAL=1（软条件项绝不上绿、需人工处置，映射 GitHub
+   224	    failure/action_required）；BLOCKED=2（证据残缺/分母缩水/绑定失败——
+   225	    fail-closed）；其余（不应出现）一律 2 不放水。
+   226	    """
+   227	    return {"PASS": 0, "CONDITIONAL": 1, "BLOCKED": 2}.get(outcome, 2)
+   228	
+   229	
+   230	def _gate_error_json(reason: str, **extra: Any) -> int:
+   231	    """ERROR(3) 路径：gate 工具自身无法执行（输入不可读/无法绑定身份）。
+   232	
+   233	    仍打印一个 aggregate 形状的 JSON（policy_verdict=ERROR）供脚本消费，
+   234	    退出码固定 3——与证据性 BLOCKED(2) 严格区分。
+   235	    """
+   236	    payload: Dict[str, Any] = {
+   237	        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+   238	        "policy_verdict": "ERROR",
+   239	        "aggregate_outcome": "ERROR",
+   240	        "technical_eligible": False,
+   241	        "reason": reason,
+   242	        "reasons": [reason],
+   243	    }
+   244	    payload.update(extra)
+   245	    print(f"wenquctl: gate ERROR: {reason}", file=sys.stderr)
+   246	    print(json.dumps(payload, ensure_ascii=False))
+   247	    return 3
+   248	
+   249	
+   250	def cmd_gate(args: argparse.Namespace) -> int:
+   251	    """gate 子命令——读入 station-result-v2 JSON，聚合为整线 gate 判定。
+   252	
+   253	    每份结果逐个过内置结构校验器（validate_station_result——schema 的可执行
+   254	    等价物）+ GateAggregator 严格登记（宽松读、聚合 fail-closed）；
+   255	    target_sha/environment 缺省从首个可绑定结果的 identity 推导（跨 SHA/环境
+   256	    混报由聚合器 C2/C5 判 BLOCKED），--required 缺省=全部已上报站（防分母缩水
+   257	    真空绿）。结构校验失败的输入强制整线 BLOCKED（绝不静默跳过——跳过即分母
+   258	    缩水）。退出码映射见 _gate_exit_code / _gate_error_json。
+   259	    """
+   260	    # 1. 展开 --results：文件直取；目录按名序取 *.json。
+   261	    paths: List[str] = []
+   262	    for target in args.results:
+   263	        if os.path.isdir(target):
+   264	            names = sorted(n for n in os.listdir(target) if n.endswith(".json"))
+   265	            if not names:
+   266	                return _gate_error_json(
+   267	                    f"results 目录无 .json 结果文件: {target}",
+   268	                    inputs={"paths": 0, "docs": 0, "load_errors": 0,
+   269	                            "schema_invalid": 0})
+   270	            paths.extend(os.path.join(target, n) for n in names)
+   271	        elif os.path.isfile(target):
+   272	            paths.append(target)
+   273	        else:
+   274	            return _gate_error_json(
+   275	                f"results 路径不存在: {target}",
+   276	                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+   277	                        "schema_invalid": 0})
+   278	
+   279	    # 2. 载入 JSON（不可读/非 JSON 记账为输入错误——ERROR 3，操作者给错了文件）。
+   280	    docs: List[Any] = []
+   281	    load_errors: List[Dict[str, str]] = []
+   282	    for path in paths:
+   283	        try:
+   284	            with open(path, "r", encoding="utf-8") as fh:
+   285	                doc = json.load(fh)
+   286	        except (OSError, json.JSONDecodeError) as exc:
+   287	            load_errors.append({"source": path, "error": str(exc)})
+   288	            continue
+   289	        if isinstance(doc, list):  # 单文件多结果（数组信封）
+   290	            docs.extend(doc)
+   291	        else:
+   292	            docs.append(doc)
+   293	    if load_errors:
+   294	        # 输入面不完整（文件不可读/非 JSON）——绝不带着缺口继续聚合出 PASS。
+   295	        return _gate_error_json(
+   296	            f"results 输入不可读/非 JSON x{len(load_errors)} "
+   297	            f"[first={load_errors[0]['source']}: {load_errors[0]['error'][:120]}]",
+   298	            inputs={"paths": len(paths), "docs": len(docs),
+   299	                    "load_errors": len(load_errors), "schema_invalid": 0},
+   300	            load_errors=load_errors)
+   301	
+   302	    # 3. 推导 target_sha / environment（显式旗标优先，其次首个可绑定结果）。
+   303	    sha = (args.sha or "").strip().lower() or None
+   304	    env = (args.env or "").strip() or None
+   305	    for doc in docs:
+   306	        if not isinstance(doc, Mapping):
+   307	            continue
+   308	        identity = doc.get("identity")
+   309	        if not isinstance(identity, Mapping):
+   310	            continue
+   311	        if sha is None:
+   312	            raw = identity.get("commit_sha")
+   313	            if isinstance(raw, str) and raw.strip():
+   314	                sha = raw.strip().lower()
+   315	        if env is None:
+   316	            raw = identity.get("environment")
+   317	            if isinstance(raw, str) and raw.strip():
+   318	                env = raw.strip()
+   319	        if sha is not None and env is not None:
+   320	            break
+   321	    if sha is None or env is None:
+   322	        missing = "target_sha" if sha is None else "environment"
+   323	        return _gate_error_json(
+   324	            f"无法绑定 {missing}：--sha/--env 未给且没有任何结果携带可用的 "
+   325	            f"identity.{missing}（gate 证据必须绑定 SHA+环境）",
+   326	            inputs={"paths": len(paths), "docs": len(docs),
+   327	                    "load_errors": len(load_errors), "schema_invalid": 0},
+   328	            load_errors=load_errors)
+   329	
+   330	    # 4. 逐个严格校验（schema 可执行等价物）＋收集默认 required 集。
+   331	    strict_violations: List[Dict[str, str]] = []
+   332	    default_required: Set[str] = set()
+   333	    for doc in docs:
+   334	        try:
+   335	            validate_station_result(doc)
+   336	        except StationResultValidationError as exc:
+   337	            strict_violations.append({"error": str(exc)})
+   338	        if isinstance(doc, Mapping):
+   339	            sid = doc.get("station_id")
+   340	            if isinstance(sid, int) and not isinstance(sid, bool):
+   341	                default_required.add(str(sid))
+   342	            elif isinstance(doc.get("station"), str) and doc.get("station").strip():
+   343	                default_required.add(doc["station"].strip())
+   344	
+   345	    if args.required is not None:
+   346	        required: Set[str] = set()
+   347	        for token in args.required.split(","):
+   348	            token = token.strip()
+   349	            if not token:
+   350	                continue
+   351	            if not (token.isdigit() and 0 <= int(token) <= 7):
+   352	                return _gate_error_json(
+   353	                    f"--required 站 id 必须是 0-7 的整数: {token!r}",
+   354	                    inputs={"paths": len(paths), "docs": len(docs),
+   355	                            "load_errors": len(load_errors),
+   356	                            "schema_invalid": len(strict_violations)})
+   357	            required.add(token)
+   358	        if not required:
+   359	            return _gate_error_json(
+   360	                "--required 为空：显式必报站不能是空集（真空绿拒绝）",
+   361	                inputs={"paths": len(paths), "docs": len(docs),
+   362	                        "load_errors": len(load_errors),
+   363	                        "schema_invalid": len(strict_violations)})
+   364	    else:
+   365	        required = default_required
+   366	
+   367	    # 5. 聚合（GateAggregator 宽松读+严格出；C1-C5 全在 aggregate 内裁决）。
+   368	    agg = GateAggregator(required_stations=required, target_sha=sha,
+   369	                         environment=env)
+   370	    for doc in docs:
+   371	        agg.add(doc)
+   372	    result = agg.aggregate()
+   373	
+   374	    # 6. 结构校验失败强制 BLOCKED（绝不静默跳过残缺结果——跳过即分母缩水）。
+   375	    if strict_violations:
+   376	        if result.get("aggregate_outcome") != BLOCKED:
+   377	            result["aggregate_outcome"] = BLOCKED
+   378	            result["policy_verdict"] = BLOCKED
+   379	            result["technical_eligible"] = False
+   380	        first = strict_violations[0]["error"]
+   381	        reason = (f"station-result-v2 schema violation x{len(strict_violations)} "
+   382	                  f"[first={first[:160]}]")
+   383	        result["reasons"] = [reason] + list(result.get("reasons", []))
+   384	        result["reason"] = reason
+   385	
+   386	    result["inputs"] = {
+   387	        "paths": len(paths),
+   388	        "docs": len(docs),
+   389	        "load_errors": len(load_errors),
+   390	        "schema_invalid": len(strict_violations),
+   391	    }
+   392	    if load_errors:
+   393	        result["input_errors"] = load_errors
+   394	
+   395	    print(json.dumps(result, ensure_ascii=False))
+   396	    return _gate_exit_code(result["aggregate_outcome"])
+   397	
+   398	
+   399	# ---------------------------------------------------------------------- #
+   400	def build_parser() -> argparse.ArgumentParser:
+   401	    parser = argparse.ArgumentParser(
+   402	        prog="wenquctl",
+   403	        description="wenqu 七段管线控制 CLI（P0-1/P0-2 接线——直通 RunManager）")
+   404	    sub = parser.add_subparsers(dest="command", required=True)
+   405	
+   406	    def common(p: argparse.ArgumentParser, need_run: bool = True) -> None:
+   407	        p.add_argument("--db", required=True, help="pipeline_events SQLite 路径")
+   408	        p.add_argument("--keys", default=None,
+   409	                       help="审批签发 keyring（目录或 JSON；缺省读 "
+   410	                            "WENQU_APPROVAL_KEYRING）")
+   411	        p.add_argument("--actor", default="cli", help="操作者标识")
+   412	        if need_run:
+   413	            p.add_argument("--run", required=True, help="run_id")
+   414	
+   415	    p = sub.add_parser("create", help="创建七段 run")
+   416	    common(p, need_run=False)
+   417	    p.add_argument("--task", required=True, help="task_id（^[a-zA-Z0-9_-]+$）")
+   418	    p.add_argument("--commit-sha", required=True, help="40-hex git sha")
+   419	    p.add_argument("--environment", required=True, choices=sorted(ENVIRONMENTS))
+   420	    p.add_argument("--scope-hash", required=True)
+   421	    p.add_argument("--policy-hash", required=True)
+   422	    p.add_argument("--ruleset-hash", required=True)
+   423	    p.add_argument("--repo-id", default=None)
+   424	    p.set_defaults(func=cmd_create)
+   425	
+   426	    p = sub.add_parser("advance", help="推进当前段（启动/完成 attempt）")
+   427	    common(p)
+   428	    p.add_argument("--execution-status", default=None,
+   429	                   choices=["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT",
+   430	                            "CANCELLED"])
+   431	    p.add_argument("--policy-verdict", default=None,
+   432	                   choices=["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE",
+   433	                            "NOT_EVALUATED"])
+   434	    p.add_argument("--evidence", action="append", default=None,
+   435	                   metavar="SHA256:HEX")
+   436	    p.add_argument("--finding", action="append", default=None, metavar="FND_ID")
+   437	    p.set_defaults(func=cmd_advance)
+   438	
+   439	    p = sub.add_parser("status", help="run 只读快照")
+   440	    common(p)
+   441	    p.set_defaults(func=cmd_status)
+   442	
+   443	    p = sub.add_parser("raise-waiting", help="触发停等")
+   444	    common(p)
+   445	    p.add_argument("--stop-type", required=True,
+   446	                   choices=["ambiguity", "prod-write", "ddl", "release",
+   447	                            "scope", "fund-auth", "exm-fuse", "resource",
+   448	                            "ext-unavail"])
+   449	    p.add_argument("--reason", required=True)
+   450	    p.set_defaults(func=cmd_raise_waiting)
+   451	
+   452	    p = sub.add_parser("resume", help="消费一次性 resume 审批恢复 WAITING")
+   453	    common(p)
+   454	    p.add_argument("--approval", required=True, help="approval-v2 JSON 文件")
+   455	    p.add_argument("--preconditions", required=True,
+   456	                   help="客观前置条件 JSON 文件")
+   457	    p.set_defaults(func=cmd_resume)
+   458	
+   459	    p = sub.add_parser("authorize-risk", help="消费一次性 risk 授权")
+   460	    common(p)
+   461	    p.add_argument("--approval", required=True, help="approval-v2 JSON 文件")
+   462	    p.set_defaults(func=cmd_authorize_risk)
+   463	
+   464	    p = sub.add_parser("complete", help="终态判定")
+   465	    common(p)
+   466	    p.add_argument("--risk-approval-id", default=None)
+   467	    p.add_argument("--reason", default="")
+   468	    p.set_defaults(func=cmd_complete)
+   469	
+   470	    p = sub.add_parser("register-finding", help="登记面追加 finding")
+   471	    common(p)
+   472	    p.add_argument("--finding-id", required=True, metavar="FND_ID")
+   473	    p.add_argument("--fingerprint", required=True)
+   474	    p.add_argument("--severity", required=True,
+   475	                   choices=["CRITICAL", "HIGH", "MEDIUM", "LOW"])
+   476	    p.add_argument("--priority", required=True,
+   477	                   choices=["P0", "P1", "P2", "P3"])
+   478	    p.add_argument("--detail", default="")
+   479	    p.set_defaults(func=cmd_register_finding)
+   480	
+   481	    p = sub.add_parser(
+   482	        "gate",
+   483	        help="聚合 station-result-v2 结果为整线 gate 判定（退出码 "
+   484	             "PASS=0/FAIL=1/BLOCKED=2/ERROR=3）")
+   485	    p.add_argument("--results", nargs="+", required=True, metavar="PATH",
+   486	                   help="station-result-v2 JSON 文件或目录（目录按名序取 "
+   487	                        "*.json；可给多个）")
+   488	    p.add_argument("--required", default=None, metavar="IDS",
+   489	                   help="必报站 id 逗号分隔（如 2,7）；缺省=全部已上报站"
+   490	                        "（任何站缺报/硬失败都不得 PASS）")
+   491	    p.add_argument("--sha", default=None,
+   492	                   help="目标 commit SHA（缺省从首个可绑定结果的 "
+   493	                        "identity.commit_sha 推导；跨 SHA 混报判 BLOCKED）")
+   494	    p.add_argument("--env", default=None,
+   495	                   help="目标环境（缺省从首个可绑定结果的 "
+   496	                        "identity.environment 推导；跨环境混报判 BLOCKED）")
+   497	    p.set_defaults(func=cmd_gate)
+   498	
+   499	    return parser
+   500	
+   501	
+   502	def main(argv: Optional[List[str]] = None) -> int:
+   503	    parser = build_parser()
+   504	    args = parser.parse_args(argv)
+   505	    try:
+   506	        return int(args.func(args))
+   507	    except (PipelineError, ApprovalError) as exc:
+   508	        print(f"wenquctl: {type(exc).__name__}: {exc}", file=sys.stderr)
+   509	        return 1
+   510	    except KeyboardInterrupt:  # pragma: no cover
+   511	        return 130
+   512	
+   513	
+   514	if __name__ == "__main__":
+   515	    sys.exit(main())
+===== system/schemas/station-result-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/station-result-v2.json",
+     4	  "title": "Bug 八站 Station Result Schema v2",
+     5	  "description": "每站统一结果——Codex 方案 §7.2 契约。P0-4 加固：PASS 必须带 coverage（分母>0）与非空 artifacts，且 execution rc=0 + assertion PASS；rc 非 0 不得 PASS。F4-SCHEMA-001 加固：PASS 必须 execution COMPLETED 且 coverage.scanned == denominator（分母缩水即拒）；执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE 裁决（TIMEOUT+PASS/TIMEOUT+CONDITIONAL 双轴洗白全拒；NOT_APPLICABLE 是站级探针缺失/不适用语义，聚合层落 CONDITIONAL 不上绿）",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    11	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    12	    "attempt_id": {"type": "string"},
+    13	    "execution_status": {"enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]},
+    14	    "policy_verdict": {"enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]},
+    15	    "identity": {
+    16	      "type": "object",
+    17	      "required": ["commit_sha", "environment", "scope_hash"],
+    18	      "properties": {
+    19	        "project_id": {"type": "string"},
+    20	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    21	        "environment": {"type": "string"},
+    22	        "scope_hash": {"type": "string"},
+    23	        "ruleset_hash": {"type": "string"},
+    24	        "data_config_hash": {"type": "string"},
+    25	        "lockfile_hash": {"type": "string"}
+    26	      }
+    27	    },
+    28	    "tool": {
+    29	      "type": "object",
+    30	      "required": ["name", "version"],
+    31	      "properties": {
+    32	        "name": {"type": "string"},
+    33	        "version": {"type": "string"},
+    34	        "digest": {"type": "string"}
+    35	      }
+    36	    },
+    37	    "execution": {
+    38	      "type": "object",
+    39	      "required": ["argv_digest", "started_at", "ended_at", "actual_exit_code", "expected_exit_set", "assertion_verdict"],
+    40	      "properties": {
+    41	        "argv_digest": {"type": "string"},
+    42	        "cwd_digest": {"type": "string"},
+    43	        "started_at": {"type": "string", "format": "date-time"},
+    44	        "ended_at": {"type": "string", "format": "date-time"},
+    45	        "timeout_s": {"type": "integer", "minimum": 1},
+    46	        "actual_exit_code": {
+    47	          "type": "integer",
+    48	          "description": "trusted runner 实际 waitpid 捕获——不可由调用者填写"
+    49	        },
+    50	        "expected_exit_set": {
+    51	          "type": "array",
+    52	          "items": {"type": "integer"},
+    53	          "description": "该测试允许的内层退出码集合（负例可有非零）"
+    54	        },
+    55	        "assertion_verdict": {
+    56	          "enum": ["PASS", "FAIL", "ERROR"],
+    57	          "description": "测试 harness 对行为是否符合预期的判断"
+    58	        }
+    59	      }
+    60	    },
+    61	    "coverage": {
+    62	      "type": "object",
+    63	      "required": ["denominator", "scanned"],
+    64	      "properties": {
+    65	        "denominator": {"type": "integer", "minimum": 0},
+    66	        "scanned": {"type": "integer", "minimum": 0},
+    67	        "exclusions": {"type": "array", "items": {"type": "string"}}
+    68	      }
+    69	    },
+    70	    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    71	    "artifacts": {
+    72	      "type": "array",
+    73	      "items": {
+    74	        "type": "object",
+    75	        "required": ["cas_digest", "size"],
+    76	        "properties": {
+    77	          "cas_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    78	          "size": {"type": "integer", "minimum": 1}
+    79	        }
+    80	      }
+    81	    }
+    82	  },
+    83	  "additionalProperties": false,
+    84	  "allOf": [
+    85	    {
+    86	      "if": {"properties": {"execution_status": {"enum": ["ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]}}, "required": ["execution_status"]},
+    87	      "then": {
+    88	        "properties": {
+    89	          "policy_verdict": {"enum": ["FAIL", "NOT_EVALUATED", "NOT_APPLICABLE"]}
+    90	        }
+    91	      }
+    92	    },
+    93	    {
+    94	      "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
+    95	      "then": {
+    96	        "required": ["coverage", "artifacts"],
+    97	        "properties": {
+    98	          "execution_status": {"const": "COMPLETED"},
+    99	          "coverage": {
+   100	            "type": "object",
+   101	            "required": ["denominator", "scanned"],
+   102	            "properties": {
+   103	              "denominator": {"type": "integer", "minimum": 1},
+   104	              "scanned": {"type": "integer", "minimum": 1}
+   105	            },
+   106	            "allOf": [
+   107	              {"if": {"properties": {"scanned": {"const": 1}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 1}}, "required": ["denominator"]}},
+   108	              {"if": {"properties": {"scanned": {"const": 2}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 2}}, "required": ["denominator"]}},
+   109	              {"if": {"properties": {"scanned": {"const": 3}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 3}}, "required": ["denominator"]}},
+   110	              {"if": {"properties": {"scanned": {"const": 4}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 4}}, "required": ["denominator"]}},
+   111	              {"if": {"properties": {"scanned": {"const": 5}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 5}}, "required": ["denominator"]}},
+   112	              {"if": {"properties": {"scanned": {"const": 6}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 6}}, "required": ["denominator"]}},
+   113	              {"if": {"properties": {"scanned": {"const": 7}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 7}}, "required": ["denominator"]}},
+   114	              {"if": {"properties": {"scanned": {"const": 8}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 8}}, "required": ["denominator"]}},
+   115	              {"if": {"properties": {"scanned": {"const": 9}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 9}}, "required": ["denominator"]}},
+   116	              {"if": {"properties": {"scanned": {"const": 10}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 10}}, "required": ["denominator"]}},
+   117	              {"if": {"properties": {"scanned": {"const": 11}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 11}}, "required": ["denominator"]}},
+   118	              {"if": {"properties": {"scanned": {"const": 12}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 12}}, "required": ["denominator"]}},
+   119	              {"if": {"properties": {"scanned": {"const": 13}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 13}}, "required": ["denominator"]}},
+   120	              {"if": {"properties": {"scanned": {"const": 14}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 14}}, "required": ["denominator"]}},
+   121	              {"if": {"properties": {"scanned": {"const": 15}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 15}}, "required": ["denominator"]}},
+   122	              {"if": {"properties": {"scanned": {"const": 16}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 16}}, "required": ["denominator"]}},
+   123	              {"if": {"properties": {"scanned": {"const": 17}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 17}}, "required": ["denominator"]}},
+   124	              {"if": {"properties": {"scanned": {"const": 18}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 18}}, "required": ["denominator"]}},
+   125	              {"if": {"properties": {"scanned": {"const": 19}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 19}}, "required": ["denominator"]}},
+   126	              {"if": {"properties": {"scanned": {"const": 20}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 20}}, "required": ["denominator"]}},
+   127	              {"if": {"properties": {"scanned": {"const": 21}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 21}}, "required": ["denominator"]}},
+   128	              {"if": {"properties": {"scanned": {"const": 22}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 22}}, "required": ["denominator"]}},
+   129	              {"if": {"properties": {"scanned": {"const": 23}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 23}}, "required": ["denominator"]}},
+   130	              {"if": {"properties": {"scanned": {"const": 24}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 24}}, "required": ["denominator"]}},
+   131	              {"if": {"properties": {"scanned": {"const": 25}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 25}}, "required": ["denominator"]}},
+   132	              {"if": {"properties": {"scanned": {"const": 26}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 26}}, "required": ["denominator"]}},
+   133	              {"if": {"properties": {"scanned": {"const": 27}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 27}}, "required": ["denominator"]}},
+   134	              {"if": {"properties": {"scanned": {"const": 28}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 28}}, "required": ["denominator"]}},
+   135	              {"if": {"properties": {"scanned": {"const": 29}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 29}}, "required": ["denominator"]}},
+   136	              {"if": {"properties": {"scanned": {"const": 30}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 30}}, "required": ["denominator"]}},
+   137	              {"if": {"properties": {"scanned": {"const": 31}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 31}}, "required": ["denominator"]}},
+   138	              {"if": {"properties": {"scanned": {"const": 32}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 32}}, "required": ["denominator"]}},
+   139	              {"if": {"properties": {"scanned": {"const": 33}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 33}}, "required": ["denominator"]}},
+   140	              {"if": {"properties": {"scanned": {"const": 34}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 34}}, "required": ["denominator"]}},
+   141	              {"if": {"properties": {"scanned": {"const": 35}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 35}}, "required": ["denominator"]}},
+   142	              {"if": {"properties": {"scanned": {"const": 36}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 36}}, "required": ["denominator"]}},
+   143	              {"if": {"properties": {"scanned": {"const": 37}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 37}}, "required": ["denominator"]}},
+   144	              {"if": {"properties": {"scanned": {"const": 38}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 38}}, "required": ["denominator"]}},
+   145	              {"if": {"properties": {"scanned": {"const": 39}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 39}}, "required": ["denominator"]}},
+   146	              {"if": {"properties": {"scanned": {"const": 40}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 40}}, "required": ["denominator"]}},
+   147	              {"if": {"properties": {"scanned": {"const": 41}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 41}}, "required": ["denominator"]}},
+   148	              {"if": {"properties": {"scanned": {"const": 42}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 42}}, "required": ["denominator"]}},
+   149	              {"if": {"properties": {"scanned": {"const": 43}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 43}}, "required": ["denominator"]}},
+   150	              {"if": {"properties": {"scanned": {"const": 44}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 44}}, "required": ["denominator"]}},
+   151	              {"if": {"properties": {"scanned": {"const": 45}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 45}}, "required": ["denominator"]}},
+   152	              {"if": {"properties": {"scanned": {"const": 46}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 46}}, "required": ["denominator"]}},
+   153	              {"if": {"properties": {"scanned": {"const": 47}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 47}}, "required": ["denominator"]}},
+   154	              {"if": {"properties": {"scanned": {"const": 48}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 48}}, "required": ["denominator"]}},
+   155	              {"if": {"properties": {"scanned": {"const": 49}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 49}}, "required": ["denominator"]}},
+   156	              {"if": {"properties": {"scanned": {"const": 50}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 50}}, "required": ["denominator"]}},
+   157	              {"if": {"properties": {"scanned": {"const": 51}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 51}}, "required": ["denominator"]}},
+   158	              {"if": {"properties": {"scanned": {"const": 52}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 52}}, "required": ["denominator"]}},
+   159	              {"if": {"properties": {"scanned": {"const": 53}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 53}}, "required": ["denominator"]}},
+   160	              {"if": {"properties": {"scanned": {"const": 54}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 54}}, "required": ["denominator"]}},
+   161	              {"if": {"properties": {"scanned": {"const": 55}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 55}}, "required": ["denominator"]}},
+   162	              {"if": {"properties": {"scanned": {"const": 56}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 56}}, "required": ["denominator"]}},
+   163	              {"if": {"properties": {"scanned": {"const": 57}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 57}}, "required": ["denominator"]}},
+   164	              {"if": {"properties": {"scanned": {"const": 58}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 58}}, "required": ["denominator"]}},
+   165	              {"if": {"properties": {"scanned": {"const": 59}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 59}}, "required": ["denominator"]}},
+   166	              {"if": {"properties": {"scanned": {"const": 60}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 60}}, "required": ["denominator"]}},
+   167	              {"if": {"properties": {"scanned": {"const": 61}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 61}}, "required": ["denominator"]}},
+   168	              {"if": {"properties": {"scanned": {"const": 62}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 62}}, "required": ["denominator"]}},
+   169	              {"if": {"properties": {"scanned": {"const": 63}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 63}}, "required": ["denominator"]}},
+   170	              {"if": {"properties": {"scanned": {"const": 64}}, "required": ["scanned"]}, "then": {"properties": {"denominator": {"const": 64}}, "required": ["denominator"]}}
+   171	            ]
+   172	          },
+   173	          "artifacts": {
+   174	            "type": "array",
+   175	            "minItems": 1
+   176	          },
+   177	          "execution": {
+   178	            "type": "object",
+   179	            "required": ["actual_exit_code", "assertion_verdict"],
+   180	            "properties": {
+   181	              "actual_exit_code": {"const": 0},
+   182	              "assertion_verdict": {"const": "PASS"}
+   183	            }
+   184	          }
+   185	        }
+   186	      }
+   187	    }
+   188	  ],
+   189	  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS。F4-SCHEMA-001（2026-10-08 Codex 第四轮根修）：(a) PASS 必须 execution_status=COMPLETED——TIMEOUT/ERROR/BLOCKED/CANCELLED + PASS 全拒；(b) 执行非完成态只允许 FAIL/NOT_EVALUATED/NOT_APPLICABLE——TIMEOUT+CONDITIONAL 双轴洗白全拒（NOT_APPLICABLE 为站级不适用语义，聚合层落 CONDITIONAL）；(c) PASS 必须 coverage.scanned == coverage.denominator——draft-07 无法直接比较两个数值字段，此处以 const 级联机器判定 1..64（本仓八站真实分母均远小于 64）；scanned>64 时 schema 侧不判定（不误拒合法大分母全扫），由 gate_aggregator.mirror_validate_station_result_v2 镜像校验器做无界等式判定并强制 BLOCKED（镜像与 schema 的一致性自测见 system/tests/test_gate_schema_hardening.py）"
+   190	}
+===== system/schemas/evidence-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/evidence-v2.json",
+     4	  "title": "Trusted Evidence Schema v2",
+     5	  "description": "不可伪造证据绑定——Codex 方案 §6.6 契约。P0-4 加固：schema_version/verdict/artifact 全部必填，artifact 非空（sha256+size）",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "evidence_id", "run_id", "identity", "tool", "runner", "execution", "verdict", "artifact", "fresh_until"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "evidence_id": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_]+$"},
+    11	    "run_id": {"type": "string"},
+    12	    "task_id": {"type": "string"},
+    13	    "stage": {"type": "string"},
+    14	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    15	    "attempt_id": {"type": "string"},
+    16	    "identity": {
+    17	      "type": "object",
+    18	      "required": ["commit_sha", "environment", "scope_hash"],
+    19	      "properties": {
+    20	        "repo_id": {"type": "string"},
+    21	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    22	        "base_sha": {"type": "string"},
+    23	        "environment": {"type": "string"},
+    24	        "scope_hash": {"type": "string"},
+    25	        "ruleset_hash": {"type": "string"},
+    26	        "data_config_hash": {"type": "string"},
+    27	        "lockfile_hash": {"type": "string"}
+    28	      }
+    29	    },
+    30	    "runner": {
+    31	      "type": "object",
+    32	      "required": ["runner_id", "version"],
+    33	      "properties": {
+    34	        "runner_id": {"type": "string"},
+    35	        "version": {"type": "string"}
+    36	      }
+    37	    },
+    38	    "tool": {
+    39	      "type": "object",
+    40	      "required": ["name", "version"],
+    41	      "properties": {
+    42	        "name": {"type": "string"},
+    43	        "version": {"type": "string"},
+    44	        "digest": {"type": "string"}
+    45	      }
+    46	    },
+    47	    "execution": {
+    48	      "type": "object",
+    49	      "required": ["argv_digest", "started_at", "finished_at", "actual_exit_code"],
+    50	      "properties": {
+    51	        "argv_digest": {"type": "string"},
+    52	        "cwd_digest": {"type": "string"},
+    53	        "started_at": {"type": "string", "format": "date-time"},
+    54	        "finished_at": {"type": "string", "format": "date-time"},
+    55	        "actual_exit_code": {"type": "integer"},
+    56	        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    57	        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    58	      }
+    59	    },
+    60	    "artifact": {
+    61	      "type": "object",
+    62	      "required": ["artifact_sha256", "artifact_size"],
+    63	      "properties": {
+    64	        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    65	        "artifact_size": {"type": "integer", "minimum": 1}
+    66	      }
+    67	    },
+    68	    "verdict": {
+    69	      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]
+    70	    },
+    71	    "fresh_until": {
+    72	      "type": "string",
+    73	      "format": "date-time",
+    74	      "description": "由受保护 policy 按 trusted_finished_at + policy_ttl 计算——调用者和工件不得自行声明"
+    75	    }
+    76	  },
+    77	  "additionalProperties": false,
+    78	  "allOf": [
+    79	    {
+    80	      "if": {"properties": {"verdict": {"const": "PASS"}}, "required": ["verdict"]},
+    81	      "then": {
+    82	        "properties": {
+    83	          "execution": {
+    84	            "type": "object",
+    85	            "required": ["actual_exit_code"],
+    86	            "properties": {
+    87	              "actual_exit_code": {"const": 0}
+    88	            }
+    89	          }
+    90	        }
+    91	      }
+    92	    }
+    93	  ],
+    94	  "$comment": "evidence 不得是 symlink、外部路径、空文件或无哈希文件（不变量 #11）；P0-4：verdict 与 artifact（sha256+size）必填——无工件/无判定的证据不具可信形态。F4-SCHEMA-001 #1（2026-10-08 Codex 第四轮根修）：PASS 裁决 + execution.actual_exit_code 非 0 → 拒——退出码非零（真实执行失败/超时/被杀）的证据不得声称 PASS（铁律 2 纵深：站内构造器拦截之外，schema 层机器可判）"
+    95	}
+===== system/schemas/finding-event-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/finding-event-v2.json",
+     4	  "title": "Finding State Machine Schema v2",
+     5	  "description": "Finding 状态机——Codex 方案 §6.3 契约（FIXED→FIXED_PENDING_VERIFY 迁移）。P0-4 加固：全部转移事件补 state_from 必填与合法来源（非法转换全拒）；ACCEPTED_RISK 只能来自 OPEN 且必须 compensating_controls 非空 + expiry",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "event_type", "finding_id", "fingerprint", "severity", "priority", "ts"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "event_type": {
+    11	      "enum": [
+    12	        "FINDING_CREATED", "FINDING_REOPENED",
+    13	        "FIX_STARTED", "FIX_COMPLETED",
+    14	        "VERIFY_STARTED", "VERIFIED",
+    15	        "CLOSED",
+    16	        "ACCEPTED_RISK", "RISK_REVOKED", "RISK_INVALIDATED",
+    17	        "SUPERSEDED"
+    18	      ]
+    19	    },
+    20	    "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    21	    "parent_finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    22	    "fingerprint": {
+    23	      "type": "string",
+    24	      "description": "stable fingerprint: sha256(file_path+line_start+rule_id+code_snippet_hash)"
+    25	    },
+    26	    "severity": {
+    27	      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+    28	      "description": "技术严重度——默认 CRITICAL→P0, HIGH→P1（可由版本化 policy 升级）"
+    29	    },
+    30	    "priority": {
+    31	      "enum": ["P0", "P1", "P2", "P3"],
+    32	      "description": "业务优先级——自动流程不得降级（不变量）"
+    33	    },
+    34	    "state_from": {
+    35	      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK"]
+    36	    },
+    37	    "state_to": {
+    38	      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK", "RISK_REVOKED"]
+    39	    },
+    40	    "risk_acceptance": {
+    41	      "type": "object",
+    42	      "required": ["approver", "reason", "scope", "expiry", "compensating_controls"],
+    43	      "properties": {
+    44	        "approver": {"type": "string"},
+    45	        "reason": {"type": "string", "minLength": 10},
+    46	        "scope": {"type": "string"},
+    47	        "compensating_controls": {
+    48	          "type": "array",
+    49	          "minItems": 1,
+    50	          "items": {"type": "string", "minLength": 1}
+    51	        },
+    52	        "expiry": {"type": "string", "format": "date-time"}
+    53	      }
+    54	    },
+    55	    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    56	    "identity": {
+    57	      "type": "object",
+    58	      "properties": {
+    59	        "commit_sha": {"type": "string"},
+    60	        "environment": {"type": "string"},
+    61	        "scope_hash": {"type": "string"},
+    62	        "policy_hash": {"type": "string"}
+    63	      }
+    64	    },
+    65	    "ts": {"type": "string", "format": "date-time"},
+    66	    "actor": {"type": "string"}
+    67	  },
+    68	  "additionalProperties": false,
+    69	  "allOf": [
+    70	    {
+    71	      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+    72	      "then": {
+    73	        "properties": {
+    74	          "severity": {"enum": ["MEDIUM", "LOW"]},
+    75	          "priority": {"enum": ["P2", "P3"]},
+    76	          "state_from": {"const": "OPEN"}
+    77	        },
+    78	        "required": ["state_from", "risk_acceptance"]
+    79	      }
+    80	    },
+    81	    {
+    82	      "if": {"properties": {"event_type": {"const": "CLOSED"}}},
+    83	      "then": {
+    84	        "properties": {"state_from": {"const": "VERIFIED"}},
+    85	        "required": ["state_from"]
+    86	      }
+    87	    },
+    88	    {
+    89	      "if": {"properties": {"event_type": {"const": "FIX_STARTED"}}},
+    90	      "then": {
+    91	        "properties": {"state_from": {"const": "OPEN"}},
+    92	        "required": ["state_from"]
+    93	      }
+    94	    },
+    95	    {
+    96	      "if": {"properties": {"event_type": {"const": "FIX_COMPLETED"}}},
+    97	      "then": {
+    98	        "properties": {"state_from": {"const": "FIXING"}},
+    99	        "required": ["state_from"]
+   100	      }
+   101	    },
+   102	    {
+   103	      "if": {"properties": {"event_type": {"const": "VERIFY_STARTED"}}},
+   104	      "then": {
+   105	        "properties": {"state_from": {"const": "FIXED_PENDING_VERIFY"}},
+   106	        "required": ["state_from"]
+   107	      }
+   108	    },
+   109	    {
+   110	      "if": {"properties": {"event_type": {"const": "VERIFIED"}}},
+   111	      "then": {
+   112	        "properties": {"state_from": {"const": "FIXED_PENDING_VERIFY"}},
+   113	        "required": ["state_from"]
+   114	      }
+   115	    },
+   116	    {
+   117	      "if": {"properties": {"event_type": {"const": "RISK_REVOKED"}}},
+   118	      "then": {
+   119	        "properties": {"state_from": {"const": "ACCEPTED_RISK"}},
+   120	        "required": ["state_from"]
+   121	      }
+   122	    },
+   123	    {
+   124	      "if": {"properties": {"event_type": {"const": "RISK_INVALIDATED"}}},
+   125	      "then": {
+   126	        "properties": {
+   127	          "state_from": {"const": "ACCEPTED_RISK"},
+   128	          "state_to": {"const": "OPEN"}
+   129	        },
+   130	        "required": ["state_from", "state_to"]
+   131	      }
+   132	    },
+   133	    {
+   134	      "if": {"properties": {"event_type": {"const": "SUPERSEDED"}}},
+   135	      "then": {
+   136	        "properties": {
+   137	          "state_from": {"enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "ACCEPTED_RISK"]}
+   138	        },
+   139	        "required": ["state_from"]
+   140	      }
+   141	    },
+   142	    {
+   143	      "if": {"properties": {"state_from": {"const": "CLOSED"}}, "required": ["state_from"]},
+   144	      "then": {
+   145	        "properties": {
+   146	          "event_type": {"const": "FINDING_REOPENED"},
+   147	          "state_to": {"const": "OPEN"}
+   148	        },
+   149	        "required": ["state_to"]
+   150	      }
+   151	    },
+   152	    {
+   153	      "if": {"properties": {"event_type": {"const": "FINDING_REOPENED"}}},
+   154	      "then": {
+   155	        "properties": {"state_from": {"enum": ["CLOSED", "ACCEPTED_RISK"]}},
+   156	        "required": ["state_from"]
+   157	      }
+   158	    }
+   159	  ],
+   160	  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；状态机非法转换全拒：FIX_STARTED←OPEN、FIX_COMPLETED←FIXING、VERIFY_STARTED/VERIFIED←FIXED_PENDING_VERIFY、CLOSED←VERIFIED、ACCEPTED_RISK←OPEN（须 compensating_controls 非空+expiry）、RISK_REVOKED←ACCEPTED_RISK、FINDING_REOPENED←CLOSED/ACCEPTED_RISK；revoke 后立即重开。F4-SCHEMA-001 #3/#4（2026-10-08 Codex 第四轮根修）：(a) CLOSED 的合法后继唯一——只能经 FINDING_REOPENED 回 OPEN；携带 state_from=CLOSED 的任何其他事件类型（FINDING_CREATED/SUPERSEDED/RISK_INVALIDATED 等伪造 CLOSED→OPEN 转换）全拒；(b) 全部转移事件 state_from 必填——RISK_INVALIDATED 补 state_from（const ACCEPTED_RISK）+ state_to（const OPEN，§6.3 立即重开），SUPERSEDED 补 state_from（活跃态枚举；FINDING_CREATED 为创建事件无先态，豁免）"
+   161	}
+===== system/schemas/run-event-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/run-event-v2.json",
+     4	  "title": "Run/Station Event Schema v2",
+     5	  "description": "统一结果双轴：execution_status × policy_verdict——Codex 方案 §6.1 契约冻结。P0-4 加固：停等元数据/审批消费/action saga 观察事件与 seal 封印字段全部正式声明（自产事件全过本 schema）；ERROR+PASS 禁止、PASS 带 findings 禁止",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "event_type", "run_id", "execution_status", "policy_verdict", "identity"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "event_type": {
+    11	      "enum": [
+    12	        "RUN_CREATED", "STAGE_STARTED", "STAGE_COMPLETED", "RUN_COMPLETED",
+    13	        "WAITING_RAISED", "WAITING_RESUMED", "SUPERSEDED",
+    14	        "APPROVAL_CONSUMED", "FINDING_REGISTERED",
+    15	        "ACTION_AUTH_RESERVED", "ACTION_STARTED", "ACTION_COMMITTED",
+    16	        "ACTION_FAILED_UNKNOWN"
+    17	      ]
+    18	    },
+    19	    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    20	    "task_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    21	    "stage": {"enum": ["S1_REQUIREMENT", "S2_SOLUTION", "S3_EQS_PRE", "S4_IMPLEMENT", "S5_CONVERGENCE", "S6_EQS_FULL", "S7_GATE"]},
+    22	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    23	    "attempt_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    24	    "execution_status": {
+    25	      "enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"],
+    26	      "description": "工具/命令实际执行结果——不可由调用者自报"
+    27	    },
+    28	    "policy_verdict": {
+    29	      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"],
+    30	      "description": "策略判定——由 gate aggregator 基于 evidence 计算"
+    31	    },
+    32	    "identity": {
+    33	      "type": "object",
+    34	      "required": ["commit_sha", "environment", "scope_hash"],
+    35	      "properties": {
+    36	        "repo_id": {"type": "string"},
+    37	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    38	        "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    39	        "environment": {"enum": ["local", "staging", "production"]},
+    40	        "scope_hash": {"type": "string"},
+    41	        "policy_hash": {"type": "string", "minLength": 1},
+    42	        "ruleset_hash": {"type": "string"},
+    43	        "data_config_hash": {"type": "string"},
+    44	        "lockfile_hash": {"type": "string"}
+    45	      }
+    46	    },
+    47	    "findings": {
+    48	      "type": "array",
+    49	      "items": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"}
+    50	    },
+    51	    "evidence_refs": {
+    52	      "type": "array",
+    53	      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    54	    },
+    55	    "state_version": {"type": "integer", "minimum": 1},
+    56	    "ts": {"type": "string", "format": "date-time"},
+    57	    "actor": {"type": "string"},
+    58	    "seal": {
+    59	      "type": "string",
+    60	      "pattern": "^[0-9a-f]{64}$",
+    61	      "description": "P0-4：内部控制事件封印 hex(hmac_sha256(seal_secret, canonical(payload_without_seal)))——RunManager._emit 注入，重放逐条验封；公共 EventStore.append 对控制事件类型一律拒绝"
+    62	    },
+    63	    "stop_type": {
+    64	      "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
+    65	    },
+    66	    "stop_reason": {"type": "string"},
+    67	    "stop_event_id": {"type": "string", "minLength": 1},
+    68	    "required_preconditions": {"type": "array", "items": {"type": "string"}},
+    69	    "preconditions_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    70	    "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+    71	    "approval_type": {
+    72	      "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
+    73	    },
+    74	    "nonce_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    75	    "expires_at": {"type": "string", "format": "date-time"},
+    76	    "finding_fingerprints": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    77	    "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    78	    "fingerprint": {"type": "string", "minLength": 1},
+    79	    "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
+    80	    "priority": {"enum": ["P0", "P1", "P2", "P3"]},
+    81	    "finding_detail": {"type": "string"},
+    82	    "action_id": {"type": "string", "pattern": "^act_[a-zA-Z0-9_-]+$"},
+    83	    "action_type": {"type": "string", "minLength": 1},
+    84	    "action_target": {"type": "string"},
+    85	    "action_detail": {"type": "string"},
+    86	    "receipt": {"type": "string"},
+    87	    "terminal_reason": {"type": "string"},
+    88	    "supersede_reason": {"type": "string"},
+    89	    "prev_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    90	    "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    91	  },
+    92	  "additionalProperties": false,
+    93	  "allOf": [
+    94	    {
+    95	      "if": {"properties": {"execution_status": {"enum": ["ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]}}, "required": ["execution_status"]},
+    96	      "then": {
+    97	        "properties": {
+    98	          "policy_verdict": {"enum": ["FAIL", "NOT_EVALUATED"]}
+    99	        }
+   100	      }
+   101	    },
+   102	    {
+   103	      "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
+   104	      "then": {
+   105	        "properties": {
+   106	          "execution_status": {"const": "COMPLETED"},
+   107	          "findings": {"maxItems": 0}
+   108	        },
+   109	        "required": ["execution_status"]
+   110	      }
+   111	    }
+   112	  ],
+   113	  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）；P0-4 双轴根修：execution 非 COMPLETED 不得产出任何完成态（含 CONDITIONAL）——RUN_COMPLETED 层由重放强制，attempt 层由 outcome 映射强制；观察类事件（APPROVAL_CONSUMED/FINDING_REGISTERED/ACTION_*）不递增 state_version，须锚定当前版本。F4-SCHEMA-001 #5（2026-10-08 Codex 第四轮根修）：schema 层机器可判——execution_status ∈ {ERROR,BLOCKED,TIMEOUT,CANCELLED} 时 policy_verdict 只允许 FAIL/NOT_EVALUATED，TIMEOUT+CONDITIONAL / TIMEOUT+PASS 等双轴洗白在 schema 层直接拒绝（此前仅由状态机代码强制，schema 无此约束）；station-result-v2.schema.json 与 gate_aggregator.mirror_validate_station_result_v2 已同步同款规则"
+   114	}
+===== system/install.sh =====
+     1	#!/usr/bin/env bash
+     2	# wenqu v3.0 一键安装（macOS / Linux 通用）
+     3	# 用法：./install.sh [--prefix ~/.wenqu]
+     4	set -euo pipefail
+     5	PREFIX="${1:---prefix}"; [ "$PREFIX" = "--prefix" ] && PREFIX="${2:-$HOME/.wenqu}"
+     6	SRC="$(cd "$(dirname "$0")" && pwd)"
+     7	
+     8	echo "╔══════════════════════════════════════╗
+     9	║  问渠 wenqu v3.0 —— 质量工程体系安装  ║
+    10	╚══════════════════════════════════════╝"
+    11	echo "目标：$PREFIX"
+    12	
+    13	# 1. 目录
+    14	mkdir -p "$PREFIX"/{bin,sentinels,daemons,db,ci,templates,specs,config,logs,state}
+    15	
+    16	# 2. 拷贝组件
+    17	# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
+    18	mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
+    19	for f in "$SRC"/wenqu_core/*.py; do
+    20	  [ -f "$f" ] && cp "$f" "$PREFIX/lib/wenqu_core/"
+    21	done
+    22	# 确保包可导入
+    23	touch "$PREFIX/lib/wenqu_core/__init__.py"
+    24	[ -f "$SRC/wenqu_core/__init__.py" ] && cp "$SRC/wenqu_core/__init__.py" "$PREFIX/lib/wenqu_core/"
+    25	
+    26	for f in "$SRC"/schemas/*.json; do
+    27	  [ -f "$f" ] && cp "$f" "$PREFIX/schemas/"
+    28	done
+    29	
+    30	for ext in html css js py; do
+    31	  [ -f "$SRC/dashboard/index.$ext" ] && cp "$SRC/dashboard/index.$ext" "$PREFIX/dashboard/"
+    32	done
+    33	for f in "$SRC"/dashboard/*.html "$SRC"/dashboard/*.css "$SRC"/dashboard/*.js "$SRC"/dashboard/*.py; do
+    34	  [ -f "$f" ] && cp "$f" "$PREFIX/dashboard/"
+    35	done
+    36	
+    37	# P0-7/F 修：wenqu_core 全模块导入验证（不是只验 TrustedRunner）。
+    38	# 必装清单为硬编码（删 wenqu_pipeline.py 后源目录枚举不再覆盖它——硬编码兜底），
+    39	# 叠加源目录现存模块；任一导入失败即 rc=1 明确报错（fail-closed）。
+    40	if ! PYTHONPATH="$PREFIX/lib" python3 - "$SRC/wenqu_core" <<'PYEOF'
+    41	import importlib, os, sys
+    42	# cwd 遮蔽防御：剥除 ''/cwd，确保验证的是 PREFIX 安装副本而非调用目录下的源码
+    43	sys.path = [p for p in sys.path if p not in ("", ".", os.getcwd())]
+    44	src = sys.argv[1]
+    45	required = {
+    46	    "runner", "store", "source_gate", "bugscan_orchestrator", "scheduler",
+    47	    "gate_aggregator", "ledger_migrator", "deploy_framework",
+    48	    "wenqu_pipeline", "station2_static", "station3_contract",
+    49	    "station4_behavior", "station7_runtime",
+    50	}
+    51	discovered = {
+    52	    f[:-3] for f in os.listdir(src)
+    53	    if f.endswith(".py") and f != "__init__.py"
+    54	} if os.path.isdir(src) else set()
+    55	mods = sorted(required | discovered)
+    56	failed = []
+    57	for m in mods:
+    58	    try:
+    59	        importlib.import_module("wenqu_core." + m)
+    60	    except Exception as e:
+    61	        failed.append(f"{m} ({type(e).__name__}: {e})")
+    62	if failed:
+    63	    print("wenqu_core 模块导入失败: " + "; ".join(failed), file=sys.stderr)
+    64	    sys.exit(1)
+    65	print(f"wenqu_core 全模块导入验证通过（{len(mods)} 模块）", file=sys.stderr)
+    66	PYEOF
+    67	then
+    68	  echo "✗ 安装自检失败：wenqu_core 存在缺失/不可导入模块——安装中止" >&2
+    69	  exit 1
+    70	fi
+    71	echo "✓ wenqu_core 安装验证通过（全模块可导入，含 wenqu_pipeline）"
+    72	
+    73	# P0-7/F 修：cp -R 改 tar 管道（保 mode/symlink；cp -R 会拍平权限与链接语义）
+    74	tar_copy() { # tar_copy <源目录> <目标目录>
+    75	  mkdir -p "$2"
+    76	  tar -C "$1" -cf - . | tar -C "$2" -xf -
+    77	}
+    78	tar_copy "$SRC/bin" "$PREFIX/bin"
+    79	tar_copy "$SRC/sentinels" "$PREFIX/sentinels"
+    80	tar_copy "$SRC/daemons" "$PREFIX/daemons"
+    81	# P0 containment：安装面始终收敛为不可启动的审计 stub。
+    82	printf '%s\n' 'printf '\''%s\n'\'' '\''auto-merge permanently disabled per P0 containment'\'' >&2; exit 1' > "$PREFIX/daemons/auto-merge.sh"
+    83	tar_copy "$SRC/db" "$PREFIX/db"
+    84	tar_copy "$SRC/ci" "$PREFIX/ci"
+    85	tar_copy "$SRC/templates" "$PREFIX/templates"
+    86	tar_copy "$SRC/specs" "$PREFIX/specs"
+    87	[ -f "$SRC/config/wenqu.env.example" ] && cp "$SRC/config/wenqu.env.example" "$PREFIX/env.example"
+    88	chmod +x "$PREFIX"/bin/* "$PREFIX"/sentinels/* "$PREFIX"/daemons/* 2>/dev/null || true
+    89	
+    90	# F4-CLI-001 修：安装体验证——<prefix>/bin/wenquctl --help 必须 rc=0。
+    91	# wenqu_core/cli.py 缺失（源树被删后枚举不再覆盖它）或 bin 壳断链（找不到
+    92	# lib 落点）时 fail-closed：安装中止 rc=1，绝不留一个跑不起来的安装体。
+    93	if ! "$PREFIX/bin/wenquctl" --help >/dev/null 2>&1; then
+    94	  echo "✗ 安装自检失败：安装体 bin/wenquctl 断链（--help rc≠0）——wenqu_core/cli.py 缺失或壳路径解析损坏，安装中止" >&2
+    95	  exit 1
+    96	fi
+    97	echo "✓ 安装体 wenquctl 验证通过（$PREFIX/bin/wenquctl --help rc=0）"
+    98	
+    99	# 3. PATH 注入（幂等）
+   100	case ":$PATH:" in
+   101	  *":$PREFIX/bin:"*) : ;;
+   102	  *) SHELL_RC="$HOME/.zshrc"; [ -n "${BASH_VERSION:-}" ] && SHELL_RC="$HOME/.bashrc"
+   103	     echo "export PATH=\"$PREFIX/bin:\$PATH\"" >> "$SHELL_RC"
+   104	     echo "✓ PATH 已写入 ${SHELL_RC}（新开终端生效）" ;;
+   105	esac
+   106	
+   107	# 4. 首个配置（幂等）
+   108	if [ ! -f "$PREFIX/env" ] && [ -f "$PREFIX/env.example" ]; then
+   109	  cp "$PREFIX/env.example" "$PREFIX/env"
+   110	fi
+   111	echo "✓ 配置：$PREFIX/env（编辑后 wenqu doctor 校验）"
+   112	
+   113	# 5. 依赖探测（只提示不强装）
+   114	echo "── 依赖探测 ──"
+   115	# 注：${c} 必须加花括号——macOS bash 3.2 + UTF-8 locale 下 `$c（` 会被解析成
+   116	# 单个超长变量名（unbound variable 崩溃，node 缺失时才触发——P0-7/F 顺带根治）。
+   117	for c in git python3 node; do command -v ${c} >/dev/null && echo "✓ ${c} $(${c} --version 2>&1 | head -1)" || echo "✗ 缺 ${c}（必需）"; done
+   118	command -v psql >/dev/null && echo "✓ psql（哨兵/守护需要）" || echo "△ 缺 psql（仅影响 DB 类组件）"
+   119	python3 -c "import psycopg2" 2>/dev/null && echo "✓ psycopg2（守护进程需要）" || echo "△ 缺 psycopg2：pip3 install psycopg2-binary"
+   120	[ -f "$PREFIX/bin/tla2tools.jar" ] && echo "✓ TLA+ 工具链" || echo "△ 无 tla2tools.jar（仅影响形式化验证组件）"
+   121	command -v z3 >/dev/null && echo "✓ Z3 定理证明器" || echo "△ 缺 z3（brew install z3，仅影响 SMT 组件）"
+   122	
+   123	# 6. 自检（P0-7/F 修：doctor 真实执行、不吞退出码；组件损坏中止，全新未配置容忍）
+   124	#    区分口径：doctor 输出「缺 <组件>」= 安装面损坏（中止，rc=1）；
+   125	#    仅「配置」类失败（无配置/占位符未填）= 全新安装未配置（容忍——配置后 wenqu doctor 复检）。
+   126	echo "── 自检 ──"
+   127	DOC_RC=0
+   128	DOC_OUT=$(WENQU_HOME="$PREFIX" bash "$SRC/bin/wenqu" doctor 2>&1) || DOC_RC=$?
+   129	if echo "$DOC_OUT" | grep -q "缺"; then
+   130	  echo "✗ 安装自检失败——组件缺失/损坏，安装中止（doctor rc=${DOC_RC}）" >&2
+   131	  echo "$DOC_OUT" | grep "缺" | tail -3 >&2
+   132	  exit 1
+   133	elif [ "$DOC_RC" -ne 0 ]; then
+   134	  echo "△ doctor rc=${DOC_RC}：全新安装未配置（容忍）——编辑 $PREFIX/env 后 wenqu doctor 复检"
+   135	else
+   136	  echo "✓ 安装自检通过（wenqu doctor rc=0）"
+   137	fi
+   138	
+   139	echo "
+   140	安装完成。三步上手：
+   141	  1. 编辑 $PREFIX/env —— 填你的仓库/DB/告警参数
+   142	  2. cd 你的项目 && wenqu init      —— 初始化项目级质量体系
+   143	  3. wenqu status                   —— 查看全组件状态
+   144	"
+===== system/bin/wenquctl =====
+     1	#!/usr/bin/env bash
+     2	# wenquctl——P0-2 七段管线 CLI 壳（P0-1 残余接线）。
+     3	# 实体在 wenqu_core/cli.py（纯标准库）；本壳只负责定位 python3。
+     4	# F4-CLI-001 修：双布局解析（源树/安装体）——
+     5	#   源树     system/bin/wenquctl   -> ../wenqu_core/cli.py
+     6	#   安装体   <prefix>/bin/wenquctl -> ../lib/wenqu_core/cli.py（install.sh 落点）
+     7	# cli.py 自身的 sys.path 引导以 __file__ 为锚（包目录的父目录），两种布局下
+     8	# import wenqu_core 均成立，无需额外 PYTHONPATH。两处都找不到时显式报错
+     9	# exit 2（不再交给 python3 抛模糊的 can't open file）。
+    10	set -uo pipefail
+    11	SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    12	SYS_DIR="$(cd "$SELF_DIR/.." && pwd)"
+    13	if [ -f "${SYS_DIR}/wenqu_core/cli.py" ]; then
+    14	  exec python3 "${SYS_DIR}/wenqu_core/cli.py" "$@"
+    15	fi
+    16	if [ -f "${SYS_DIR}/lib/wenqu_core/cli.py" ]; then
+    17	  exec python3 "${SYS_DIR}/lib/wenqu_core/cli.py" "$@"
+    18	fi
+    19	echo "wenquctl: wenqu_core/cli.py not found (tried ${SYS_DIR}/wenqu_core/cli.py and ${SYS_DIR}/lib/wenqu_core/cli.py)" >&2
+    20	exit 2
+===== tests/acceptance.sh =====
+     1	#!/usr/bin/env bash
+     2	# wenqu-dist 发行版回归测试件（v1.0.2 起）——把验收面固化为可重复跑的脚本。
+     3	# 用法：bash tests/acceptance.sh   （零依赖：python3+bash；从发行包根目录跑）
+     4	# 任何一步 FAIL 即退出非 0。发行版任何变更（CLI fork/探测器/文档）后必须全绿再打包。
+     5	set -u
+     6	ROOT=$(cd "$(dirname "$0")/.." && pwd)
+     7	WQ="$ROOT/cli/wenqu"
+     8	PASS_N=0; FAIL_N=0
+     9	ck() { # ck <名称> <期望exit> <实际exit>
+    10	  if [ "$2" = "$3" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ $1 (exit=$3)"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ $1 (期望 exit=$2 实际 $3)"; fi
+    11	}
+    12	TD=$(mktemp -d); trap 'rm -rf "$TD"' EXIT
+    13	
+    14	echo "== A. selftest 契约 =="
+    15	python3 "$WQ" selftest >/dev/null 2>&1; ck "selftest" 0 $?
+    16	
+    17	echo "== B. 新仓三步（预埋缺陷全中+verify 门红）=="
+    18	R="$TD/repo"; H="$TD/home"; mkdir -p "$R"
+    19	printf '#!/usr/bin/env bash\nT=$(mktemp -d)\ntrap "rm -rf $T" EXIT\ndocker run x\ntrap "docker rm x" EXIT\ndocker exec -e PGPASSWORD=s db psql -c 1\n' > "$R/deploy.sh"
+    20	printf '# n\n[ "$N" -ge 5 ] # note || FAIL="n"\n' > "$R/check.sh"
+    21	echo "x=1" > "$R/a.py"
+    22	python3 "$WQ" --home "$H" init --path "$R" >/dev/null 2>&1; ck "init" 0 $?
+    23	cp "$ROOT/probes/stations.json" "$H/stations.json"
+    24	for st in trap-double guard-comment-swallow cred-cli-expose; do
+    25	  python3 "$WQ" --home "$H" run $st --path "$R" >/dev/null 2>&1; RC=$?
+    26	  # fork10（S4-1）：只断言 exit=1 无法区分「真命中」与「探测器报错」（原 36 项全绿含假绿——
+    27	  # trap-double 实际命中炸参错误）；追加双断言：finding 标题 exit=1 形态+日志含探测器标记行
+    28	  LOGF=$(ls -t "$H"/runs/*-$st.log 2>/dev/null | head -1)
+    29	  MARK=""
+    30	  case $st in
+    31	    trap-double) MARK="double-EXIT-trap: ./deploy.sh";;
+    32	    guard-comment-swallow) MARK="guard-swallow";;
+    33	    cred-cli-expose) MARK="cred-expose";;
+    34	  esac
+    35	  if [ "$RC" = "1" ] && grep -q "$MARK" "$LOGF" 2>/dev/null; then
+    36	    PASS_N=$((PASS_N+1)); echo "  ✅ 探测器真命中 ${st}（标记行在日志）"
+    37	  else
+    38	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 探测器 ${st} 未真命中（rc=$RC 日志无标记）"
+    39	  fi
+    40	done
+    41	python3 "$WQ" --home "$H" verify --path "$R" >/dev/null 2>&1; ck "verify 门红（OPEN 3/0）" 1 $?
+    42	
+    43	echo "== C. 干净仓不误报 =="
+    44	R2="$TD/clean"; H2="$TD/chome"; mkdir -p "$R2"; echo "y=1" > "$R2/b.py"
+    45	python3 "$WQ" --home "$H2" init --path "$R2" >/dev/null 2>&1
+    46	cp "$ROOT/probes/stations.json" "$H2/stations.json"
+    47	python3 "$WQ" --home "$H2" run trap-double --path "$R2" >/dev/null 2>&1; ck "干净仓 PASS" 0 $?
+    48	[ ! -e "$R2/.wenqu" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ --home 零写入仓"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 仓被写入"; }
+    49	
+    50	echo "== D. fork2：convergence 空转拒绝 =="
+    51	python3 "$WQ" --home "$H2" verify --path "$R2" --convergence 3 >/dev/null 2>&1; ck "空轮次拒绝 Converged" 1 $?
+    52	
+    53	echo "== E. fork2：run --round 参与收敛判定（独立 home 防 OPEN 残留掩蔽，F10 修正）=="
+    54	HE="$TD/ehome"; RE="$TD/erepo"; mkdir -p "$RE"
+    55	printf '#!/usr/bin/env bash\ntrap "rm x" EXIT\ntrap "rm y" EXIT\n' > "$RE/b.sh"; echo "k=1" > "$RE/k.py"
+    56	python3 "$WQ" --home "$HE" init --path "$RE" >/dev/null 2>&1
+    57	cp "$ROOT/probes/stations.json" "$HE/stations.json"
+    58	python3 "$WQ" --home "$HE" run trap-double --path "$RE" --round 1 >/dev/null 2>&1
+    59	OPENED=$(python3 "$WQ" --home "$HE" findings --path "$RE" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+    60	[ -n "$OPENED" ] && python3 "$WQ" --home "$HE" close "$OPENED" --to CLOSED --note e >/dev/null 2>&1
+    61	python3 "$WQ" --home "$HE" verify --path "$RE" --convergence 1 >/dev/null 2>&1; ck "有轮次新发现=未收敛" 1 $?
+    62	
+    63	echo "== F. fork2/3：超时不落账+值域 =="
+    64	H3="$TD/thome"; mkdir -p "$H3"
+    65	printf '{"hang":{"cmd":["bash","-c","sleep 3"],"sev":"LOW","timeout":1}}' > "$H3/stations.json"
+    66	python3 "$WQ" --home "$H3" init --path "$R2" >/dev/null 2>&1
+    67	BEFORE=$(wc -l < "$H3/findings.jsonl" 2>/dev/null || echo 0)
+    68	python3 "$WQ" --home "$H3" run hang --path "$R2" >/dev/null 2>&1; ck "超时 exit 2" 2 $?
+    69	AFTER=$(wc -l < "$H3/findings.jsonl" 2>/dev/null || echo 0)
+    70	[ "$BEFORE" = "$AFTER" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 超时不落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 超时落账了"; }
+    71	
+    72	echo "== G2. fork3：参数值域守卫 =="
+    73	python3 "$WQ" --home "$H3" run hang --path "$R2" --round -1 >/dev/null 2>&1; ck "--round 负数拒绝" 2 $?
+    74	python3 "$WQ" --home "$H3" verify --path "$R2" --convergence -1 >/dev/null 2>&1; ck "--convergence 负数拒绝" 2 $?
+    75	printf '{"badto":{"cmd":["bash","-c","exit 0"],"sev":"LOW","timeout":"abc"}}' > "$H3/stations.json"
+    76	python3 "$WQ" --home "$H3" run badto --path "$R2" >/dev/null 2>&1; ck "timeout 非数字拒绝" 2 $?
+    77	printf '{"negto":{"cmd":["bash","-c","exit 0"],"sev":"LOW","timeout":-5}}' > "$H3/stations.json"
+    78	python3 "$WQ" --home "$H3" run negto --path "$R2" >/dev/null 2>&1; ck "timeout 负数拒绝" 2 $?
+    79	
+    80	echo "== G. 未知站位兜底 =="
+    81	python3 "$WQ" --home "$H" run no-such --path "$R" >/dev/null 2>&1; ck "未知站位 exit 2" 2 $?
+    82	
+    83	echo "== I. 并发写账本安全（8 进程撞锁）=="
+    84	H4="$TD/parhome"; R4="$TD/parrepo"; mkdir -p "$R4"; echo "z=1" > "$R4/c.py"
+    85	python3 "$WQ" --home "$H4" init --path "$R4" >/dev/null 2>&1
+    86	printf '{"sf":{"cmd":["bash","-c","sleep 0.3; exit 1"],"sev":"LOW"}}' > "$H4/stations.json"
+    87	for i in 1 2 3 4 5 6 7 8; do python3 "$WQ" --home "$H4" run sf --path "$R4" >/dev/null 2>&1 & done
+    88	wait
+    89	N_OK=$(python3 - "$H4/findings.jsonl" <<'PYEOF'
+    90	import json, sys
+    91	try:
+    92	    rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+    93	    ids = [r["id"] for r in rows if r.get("kind") == "finding"]
+    94	    ok = (not any(True for _ in ())) and len(ids) == len(set(ids)) == 8 and sum(1 for r in rows if r.get("kind")=="run") == 8
+    95	    print("1" if ok else "0")
+    96	except Exception:
+    97	    print("0")
+    98	PYEOF
+    99	)
+   100	ck "并发 8 进程账本零损坏" 1 $N_OK
+   101	
+   102	echo "== J. fork4：repair 不伤审计行+隔离正常+追加式 =="
+   103	python3 "$WQ" --home "$H" repair >/dev/null 2>&1; ck "repair exit 0" 0 $?
+   104	grep -q '"kind": "run"' "$H/findings.jsonl" && { PASS_N=$((PASS_N+1)); echo "  ✅ run 审计行经 repair 存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ run 行被 repair 隔离"; }
+   105	python3 "$WQ" --home "$H" sweep trap-double --path "$R" >/dev/null 2>&1 || true  # 不判 exit（轮次状态而定），仅确认不再因无 run 记录而死
+   106	echo '{"kind":"finding","id":"BAD","sev":"超纲","status":"OPEN"}' >> "$H/findings.jsonl"
+   107	Q1=0
+   108	if [ -f "$H/findings.jsonl.quarantine" ]; then Q1=$(wc -l < "$H/findings.jsonl.quarantine"); fi
+   109	python3 "$WQ" --home "$H" repair >/dev/null 2>&1
+   110	Q2=0
+   111	if [ -f "$H/findings.jsonl.quarantine" ]; then Q2=$(wc -l < "$H/findings.jsonl.quarantine"); fi
+   112	if [ "$Q2" -gt "$Q1" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ quarantine 追加式（${Q1}到${Q2}）"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ quarantine 覆盖丢失历史（${Q1}到${Q2}）"; fi
+   113	
+   114	echo "== K. fork5：sweep 精确匹配+空格文件名 =="
+   115	H5="$TD/swhome"; R5="$TD/swrepo"; mkdir -p "$R5"; echo "w=1" > "$R5/d.py"
+   116	python3 "$WQ" --home "$H5" init --path "$R5" >/dev/null 2>&1
+   117	printf '{"tests-x": {"cmd": ["bash","-c","exit 1"], "sev": "HIGH"},\n "tests": {"cmd": ["bash","-c","exit 0"], "sev": "HIGH"}}' > "$H5/stations.json"
+   118	python3 "$WQ" --home "$H5" run tests-x --path "$R5" >/dev/null 2>&1
+   119	python3 "$WQ" --home "$H5" run tests --path "$R5" >/dev/null 2>&1
+   120	python3 "$WQ" --home "$H5" sweep tests --path "$R5" >/dev/null 2>&1
+   121	python3 "$WQ" --home "$H5" findings --path "$R5" --status OPEN 2>/dev/null | grep -q "tests-x" && { PASS_N=$((PASS_N+1)); echo "  ✅ 子串站名不被误关"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ sweep 误关别家发现"; }
+   122	R6="$TD/sprepo"; H6="$TD/sphome2"; mkdir -p "$R6/my dir" "$H6"
+   123	printf '#!/usr/bin/env bash\ntrap "rm x" EXIT\ntrap "rm y" EXIT\n' > "$R6/my dir/bad script.sh"; echo "v=1" > "$R6/e.py"
+   124	cp "$ROOT/probes/stations.json" "$H6/stations.json"
+   125	python3 "$WQ" --home "$H6" init --path "$R6" >/dev/null 2>&1
+   126	python3 "$WQ" --home "$H6" run trap-double --path "$R6" >/dev/null 2>&1; ck "空格文件名真命中" 1 $?
+   127	
+   128	echo "== L. fork6：四高防线（并发/非对象行/铸轮/状态机）=="
+   129	H6="$TD/inghome"; R7="$TD/ingrepo"; mkdir -p "$R7"; echo "q=1" > "$R7/f.py"
+   130	python3 "$WQ" --home "$H6" init --path "$R7" >/dev/null 2>&1
+   131	echo '{"id":"X-1","sev":"HIGH","status":"OPEN","title":"dup"}' > "$TD/dup.jsonl"
+   132	(python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & (python3 "$WQ" --home "$H6" ingest "$TD/dup.jsonl" >/dev/null 2>&1) & wait
+   133	python3 "$WQ" --home "$H6" findings --path "$R7" >/dev/null 2>&1; ck "并发 ingest 后账本可用" 0 $?
+   134	DUPN=$(grep -c '"id": "X-1"' "$H6/findings.jsonl" 2>/dev/null || echo 0)
+   135	[ "$DUPN" -le 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 同 id 不双入账（$DUPN 条）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 双入账 $DUPN 条"; }
+   136	echo '[1,2]' >> "$H6/findings.jsonl"
+   137	python3 "$WQ" --home "$H6" repair >/dev/null 2>&1; ck "非对象行 repair 自愈" 0 $?
+   138	H7="$TD/chhome"; rm -rf "$H7"
+   139	python3 "$WQ" --home "$H7" init --path "$R7" >/dev/null 2>&1
+   140	printf '{"t9":{"cmd":["bash","-c","exit 0"],"sev":"LOW"}}' > "$H7/stations.json"
+   141	python3 "$WQ" --home "$H7" run t9 --path "$R7" --round 1 >/dev/null 2>&1
+   142	python3 "$WQ" --home "$H7" charter --round 2 --name t9 --path "$R7" >/dev/null 2>&1
+   143	python3 "$WQ" --home "$H7" charter --round 3 --name t9 --path "$R7" >/dev/null 2>&1
+   144	python3 "$WQ" --home "$H7" verify --path "$R7" --convergence 3 >/dev/null 2>&1; ck "charter 铸轮被拒" 1 $?
+   145	echo '{"id":"D-9","sev":"LOW","status":"OPEN","title":"t"}' > "$TD/d9.jsonl"
+   146	H8="$TD/smhome"; rm -rf "$H8"
+   147	python3 "$WQ" --home "$H8" init --path "$R7" >/dev/null 2>&1
+   148	python3 "$WQ" --home "$H8" ingest "$TD/d9.jsonl" >/dev/null 2>&1
+   149	python3 "$WQ" --home "$H8" close D-9 --to CLOSED --note x >/dev/null 2>&1
+   150	echo '{"kind":"transition","id":"D-9","from":"OPEN","to":"FIXED"}' > "$TD/tr.jsonl"
+   151	python3 "$WQ" --home "$H8" ingest "$TD/tr.jsonl" >/dev/null 2>&1; ck "ingest 状态机横跳被拒" 2 $?
+   152	
+   153	echo "== M. fork7：GBK 字节行不锁死写路径 =="
+   154	H9="$TD/gbkhome"; R9="$TD/gbkrepo"; mkdir -p "$R9"; echo "u=1" > "$R9/g.py"
+   155	python3 "$WQ" --home "$H9" init --path "$R9" >/dev/null 2>&1
+   156	printf '{"t9":{"cmd":["bash","-c","exit 0"],"sev":"LOW"}}' > "$H9/stations.json"
+   157	printf '{"id":"GBK-1","sev":"HIGH","status":"OPEN","title":"x"}\n' >> "$H9/findings.jsonl" 2>/dev/null || echo '{"id":"GBK-1","sev":"HIGH","status":"OPEN","title":"x"}' >> "$H9/findings.jsonl"
+   158	python3 -c "open('$H9/findings.jsonl','ab').write(b'{\"id\":\"GBK-2\",\"sev\":\"HIGH\",\"status\":\"OPEN\",\"title\":\"\xd6\xd0\xce\xc4\"}\n')"
+   159	python3 "$WQ" --home "$H9" run t9 --path "$R9" >/dev/null 2>&1; ck "GBK 行共存下 run 可写" 0 $?
+   160	python3 "$WQ" --home "$H9" close GBK-1 --to CLOSED --note gbk >/dev/null 2>&1; ck "GBK 行共存下 close 可写" 0 $?
+   161	python3 "$WQ" --home "$H9" repair >/dev/null 2>&1; ck "repair 对 GBK 账本自愈可用" 0 $?
+   162	
+   163	echo "== N. fork8：U+2028 往返/伪造 kind/行序无关 =="
+   164	HN="$TD/f8home"; RN="$TD/f8repo"; mkdir -p "$RN"; echo "m=1" > "$RN/m.py"
+   165	python3 "$WQ" --home "$HN" init --path "$RN" >/dev/null 2>&1
+   166	python3 -c "import json; open('$TD/u.jsonl','w').write(json.dumps({'id':'U1','sev':'LOW','status':'OPEN','title':'A'+chr(0x2028)+'B'})+chr(10))"
+   167	python3 "$WQ" --home "$HN" ingest "$TD/u.jsonl" >/dev/null 2>&1; ck "U+2028 往返不锁死" 0 $?
+   168	python3 "$WQ" --home "$HN" findings --path "$RN" >/dev/null 2>&1; ck "U+2028 账本可查" 0 $?
+   169	echo '{"kind":"run","id":"F1","sev":"LOW","status":"OPEN","station":"x","exit":0}' > "$TD/forge.jsonl"
+   170	python3 "$WQ" --home "$HN" ingest "$TD/forge.jsonl" >/dev/null 2>&1; ck "伪造 run 行被拒" 2 $?
+   171	printf '{"kind":"transition","id":"M1","to":"FIXED"}\n{"id":"M1","sev":"LOW","status":"OPEN","title":"y"}\n' > "$TD/order.jsonl"
+   172	python3 "$WQ" --home "$HN" ingest "$TD/order.jsonl" >/dev/null 2>&1; ck "转移引用同批后行 finding=行序无关" 0 $?
+   173	
+   174	echo "== O. fork12：rc≥2 不落账+权限拒分流（S6 零覆盖面补夹具）=="
+   175	HO="$TD/f12home"; RO="$TD/f12repo"; mkdir -p "$RO"; echo "n=1" > "$RO/n.py"
+   176	python3 "$WQ" --home "$HO" init --path "$RO" >/dev/null 2>&1
+   177	cp "$ROOT/probes/stations.json" "$HO/stations.json"
+   178	echo '{"e2":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HO/stations.json"
+   179	BEFORE=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+   180	python3 "$WQ" --home "$HO" run e2 --path "$RO" --round 1 >/dev/null 2>&1; ck "rc≥2 die(2) 不落账" 2 $?
+   181	AFTER=$(grep -c '"kind"' "$HO/findings.jsonl" 2>/dev/null || echo 0)
+   182	[ "$BEFORE" = "$AFTER" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ 环境错误 run 行未落账"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 落了账（$BEFORE→$AFTER）"; }
+   183	python3 "$WQ" --home "$HO" verify --path "$RO" --convergence 3 >/dev/null 2>&1; ck "纯环境错误轮不铸 Converged" 1 $?
+   184	printf '#!/usr/bin/env bash\ndocker exec -e PGPASSWORD=l db sh\n' > "$RO/lock.sh" && chmod 000 "$RO/lock.sh"
+   185	cp "$ROOT/probes/stations.json" "$HO/stations.json"
+   186	if [ "$(id -u)" = "0" ]; then
+   187	  # root 可读 000 文件——权限拒前置不成立（探测器会真命中 exit 1），非缺陷：环境豁免
+   188	  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "root 权限豁免（真命中 1）" 1 $?
+   189	else
+   190	  python3 "$WQ" --home "$HO" run cred-cli-expose --path "$RO" >/dev/null 2>&1; ck "权限拒泄露文件=环境错误 2" 2 $?
+   191	fi
+   192	chmod 644 "$RO/lock.sh"
+   193	
+   194	echo "== P. fork14：S8 修复面回归夹具（GBK 探测器/日志降级/PATH 残缺）=="
+   195	HP="$TD/f14home"; RP="$TD/f14repo"; mkdir -p "$RP"; echo "p=1" > "$RP/p.py"
+   196	python3 "$WQ" --home "$HP" init --path "$RP" >/dev/null 2>&1
+   197	cp "$ROOT/probes/stations.json" "$HP/stations.json"
+   198	printf '#!/usr/bin/env bash\n# \326\320\316\304 GBK note\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RP/gbk.sh"
+   199	python3 "$WQ" --home "$HP" run trap-double --path "$RP" >/dev/null 2>&1; ck "GBK .sh 真命中（LC_ALL=C）" 1 $?
+   200	LG=$(ls -t "$HP"/runs/*trap-double.log 2>/dev/null | head -1)
+   201	grep -q "gbk.sh" "$LG" 2>/dev/null && { PASS_N=$((PASS_N+1)); echo "  ✅ GBK 文件命中标记在日志"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ GBK 命中未落日志"; }
+   202	echo '{"f1x":{"cmd":["bash","-c","exit 1"],"sev":"LOW"}}' > "$HP/stations.json"
+   203	N1=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   204	if [ "$(id -u)" = "0" ]; then
+   205	  # root 可写 555 目录——降级前置不成立（日志正常写入），三重断言退化为 exit+增量
+   206	  F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
+   207	  N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   208	  if [ "$F1RC" = "1" ] && [ "$N2" = "$((N1+1))" ]; then PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：FAIL 站 exit+增量"; else FAIL_N=$((FAIL_N+1)); echo "  ❌ root 豁免段未过"; fi
+   209	else
+   210	chmod 555 "$HP/runs" 2>/dev/null || { mkdir -p "$HP/runs"; chmod 555 "$HP/runs"; }
+   211	F1OUT=$(python3 "$WQ" --home "$HP" run f1x --path "$RP" 2>&1); F1RC=$?
+   212	chmod 755 "$HP/runs"
+   213	N2=$(grep -c '"kind": "finding"' "$HP/findings.jsonl" 2>/dev/null || echo 0)
+   214	# fork15（S9-F2）：三重断言——exit=1 且 stderr/输出含「日志缺失」且 finding 增量 N2=N1+1
+   215	# （原只断言 exit=1：traceback 退出码同 1 不可区分=变异存活假绿）
+   216	if [ "$F1RC" = "1" ] && echo "$F1OUT" | grep -q "日志缺失" && [ "$N2" = "$((N1+1))" ]; then
+   217	  PASS_N=$((PASS_N+1)); echo "  ✅ 只读 runs FAIL 站三重断言（exit+日志缺失+增量）"
+   218	else
+   219	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级断言未全过（rc=$F1RC N:${N1}到${N2} out=${F1OUT:0:80}）"
+   220	fi
+   221	# fork16（S10-FB）：note 回填断言——降级后账本应含 LOG-MISSING note 行+repair 不隔离它
+   222	NOTEN=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTEN=${NOTEN:-0}
+   223	[ "$NOTEN" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ note 回填行在账本"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ note 回填缺失"; }
+   224	python3 "$WQ" --home "$HP" repair >/dev/null 2>&1
+   225	NOTE2=$(grep -c '"kind": "note"' "$HP/findings.jsonl" 2>/dev/null); NOTE2=${NOTE2:-0}
+   226	[ "$NOTE2" = "$NOTEN" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ repair 后 note 行存活"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ repair 隔离了 note（${NOTEN}到${NOTE2}）"; }
+   227	fi
+   228	# fork15：rc≥2+只读 runs=降级分支（证据转 stderr）
+   229	echo '{"e2x":{"cmd":["bash","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
+   230	chmod 555 "$HP/runs"
+   231	EOUT=$(python3 "$WQ" --home "$HP" run e2x --path "$RP" 2>&1); ERC=$?
+   232	chmod 755 "$HP/runs"
+   233	if [ "$(id -u)" = "0" ]; then
+   234	  [ "$ERC" = "2" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ root 豁免：rc≥2 die 正常"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ rc≥2 异常"; }
+   235	else
+   236	if [ "$ERC" = "2" ] && echo "$EOUT" | grep -q "日志写入失败"; then
+   237	  PASS_N=$((PASS_N+1)); echo "  ✅ rc≥2+只读 runs 降级分支触发"
+   238	else
+   239	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级分支未按预期（rc=${ERC}）"
+   240	fi
+   241	fi
+   242	if [ "$(id -u)" != "0" ]; then
+   243	  echo '{"nopath":{"cmd":["/bin/sh","-c","exit 2"],"sev":"LOW"}}' > "$HP/stations.json"
+   244	  python3 "$WQ" --home "$HP" run nopath --path "$RP" >/dev/null 2>&1; ck "环境错误站 die(2)" 2 $?
+   245	fi
+   246	
+   247	echo "== Q. fork16：symlink 排除与 CLI 对齐（S10-FA）=="
+   248	HQ="$TD/f16home"; RQ="$TD/f16repo"; mkdir -p "$RQ" "$TD/outside"
+   249	echo "h=1" > "$RQ/h.py"
+   250	printf '#!/usr/bin/env bash\ntrap "a" EXIT\ntrap "b" EXIT\n' > "$TD/outside/evil.sh"
+   251	ln -sf "$TD/outside/evil.sh" "$RQ/evil.sh"
+   252	python3 "$WQ" --home "$HQ" init --path "$RQ" >/dev/null 2>&1
+   253	cp "$ROOT/probes/stations.json" "$HQ/stations.json"
+   254	python3 "$WQ" --home "$HQ" run trap-double --path "$RQ" >/dev/null 2>&1; ck "symlink 指向仓外目标被排除" 0 $?
+   255	FILES=$(python3 -c "import json; print(json.load(open('$HQ/state.json'))['files'])")
+   256	[ "$FILES" = "1" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CLI 冻结范围排除 symlink（1 文件）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 冻结范围含 symlink（$FILES）"; }
+   257	
+   258	echo "== R. fork19：信号rc/参数枚举/跨仓sweep（Codex+K3 交叉修复面）=="
+   259	HR="$TD/f19home"; RR="$TD/f19repo"; RR2="$TD/f19repo2"
+   260	mkdir -p "$RR" "$RR2"; echo "r=1" > "$RR/r.py"; echo "s=1" > "$RR2/s.py"
+   261	python3 "$WQ" --home "$HR" init --path "$RR" >/dev/null 2>&1
+   262	echo '{"neg":{"cmd":["bash","-c","kill -TERM $$"],"sev":"LOW"}}' > "$HR/stations.json"
+   263	python3 "$WQ" --home "$HR" run neg --path "$RR" >/dev/null 2>&1; ck "CX3：信号终止(-15)归环境错误 exit 2" 2 $?
+   264	python3 "$WQ" --home "$HR" findings --path "$RR" --status OEPEN >/dev/null 2>&1; ck "CX4：拼错 --status OEPEN exit 2" 2 $?
+   265	# CX8：跨仓 sweep——对 RR init 的 home，再对 RR2 跑同名 PASS 站，sweep 不应关 RR 的 finding
+   266	echo '{"cx8":{"cmd":["bash","-c","exit 1"],"sev":"HIGH"}}' > "$HR/stations.json"
+   267	python3 "$WQ" --home "$HR" run cx8 --path "$RR" >/dev/null 2>&1
+   268	FID=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -o 'AUTO-[^ ]*' | head -1)
+   269	echo '{"cx8":{"cmd":["bash","-c","exit 0"],"sev":"HIGH"}}' > "$HR/stations.json"
+   270	python3 "$WQ" --home "$HR" run cx8 --path "$RR2" >/dev/null 2>&1
+   271	python3 "$WQ" --home "$HR" sweep cx8 --path "$RR2" >/dev/null 2>&1
+   272	ST=$(python3 "$WQ" --home "$HR" findings --path "$RR" --status OPEN 2>/dev/null | grep -c "AUTO-")
+   273	[ "$ST" -ge 1 ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CX8：跨仓 PASS 不洗白本仓 finding"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ CX8：跨仓 sweep 洗白漏洞"; }
+   274	
+   275	echo "== S. fork19 补：CX11 tmp 符号链接+CX12 空仓错误分流 =="
+   276	HS="$TD/f19bhome"; RS="$TD/f19brepo"; mkdir -p "$HS" "$RS/rs"; echo "t=1" > "$RS/t.py"
+   277	python3 "$WQ" --home "$HS" init --path "$RS" >/dev/null 2>&1
+   278	cp "$ROOT/probes/stations.json" "$HS/stations.json"
+   279	# CX15（Codex 三审#3 修）：先 init 成功再锁子目录——原 chmod 000 仓根导致 init 也挂，测试从未走到 CX12 分支
+   280	if [ "$(id -u)" != "0" ]; then
+   281	  printf '#!/usr/bin/env bash\ntrap "x" EXIT\ntrap "y" EXIT\n' > "$RS/rs/h.sh"
+   282	  chmod 000 "$RS/rs" 2>/dev/null
+   283	  CXOUT=$(python3 "$WQ" --home "$HS" run trap-double --path "$RS" 2>&1); CXRC=$?
+   284	  # fork19-CX20（Codex R5#3）：真断言——CLI 包装语可伪造，读 run 日志验真 Permission denied
+   285	  CXLOG=$(ls -t "$HS"/runs/*trap-double*.log 2>/dev/null | head -1)
+   286	  CXLOGERR=""
+   287	  [ -n "$CXLOG" ] && CXLOGERR=$(grep -ci "denied\|permission" "$CXLOG" 2>/dev/null || echo 0)
+   288	  if [ "$CXRC" = "2" ] && [ "${CXLOGERR:-0}" -ge 1 ]; then
+   289	    PASS_N=$((PASS_N+1)); echo "  ✅ CX12：不可读子目录=环境错误（日志含 Permission denied）"
+   290	  else
+   291	    FAIL_N=$((FAIL_N+1)); echo "  ❌ CX12 夹具：rc=$CXRC logerr=$CXLOGERR"
+   292	  fi
+   293	  chmod 755 "$RS/rs" 2>/dev/null
+   294	else
+   295	  echo "  ⏭ root 豁免：CX12 权限面跳过"
+   296	fi
+   297	
+   298	echo "== H. pytest 契约套件（若 pytest 可用）=="
+   299	if python3 -c "import pytest" 2>/dev/null; then
+   300	  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+   301	else
+   302	  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+   303	fi
+   304	
+   305	echo "== T. P0 auto-merge containment =="
+   306	P0_MSG="auto-merge permanently disabled per P0 containment"
+   307	P0_STUB_LINE="printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1"
+   308	P0_HOME="$TD/p0-home"; mkdir -p "$P0_HOME/daemons" "$P0_HOME/state"
+   309	printf '%s\n' 'touch "$WENQU_HOME/writer-ran"; exit 0' > "$P0_HOME/daemons/auto-merge.sh"
+   310	P0_OUT=$(WENQU_HOME="$P0_HOME" WENQU_REPO="owner/repo" bash "$ROOT/system/bin/wenqu" start 2>&1); P0_RC=$?
+   311	ck "wenqu start 永久拒绝" 1 "$P0_RC"
+   312	if [ "$P0_OUT" = "$P0_MSG" ] && [ ! -e "$P0_HOME/writer-ran" ] && [ ! -e "$P0_HOME/state/auto-merge.pid" ]; then
+   313	  PASS_N=$((PASS_N+1)); echo "  ✅ start 精确报错且未执行 writer/写 PID"
+   314	else
+   315	  FAIL_N=$((FAIL_N+1)); echo "  ❌ start containment 断言失败"
+   316	fi
+   317	
+   318	P0_OUT=$(bash "$ROOT/system/daemons/auto-merge.sh" ignored 2>&1); P0_RC=$?
+   319	ck "源码 auto-merge stub 拒绝" 1 "$P0_RC"
+   320	if [ "$P0_OUT" = "$P0_MSG" ] && [ "$(cat "$ROOT/system/daemons/auto-merge.sh")" = "$P0_STUB_LINE" ] && [ "$(wc -l < "$ROOT/system/daemons/auto-merge.sh" | tr -d ' ')" = "1" ]; then
+   321	  PASS_N=$((PASS_N+1)); echo "  ✅ 源码 stub 唯一内容、单行且消息精确"
+   322	else
+   323	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 源码 stub 形态或消息错误"
+   324	fi
+   325	
+   326	P0_PREFIX="$TD/p0-prefix"; P0_FAKE_HOME="$TD/p0-fake-home"
+   327	mkdir -p "$P0_PREFIX/bin" "$P0_PREFIX/daemons" "$P0_FAKE_HOME"
+   328	printf '%s\n' 'echo unsafe-writer' > "$P0_PREFIX/daemons/auto-merge.sh"
+   329	HOME="$P0_FAKE_HOME" PATH="$P0_PREFIX/bin:$PATH" bash "$ROOT/system/install.sh" --prefix "$P0_PREFIX" >/dev/null 2>&1; ck "隔离安装" 0 $?
+   330	P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+   331	if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+   332	  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+   333	else
+   334	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=${P0_RC}）"
+   335	fi
+   336	
+   337	echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+   338	if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+   339	  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+   340	  CORE_RC=$?
+   341	  if [ $CORE_RC -eq 0 ]; then
+   342	    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+   343	  else
+   344	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=${CORE_RC}）——wenqu_core/schemas/dashboard 缺失或不可导入"
+   345	  fi
+   346	else
+   347	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+   348	fi
+   349	
+   350	echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+   351	if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+   352	  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+   353	  PIPE_RC=$?
+   354	  if [ $PIPE_RC -eq 0 ]; then
+   355	    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+   356	  else
+   357	    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=${PIPE_RC}）——wenqu_pipeline 缺失或行为回归"
+   358	  fi
+   359	else
+   360	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+   361	fi
+   362	
+   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+   364	if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+   365	  AC_TMP_JSON="$(mktemp -t wq_matrix).json"
+   366	  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+   367	  AC_RC=$?
+   368	  rm -f "$AC_TMP_JSON"
+   369	  if [ $AC_RC -eq 0 ]; then
+   370	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+   371	  else
+   372	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+   373	  fi
+   374	else
+   375	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   376	fi
+   377	
+   378	echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+   379	if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   380	  python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+   381	  ADV_RC=$?
+   382	  if [ ${ADV_RC} -eq 0 ]; then
+   383	    PASS_N=$((PASS_N+1)); echo "  ✅ 对抗自测全绿（P0-4 洞复验面在 required CI 内）"
+   384	  else
+   385	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 对抗自测失败（exit=${ADV_RC}）——洞修复行为回归"
+   386	  fi
+   387	else
+   388	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_adversarial.py 不存在——对抗测试被移出验收面（F4-CI-001 复发）"
+   389	fi
+   390	
+   391	echo "== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）=="
+   392	if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
+   393	  python3 "$ROOT/system/tests/test_infra_hardening.py" >/dev/null 2>&1
+   394	  INF_RC=$?
+   395	  if [ ${INF_RC} -eq 0 ]; then
+   396	    PASS_N=$((PASS_N+1)); echo "  ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）"
+   397	  else
+   398	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归"
+   399	  fi
+   400	else
+   401	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
+   402	fi
+   403	
+   404	echo "================================"
+   405	echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+   406	[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+===== .github/workflows/acceptance.yml =====
+     1	name: acceptance
+     2	on: [push, pull_request, workflow_dispatch]
+     3	jobs:
+     4	  matrix:
+     5	    strategy:
+     6	      matrix:
+     7	        os: [macos-latest, ubuntu-latest]
+     8	    runs-on: ${{ matrix.os }}
+     9	    steps:
+    10	      - uses: actions/checkout@v4
+    11	      - uses: actions/setup-python@v5
+    12	        with: { python-version: "3.11" }
+    13	      - name: release-check（版本号残留机械闸·动态版本）
+    14	        run: |
+    15	          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+    16	          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+    17	          echo "Checking: v$DV $V"
+    18	          bash tests/release-check.sh v$DV $V
+    19	      - name: acceptance
+    20	        run: bash tests/acceptance.sh
+    21	      - name: pytest 契约
+    22	        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+    23	      - name: selftest
+    24	        run: python cli/wenqu selftest
+===== system/wenqu_core/deploy_framework.py =====
+     1	# -*- coding: utf-8 -*-
+     2	"""原子部署框架（Codex W7A）。
+     3	
+     4	约束（不可降级）：
+     5	    D1 禁止 cp -R 原地覆盖：每次发布在 staging 目录全新构建（逐文件流式复制），
+     6	       再经同目录 rename 原子发布为不可变 release 目录；绝不向既有 release
+     7	       目录写入或覆盖任何内容；
+     8	    D2 安装自检失败 = 部署失败（不吞错）：自检 callable 抛错或返回假值 ->
+     9	       自动回滚到上一版并抛 DeployError（携带原始异常链与回滚结果，回滚失败
+    10	       也如实上报，绝不静默）；
+    11	    D3 rename 原子性：release 目录发布（os.rename）与 current symlink 切换
+    12	       （os.replace）均在同一目录内完成，瞬时生效、无中间态；
+    13	    D4 manifest 对账：缺件 / 多件 / 哈希漂移 / mode 漂移任一非空即 verify 失败。
+    14	
+    15	manifest 契约（manifest.json，随 release 一起发布）::
+    16	
+    17	    {
+    18	      "release_id":     "<UTC 时间戳>-<内容摘要前 12 位>",
+    19	      "created_at":     "<ISO8601 UTC>",
+    20	      "source_dir":     "<构建源绝对路径>",
+    21	      "content_digest": "<按排序路径+文件 SHA256 摘要>",
+    22	      "files":          [{"path": 相对路径, "sha256": ..., "size": ...,
+    23	                          "mode": "0555"|"0444"}, ...]
+    24	    }
+    25	
+    26	不可变性：release 常规文件按「源文件 exec 位」定权限——含 exec 位的文件
+    27	（含无扩展可执行文件）发布后 0555 保持可执行；无 exec 位文件 0444（0644
+    28	带 shebang 的 .py 也不强加 exec）。目录级不可变由构建协议保证（release
+    29	命名空间只增不改，绝不复用已存在且 divergent 的 release_id；内容完全一致
+    30	的重复构建按幂等复用处理，reused=True）。
+    31	
+    32	install_self_check 契约：``callable(release_dir) -> truthy`` 表示安装自检
+    33	通过；返回假值或抛出异常均判定为自检失败。
+    34	"""
+    35	
+    36	from __future__ import annotations
+    37	
+    38	import hashlib
+    39	import json
+    40	import os
+    41	import shutil
+    42	import stat as _stat
+    43	import tempfile
+    44	import time
+    45	from typing import Any, Callable, Dict, List, Optional
+    46	
+    47	__all__ = [
+    48	    "DeployManager", "DeployError", "BuildError", "VerifyError", "SwitchError",
+    49	    "SelfCheckError", "MANIFEST_NAME",
+    50	]
+    51	
+    52	MANIFEST_NAME = "manifest.json"
+    53	_CHUNK = 1024 * 1024
+    54	
+    55	
+    56	class DeployError(Exception):
+    57	    """部署框架基础错误。"""
+    58	
+    59	
+    60	class BuildError(DeployError):
+    61	    """release 构建失败。"""
+    62	
+    63	
+    64	class VerifyError(DeployError):
+    65	    """manifest 对账失败（缺件/多件/哈希漂移）。"""
+    66	
+    67	    def __init__(self, report: Dict[str, Any]):
+    68	        super().__init__("manifest verification failed: " + json.dumps(
+    69	            {k: report.get(k) for k in ("missing", "extra", "drifted", "mode_drifted")},
+    70	            ensure_ascii=False, sort_keys=True))
+    71	        self.report = report
+    72	
+    73	
+    74	class SwitchError(DeployError):
+    75	    """symlink 原子切换失败。"""
+    76	
+    77	
+    78	class SelfCheckError(DeployError):
+    79	    """安装自检失败。"""
+    80	
+    81	
+    82	def _sha256_file(path: str) -> str:
+    83	    digest = hashlib.sha256()
+    84	    with open(path, "rb") as fh:
+    85	        for chunk in iter(lambda: fh.read(_CHUNK), b""):
+    86	            digest.update(chunk)
+    87	    return digest.hexdigest()
+    88	
+    89	
+    90	def _stat_mode(path: str) -> int:
+    91	    """文件权限位（0777 掩码），供 manifest mode 对账。"""
+    92	    return _stat.S_IMODE(os.stat(path).st_mode)
+    93	
+    94	
+    95	def _collect_files(root: str) -> List[str]:
+    96	    """收集 root 下全部常规文件的相对路径（排序，确定性遍历）。"""
+    97	    found: List[str] = []
+    98	    for dirpath, dirnames, filenames in os.walk(root):
+    99	        dirnames.sort()
+   100	        for name in sorted(filenames):
+   101	            found.append(os.path.relpath(os.path.join(dirpath, name), root))
+   102	    return found
+   103	
+   104	
+   105	class DeployManager:
+   106	    """原子部署管理器：build -> verify -> switch（-> 安装自检）-> rollback。"""
+   107	
+   108	    def __init__(self, releases_root: str, current_link: str,
+   109	                 install_self_check: Optional[Callable[[str], bool]] = None) -> None:
+   110	        self.releases_root = os.path.abspath(releases_root)
+   111	        self.current_link = os.path.abspath(current_link)
+   112	        self.install_self_check = install_self_check
+   113	
+   114	    # ------------------------------------------------------------------ #
+   115	    # 构建：不可变 release 目录 + manifest
+   116	    # ------------------------------------------------------------------ #
+   117	    def build(self, source_dir: str) -> Dict[str, Any]:
+   118	        """将 source_dir 构建为不可变 release 目录（全文件 SHA256+mode manifest）。
+   119	
+   120	        D1：staging 全新构建 + rename 原子发布；绝不向既有 release 写入/覆盖。
+   121	        同秒同内容重复构建 -> 幂等复用已存在且完好的 release（reused=True）；
+   122	        release_id 冲突但内容 divergent/损坏 -> BuildError。
+   123	        P0-7 二次修：mode 策略按「源文件 exec 位」判定——源文件含任一 exec 位
+   124	        （0755 无扩展可执行文件同理）发布后保持可执行（0555）；否则 0444
+   125	        （0644 带 shebang 的 .py 不强加 exec）。manifest 逐文件记录 mode，
+   126	        verify() 对账 mode 漂移。
+   127	        """
+   128	        source = os.path.abspath(source_dir)
+   129	        if not os.path.isdir(source):
+   130	            raise BuildError(f"source_dir not found: {source}")
+   131	        os.makedirs(self.releases_root, exist_ok=True)
+   132	
+   133	        rel_files = _collect_files(source)
+   134	        staging = tempfile.mkdtemp(prefix=".staging-", dir=self.releases_root)
+   135	        try:
+   136	            entries: List[Dict[str, Any]] = []
+   137	            digest = hashlib.sha256()
+   138	            for rel in rel_files:
+   139	                src = os.path.join(source, rel)
+   140	                dst = os.path.join(staging, rel)
+   141	                os.makedirs(os.path.dirname(dst), exist_ok=True)
+   142	                file_hash = self._copy_stream_hash(src, dst)  # 逐文件流式复制，非 cp -R
+   143	                # P0-7 修：mode 策略——源文件 exec 位决定发布后可执行性
+   144	                src_mode = os.stat(src).st_mode & 0o777
+   145	                exec_bit = bool(src_mode & 0o111)
+   146	                release_mode = 0o555 if exec_bit else 0o444
+   147	                os.chmod(dst, release_mode)
+   148	                entries.append({
+   149	                    "path": rel,
+   150	                    "sha256": file_hash,
+   151	                    "size": os.path.getsize(dst),
+   152	                    "mode": "%04o" % release_mode,
+   153	                })
+   154	                digest.update(rel.encode("utf-8") + b"\0" + file_hash.encode("ascii") + b"\0")
+   155	            content_digest = digest.hexdigest()
+   156	
+   157	            release_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{content_digest[:12]}"
+   158	            final_dir = os.path.join(self.releases_root, release_id)
+   159	
+   160	            manifest = {
+   161	                "release_id": release_id,
+   162	                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+   163	                "source_dir": source,
+   164	                "content_digest": content_digest,
+   165	                "files": sorted(entries, key=lambda e: e["path"]),
+   166	            }
+   167	            manifest_path = os.path.join(staging, MANIFEST_NAME)
+   168	            with open(manifest_path, "w", encoding="utf-8") as fh:
+   169	                json.dump(manifest, fh, ensure_ascii=False, indent=2, sort_keys=True)
+   170	                fh.write("\n")
+   171	            os.chmod(manifest_path, 0o444)
+   172	
+   173	            if os.path.exists(final_dir):
+   174	                # 幂等复用：仅当既有 release 完好且内容摘要一致
+   175	                if self._reusable(final_dir, content_digest):
+   176	                    shutil.rmtree(staging, ignore_errors=True)
+   177	                    with open(os.path.join(final_dir, MANIFEST_NAME), encoding="utf-8") as fh:
+   178	                        existing = json.load(fh)
+   179	                    return {
+   180	                        "release_dir": final_dir,
+   181	                        "manifest_path": os.path.join(final_dir, MANIFEST_NAME),
+   182	                        "release_id": release_id,
+   183	                        "content_digest": content_digest,
+   184	                        "files": len(existing.get("files", [])),
+   185	                        "reused": True,
+   186	                    }
+   187	                raise BuildError(
+   188	                    f"release_id collision with divergent/broken existing release: {final_dir}")
+   189	
+   190	            os.rename(staging, final_dir)  # D3：同目录 rename，原子发布
+   191	        except BaseException:
+   192	            shutil.rmtree(staging, ignore_errors=True)
+   193	            raise
+   194	
+   195	        return {
+   196	            "release_dir": final_dir,
+   197	            "manifest_path": os.path.join(final_dir, MANIFEST_NAME),
+   198	            "release_id": release_id,
+   199	            "content_digest": content_digest,
+   200	            "files": len(entries),
+   201	            "reused": False,
+   202	        }
+   203	
+   204	    @staticmethod
+   205	    def _copy_stream_hash(src: str, dst: str) -> str:
+   206	        """流式复制并计算 SHA256（边写边哈希，单次读盘）。"""
+   207	        digest = hashlib.sha256()
+   208	        with open(src, "rb") as fsrc, open(dst, "wb") as fdst:
+   209	            for chunk in iter(lambda: fsrc.read(_CHUNK), b""):
+   210	                digest.update(chunk)
+   211	                fdst.write(chunk)
+   212	        return digest.hexdigest()
+   213	
+   214	    def _reusable(self, final_dir: str, content_digest: str) -> bool:
+   215	        try:
+   216	            with open(os.path.join(final_dir, MANIFEST_NAME), encoding="utf-8") as fh:
+   217	                existing = json.load(fh)
+   218	            if existing.get("content_digest") != content_digest:
+   219	                return False
+   220	            return self.verify(final_dir, strict=False).get("ok") is True
+   221	        except (OSError, ValueError):
+   222	            return False
+   223	
+   224	    # ------------------------------------------------------------------ #
+   225	    # 对账：manifest 校验
+   226	    # ------------------------------------------------------------------ #
+   227	    @staticmethod
+   228	    def _resolve_link_value(link_dir: str, value: str) -> str:
+   229	        """相对链接值一律相对 link 所在目录解析（绝不相对进程 cwd）。
+   230	
+   231	        绝对值原样 normpath 返回。P0-7 修：previous/current 相对链接曾按
+   232	        进程 cwd 解析 → 误判不存在 → 跳过回滚 → current 留在失败版。
+   233	        """
+   234	        if os.path.isabs(value):
+   235	            return os.path.normpath(value)
+   236	        return os.path.normpath(os.path.join(link_dir, value))
+   237	
+   238	    def verify(self, release_dir: str, strict: bool = True) -> Dict[str, Any]:
+   239	        """manifest 对账：缺件/多件/哈希漂移/mode 漂移任一非空即失败（D4）。
+   240	
+   241	        strict=True（默认）失败抛 VerifyError（携带完整报告）；
+   242	        strict=False 返回含 ``ok`` 布尔的报告，供调用方自行裁决。
+   243	        P0-7 二次修：manifest 逐文件记录 mode；发布后 chmod 篡改（如 0444→
+   244	        0755）在 verify 即失败（mode_drifted），不再只校验内容哈希。
+   245	        """
+   246	        release = os.path.abspath(release_dir)
+   247	        manifest_path = os.path.join(release, MANIFEST_NAME)
+   248	        if not os.path.isfile(manifest_path):
+   249	            report = {
+   250	                "ok": False, "release_dir": release, "release_id": None,
+   251	                "missing": [MANIFEST_NAME], "extra": [], "drifted": [],
+   252	                "mode_drifted": [], "checked": 0,
+   253	            }
+   254	            if strict:
+   255	                raise VerifyError(report)
+   256	            return report
+   257	
+   258	        with open(manifest_path, encoding="utf-8") as fh:
+   259	            manifest = json.load(fh)
+   260	        entries = {e["path"]: e for e in manifest.get("files", [])}
+   261	        expected = {p: e["sha256"] for p, e in entries.items()}
+   262	        actual = set(_collect_files(release)) - {MANIFEST_NAME}  # manifest 自身不在清单内
+   263	        expected_set = set(expected)
+   264	
+   265	        missing = sorted(expected_set - actual)
+   266	        extra = sorted(actual - expected_set)
+   267	        drifted = sorted(
+   268	            p for p in expected_set & actual
+   269	            if _sha256_file(os.path.join(release, p)) != expected[p]
+   270	        )
+   271	        # P0-7 修：mode 对账——manifest 记录了 mode 的文件，实际权限位必须一致
+   272	        mode_drifted = sorted(
+   273	            p for p in expected_set & actual
+   274	            if entries[p].get("mode") is not None
+   275	            and _stat_mode(os.path.join(release, p)) != int(entries[p]["mode"], 8)
+   276	        )
+   277	        ok = not (missing or extra or drifted or mode_drifted)
+   278	        report = {
+   279	            "ok": ok,
+   280	            "release_dir": release,
+   281	            "release_id": manifest.get("release_id"),
+   282	            "missing": missing,
+   283	            "extra": extra,
+   284	            "drifted": drifted,
+   285	            "mode_drifted": mode_drifted,
+   286	            "checked": len(expected_set & actual),
+   287	        }
+   288	        if strict and not ok:
+   289	            raise VerifyError(report)
+   290	        return report
+   291	
+   292	    # ------------------------------------------------------------------ #
+   293	    # 切换：原子 symlink
+   294	    # ------------------------------------------------------------------ #
+   295	    def switch(self, current_symlink: str, target: str) -> Dict[str, Any]:
+   296	        """原子切换 current symlink -> target（D3：临时链接 + os.replace）。"""
+   297	        link = os.path.abspath(current_symlink)
+   298	        target_abs = os.path.abspath(target)
+   299	        if not os.path.isdir(target_abs):
+   300	            raise SwitchError(f"switch target not found: {target_abs}")
+   301	
+   302	        link_dir = os.path.dirname(link) or "."
+   303	        os.makedirs(link_dir, exist_ok=True)
+   304	        if os.path.lexists(link) and not os.path.islink(link):
+   305	            raise SwitchError(f"refuse to replace non-symlink path: {link}")
+   306	
+   307	        previous = os.readlink(link) if os.path.islink(link) else None
+   308	        link_value = os.path.relpath(target_abs, link_dir)  # 相对链接，目录整体迁移不失效
+   309	        tmp_link = os.path.join(
+   310	            link_dir, f".{os.path.basename(link)}.switch-{os.getpid()}")
+   311	        if os.path.lexists(tmp_link):
+   312	            os.remove(tmp_link)
+   313	        os.symlink(link_value, tmp_link)
+   314	        try:
+   315	            os.replace(tmp_link, link)  # D3：rename 原子性，瞬时生效
+   316	        except OSError as exc:
+   317	            if os.path.lexists(tmp_link):
+   318	                os.remove(tmp_link)
+   319	            raise SwitchError(f"atomic symlink switch failed: {link} -> {target_abs}: {exc}") from exc
+   320	
+   321	        return {
+   322	            "current_symlink": link,
+   323	            "previous": previous,
+   324	            "previous_abs": (
+   325	                self._resolve_link_value(link_dir, previous) if previous else None),
+   326	            "target": target_abs,
+   327	            "link_value": link_value,
+   328	        }
+   329	
+   330	    def rollback(self, current: str, previous: str) -> Dict[str, Any]:
+   331	        """切回兼容版：先对 previous release 做 manifest 完好性对账，再原子切回。
+   332	
+   333	        previous 已损坏（缺件/漂移）时拒绝回切并抛错——绝不把流量切到坏包上。
+   334	        P0-7 修：previous 允许是相对链接值——一律相对 current 链接所在目录解析
+   335	        （不相对进程 cwd）。
+   336	        """
+   337	        link = os.path.abspath(current)
+   338	        link_dir = os.path.dirname(link) or "."
+   339	        prev = self._resolve_link_value(link_dir, previous)
+   340	        if not os.path.isdir(prev):
+   341	            raise SwitchError(f"rollback target missing: {prev}")
+   342	        verify_report = self.verify(prev)
+   343	        result = self.switch(link, prev)
+   344	        result.update({"rolled_back": True, "verify": verify_report})
+   345	        return result
+   346	
+   347	    # ------------------------------------------------------------------ #
+   348	    # 编排：build -> verify -> switch -> 安装自检
+   349	    # ------------------------------------------------------------------ #
+   350	    def deploy(self, source_dir: str) -> Dict[str, Any]:
+   351	        """完整部署：构建 -> 对账 -> 原子切换 -> 安装自检。
+   352	
+   353	        D2：自检失败 = 部署失败——自动回滚上一版后抛 DeployError。
+   354	        P0-7 修：首次部署无上一版可回滚时，切回空/删除 current link（不留在失败版上）。
+   355	        P0-7 二次修：previous 相对链接值一律相对 current 链接所在目录解析
+   356	        （原按进程 cwd 解析 → 误判不存在 → 跳过回滚 → current 留在失败版）；
+   357	        回滚后对回滚目标再跑一次 self-check 复验。
+   358	        """
+   359	        build_result = self.build(source_dir)
+   360	        verify_report = self.verify(build_result["release_dir"])  # 切换前对账
+   361	
+   362	        # P0-7 修：切换前记录是否存在 current link（首次部署判定）
+   363	        _had_current = os.path.islink(self.current_link) or os.path.exists(self.current_link)
+   364	        _prev_target_raw = None
+   365	        _prev_target_abs = None
+   366	        if _had_current and os.path.islink(self.current_link):
+   367	            _prev_target_raw = os.readlink(self.current_link)
+   368	            # P0-7 修：相对链接值按 link 所在目录解析（不相对进程 cwd）
+   369	            _prev_target_abs = self._resolve_link_value(
+   370	                os.path.dirname(self.current_link) or ".", _prev_target_raw)
+   371	
+   372	        switch_report = self.switch(self.current_link, build_result["release_dir"])
+   373	
+   374	        try:
+   375	            if self.install_self_check is not None:
+   376	                check = self.install_self_check(build_result["release_dir"])
+   377	                if not check:
+   378	                    raise SelfCheckError(f"install self-check returned falsy: {check!r}")
+   379	        except Exception as exc:
+   380	            rollback_note = "no previous release to roll back to"
+   381	            if _prev_target_abs and os.path.isdir(_prev_target_abs):
+   382	                try:
+   383	                    self.rollback(self.current_link, _prev_target_abs)
+   384	                    rollback_note = f"rolled back to {_prev_target_abs}"
+   385	                    # P0-7 修：回滚后对回滚目标再验一次 self-check
+   386	                    if self.install_self_check is not None:
+   387	                        try:
+   388	                            recheck = self.install_self_check(_prev_target_abs)
+   389	                            rollback_note += (
+   390	                                "; rollback self-check re-verified"
+   391	                                if recheck else
+   392	                                "; WARNING: rollback target also fails self-check"
+   393	                            )
+   394	                        except Exception as sc_exc:
+   395	                            rollback_note += (
+   396	                                f"; WARNING: rollback target self-check error: {sc_exc!r}")
+   397	                except DeployError as rb_exc:
+   398	                    rollback_note = (f"ROLLBACK FAILED ({rb_exc}); "
+   399	                                     f"current link remains on failed release "
+   400	                                     f"{build_result['release_dir']}")
+   401	            elif not _had_current:
+   402	                # P0-7 修：首次部署失败——删除 current link（不留在失败版上）
+   403	                try:
+   404	                    os.unlink(self.current_link)
+   405	                    rollback_note = "first deploy: current link removed (no failed release active)"
+   406	                except OSError:
+   407	                    rollback_note = f"first deploy: failed to remove current link, stays on failed release"
+   408	            raise DeployError(
+   409	                f"deploy failed at install self-check: {exc!r}; {rollback_note}"
+   410	            ) from exc
+   411	
+   412	        return {
+   413	            "deployed": True,
+   414	            "release_id": build_result["release_id"],
+   415	            "release_dir": build_result["release_dir"],
+   416	            "build": build_result,
+   417	            "verify": verify_report,
+   418	            "switch": switch_report,
+   419	            "self_check": "passed",
+   420	        }
+===== system/tests/test_gate_schema_hardening.py =====
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""F4 三洞加固回归——Codex 第四轮实锤假绿的根修复验（gate/schema/traceability）。
+     4	
+     5	洞对应（正源：第四轮验收 findings；本文件是它们的对抗复验正本）：
+     6	  F4-GATE-001  聚合器吃 Schema-invalid 输入判 PASS
+     7	        -> test_f4_gate001_schema_invalid_input_blocked
+     8	        -> test_f4_gate001_legal_v2_full_chain_pass_dashboard_accept
+     9	        -> test_f4_gate001_mirror_jsonschema_consistency   （镜像↔schema 同步自测）
+    10	  F4-SCHEMA-001  五个跨字段 Schema 假绿（schema 文件 allOf/if-then 编码 + 镜像同步）
+    11	        -> test_f4_schema001_five_cross_field_rules
+    12	        -> test_f4_schema001_station_rules_via_aggregator_mirror
+    13	  F4-TRC-001  §20 语义篡改假绿（ac_traceability 只比 ID 集合）
+    14	        -> test_f4_trc001_semantic_tamper_detected
+    15	
+    16	纯标准库；可直接 `python3 system/tests/test_gate_schema_hardening.py`（exit 0=全绿），
+    17	也兼容 pytest。jsonschema 不可用时 schema 断言按仓内惯例降级跳过（镜像断言仍执行）。
+    18	"""
+    19	import importlib.util
+    20	import json
+    21	import os
+    22	import subprocess
+    23	import sys
+    24	import tempfile
+    25	
+    26	REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
+    27	ROOT = os.path.dirname(REPO)                                        # 仓根
+    28	sys.path.insert(0, REPO)
+    29	
+    30	from wenqu_core.gate_aggregator import (  # noqa: E402
+    31	    BLOCKED, GateAggregator, mirror_validate_station_result_v2,
+    32	)
+    33	
+    34	SCHEMAS = os.path.join(REPO, "schemas")
+    35	SHA = "1f" + "0" * 38
+    36	PLAN = os.path.join(ROOT, "evidence", "00-baseline", "codex-external", "方案.md")
+    37	PASS_N, FAIL_N, FAILURES = 0, 0, []
+    38	
+    39	
+    40	def _ck(name, cond, detail=""):
+    41	    global PASS_N, FAIL_N
+    42	    if cond:
+    43	        PASS_N += 1
+    44	        print(f"  ✓ {name}")
+    45	    else:
+    46	        FAIL_N += 1
+    47	        FAILURES.append(name)
+    48	        print(f"  ✗ {name} {detail}")
+    49	
+    50	
+    51	# ───────────────────────── 测试样例工厂 ─────────────────────────
+    52	def _v2(**over):
+    53	    """合法 station-result-v2（coverage 等比分母+非空工件+rc0+assertion PASS）。"""
+    54	    doc = {
+    55	        "schema_version": "2.0", "run_id": "run-f4-1", "station_id": 2,
+    56	        "attempt_id": "att-2", "execution_status": "COMPLETED",
+    57	        "policy_verdict": "PASS",
+    58	        "identity": {"project_id": "acme/erp", "commit_sha": SHA,
+    59	                     "environment": "staging", "scope_hash": "0" * 64,
+    60	                     "ruleset_hash": "0" * 64},
+    61	        "tool": {"name": "f4-probe", "version": "1.0"},
+    62	        "execution": {"argv_digest": "b" * 64,
+    63	                      "started_at": "2026-10-08T00:00:00Z",
+    64	                      "ended_at": "2026-10-08T00:00:01Z",
+    65	                      "actual_exit_code": 0, "expected_exit_set": [0],
+    66	                      "assertion_verdict": "PASS"},
+    67	        "coverage": {"denominator": 3, "scanned": 3},
+    68	        "artifacts": [{"cas_digest": "sha256:" + "c" * 64, "size": 128}],
+    69	    }
+    70	    doc.update(over)
+    71	    return doc
+    72	
+    73	
+    74	def _jsonschema_validator(name):
+    75	    """Draft7Validator + FormatChecker（注册严格 date-time——仓内既有惯例：
+    76	    rfc3339-validator 缺席时 jsonschema 的 date-time 检查空转）。"""
+    77	    import jsonschema
+    78	    from jsonschema import FormatChecker
+    79	
+    80	    fc = FormatChecker()
+    81	
+    82	    @fc.checks("date-time")
+    83	    def _strict_date_time(value):
+    84	        if not isinstance(value, str):
+    85	            return True
+    86	        from datetime import datetime
+    87	        text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    88	        try:
+    89	            datetime.fromisoformat(text)
+    90	            return True
+    91	        except ValueError:
+    92	            return False
+    93	
+    94	    schema = json.load(open(os.path.join(SCHEMAS, name), encoding="utf-8"))
+    95	    return jsonschema.Draft7Validator(schema, format_checker=fc)
+    96	
+    97	
+    98	def _is_invalid(validator, doc):
+    99	    """jsonschema 断言 helper：True==被拒。不可用时返回 None（调用方降级）。"""
+   100	    import jsonschema
+   101	    try:
+   102	        validator.validate(doc)
+   103	        return False
+   104	    except jsonschema.ValidationError:
+   105	        return True
+   106	
+   107	
+   108	# ══════════════════════════════════════════════════════════════════════
+   109	# F4-GATE-001：聚合器吃 Schema-invalid 输入判 PASS（Codex 探针复刻）
+   110	# ══════════════════════════════════════════════════════════════════════
+   111	def test_f4_gate001_schema_invalid_input_blocked():
+   112	    """Codex 探针复刻：缺 tool/execution/coverage/artifacts 的残缺 v2
+   113	    （正式 Draft-07 校验拒绝）→ 聚合器必须 BLOCKED + technical_eligible=false。"""
+   114	    rogue = {
+   115	        "schema_version": "2.0", "station_id": 2,
+   116	        "execution_status": "COMPLETED", "policy_verdict": "PASS",
+   117	        "identity": {"commit_sha": SHA, "environment": "staging",
+   118	                     "scope_hash": "0" * 64},
+   119	    }
+   120	    try:
+   121	        v = _jsonschema_validator("station-result-v2.schema.json")
+   122	        _ck("F4-GATE-001 残缺 v2 被正式 schema 拒绝（复刻前提）",
+   123	            _is_invalid(v, rogue) is True)
+   124	    except ImportError:
+   125	        print("  (skip) jsonschema 未安装，schema 断言降级")
+   126	
+   127	    errs = mirror_validate_station_result_v2(rogue)
+   128	    _ck("F4-GATE-001 镜像校验器同判残缺 v2 非法",
+   129	        bool(errs) and any("tool" in e or "execution" in e for e in errs),
+   130	        str(errs[:3]))
+   131	
+   132	    agg = GateAggregator({"2"}, SHA, "staging")
+   133	    agg.add(rogue)
+   134	    out = agg.aggregate()
+   135	    _ck("F4-GATE-001 残缺 v2 聚合 BLOCKED", out["aggregate_outcome"] == BLOCKED,
+   136	        out["reason"])
+   137	    _ck("F4-GATE-001 technical_eligible=false", out["technical_eligible"] is False)
+   138	    _ck("F4-GATE-001 记 malformed（schema_invalid）",
+   139	        out["counts"]["malformed"] >= 1
+   140	        and out["stations"]["2"]["schema_valid"] is False)
+   141	    _ck("F4-GATE-001 github 状态不上绿",
+   142	        agg.to_github_status(out)["state"] == "failure")
+   143	
+   144	
+   145	def test_f4_gate001_legal_v2_full_chain_pass_dashboard_accept():
+   146	    """合法 v2（coverage 分母≥1 且等比 + 非空 artifacts + exit0 + assertion PASS）
+   147	    → 全链聚合 PASS + dashboard read_gate_aggregate ACCEPT。"""
+   148	    agg = GateAggregator({"2", "7"}, SHA, "staging")
+   149	    agg.add(_v2(station_id=2)).add(_v2(station_id=7, run_id="run-f4-7"))
+   150	    out = agg.aggregate()
+   151	    _ck("F4-GATE-001 合法 v2 双站聚合 PASS", out["aggregate_outcome"] == "PASS",
+   152	        out["reason"])
+   153	    _ck("F4-GATE-001 technical_eligible=true", out["technical_eligible"] is True)
+   154	    _ck("F4-GATE-001 站点登记 schema_valid=true",
+   155	        out["stations"]["2"]["schema_valid"] is True)
+   156	
+   157	    spec = importlib.util.spec_from_file_location(
+   158	        "dash_server_f4", os.path.join(REPO, "dashboard", "server.py"))
+   159	    dash = importlib.util.module_from_spec(spec)
+   160	    spec.loader.exec_module(dash)
+   161	    with tempfile.TemporaryDirectory() as td:
+   162	        snap = os.path.join(td, "gate-aggregate.json")
+   163	        with open(snap, "w", encoding="utf-8") as fh:
+   164	            json.dump(out, fh, ensure_ascii=False)
+   165	        os.environ["WENQU_GATE_AGGREGATE"] = snap
+   166	        r = dash.read_gate_aggregate()
+   167	        _ck("F4-GATE-001 dashboard 对合法聚合 ACCEPT（ok + PASS）",
+   168	            r.get("ok") is True and r["data"]["policy_verdict"] == "PASS", str(r))
+   169	
+   170	        # 反向：BLOCKED 聚合喂 dashboard——结构 ACCEPT 但判定透传 BLOCKED（不洗白）
+   171	        agg2 = GateAggregator({"2"}, SHA, "staging")
+   172	        agg2.add({**_v2(), "coverage": {"denominator": 3, "scanned": 2}})
+   173	        blocked = agg2.aggregate()
+   174	        with open(snap, "w", encoding="utf-8") as fh:
+   175	            json.dump(blocked, fh, ensure_ascii=False)
+   176	        r2 = dash.read_gate_aggregate()
+   177	        _ck("F4-GATE-001 分母缩水聚合 → dashboard 透传 BLOCKED",
+   178	            r2.get("ok") is True and r2["data"]["policy_verdict"] == BLOCKED,
+   179	            str(r2))
+   180	
+   181	
+   182	def test_f4_gate001_mirror_jsonschema_consistency():
+   183	    """镜像校验器 ↔ schema 文件一致性自测（防两处漂移）。
+   184	
+   185	    对正负样例组，mirror_validate_station_result_v2 与
+   186	    jsonschema+FormatChecker（严格 date-time）的合法/非法结论必须一致。
+   187	    已声明的唯一边界：PASS 的 scanned==denominator 在 schema 侧以 const 级联
+   188	    机器判定 1..64（draft-07 无法表达跨字段数值比较），>64 时 schema 不判、
+   189	    镜像必拒——边界样例单独断言，不进一致性对照。
+   190	    """
+   191	    legal = _v2()
+   192	    samples = [  # (名字, 文档, 期望合法?)
+   193	        ("legal-full", legal, True),
+   194	        ("legal-minimal-fail-verdict",
+   195	         {k: v for k, v in legal.items()
+   196	          if k not in ("coverage", "artifacts", "finding_ids")}
+   197	         | {"policy_verdict": "FAIL"}, True),
+   198	        ("legal-conditional", legal | {"policy_verdict": "CONDITIONAL"}, True),
+   199	        ("legal-coverage-exclusions",
+   200	         legal | {"coverage": {"denominator": 4, "scanned": 4,
+   201	                               "exclusions": ["x"]}}, True),
+   202	        ("legal-error-not-evaluated",
+   203	         legal | {"execution_status": "ERROR", "policy_verdict": "NOT_EVALUATED"},
+   204	         True),
+   205	        ("legal-timeout-not-evaluated",
+   206	         legal | {"execution_status": "TIMEOUT",
+   207	                  "policy_verdict": "NOT_EVALUATED"}, True),
+   208	        ("bad-schema-version", legal | {"schema_version": "1.0"}, False),
+   209	        ("bad-run-id", legal | {"run_id": "run f4!"}, False),
+   210	        ("bad-station-id-str", legal | {"station_id": "2"}, False),
+   211	        ("bad-station-id-range", legal | {"station_id": 8}, False),
+   212	        ("bad-station-id-bool", legal | {"station_id": True}, False),
+   213	        ("bad-top-extra", legal | {"rogue_field": 1}, False),
+   214	        ("bad-missing-attempt-id",
+   215	         {k: v for k, v in legal.items() if k != "attempt_id"}, False),
+   216	        ("bad-exec-status-enum", legal | {"execution_status": "RUNNING"}, False),
+   217	        ("bad-verdict-enum", legal | {"policy_verdict": "SUCCESS"}, False),
+   218	        ("bad-identity-sha", legal | {"identity": dict(legal["identity"],
+   219	                                                       commit_sha="short")}, False),
+   220	        ("bad-identity-missing-scope",
+   221	         legal | {"identity": {"commit_sha": SHA, "environment": "staging"}}, False),
+   222	        ("bad-tool-missing-version",
+   223	         legal | {"tool": {"name": "t"}}, False),
+   224	        ("bad-exec-missing-exit",
+   225	         legal | {"execution": {k: v for k, v in legal["execution"].items()
+   226	                                if k != "actual_exit_code"}}, False),
+   227	        ("bad-exec-assertion-enum",
+   228	         legal | {"execution": dict(legal["execution"],
+   229	                                    assertion_verdict="MAYBE")}, False),
+   230	        ("bad-exec-exit-bool",
+   231	         legal | {"execution": dict(legal["execution"],
+   232	                                    actual_exit_code=False)}, False),
+   233	        ("bad-exec-expected-set-str",
+   234	         legal | {"execution": dict(legal["execution"],
+   235	                                    expected_exit_set=["0"])}, False),
+   236	        ("bad-date-time", legal | {"execution": dict(
+   237	            legal["execution"], started_at="not-a-date")}, False),
+   238	        ("bad-timeout-zero", legal | {"execution": dict(
+   239	            legal["execution"], timeout_s=0)}, False),
+   240	        ("bad-coverage-negative",
+   241	         legal | {"coverage": {"denominator": -1, "scanned": 0}}, False),
+   242	        ("bad-coverage-missing-scanned",
+   243	         legal | {"coverage": {"denominator": 3}}, False),
+   244	        ("bad-coverage-explicit-null", legal | {"coverage": None}, False),
+   245	        ("bad-artifacts-explicit-null", legal | {"artifacts": None}, False),
+   246	        ("bad-artifact-digest",
+   247	         legal | {"artifacts": [{"cas_digest": "md5:x", "size": 1}]}, False),
+   248	        ("bad-artifact-size-zero",
+   249	         legal | {"artifacts": [{"cas_digest": "sha256:" + "c" * 64,
+   250	                                 "size": 0}]}, False),
+   251	        ("bad-finding-ids-str",
+   252	         legal | {"finding_ids": "fnd_1"}, False),
+   253	        # PASS 分支（含 F4-SCHEMA-001 #2/#5 新跨字段）
+   254	        ("bad-pass-no-coverage", {k: v for k, v in legal.items()
+   255	                                  if k != "coverage"}, False),
+   256	        ("bad-pass-no-artifacts", {k: v for k, v in legal.items()
+   257	                                   if k != "artifacts"}, False),
+   258	        ("bad-pass-empty-artifacts", legal | {"artifacts": []}, False),
+   259	        ("bad-pass-exit-1",
+   260	         legal | {"execution": dict(legal["execution"],
+   261	                                    actual_exit_code=1)}, False),
+   262	        ("bad-pass-assertion-fail",
+   263	         legal | {"execution": dict(legal["execution"],
+   264	                                    assertion_verdict="FAIL")}, False),
+   265	        ("bad-pass-shrinkage-2of3",
+   266	         legal | {"coverage": {"denominator": 3, "scanned": 2}}, False),
+   267	        ("bad-pass-scanned-over-denominator",
+   268	         legal | {"coverage": {"denominator": 2, "scanned": 3}}, False),
+   269	        ("bad-pass-timeout-status",
+   270	         legal | {"execution_status": "TIMEOUT"}, False),
+   271	        ("bad-timeout-conditional",
+   272	         legal | {"execution_status": "TIMEOUT",
+   273	                  "policy_verdict": "CONDITIONAL"}, False),
+   274	        ("bad-blocked-conditional",
+   275	         legal | {"execution_status": "BLOCKED",
+   276	                  "policy_verdict": "CONDITIONAL"}, False),
+   277	    ]
+   278	    try:
+   279	        v = _jsonschema_validator("station-result-v2.schema.json")
+   280	    except ImportError:
+   281	        print("  (skip) jsonschema 未安装，一致性自测降级为镜像单侧断言")
+   282	        v = None
+   283	
+   284	    mismatch = []
+   285	    for name, doc, expect_valid in samples:
+   286	        mirror_valid = not mirror_validate_station_result_v2(doc)
+   287	        if mirror_valid != expect_valid:
+   288	            mismatch.append(f"{name}: mirror={'ok' if mirror_valid else 'reject'}"
+   289	                            f" expect={'ok' if expect_valid else 'reject'}")
+   290	        if v is not None:
+   291	            js_invalid = _is_invalid(v, doc)
+   292	            js_valid = not js_invalid
+   293	            if js_valid != expect_valid:
+   294	                mismatch.append(f"{name}: jsonschema="
+   295	                                f"{'ok' if js_valid else 'reject'}"
+   296	                                f" expect={'ok' if expect_valid else 'reject'}")
+   297	            if js_valid != mirror_valid:
+   298	                mismatch.append(f"{name}: mirror={'ok' if mirror_valid else 'reject'}"
+   299	                                f" != jsonschema={'ok' if js_valid else 'reject'}")
+   300	    _ck(f"F4-GATE-001 镜像↔schema 一致性（{len(samples)} 样例零分歧）",
+   301	        not mismatch, "; ".join(mismatch[:4]))
+   302	
+   303	    # 已声明边界：分母>64 的缩水在 schema 级联之外——镜像必拒（无界等式）
+   304	    big_shrink = legal | {"coverage": {"denominator": 100, "scanned": 65}}
+   305	    _ck("F4-GATE-001 边界：>64 缩水镜像仍必拒（schema 级联外）",
+   306	        bool(mirror_validate_station_result_v2(big_shrink)))
+   307	    if v is not None:
+   308	        _ck("F4-GATE-001 边界记录：>64 缩水 schema 侧不判（不误拒合法大分母）",
+   309	            _is_invalid(v, big_shrink) is False)
+   310	
+   311	
+   312	# ══════════════════════════════════════════════════════════════════════
+   313	# F4-SCHEMA-001：五个跨字段规则（jsonschema+FormatChecker 全拒 + 镜像同步）
+   314	# ══════════════════════════════════════════════════════════════════════
+   315	def test_f4_schema001_five_cross_field_rules():
+   316	    """五洞样例经 jsonschema+FormatChecker 全拒、正例全过；测试侧镜像谓词同步。
+   317	
+   318	    #1 evidence-v2：PASS + actual_exit_code 非 0 → 拒
+   319	    #2 station-result-v2：PASS 但 scanned < denominator（分母缩水）→ 拒
+   320	    #3 finding-event-v2：CLOSED→OPEN 非法转换（非 FINDING_REOPENED 载体）→ 拒
+   321	    #4 finding-event-v2：RISK_INVALIDATED 缺 state_from → 拒
+   322	    #5 run-event-v2 + station：TIMEOUT 执行 + CONDITIONAL 裁决 → 拒
+   323	    """
+   324	    try:
+   325	        import jsonschema  # noqa: F401
+   326	    except ImportError:
+   327	        print("  (skip) jsonschema 未安装，五规则 schema 断言降级跳过")
+   328	        return
+   329	
+   330	    ev_v = _jsonschema_validator("evidence-v2.schema.json")
+   331	    fe_v = _jsonschema_validator("finding-event-v2.schema.json")
+   332	    run_v = _jsonschema_validator("run-event-v2.schema.json")
+   333	    st_v = _jsonschema_validator("station-result-v2.schema.json")
+   334	
+   335	    def evidence(**over):
+   336	        doc = {
+   337	            "schema_version": "2.0", "evidence_id": "ev_f4", "run_id": "run-f4",
+   338	            "identity": {"commit_sha": SHA, "environment": "staging",
+   339	                         "scope_hash": "0" * 64},
+   340	            "runner": {"runner_id": "r1", "version": "1"},
+   341	            "tool": {"name": "t", "version": "1"},
+   342	            "execution": {"argv_digest": "a" * 64,
+   343	                          "started_at": "2026-10-08T00:00:00Z",
+   344	                          "finished_at": "2026-10-08T00:00:01Z",
+   345	                          "actual_exit_code": 0},
+   346	            "verdict": "PASS", "fresh_until": "2026-10-09T00:00:00Z",
+   347	            "artifact": {"artifact_sha256": "d" * 64, "artifact_size": 10},
+   348	        }
+   349	        doc.update(over)
+   350	        return doc
+   351	
+   352	    def finding(**over):
+   353	        doc = {
+   354	            "schema_version": "2.0", "event_type": "FINDING_REOPENED",
+   355	            "finding_id": "fnd_f4", "fingerprint": "fp", "severity": "LOW",
+   356	            "priority": "P3", "ts": "2026-10-08T00:00:00Z",
+   357	            "state_from": "CLOSED", "state_to": "OPEN",
+   358	        }
+   359	        doc.update(over)
+   360	        return doc
+   361	
+   362	    def run_event(**over):
+   363	        doc = {
+   364	            "schema_version": "2.0", "event_type": "STAGE_COMPLETED",
+   365	            "run_id": "run-f4", "execution_status": "COMPLETED",
+   366	            "policy_verdict": "PASS",
+   367	            "identity": {"commit_sha": SHA, "environment": "staging",
+   368	                         "scope_hash": "0" * 64},
+   369	        }
+   370	        doc.update(over)
+   371	        return doc
+   372	
+   373	    # 镜像谓词（与 schema 同步的测试侧可执行等价物）
+   374	    def mirror_evidence_pass_requires_rc0(d):
+   375	        rc = d.get("execution", {}).get("actual_exit_code")
+   376	        return not (d.get("verdict") == "PASS" and rc is not None and rc != 0)
+   377	
+   378	    def mirror_finding_closed_successors(d):
+   379	        if d.get("state_from") == "CLOSED":
+   380	            return (d.get("event_type") == "FINDING_REOPENED"
+   381	                    and d.get("state_to") == "OPEN")
+   382	        if d.get("event_type") == "RISK_INVALIDATED":
+   383	            return (d.get("state_from") == "ACCEPTED_RISK"
+   384	                    and d.get("state_to") == "OPEN")
+   385	        if d.get("event_type") == "SUPERSEDED":
+   386	            return d.get("state_from") in (
+   387	                "OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED",
+   388	                "ACCEPTED_RISK")
+   389	        return True
+   390	
+   391	    def mirror_hard_exec_verdicts(d):
+   392	        if d.get("execution_status") in ("ERROR", "BLOCKED", "TIMEOUT",
+   393	                                         "CANCELLED"):
+   394	            return d.get("policy_verdict") in ("FAIL", "NOT_EVALUATED",
+   395	                                               "NOT_APPLICABLE")
+   396	        return True
+   397	
+   398	    cases = [
+   399	        # (名, validator, doc, 期望合法, 镜像谓词)
+   400	        ("#1 evidence PASS+rc2 拒", ev_v,
+   401	         evidence(execution=dict(evidence()["execution"], actual_exit_code=2)),
+   402	         False, mirror_evidence_pass_requires_rc0),
+   403	        ("#1 evidence PASS+rc0 过", ev_v, evidence(), True,
+   404	         mirror_evidence_pass_requires_rc0),
+   405	        ("#1 evidence FAIL+rc2 过", ev_v,
+   406	         evidence(verdict="FAIL",
+   407	                  execution=dict(evidence()["execution"], actual_exit_code=2)),
+   408	         True, mirror_evidence_pass_requires_rc0),
+   409	        ("#2 station PASS 缩水 2/3 拒", st_v,
+   410	         _v2(coverage={"denominator": 3, "scanned": 2}), False,
+   411	         lambda d: d.get("policy_verdict") != "PASS"
+   412	         or d.get("coverage", {}).get("scanned", -1)
+   413	         == d.get("coverage", {}).get("denominator", -2)),
+   414	        ("#2 station PASS 3/3 过", st_v, _v2(), True,
+   415	         lambda d: d.get("policy_verdict") != "PASS"
+   416	         or d.get("coverage", {}).get("scanned", -1)
+   417	         == d.get("coverage", {}).get("denominator", -2)),
+   418	        ("#3 finding CLOSED→OPEN 走 FINDING_CREATED 拒", fe_v,
+   419	         finding(event_type="FINDING_CREATED"), False,
+   420	         mirror_finding_closed_successors),
+   421	        ("#3 finding CLOSED→OPEN 走 SUPERSEDED 拒", fe_v,
+   422	         finding(event_type="SUPERSEDED"), False,
+   423	         mirror_finding_closed_successors),
+   424	        ("#3 finding 合法 FINDING_REOPENED CLOSED→OPEN 过", fe_v,
+   425	         finding(), True, mirror_finding_closed_successors),
+   426	        ("#4 finding RISK_INVALIDATED 缺 state_from 拒", fe_v,
+   427	         {k: v for k, v in finding(event_type="RISK_INVALIDATED").items()
+   428	          if k not in ("state_from", "state_to")}, False,
+   429	         mirror_finding_closed_successors),
+   430	        ("#4 finding RISK_INVALIDATED ACCEPTED_RISK→OPEN 过", fe_v,
+   431	         finding(event_type="RISK_INVALIDATED", state_from="ACCEPTED_RISK"),
+   432	         True, mirror_finding_closed_successors),
+   433	        ("#4 finding SUPERSEDED 缺 state_from 拒", fe_v,
+   434	         {k: v for k, v in finding(event_type="SUPERSEDED").items()
+   435	          if k != "state_from"}, False, mirror_finding_closed_successors),
+   436	        ("#5 run TIMEOUT+CONDITIONAL 拒", run_v,
+   437	         run_event(execution_status="TIMEOUT", policy_verdict="CONDITIONAL"),
+   438	         False, mirror_hard_exec_verdicts),
+   439	        ("#5 run COMPLETED+CONDITIONAL 过", run_v,
+   440	         run_event(policy_verdict="CONDITIONAL"), True,
+   441	         mirror_hard_exec_verdicts),
+   442	        ("#5 station TIMEOUT+CONDITIONAL 拒", st_v,
+   443	         _v2(execution_status="TIMEOUT", policy_verdict="CONDITIONAL"),
+   444	         False, mirror_hard_exec_verdicts),
+   445	    ]
+   446	    bad = []
+   447	    for name, validator, doc, expect_valid, mirror_pred in cases:
+   448	        js_valid = not _is_invalid(validator, doc)
+   449	        if js_valid != expect_valid:
+   450	            bad.append(f"{name}: jsonschema={'ok' if js_valid else 'reject'}"
+   451	                       f" expect={'ok' if expect_valid else 'reject'}")
+   452	        if mirror_pred(doc) != expect_valid:
+   453	            bad.append(f"{name}: mirror={'ok' if mirror_pred(doc) else 'reject'}"
+   454	                       f" expect={'ok' if expect_valid else 'reject'}")
+   455	    _ck(f"F4-SCHEMA-001 五规则 {len(cases)} 样例（schema+镜像谓词零分歧）",
+   456	        not bad, "; ".join(bad[:4]))
+   457	
+   458	
+   459	def test_f4_schema001_station_rules_via_aggregator_mirror():
+   460	    """站级 #2/#5 经聚合器镜像同步：schema-invalid 站必 BLOCKED（不产出 PASS）。"""
+   461	    agg = GateAggregator({"2"}, SHA, "staging")
+   462	    agg.add(_v2(coverage={"denominator": 3, "scanned": 2}))   # 分母缩水
+   463	    out = agg.aggregate()
+   464	    _ck("F4-SCHEMA-001 #2 缩水 v2 聚合 BLOCKED",
+   465	        out["aggregate_outcome"] == BLOCKED
+   466	        and out["technical_eligible"] is False, out["reason"])
+   467	
+   468	    agg = GateAggregator({"2"}, SHA, "staging")
+   469	    agg.add(_v2(execution_status="TIMEOUT", policy_verdict="CONDITIONAL"))
+   470	    out = agg.aggregate()
+   471	    _ck("F4-SCHEMA-001 #5 station TIMEOUT+CONDITIONAL 聚合 BLOCKED",
+   472	        out["aggregate_outcome"] == BLOCKED, out["reason"])
+   473	
+   474	
+   475	# ══════════════════════════════════════════════════════════════════════
+   476	# F4-TRC-001：§20 语义篡改假绿（ac_traceability 逐 ID 语义比对）
+   477	# ══════════════════════════════════════════════════════════════════════
+   478	def _run_trace_check(plan_path, json_path):
+   479	    proc = subprocess.run(
+   480	        [sys.executable, os.path.join(ROOT, "tools", "ac_traceability.py"),
+   481	         "--check", "--plan", plan_path, "--json", json_path],
+   482	        capture_output=True, text=True, timeout=300)
+   483	    return proc.returncode
+   484	
+   485	
+   486	def test_f4_trc001_semantic_tamper_detected():
+   487	    """正常 rc=0；改任一 ID 注入文本 → rc=2；改期望文本 → rc=2（ID 集合不动）。"""
+   488	    if not os.path.isfile(PLAN):
+   489	        print(f"  (skip) 方案快照不存在: {PLAN}")
+   490	        return
+   491	    with open(PLAN, encoding="utf-8") as fh:
+   492	        plan_text = fh.read()
+   493	
+   494	    with tempfile.TemporaryDirectory() as td:
+   495	        plan_ok = os.path.join(td, "plan.md")
+   496	        with open(plan_ok, "w", encoding="utf-8") as fh:
+   497	            fh.write(plan_text)
+   498	        rc_ok = _run_trace_check(plan_ok, os.path.join(td, "m.json"))
+   499	        _ck("F4-TRC-001 基线方案 --check rc=0（冻结内容==方案原文）", rc_ok == 0,
+   500	            f"rc={rc_ok}")
+   501	
+   502	        # 篡改注入：保留 GATE-04 ID，换注入文本（Codex 探针同款手法）
+   503	        marker_inj = "| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |"
+   504	        assert marker_inj in plan_text, "GATE-04 行锚点漂移，需同步测试"
+   505	        tampered_inj = plan_text.replace(
+   506	            marker_inj,
+   507	            "| GATE-04 | 内层 exit 0、一切正常 | assertion FAIL/BLOCKED |")
+   508	        p2 = os.path.join(td, "tamper_inj.md")
+   509	        with open(p2, "w", encoding="utf-8") as fh:
+   510	            fh.write(tampered_inj)
+   511	        rc2 = _run_trace_check(p2, os.path.join(td, "m2.json"))
+   512	        _ck("F4-TRC-001 篡改注入文本 → rc=2（语义漂移必红）", rc2 == 2,
+   513	            f"rc={rc2}")
+   514	
+   515	        # 篡改期望：保留 COND-04 ID，换期望文本
+   516	        marker_exp = ("| COND-04 | P0/P1 尝试风险接受或条件授权 "
+   517	                      "| 拒绝并保持 BLOCKED |")
+   518	        assert marker_exp in plan_text, "COND-04 行锚点漂移，需同步测试"
+   519	        tampered_exp = plan_text.replace(
+   520	            marker_exp,
+   521	            "| COND-04 | P0/P1 尝试风险接受或条件授权 | 放行并记 PASS |")
+   522	        p3 = os.path.join(td, "tamper_exp.md")
+   523	        with open(p3, "w", encoding="utf-8") as fh:
+   524	            fh.write(tampered_exp)
+   525	        rc3 = _run_trace_check(p3, os.path.join(td, "m3.json"))
+   526	        _ck("F4-TRC-001 篡改期望文本 → rc=2（语义漂移必红）", rc3 == 2,
+   527	            f"rc={rc3}")
+   528	
+   529	
+   530	if __name__ == "__main__":
+   531	    tests = [v for k, v in sorted(globals().items())
+   532	             if k.startswith("test_") and callable(v)]
+   533	    print(f"== F4 三洞加固回归（gate/schema/traceability，{len(tests)} 组）==")
+   534	    for t in tests:
+   535	        print(f"-- {t.__name__}")
+   536	        t()
+   537	    print("=" * 64)
+   538	    print(f"RESULT: PASS={PASS_N} FAIL={FAIL_N}")
+   539	    if FAILURES:
+   540	        for name in FAILURES:
+   541	            print(f"  FAILED: {name}")
+   542	        sys.exit(1)
+   543	    print("ALL GREEN")
+===== system/tests/test_cli_install_ci.py =====
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""F4 第四轮三洞回归夹具——安装断链 / CI 挂载缺失 / gate 接线（Codex 四审复验面）。
+     4	
+     5	洞 -> 测试映射：
+     6	  F4-CLI-001  安装体 wenquctl 断链（壳找 $PREFIX/wenqu_core，实体在 lib）
+     7	    -> test_h1_source_tree_wenquctl_runs
+     8	    -> test_h1_install_body_wenquctl_green_and_missing_cli_red
+     9	  F4-CI-001   对抗/加固自测不在 required CI（删双文件 acceptance 仍绿）
+    10	    -> test_h2_acceptance_red_when_adversarial_and_hardening_deleted
+    11	  F4-GATE-001 GateAggregator 无生产调用方
+    12	    -> test_h3_gate_two_legal_v2_pass_exit_0
+    13	    -> test_h3_gate_malformed_result_blocked_exit_2
+    14	    -> test_h3_gate_missing_required_station_blocked_exit_2
+    15	    -> test_h3_gate_exit_code_map_conditional_and_error
+    16	
+    17	纯标准库；`python3 system/tests/test_cli_install_ci.py`（exit 0=全绿），兼容 pytest。
+    18	所有破坏性验证均在 tempfile 隔离副本上进行，绝不触碰真仓与真实 $HOME。
+    19	"""
+    20	import json
+    21	import os
+    22	import shutil
+    23	import subprocess
+    24	import sys
+    25	import tempfile
+    26	
+    27	REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
+    28	DIST_ROOT = os.path.dirname(REPO)                                    # 发行包根
+    29	sys.path.insert(0, REPO)
+    30	
+    31	from wenqu_core.bugscan_orchestrator import build_station_result  # noqa: E402
+    32	
+    33	SHA = "1f" + "0" * 38
+    34	PASS_N, FAIL_N, FAILURES = 0, 0, []
+    35	
+    36	
+    37	def _ck(name, cond, detail=""):
+    38	    global PASS_N, FAIL_N
+    39	    if cond:
+    40	        PASS_N += 1
+    41	        print(f"  ✓ {name}")
+    42	    else:
+    43	        FAIL_N += 1
+    44	        FAILURES.append(name)
+    45	        print(f"  ✗ {name} {detail}")
+    46	
+    47	
+    48	def _tail(text, n=200):
+    49	    return (text or "").replace("\n", " | ")[-n:]
+    50	
+    51	
+    52	def _copy_system(td, name="system"):
+    53	    dst = os.path.join(td, name)
+    54	    shutil.copytree(REPO, dst, ignore=shutil.ignore_patterns("__pycache__"))
+    55	    return dst
+    56	
+    57	
+    58	def _run_install(src_system, prefix, fake_home):
+    59	    """隔离安装（镜像 test_infra_hardening._run_install 的最小 env 口径）。"""
+    60	    env = {
+    61	        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+    62	        "HOME": fake_home,
+    63	        "TMPDIR": tempfile.gettempdir(),
+    64	    }
+    65	    return subprocess.run(
+    66	        ["bash", os.path.join(src_system, "install.sh"), "--prefix", prefix],
+    67	        capture_output=True, text=True, env=env, timeout=300,
+    68	        cwd=os.path.dirname(prefix.rstrip("/")))
+    69	
+    70	
+    71	def _run_ctl(argv, cwd, timeout=120):
+    72	    """经 bin/wenquctl 壳调 CLI（顺带回归壳的双布局解析——源树分支）。"""
+    73	    return subprocess.run(
+    74	        ["bash", os.path.join(REPO, "bin", "wenquctl")] + argv,
+    75	        capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    76	
+    77	
+    78	# ══════════════════════════════════════════════════════════════════════
+    79	# H1：安装体 wenquctl 断链（F4-CLI-001）
+    80	# ══════════════════════════════════════════════════════════════════════
+    81	def test_h1_source_tree_wenquctl_runs():
+    82	    r = _run_ctl(["--help"], cwd=tempfile.gettempdir())
+    83	    _ck("H1 源树 wenquctl --help rc=0（双布局解析不伤源树运行）",
+    84	        r.returncode == 0, _tail(r.stderr))
+    85	
+    86	
+    87	def test_h1_install_body_wenquctl_green_and_missing_cli_red():
+    88	    with tempfile.TemporaryDirectory(prefix="wq_h1_") as td:
+    89	        syscopy = _copy_system(td)
+    90	        prefix = os.path.join(td, "prefix")
+    91	        fake_home = os.path.join(td, "home")
+    92	        os.makedirs(prefix)
+    93	        os.makedirs(fake_home)
+    94	
+    95	        r = _run_install(syscopy, prefix, fake_home)
+    96	        _ck("H1 隔离安装 rc=0", r.returncode == 0, _tail(r.stdout + r.stderr))
+    97	        _ck("H1 安装日志含安装体 wenquctl 验证行",
+    98	            "安装体 wenquctl 验证通过" in (r.stdout + r.stderr),
+    99	            _tail(r.stdout + r.stderr))
+   100	
+   101	        help_rc = subprocess.run(
+   102	            [os.path.join(prefix, "bin", "wenquctl"), "--help"],
+   103	            capture_output=True, text=True, timeout=60,
+   104	            cwd=td, env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+   105	                         "HOME": fake_home, "TMPDIR": tempfile.gettempdir()})
+   106	        _ck("H1 安装体 <prefix>/bin/wenquctl --help rc=0（断链已修）",
+   107	            help_rc.returncode == 0, _tail(help_rc.stderr))
+   108	
+   109	        # 红探针：源副本删 cli.py -> 安装必须 fail-closed（rc!=0）
+   110	        os.remove(os.path.join(syscopy, "wenqu_core", "cli.py"))
+   111	        prefix2 = os.path.join(td, "prefix2")
+   112	        fake_home2 = os.path.join(td, "home2")
+   113	        os.makedirs(prefix2)
+   114	        os.makedirs(fake_home2)
+   115	        r2 = _run_install(syscopy, prefix2, fake_home2)
+   116	        _ck("H1 删 wenqu_core/cli.py 后安装 rc!=0（安装体断链即安装失败）",
+   117	            r2.returncode != 0, _tail(r2.stdout + r2.stderr))
+   118	        _ck("H1 失败原因指向 wenquctl 断链",
+   119	            "wenquctl" in (r2.stdout + r2.stderr), _tail(r2.stderr))
+   120	
+   121	
+   122	# ══════════════════════════════════════════════════════════════════════
+   123	# H2：对抗/加固自测接入 required CI（F4-CI-001）
+   124	# ══════════════════════════════════════════════════════════════════════
+   125	def test_h2_acceptance_red_when_adversarial_and_hardening_deleted():
+   126	    with tempfile.TemporaryDirectory(prefix="wq_h2_") as td:
+   127	        tree = os.path.join(td, "tree")
+   128	        os.makedirs(tree)
+   129	        for d in ("cli", "probes", "system", "tests", "tools", "evidence", "docs"):
+   130	            shutil.copytree(os.path.join(DIST_ROOT, d), os.path.join(tree, d),
+   131	                            ignore=shutil.ignore_patterns("__pycache__"))
+   132	        os.remove(os.path.join(tree, "system", "tests",
+   133	                               "test_wenqu_adversarial.py"))
+   134	        os.remove(os.path.join(tree, "system", "tests",
+   135	                               "test_infra_hardening.py"))
+   136	        fake_home = os.path.join(td, "fakehome")
+   137	        os.makedirs(fake_home)
+   138	        r = subprocess.run(
+   139	            ["bash", os.path.join(tree, "tests", "acceptance.sh")],
+   140	            capture_output=True, text=True, timeout=600, cwd=tree,
+   141	            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+   142	                 "HOME": fake_home, "TMPDIR": tempfile.gettempdir()})
+   143	        out = r.stdout + r.stderr
+   144	        _ck("H2 删双测文件后 acceptance rc!=0",
+   145	            r.returncode != 0, _tail(out, 300))
+   146	        _ck("H2 P1d 红（adversarial 被删必红）",
+   147	            "test_wenqu_adversarial.py 不存在" in out, _tail(out, 300))
+   148	        _ck("H2 P1e 红（infra hardening 被删必红）",
+   149	            "test_infra_hardening.py 不存在" in out, _tail(out, 300))
+   150	
+   151	
+   152	# ══════════════════════════════════════════════════════════════════════
+   153	# H3：gate 子命令——GateAggregator 首个生产消费者（F4-GATE-001）
+   154	# ══════════════════════════════════════════════════════════════════════
+   155	def _mk_v2(station_id, verdict="PASS", run_id="run-gate-cli-1",
+   156	           sha=SHA, env="staging"):
+   157	    """经 build_station_result 构造合法 v2 站结果（schema 可执行等价物把关）。"""
+   158	    return build_station_result(
+   159	        run_id=run_id, station_id=station_id, attempt_id=f"att-{station_id}",
+   160	        execution_status="COMPLETED", policy_verdict=verdict,
+   161	        identity={"project_id": "acme/erp", "commit_sha": sha,
+   162	                  "environment": env, "scope_hash": "0" * 64,
+   163	                  "ruleset_hash": "0" * 64},
+   164	        tool={"name": "cli-gate-fixture", "version": "1.0"},
+   165	        execution={"argv_digest": "b" * 64,
+   166	                   "started_at": "2026-10-08T00:00:00Z",
+   167	                   "ended_at": "2026-10-08T00:00:01Z",
+   168	                   "actual_exit_code": 0, "expected_exit_set": [0],
+   169	                   "assertion_verdict": "PASS"},
+   170	        coverage={"denominator": 3, "scanned": 3},
+   171	        artifacts=[{"cas_digest": "sha256:" + "c" * 64, "size": 128}])
+   172	
+   173	
+   174	def _write(doc, path):
+   175	    with open(path, "w", encoding="utf-8") as fh:
+   176	        json.dump(doc, fh, ensure_ascii=False)
+   177	
+   178	
+   179	def test_h3_gate_two_legal_v2_pass_exit_0():
+   180	    with tempfile.TemporaryDirectory(prefix="wq_h3a_") as td:
+   181	        # 站 2 落单文件、站 7 落目录（顺带验目录展开语义）
+   182	        _write(_mk_v2(2), os.path.join(td, "s2.json"))
+   183	        batch = os.path.join(td, "batch")
+   184	        os.makedirs(batch)
+   185	        _write(_mk_v2(7), os.path.join(batch, "s7.json"))
+   186	        r = _run_ctl(["gate", "--results",
+   187	                      os.path.join(td, "s2.json"), batch], cwd=td)
+   188	        _ck("H3 两合法 v2 站 -> rc=0", r.returncode == 0,
+   189	            f"rc={r.returncode} {_tail(r.stderr)}")
+   190	        try:
+   191	            agg = json.loads(r.stdout)
+   192	        except json.JSONDecodeError:
+   193	            agg = {}
+   194	        _ck("H3 聚合输出 policy_verdict=PASS", agg.get("policy_verdict") == "PASS",
+   195	            _tail(r.stdout))
+   196	        _ck("H3 聚合输出 aggregate_outcome=PASS 且 2 必报站齐",
+   197	            agg.get("aggregate_outcome") == "PASS"
+   198	            and agg.get("counts", {}).get("required_total") == 2,
+   199	            _tail(r.stdout))
+   200	        _ck("H3 dashboard 契约字段在（generated_at+policy_verdict）",
+   201	            bool(agg.get("generated_at")) and "policy_verdict" in agg,
+   202	            _tail(r.stdout))
+   203	
+   204	
+   205	def test_h3_gate_malformed_result_blocked_exit_2():
+   206	    with tempfile.TemporaryDirectory(prefix="wq_h3b_") as td:
+   207	        _write(_mk_v2(2), os.path.join(td, "s2.json"))
+   208	        bad = _mk_v2(3, run_id="run-gate-cli-2")
+   209	        bad.pop("identity")        # 残缺：无身份绑定
+   210	        bad.pop("artifacts")       # 残缺：PASS 无工件凭证
+   211	        _write(bad, os.path.join(td, "bad.json"))
+   212	        r = _run_ctl(["gate", "--results", os.path.join(td, "s2.json"),
+   213	                      os.path.join(td, "bad.json")], cwd=td)
+   214	        _ck("H3 残缺结果 -> rc=2", r.returncode == 2,
+   215	            f"rc={r.returncode} {_tail(r.stderr)}")
+   216	        try:
+   217	            agg = json.loads(r.stdout)
+   218	        except json.JSONDecodeError:
+   219	            agg = {}
+   220	        _ck("H3 残缺结果聚合 BLOCKED（schema violation 计入 reason）",
+   221	            agg.get("aggregate_outcome") == "BLOCKED"
+   222	            and "schema violation" in (agg.get("reason") or ""),
+   223	            _tail(r.stdout))
+   224	
+   225	
+   226	def test_h3_gate_missing_required_station_blocked_exit_2():
+   227	    with tempfile.TemporaryDirectory(prefix="wq_h3c_") as td:
+   228	        _write(_mk_v2(2), os.path.join(td, "s2.json"))
+   229	        r = _run_ctl(["gate", "--results", os.path.join(td, "s2.json"),
+   230	                      "--required", "2,7"], cwd=td)
+   231	        _ck("H3 required 站缺报（只报 2 缺 7）-> rc=2", r.returncode == 2,
+   232	            f"rc={r.returncode} {_tail(r.stderr)}")
+   233	        try:
+   234	            agg = json.loads(r.stdout)
+   235	        except json.JSONDecodeError:
+   236	            agg = {}
+   237	        _ck("H3 分母缩水 BLOCKED（denominator_shrinkage）",
+   238	            agg.get("aggregate_outcome") == "BLOCKED"
+   239	            and "denominator_shrinkage" in "".join(agg.get("reasons", [])),
+   240	            _tail(r.stdout))
+   241	
+   242	
+   243	def test_h3_gate_exit_code_map_conditional_and_error():
+   244	    with tempfile.TemporaryDirectory(prefix="wq_h3d_") as td:
+   245	        _write(_mk_v2(4, verdict="CONDITIONAL"), os.path.join(td, "cond.json"))
+   246	        r = _run_ctl(["gate", "--results", os.path.join(td, "cond.json")],
+   247	                     cwd=td)
+   248	        _ck("H3 CONDITIONAL -> rc=1（软条件绝不上绿）", r.returncode == 1,
+   249	            f"rc={r.returncode} {_tail(r.stderr)}")
+   250	        r2 = _run_ctl(["gate", "--results", os.path.join(td, "nope.json")],
+   251	                      cwd=td)
+   252	        _ck("H3 输入不可读 -> rc=3（ERROR 与 BLOCKED 分流）",
+   253	            r2.returncode == 3, f"rc={r2.returncode} {_tail(r2.stderr)}")
+   254	
+   255	
+   256	if __name__ == "__main__":
+   257	    tests = [v for k, v in sorted(globals().items())
+   258	             if k.startswith("test_h") and callable(v)]
+   259	    print(f"== F4 三洞回归夹具（{len(tests)} 组）==")
+   260	    for t in tests:
+   261	        print(f"-- {t.__name__}")
+   262	        try:
+   263	            t()
+   264	        except Exception as exc:  # 测试自身崩溃=失败（不静默）
+   265	            import traceback
+   266	            traceback.print_exc()
+   267	            FAIL_N += 1
+   268	            FAILURES.append(f"{t.__name__} (CRASH: {exc!r})")
+   269	    print("=" * 40)
+   270	    print(f"RESULT: PASS={PASS_N} FAIL={FAIL_N}")
+   271	    if FAILURES:
+   272	        for f in FAILURES:
+   273	            print(f"  ✗ {f}")
+   274	    sys.exit(1 if FAIL_N else 0)

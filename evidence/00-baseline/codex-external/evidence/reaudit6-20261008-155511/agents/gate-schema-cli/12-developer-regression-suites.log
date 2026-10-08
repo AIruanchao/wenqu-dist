@@ -1,0 +1,175 @@
+===== system/tests/test_gate_schema_hardening.py =====
+$ env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_gate_schema_hardening.py
+== F4 三洞加固回归（gate/schema/traceability，6 组）==
+-- test_f4_gate001_legal_v2_full_chain_pass_dashboard_accept
+  ✓ F4-GATE-001 合法 v2 双站聚合 PASS
+  ✓ F4-GATE-001 technical_eligible=true
+  ✓ F4-GATE-001 站点登记 schema_valid=true
+  ✓ F4-GATE-001 dashboard 对合法聚合 ACCEPT（ok + PASS）
+  ✓ F4-GATE-001 分母缩水聚合 → dashboard 透传 BLOCKED
+-- test_f4_gate001_mirror_jsonschema_consistency
+  ✓ F4-GATE-001 镜像↔schema 一致性（41 样例零分歧）
+  ✓ F4-GATE-001 边界：>64 缩水镜像仍必拒（schema 级联外）
+  ✓ F4-GATE-001 边界记录：>64 缩水 schema 侧不判（不误拒合法大分母）
+-- test_f4_gate001_schema_invalid_input_blocked
+  ✓ F4-GATE-001 残缺 v2 被正式 schema 拒绝（复刻前提）
+  ✓ F4-GATE-001 镜像校验器同判残缺 v2 非法
+  ✓ F4-GATE-001 残缺 v2 聚合 BLOCKED
+  ✓ F4-GATE-001 technical_eligible=false
+  ✓ F4-GATE-001 记 malformed（schema_invalid）
+  ✓ F4-GATE-001 github 状态不上绿
+-- test_f4_schema001_five_cross_field_rules
+  ✓ F4-SCHEMA-001 五规则 14 样例（schema+镜像谓词零分歧）
+-- test_f4_schema001_station_rules_via_aggregator_mirror
+  ✓ F4-SCHEMA-001 #2 缩水 v2 聚合 BLOCKED
+  ✓ F4-SCHEMA-001 #5 station TIMEOUT+CONDITIONAL 聚合 BLOCKED
+-- test_f4_trc001_semantic_tamper_detected
+  ✓ F4-TRC-001 基线方案 --check rc=0（冻结内容==方案原文）
+  ✓ F4-TRC-001 篡改注入文本 → rc=2（语义漂移必红）
+  ✓ F4-TRC-001 篡改期望文本 → rc=2（语义漂移必红）
+================================================================
+RESULT: PASS=20 FAIL=0
+ALL GREEN
+exit_code=0
+===== system/tests/test_cli_install_ci.py =====
+$ env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_cli_install_ci.py
+== F4 三洞回归夹具（7 组）==
+-- test_h1_install_body_wenquctl_green_and_missing_cli_red
+  ✓ H1 隔离安装 rc=0
+  ✓ H1 安装日志含安装体 wenquctl 验证行
+  ✓ H1 安装体 <prefix>/bin/wenquctl --help rc=0（断链已修）
+  ✓ H1 删 wenqu_core/cli.py 后安装 rc!=0（安装体断链即安装失败）
+  ✓ H1 失败原因指向 wenquctl 断链
+-- test_h1_source_tree_wenquctl_runs
+  ✓ H1 源树 wenquctl --help rc=0（双布局解析不伤源树运行）
+-- test_h2_acceptance_red_when_adversarial_and_hardening_deleted
+  ✓ H2 删双测文件后 acceptance rc!=0
+  ✓ H2 P1d 红（adversarial 被删必红）
+  ✓ H2 P1e 红（infra hardening 被删必红）
+-- test_h3_gate_exit_code_map_conditional_and_error
+  ✓ H3 CONDITIONAL -> rc=1（软条件绝不上绿）
+  ✓ H3 输入不可读 -> rc=3（ERROR 与 BLOCKED 分流）
+-- test_h3_gate_malformed_result_blocked_exit_2
+  ✓ H3 残缺结果 -> rc=2
+  ✓ H3 残缺结果聚合 BLOCKED（schema violation 计入 reason）
+-- test_h3_gate_missing_required_station_blocked_exit_2
+  ✓ H3 required 站缺报（只报 2 缺 7）-> rc=2
+  ✓ H3 分母缩水 BLOCKED（denominator_shrinkage）
+-- test_h3_gate_two_legal_v2_pass_exit_0
+  ✓ H3 两合法 v2 站 -> rc=0
+  ✓ H3 聚合输出 policy_verdict=PASS
+  ✓ H3 聚合输出 aggregate_outcome=PASS 且 2 必报站齐
+  ✓ H3 dashboard 契约字段在（generated_at+policy_verdict）
+========================================
+RESULT: PASS=19 FAIL=0
+exit_code=0
+===== system/tests/test_wenqu_adversarial.py =====
+$ env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_wenqu_adversarial.py
+/tmp/wenqu-reaudit6-gate-schema-cli-b259dac.6p9i8M/system/tests/test_wenqu_adversarial.py:551: DeprecationWarning: FormatChecker.cls_checks is deprecated. Call FormatChecker.checks on a specific FormatChecker instance instead.
+  @FormatChecker.cls_checks("date-time")
+  ok  #1 伪签名+缺绑定 → envelope 封闭+HMAC 验签
+  ok  #2 跨类型 payload → 判别封闭+API 路由
+  ok  #3 前置自报字符串 → bool 客观化
+  ok  #4 绑定绕过 → watermark 强制 40-hex+policy/ruleset exact
+  ok  #5 risk 无 CAS → action 类授权同样 CAS
+  ok  #6 双轴洗白 → 非 COMPLETED 无完成态+P0/P1 机器拒绝
+  ok  #7 控制事件直写 → append 守卫+重放验封
+  ok  #8 第二正源 → APPROVAL_CONSUMED 事件为唯一正源
+  ok  #9 自产事件全过 run-event-v2（FormatChecker）
+  ok  #10 action saga（授权链/outbox/receipt 分级对账/重放）
+  ok  #11 F4-AUTH-001 无授权提交 → 审批消费+PROVISIONAL+对账门
+  ok  K：wenquctl CLI 端到端链
+
+P0-4 对抗回归: 12 PASS / 0 FAIL
+exit_code=0
+===== system/tests/test_infra_hardening.py =====
+$ env PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_infra_hardening.py
+== 基础设施加固对抗自测（19 组）==
+-- test_install_component_damage_fails_closed
+  ✓ F install 组件损坏后 rc≠0（doctor 不再被 || true 吞掉）
+  ✓ F install 报组件缺失中止
+-- test_install_missing_core_module_fails_closed
+  ✓ F install 删 wenqu_pipeline 后 rc≠0（fail-closed）
+  ✓ F install 明确报 wenqu_pipeline 导入失败
+-- test_install_normal_succeeds
+  ✓ F install 完好安装 rc=0
+  ✓ F install 全模块验证输出（含 wenqu_pipeline 语义）
+  ✓ F install tar 管道保 exec 位（bin/wenqu 可执行）
+-- test_p03_empty_required_stations_blocked
+  ✓ P0-3 空 required_stations 仍 BLOCKED（真空 PASS 拒绝）
+-- test_p03_legacy_fields_backcompat
+  ✓ P0-3 legacy 双站 PASS 聚合为 PASS
+  ✓ P0-3 legacy 条目标记 input_version=legacy
+  ✓ P0-3 legacy 同站冲突证据 -> BLOCKED
+-- test_p03_v2_full_chain_aggregator_to_dashboard_accept
+  ✓ P0-3 v2 双站 PASS 聚合为 PASS
+  ✓ P0-3 聚合输出含 generated_at（dashboard 强制）
+  ✓ P0-3 聚合输出含 policy_verdict（dashboard 强制）
+  ✓ P0-3 v2 站点登记为 required（station_id 键）
+  ✓ P0-3 dashboard read_gate_aggregate 对聚合输出 ACCEPT
+-- test_p03_v2_hard_semantics_fail_closed
+  ✓ P0-3 v2 policy FAIL -> BLOCKED
+  ✓ P0-3 v2 NOT_APPLICABLE -> CONDITIONAL（绝不上绿）
+  ✓ P0-3 v2 execution TIMEOUT+声称 PASS -> 整站硬失败（铁律2 纵深）
+  ✓ P0-3 v2 identity 缺失 -> BLOCKED（missing_field:identity）
+  ✓ P0-3 v2 commit_sha 与 target_sha 不一致 -> BLOCKED
+-- test_p05_cas_hardlink_preplant_must_be_rejected
+  ✓ P0-5 CAS hardlink 预置被拒（st_nlink>1）
+  ✓ P0-5 CAS contains() 对 hardlink 返回 False
+  ✓ P0-5 CAS get() 对 hardlink 拒绝
+-- test_p05_cas_interrupted_write_leaves_no_poison
+  ✓ P0-5 CAS 中途写失败向上抛出
+  ✓ P0-5 CAS 中途失败后最终路径不存在
+  ✓ P0-5 CAS 中途失败后无 .tmp 残留
+-- test_p05_cas_poison_file_selfheals
+  ✓ P0-5 CAS 毒文件重试 put 自愈成功
+  ✓ P0-5 CAS 自愈后 get 返回完整证据
+  ✓ P0-5 CAS 完好幂等 put 成功
+-- test_p05_cas_shard_symlink_swap_attack_must_fail
+  ✓ P0-5 CAS shard symlink 替换攻击被拒（IntegrityError）
+  ✓ P0-5 CAS 攻击后根外目录零写入
+-- test_p05_cas_sigkill_midwrite_retry_recovers
+  ✓ P0-5 CAS 子进程写 tmp 已出现（攻击窗口成立）
+  ✓ P0-5 CAS SIGKILL 后最终路径无半写毒文件
+  ✓ P0-5 CAS SIGKILL 后重试 put 成功
+  ✓ P0-5 CAS 重试后 get 完整返回
+-- test_p05_runner_allowlist_rejects_bin_sh
+  ✓ P0-5 Runner allowlist 拒绝 /bin/sh -c
+  ✓ P0-5 Runner allowlist 放行表内命令
+  ✓ P0-5 Runner 默认无 allowlist 保持宽松（兼容既有调用方）
+  ✓ P0-5 Runner 旧参数 allowed_executables 仍有效
+-- test_p05_runner_env_whitelist_default
+  ✓ P0-5 Runner 默认剥除非白名单环境变量
+  ✓ P0-5 Runner 白名单核心键在位（PATH/HOME）
+  ✓ P0-5 Runner env_passthrough 显式放行生效
+  ✓ P0-5 Runner inherit_env=True 恢复完整继承（兼容口）
+-- test_p05_runner_setsid_descendant_marker_must_fail
+  ✓ P0-5 Runner setsid 攻击被记 timed_out
+  ✓ P0-5 Runner setsid 孙进程被进程树击杀（marker 未写）
+-- test_p06_duplicate_returns_db_hash_and_head_is_chain_tip
+  ✓ P0-6 A/B 均为新插入
+  ✓ P0-6 重试 A 为 duplicate
+  ✓ P0-6 重试 A 返回 DB 中 A 的真实 hash（非按当前 head 重算）
+  ✓ P0-6 重试未新增行（DB 恰 2 条）
+  ✓ P0-6 返回的 hash 存在于 DB
+  ✓ P0-6 head()==最后一条（链头 B）的 hash
+  ✓ P0-6 verify_chain 全链 ok
+-- test_p07_mode_policy_source_exec_bit
+  ✓ P0-7 manifest 逐文件记录 mode
+  ✓ P0-7 0755 无扩展可执行文件保持可执行（0555）
+  ✓ P0-7 0644 带 shebang 的 .py 不强加 exec（0444）
+  ✓ P0-7 0755 .sh 保持可执行
+  ✓ P0-7 0644 .json 保持 0444
+-- test_p07_mode_tamper_detected_by_verify
+  ✓ P0-7 mode 篡改被 verify 检出（VerifyError.mode_drifted）
+  ✓ P0-7 恢复 mode 后 verify 通过
+-- test_p07_upgrade_selfcheck_rolls_back_via_relative_link
+  ✓ P0-7 v1 部署成功
+  ✓ P0-7 current 为相对链接（非绝对）
+  ✓ P0-7 cwd≠deploy 根时 previous 相对链接解析为存在目录（对抗旧缺陷）
+  ✓ P0-7 v2 自检失败抛 DeployError（含回滚+再验记录）
+  ✓ P0-7 回滚后 current 指回 v1（cwd 无关）
+  ✓ P0-7 回滚后 v1 自检仍通过（回滚目标健康）
+========================================
+RESULT: PASS=66 FAIL=0
+exit_code=0

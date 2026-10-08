@@ -1,0 +1,15 @@
+========================================================================
+§20 验收 ID 专属测试——UI 族 7 条（真实注入/真实断言/负例红探针）
+repo: /private/tmp/wenqu-reaudit7-20261008-204822  HEAD: d32c859f9043798d9e8a4984e8f57aa64567e33c
+方法级别: L2 HTTP+DOM（Playwright 不可用，按可用性降级）
+========================================================================
+  PASS  UI-01    test_UI_01_missing_closing_tag_fails_build_and_startup_gate
+  PASS  UI-02    test_UI_02_xss_log_and_ledger_text_does_not_execute
+  PASS  UI-03    test_UI_03_csrf_fake_origin_and_text_plain_writes_rejected
+  PASS  UI-04    test_UI_04_gate_red_with_high_other_scores_is_overall_blocked
+  PASS  UI-05    test_UI_05_accepted_other_and_quarantine_drilldown
+  PASS  UI-06    test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected
+  PASS  UI-07    test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources
+------------------------------------------------------------------------
+RESULT: PASS=7 FAIL=0
+证据工件: evidence/04-unit-property-mutation/ac-ui-family.json

@@ -1,0 +1,2 @@
+INTEGRITY-FAIL: 方案文件 sha256 与冻结值不符: actual=866c145800422deac41263f76d360f03793ed61ba0a6b52accd6138fac228206 frozen=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+INTEGRITY-FAIL: §25.1 映射交叉校验不一致: §25.1 前缀 GATE 四列元数据与冻结值不符: 方案=('REQ-EVID-TAMPER/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after') 冻结=('REQ-EVID-001/AC-EVID-FAIL-CLOSED', 'W2/W3A/W3B', 'raw rc、CAS、before/after')

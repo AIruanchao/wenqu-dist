@@ -1,0 +1,957 @@
+===== 646,713 =====
+# 9. 工作包 W0：现场快照与危险面隔离
+
+## 9.1 目标
+
+在不破坏现有状态的前提下，建立可恢复基线并切断继续制造不可信合流、写入和“良好”声明的通道。
+
+## 9.2 依赖与禁止并行项
+
+- 无前置依赖。
+- 未完成 writer 盘点和快照前，禁止 W5 迁移、W7 部署、任何生产配置修改。
+- 当前 gatedoctor 已红，修管线必须走显式 maintenance lane；不得临时改绿 gatedoctor。
+
+## 9.3 动作
+
+1. 建立只读 baseline bundle：
+   - 所有相关 Git HEAD、status、remote；
+   - runtime、正源、Skill、policy、plist、crontab、脚本 SHA256；
+   - 进程 PID/命令/启动时间/打开文件；
+   - branch protection/ruleset JSON；
+   - JSONL/SQLite/waiting/EXM/日志逐文件哈希；
+   - 磁盘、权限、TCC、launchctl 状态。
+2. 为所有写者建立 inventory：写入对象、锁、调度、凭据、owner、是否可停。
+3. 保存运行体热补 diff；逐项审查后再进入正源，禁止把整个 runtime 反向覆盖 Git。
+4. 建立 maintenance authorization：绑定范围、TTL、允许动作，明确禁止生产合流和生产写。
+   - 仅允许方案所列代码仓、路径和离线测试动作；
+   - 不得在同一 PR 同时修改 maintenance policy 和受保护实现；
+   - 禁止 merge、部署、生产写、规则降级和基线抬升；
+   - 需要用户授权、独立 S5、独立事件账本和到期自动关闭。
+5. **经用户明确授权后**：
+   - 停止并卸载旧 auto-merge 调度；
+   - 撤销该进程可用的 admin/bypass 凭据；
+   - 暂停 dashboard `/api/decide` 写入；
+   - 将“87/良好”标记为算法失效、不得用于准入；
+   - 暂停文本 `[skip-audit]` 绕过。
+6. 本机磁盘 90%：先做只读空间归因；任何删除、压缩、迁移日志或证据须另行批准并保留校验清单。
+7. 确认 quality-policy/quality-system 的正式 `repo_id/default branch/owner/build/安装/状态` 边界；无法确认时 W2 以后保持 BLOCKED。
+
+## 9.4 出口/DoD
+
+- baseline bundle 有 manifest 和总 SHA；
+- 已识别所有 code/state/evidence/config/secret writer；
+- 运行态和静态扫描均证明旧自动合流无法继续执行；
+- 进程不再拥有 admin/bypass token；
+- dashboard、CLI、Gate 对外统一显示 BLOCKED；
+- 无现有状态、日志或脏改动被覆盖。
+- maintenance lane 机器策略已证明不能合流、部署或生产写；quality-policy 唯一正源已确认。
+
+## 9.5 证据
+
+```text
+evidence/W0/baseline-manifest.json
+evidence/W0/processes.txt
+evidence/W0/branch-protection-before.json
+evidence/W0/runtime-source-diff.patch
+evidence/W0/writer-inventory.json
+evidence/W0/containment-verification.json
+```
+
+## 9.6 回滚
+
+危险自动化的回滚目标只能是“保持关闭、人工受保护流程”，不得恢复旧 auto-merge、admin bypass 或假绿健康算法。
+
+## 9.7 停等点
+
+停止进程、卸载调度、撤销凭据、改 branch protection、改 live dashboard 均须用户逐项授权。
+
+---
+
+===== 714,781 =====
+# 10. 工作包 W1：契约、Schema、威胁模型、TLA 与红探针
+
+## 10.1 产物
+
+```text
+docs/specs/wenqu-vNext-contract.md
+docs/specs/bugscan-v2-contract.md
+docs/security/threat-model.md
+docs/adr/ADR-001-event-store.md
+docs/adr/ADR-002-approval-security.md
+docs/adr/ADR-003-trusted-runner.md
+schemas/run-event-v2.schema.json
+schemas/station-result-v2.schema.json
+schemas/finding-event-v2.schema.json
+schemas/evidence-v2.schema.json
+schemas/approval-v2.schema.json
+schemas/health-v2.schema.json
+policies/default-policy.yaml
+specs/WenquPipeline.tla
+specs/WenquPipeline.cfg
+docs/traceability/REQ-AC-IMP-TEST-EVID.md
+tools/check-governance-consistency.py
+tests/red_probes/
+```
+
+治理文档必须由同一 machine registry/schema 生成或校验，修复当前漂移：
+
+- one-shot front matter 写“八类”但正文实际九类，以及“正式现役”与当前 BLOCKED 冲突；
+- one-shot 的 L4 直推/force-with-lease 绕闸规则；
+- bug skill front matter v1.6 与正文 v2.0 不一致；
+- “7 项”实际 12 项；
+- fork8/36 项验收与现役 fork24/53 不一致。
+
+`DOC-*` 红探针必须在 CI 阻断版本、枚举、数量、状态和实际 registry 不一致。
+
+## 10.2 必须冻结的契约
+
+- 七段、八站、九类停等的唯一枚举；
+- 执行状态、策略结果、进程退出码；
+- Finding 与 ACCEPTED_RISK 状态转换；
+- required 证据字段和 TTL；
+- 风险分级、不可豁免级别；
+- exact-SHA 合流条件；
+- 审批 actor、scope、nonce、有效期和消费规则；
+- heartbeat、alert、backup、deployment 结果 envelope；
+- 兼容版本和迁移策略。
+- `severity` 与 `priority` 分离：默认 `CRITICAL→P0`、`HIGH→P1`；资金、权限、租户、数据损坏、合流绕闸可由版本化 policy 升级；自动流程不得降级；P0/P1 不得风险接受。
+- CONDITIONAL 默认 technical eligibility=false。只有独立 risk authorization 精确绑定 finding 集、severity、理由、补偿控制、scope/environment/policy/ruleset/input watermark/state_version/TTL 后，才能铸造 `AUTHORIZED_CONDITIONAL` attestation；任何 merge/release/prod-write/DDL 仍需另一个对应判别 payload 的 exact action authorization。两类授权分别校验、分别消费；required context 必须显式标注条件放行，任一机制未完整落地时不得动作。
+- 必需漏洞源、辅助源、离线快照签名者和 TTL，以及单源不可用时的状态。
+- 性能 endpoint 分母、并发、预热、最小样本/时长、p95/p99/错误率/吞吐与相对退化阈值、baseline 晋升审批。
+- check freshness、evidence TTL、scheduler due window 和 catch-up 规则的具体机器参数。
+- RPO/RTO 数值：本机已提交事件与 outbox 默认目标 RPO=0，恢复 RTO 由项目冻结（建议不高于 30 分钟），offsite RPO 由数据敏感度和授权决定；未冻结、未实测不得进入 W9。
+
+## 10.3 验收
+
+- JSON Schema 对所有示例和反例给出确定结果；
+- 无自由 status、无未定义转换、无“有字段即可 PASS”的弱约束；
+- TLC 在约定状态空间内零 invariant violation；
+- 威胁→控制→测试逐项映射，无孤立威胁；
+- 需求→AC→实现点→测试→证据全部双向可追踪；
+- 所有当前假绿先在旧实现下复现并留证，再锁为新实现回归门。
+
+## 10.4 回滚
+
+Schema 在观察期采用 expand/contract；新字段先 additive，旧 reader 保持兼容。禁止用回滚删除已写事件或缩小验证规则。
+
+---
+
+===== 782,840 =====
+# 11. 工作包 W2：Trusted Runner、事件账本、授权与 CAS
+
+## 11.1 推荐实现边界
+
+以下路径均为**建议落在 `/Users/maccc/Documents/wenqu-dist` 仓内的相对路径**；W1 ADR 必须先冻结 owner repo、默认分支、owner、build 入口和安装目的地。若 W0 找到已有正式 quality-policy 正源，可将 policy/Skill 移入该仓，但 executable core 只能有一份，禁止两仓复制同名实现。
+
+```text
+system/wenqu_core/models.py
+system/wenqu_core/store.py
+system/wenqu_core/state_machine.py
+system/wenqu_core/approvals.py
+system/wenqu_core/runner.py
+system/wenqu_core/evidence.py
+system/wenqu_core/outbox.py
+system/bin/wenquctl
+```
+
+Shell 只允许作为薄入口，不再承担状态、JSON 拼接、授权和聚合逻辑。
+
+## 11.2 实现要求
+
+1. 命令基于目标 commit 的不可变源快照执行；需要 npm install/build/test 写入时使用独立 ephemeral overlay/scratch 或一次性隔离 worktree，结束后验证源内容未变化，禁止复用共享脏仓。
+2. argv 数组、cwd、env allowlist、timeout、资源限额均冻结并入证据。
+3. runner 捕获真实退出码和原始 stdout/stderr；normalizer 只消费 runner 记录。
+4. CAS 写入使用私有临时文件、fsync、原子 rename；拒绝链接和根外路径。
+5. SQLite 写入使用事务、幂等键和 CAS；状态与 outbox 原子提交。
+6. `wait-clear` 改为追加 `RESUMED/CLOSED/SUPERSEDED` 事件，永不删除历史。
+7. 当前两条 stale WAITING 必须逐条读取最新任务状态，由用户裁定；不得脚本自动关闭。
+8. hash chain 只宣称 tamper-evident，不宣称抵御同 UID/root 修改；checkpoint 应锚定到独立只读位置或远端受控存储。
+9. SQLite 备份使用 backup API 或 `VACUUM INTO` 一致性快照，禁止直接拷贝 DB/WAL 后声称可恢复。
+10. W1 必须冻结 runner 后端：优先专用低权限账号上的 ephemeral VM/container；默认无 Keychain、无 SSH agent、无生产凭据、网络 deny-by-default，repo/state/CAS 按最小权限挂载，并限制 CPU、内存、进程数、输出/文件大小。
+11. timeout/cancel 必须终止完整 process group/cgroup，验证无子孙进程、后台写者或 fork bomb 残留。
+
+## 11.3 验收矩阵
+
+- 100 writer × 100 events：零丢失、零重复、唯一序列；
+- 事务前/中/后 kill -9：恢复后要么全提交、要么全无；
+- 任意非法转换、任意自由 status、路径字符、NUL、超长 ID 均拒绝；
+- 无授权、过期授权、重复授权、错误 scope、旧 version、错误 SHA/env 均拒绝；
+- approval 消费与 resume 原子一致；
+- evidence 改字节、替换 symlink、hardlink、截断、空文件均阻断；
+- 磁盘满、只读、时钟回拨、进程重放、outbox provider 失败均不丢事件；
+- 从 events 全量重放得到的投影与在线投影完全相同；
+- 一致性备份恢复演练通过并校验 hash chain。
+
+## 11.4 出口/DoD
+
+- 旧 `pipeline-state.sh` 只能调用新核心或进入只读兼容模式；
+- 不再通过路径拼接 task ID；
+- pending-watch 消费 versioned JSONL/API，不解析空格文本；
+- malformed 行使本轮 ERROR，不得静默 continue；
+- 通知 attempt、delivery、acknowledgement 分开计数。
+
+## 11.5 回滚
+
+观察期内 DB migration 只 additive。切换后如果已有 v2 新事件，只允许回滚到兼容 v2 的二进制或前向修复，禁止恢复旧快照覆盖新事件。
+
+---
+
+===== 841,976 =====
+# 12. 工作包 W3A/W3B：源闸基础件、聚合、收敛、合流与 CI
+
+依赖边界必须在代码、包和 CI job 上物理拆开：
+
+- **W3A（源闸基础件，依赖 W2）：** 实现 §12.2 的 fresh base 获取、merge-base/diff、affected/full test 执行、真实 rc 捕获、exact-SHA/provenance 校验和规范化 `source-gate-result.json`；它不读取八站汇总、不发布 Required Gate、不执行合流。
+- **W3B（最终控制面，依赖 W3A+W6A～W6D）：** 实现 §12.1、§12.3～§12.8 的独立 aggregator、收敛、required contexts 和 merge/release 控制。W3B 只能消费 W3A 结果与八站结果，W6 不得反向消费 W3B。
+
+## 12.1 Gate 聚合规则
+
+Gate 对外聚合只给：
+
+```text
+PASS | CONDITIONAL | BLOCKED
+```
+
+内部保留统一双轴，不再把执行状态混入 policy verdict：
+
+```text
+execution_status = COMPLETED | ERROR | BLOCKED | TIMEOUT | CANCELLED
+policy_verdict = PASS | FAIL | CONDITIONAL | NOT_APPLICABLE | NOT_EVALUATED
+```
+
+只有 policy 明确允许的 `COMPLETED+NOT_APPLICABLE` 才能不阻断；SKIP、UNKNOWN、空输出、missing、stale 不属于 N/A。CONDITIONAL 的 required-check 行为严格遵循 §6.1，不得擅自当 PASS。
+
+## 12.2 修复 iron-gate / zero-rework / preflight
+
+1. base ref 必须 fresh fetch 后验证存在；浅克隆不完整、fetch 失败即 ERROR。
+2. 任一 `git diff/show/merge-base` 失败必须传播；禁止把空 stdout 当“无变化”。
+3. 无测试仅在冻结 scope 机器证明为纯非行为变更时才可 N/A，否则执行全量测试或 BLOCKED。
+4. 缺 node_modules、测试器、凭据、网络是 ERROR，不是 SKIP。
+5. `wenqu-preflight` 去 ERP 硬编码，使用 project adapter。
+6. 禁止公共固定 `/tmp` 文件；使用权限 0700 的私有临时目录。
+7. warning 是否阻断必须由版本化 policy 静态声明。
+8. affected Gate 和 full Gate 分开；影响图未知时升级 full，不得缩小范围。
+
+## 12.3 收敛验证器 v3
+
+必须实现：
+
+- `N` 为正整数且有上限；
+- 超过 N+1 为 BLOCKED，转人类裁定；
+- evidence SHA 必填；
+- actual exit、expected exit 和 assertion verdict 分离；
+- findings 从 finding events 计算；
+- `content_findings` 不可由调用者覆盖；
+- `flips.json` 废止，裁定改为带身份/范围/TTL/签名的 adjudication event；
+- source diversity 以 detector/version/input/charter/executor 指纹判定，不信任 S1–S5 标签；
+- fingerprint 变化后旧轮失效；
+- OPEN、FIXING、FIXED_PENDING_VERIFY、OTHER、过期 ACCEPTED_RISK 均阻断“清零”；
+- verifier 必须重验 CAS hash、identity、TTL、required 站集合。
+
+本轮已证明的五个负例必须永久固化：
+
+1. artifact exit 9 自报零发现；
+2. findings=9、content_findings=0、自处分洗白；
+3. 证据裸文件名实际是目录外 symlink；
+4. 空 rounds + `--n -1`；
+5. FAST 三轮超过 N+1 仍收敛。
+
+## 12.4 合流策略（默认无本地写控制器）
+
+最优默认是删除本地 auto-merge 写控制器，使用 GitHub 原生 merge queue/auto-merge 加 required ruleset；本机只读观察和告警。以下控制器要求只适用于平台能力确实不足、并经独立 ADR 批准的最小权限 GitHub App fallback，绝不再使用 shell daemon、个人 `gh` 或 admin token。
+
+1. 默认关闭；永久移除 `--admin` 和自动修改 PR 分支能力。
+2. PASS 路径首选由已审计的 exact action authorization 触发 GitHub merge queue；CONDITIONAL 禁用 native auto-merge，只允许专用最小权限 App 在动作前重验并 enqueue/merge。
+3. 只认 branch protection/ruleset 实时枚举出的 required checks；名称精确匹配，禁止子串匹配。
+4. 每个 check 必须：
+   - SUCCESS；
+   - 对应当前 head SHA/merge-group SHA；
+   - 在 freshness 窗口；
+   - 来自 policy 钉扎的 GitHub App/integration ID、受保护 workflow/ref 和可信 details URL；仅名称相同不可信。
+5. PR 必须非 draft、CLEAN、mergeable、审批/CODEOWNERS 满足、无 change request。
+6. merge 前重新读取 head/base/ruleset，防 TOCTOU。
+   - 优先只使用 GitHub merge queue；fallback controller 必须调用支持 expected head SHA/等价原子前置条件的 API，无法原子约束时不得直接 merge。
+7. PENDING/SKIPPED/NEUTRAL/CANCELLED/UNSTABLE/DIRTY/UNKNOWN/API 错误全部不合流。
+8. GitHub 429、超时、空 JSON 后断路和告警，不无限重试。
+9. break-glass 只能由人对精确 PR+SHA+动作执行一次性、短 TTL 操作；自动程序既不持有也不能消费 bypass/admin 权限。
+
+## 12.5 CI Required Gate
+
+新增稳定 context：
+
+```text
+Bugscan Required Gate
+Wenqu Required Gate
+Action Authorization Gate
+```
+
+`Bugscan Required Gate` 聚合八站。问渠内部 S7 决策只消费 exact-SHA 的 S1～S6、`Bugscan Required Gate` 和其他冻结的 release inputs；`Wenqu Required Gate` 是 S7 的唯一外部输出，绝不能作为 S7 输入或被 S7 递归聚合。`Action Authorization Gate` 独立表达 §6.1 的 exact action authorization，不能由前两个技术 Gate 推导。三者必须由默认分支固定版本或外部受控 App 发布，冻结 GitHub App/integration ID、workflow commit、expected head/merge-group SHA；PR 不能通过修改自己的 workflow/manifest 自证通过。workflow/action 均钉 commit SHA，workflow 目录受 CODEOWNERS 保护。
+
+Ruleset 必须实际启用 CODEOWNERS review，而不是仅存在 CODEOWNERS 文件。聚合检查对普通 PR、fork PR、synchronize、reopened、merge_group、runner 不可用和 station result 缺失都必须产生明确终态；外部 aggregator 超时后发布 FAILURE/BLOCKED，不能永久 Pending 或根本不生成 check。
+
+经用户批准后，分支保护至少 required：
+
+```text
+Fast (lint+tsc)
+Bugscan Required Gate
+Wenqu Required Gate
+Action Authorization Gate
+```
+
+删除：
+
+- `[skip-audit]`；
+- `continue-on-error`；
+- 工具失败后 warning+success；
+- 依赖“合流后 master 再兜底”的前置漏洞；
+- one-shot Skill 中“10 分钟合不上就 L4 直推”和 `force-with-lease` 回滚表述。
+
+## 12.6 验收
+
+| 场景 | 期望 |
+|---|---|
+| Fast SUCCESS + Security FAILURE | 禁止合流 |
+| 无 Fast + Gate FAILURE | 禁止合流 |
+| required check 缺失/旧 SHA/同名伪造 | 禁止合流 |
+| PR 修改 workflow 试图放行自己 | 外部聚合仍阻断 |
+| head 在聚合后变化 | 旧结论失效 |
+| 技术 Gate 全绿但 Action Authorization Gate 缺失/旧 SHA | 不合流、不发布 |
+| CONDITIONAL 技术 context 绿但 native auto-merge 被开启 | doctor FAILURE，禁止 enqueue |
+| base 不存在/fetch 失败/零测试 | ERROR/BLOCKED |
+| artifact 非零真实 rc、自报零 finding | BLOCKED |
+| unsigned flip、N<=0、N+1 超限 | BLOCKED/参数错误 |
+
+对 Gate、合流、授权核心模块做 targeted mutation：删除校验、改比较符、插入 `|| true`、吞异常均必须被测试杀死；目标安全模块 mutation kill=100%，整体门槛不低于 90%。
+
+## 12.7 回滚
+
+branch protection 保存 before JSON，但任何回滚不得恢复不安全规则。新聚合器故障时保持 required checks、暂停自动合流，改走人工受保护 PR；不得关闭检查换取可合流。
+
+## 12.8 停等点
+
+修改 GitHub ruleset、凭据、merge queue 或正式启用 auto-merge，必须单独取得用户授权。
+
+---
+
+===== 977,1064 =====
+# 13. 工作包 W4：统一调度、Watchdog、Outbox 与备份
+
+## 13.1 唯一调度面
+
+每个逻辑 job 只能有一个 owner scheduler：macOS 本机任务使用 launchd，GitHub CI 使用 Actions，远端任务只使用登记的 systemd timer/cron。全局 schedule registry 记录 owner、环境、时区、due window、catch-up 和 watchdog；watchdog 必须与被监控 scheduler/release 处于不同故障域。
+
+macOS 所有 plist 只调用：
+
+```text
+~/.local/share/wenqu/current/bin/wenquctl schedule <profile>   # 七段、pending、系统健康、发布观察
+~/.local/share/wenqu/current/bin/bugscanctl schedule <profile> # 八站扫描
+```
+
+不再直接引用 `/Users/maccc/argus-assemble`、`~/.zcode/.../sentinel` 或任意工作树脚本。
+
+两类命令可共用 trusted runner、event store 和 outbox，但 run、状态机、policy 和 scheduler namespace 必须隔离，禁止 one-shot 任务写入 bugscan 状态或反之。
+
+## 13.2 结构化任务状态
+
+```json
+{
+  "job_id": "supply-chain",
+  "run_id": "...",
+  "scheduled_at": "...",
+  "started_at": "...",
+  "finished_at": "...",
+  "execution_status": "ERROR",
+  "policy_verdict": "NOT_EVALUATED",
+  "actual_exit_code": 2,
+  "commit_sha": "...",
+  "environment": "local-launchd",
+  "artifact_sha256": "...",
+  "last_success_at": "...",
+  "next_due_at": "..."
+}
+```
+
+只有同一 job/probe/station 身份与输入指纹、且证据仍在 TTL 内的 `COMPLETED+PASS` 更新对应实体的 `last_success_at`。`COMPLETED+NOT_APPLICABLE` 只能参与受保护 applicability 聚合，绝不能刷新成功时间。发现问题表达为 `COMPLETED+FAIL`，与 ERROR、BLOCKED、TIMEOUT 分开显示；watchdog 检查业务结果和 freshness，不看 PID 或日志 mtime 冒充健康。
+
+## 13.3 Pending/通知修复
+
+- `wait-list --jsonl` 带 `schema_version`；
+- producer/consumer 做契约测试；
+- malformed 一行使本轮 ERROR；
+- `notify_attempts` 只表示真实发送尝试；
+- provider 返回 receipt/message_id 才标 delivered；
+- attempts/deliveries/acknowledgements 分开；
+- 终态任务残留 wait 追加 SUPERSEDED 事件，不直接删除。
+
+## 13.4 告警 Outbox
+
+- 事务内落 outbox；
+- JSON 序列化，禁止 shell 拼接未转义内容；
+- alert_id/run_id/station/finding_id/idempotency key；
+- 指数退避、最大尝试、dead-letter；
+- CRITICAL 有独立第二通道；
+- seen 只用于通知去重，不能阻止风险重新评估；
+- 定期合成触达演练并保存 provider receipt。
+
+## 13.5 备份
+
+- DB 使用 SQLite backup API/VACUUM INTO；
+- CAS/manifest 做只读快照；
+- 备份完成后校验 hash、列目录、定期恢复演练；
+- 失败不刷新 success；
+- 不把秘密或生产敏感数据写入不受控备份；
+- 外部/offsite 备份须另行授权。
+
+## 13.6 真环境验收
+
+- `env -i`、最小 PATH/HOME；
+- launchd 真 PATH/TCC；
+- 缺 `WENQU_REPO/WENQU_DB_SSH`；
+- 睡眠/唤醒补跑、时区/DST；
+- 网络断、provider 500、registry 部分响应；
+- 日志目录只读、磁盘满、时钟偏移；
+- 进程活但功能死、PID 复用；
+- 强制 weekly/quarterly 缩时模拟；
+- 日志轮转与弃用 warning 降噪。
+
+建议增加独立 off-host dead-man 检查本机 dashboard/aggregator/alert heartbeat；若本期不建设，最终风险边界必须明确“本机、launchd 和本机网络同时失效时无法自报”。
+
+## 13.7 回滚
+
+调度升级失败时保持旧任务停用、改为人工执行新 runner；不得重新启用 fail-open 脚本。Outbox 事件必须保留并在恢复后幂等重放。
+
+---
+
+===== 1065,1122 =====
+# 14. 工作包 W5：历史账本迁移与裁定
+
+## 14.1 原则
+
+- append-only sidecar 迁移；
+- 禁止原地重写 JSONL；
+- 不伪造未知 SHA/env/scope；
+- 未知和缺字段可以完成技术导入，但以 blocker/quarantine 状态存在，发布和清零持续 BLOCKED，直至逐条裁定。
+
+## 14.2 步骤
+
+1. 对所有旧 JSONL/waiting/审批文件做逐文件和逐行 SHA 清单。
+2. 每行生成：
+   `legacy_event_id=sha256(source_file,line_no,raw_line)`。
+3. dry-run 规范化已知 alias：
+   - `ts/timestamp/time`；
+   - `env/environment`；
+   - `scope_hash/range_hash`；
+   - `rule_version/ruleset`。
+4. 未知状态、长文本状态、坏 JSON、缺身份字段进入 `legacy_quarantine`。
+5. 状态安全映射：
+   - `FIXED` → `FIXED_PENDING_VERIFY`；
+   - 无验证证据的 CLOSED → blocker，等待复核；
+   - 缺 approver/reason/expiry 的 ACCEPTED → finding 回到 `OPEN`，追加 `RISK_ACCEPTANCE_INVALIDATED` 事件并保留 invalid reason；
+   - OTHER → quarantine blocker。
+6. 单事务导入；重复运行两次结果完全相同。
+7. 输出守恒报告：源非空行数、合法 JSON 行数、事件数、候选 logical finding、fingerprint 冲突、有效导入、重复、quarantine、需重开项。481 仅是旧 dashboard 启发式折叠数，不能充当原始迁移分母。
+8. 影子 importer 对比 48 小时，要求数量守恒、全部 logical finding 可追溯、**零未解释差异**；有意状态变化必须带 `migration_decision_id`、规则和证据，不得为了零差异复刻旧错误投影。这不等同全线观察窗。
+9. 短写冻结→最终 delta import→写入 cutover watermark/writer epoch。
+10. 新写只入 v2；旧 JSONL 只读，兼容 JSONL 由 v2 exporter 生成。
+
+## 14.3 重点对账
+
+- 481 finding 的 stable fingerprint 和生命周期；
+- 24 OPEN、4 FIXING、172 FIXED、67 VERIFIED、158 CLOSED、43 ACCEPTED、13 OTHER；
+- 每项目 rounds、指纹和 evidence；
+- 两条 stale WAITING；
+- 所有豁免、审批和到期日；
+- 每个 run 的 commit/environment/scope/ruleset/data config。
+
+还必须冻结 canonical `repo_id` 映射和 fingerprint collision 表；同 fingerprint 不同项目、同旧 ID 不同内容均不得自动合并。
+
+## 14.4 出口/DoD
+
+- 数量守恒 100%；
+- 零静默丢行；
+- 任一 legacy 行可由 v2 反查原文件/行号/哈希；
+- 两次幂等迁移结果一致；
+- 无双主写、writer epoch 唯一；
+- invalid ACCEPTED 不再被算作关闭；
+- migration reconcile 报告由独立脚本复核。
+
+## 14.5 回滚
+
+切换前可废弃 v2 副本重建；切换后若有 v2 新事件，禁止旧快照覆盖。只能使用兼容 v2 的旧二进制或前向修复；必要时从 v2 生成旧格式只读投影，绝不能恢复旧 writer 造成 split-brain。
+
+---
+
+===== 1123,1265 =====
+# 15. 工作包 W6：Bug 八站 Orchestrator 与扫描器重建
+
+## 15.1 通用要求
+
+- 所有 scanner 在 exact commit 的不可变源快照上运行；构建/test 写入独立 ephemeral overlay/scratch，结束后验证源快照 diff=0，禁止复用共享脏仓；
+- station registry 版本化并进入 ruleset hash；
+- 每站输出严格 `station-result.json`；
+- 空/未知格式/依赖缺失先判 ERROR；每个 adapter 版本化定义 `expected_exit_map`，例如 npm audit 的有效 JSON+exit1 可判 `COMPLETED+FAIL`，只有未定义/意外退出码才是 ERROR；
+- coverage 必须同时给 denominator 和 scanned；未知分母不得 CLEAN；
+- 每个 finding 有 stable fingerprint、位置和 CAS 证据；
+- required station 的 ERROR/BLOCKED/SKIP 使整线阻断。
+
+## 15.2 子工作包与逐站契约
+
+每站必须冻结：入口、覆盖分母、工具/规则版本、PASS/FAIL/ERROR 判据、TTL、产物 schema、正负测试、责任仓和回滚方式。
+
+### W6A：Planner、Registry、站0/站1适配
+
+- 站0从 target SHA 生成项目身份、范围、风险、required 站集合和证据失效域；分母缩水默认 BLOCKED。
+- 站1只消费 W3A 的 exact-SHA `source-gate-result.json` 并完成站内 applicability/coverage 适配；不得消费 W3B，不得由 W6 自报 CI 通过或发布 required context。
+- required 集和 registry 来自受保护 policy commit，PR 不可自改。
+- 产物：`run-manifest.json`、station dependency graph、coverage denominator manifest。
+
+最低 lane/applicability 矩阵写入 `default-policy.yaml`：
+
+| lane/profile | 不可移除最低集合 | 说明 |
+|---|---|---|
+| FAST/普通 PR | 0+1 | 权限/资金/租户/迁移/公共基础层自动升档并追加相应站 |
+| STANDARD | 0+1+2+3+4 | 有效、同指纹、未过 TTL 的证据才可复用 |
+| INCIDENT | 0+1+2+3+4+6；发布就绪还需7 | 涉生产写/资金/外部交易追加5；未获授权则 BLOCKED |
+| weekly | 0+2+3 | 不产出自动生产清零声明 |
+| nightly | 0+4，并验证3的证据仍有效 | 站3过期则前置完整3 |
+| release/new module | 0+1+2+3+4+5+6+7 的适用集合 | N/A 必须机器证明，风险只能增加深度 |
+
+人工降档只形成 CONDITIONAL，不能生成自动 PASS。
+
+### W6B：站2 静态与供应链
+
+- SAST、dupscan、持续修复五类、route 静态腿、供应链、Advisory、SBOM。
+- 每个扫描器有独立 coverage denominator 和 rule digest；任一 required 件缺失/过期即站2非 PASS。
+- 当前供应链和 Advisory 的 fail-open 作为 mandatory golden。
+
+### W6C：站3 契约与数据
+
+- OpenAPI 全端点分母、org guard、权限矩阵、正负运行时探针、DB 四轨、迁移 fresh/legacy/minimal。
+- 运行时探针必须同时验证合法正例与越权负例。
+- DB 连接身份、只读状态、diff 方向和 catalog scope 进入 evidence identity。
+
+### W6D：站4～7
+
+- 站4：页面/路由/E2E 分母、真实浏览器、截图/trace 和业务断言完整度。
+- 站5：受控合成租户/实弹授权、幂等、守恒、补偿、清理和前后状态。
+- 站6：属性、变异、并发、乱序、重复提交、S3/S5。
+- 站7：运行事件生成 finding、告警 receipt、SLO 和 release blocker；不计收敛轮。
+
+W6A～W6D 各自可 shadow 和回退为 BLOCKED，但不得回退为旧 scanner 的 PASS。
+
+## 15.3 DB 漂移
+
+彻底废止“文本行数<=30即 CLEAN”。目标采用四轨 canonical object diff：
+
+1. Git `schema.prisma`；
+2. Git migrations 在 fresh DB 应用后的 catalog；
+3. 生产 `_prisma_migrations`；
+4. 生产只读 `pg_catalog/information_schema`。
+
+规范化对象至少包括 schema、table、column(type/null/default)、PK、FK、unique、index、enum、check、trigger、migration history。
+
+每轮 DB evidence 还必须记录：current database、server/version、schema、role、`transaction_read_only`、Prisma/PostgreSQL 版本、diff 方向、catalog scope、extension-owned object 处理策略、默认值/表达式/顺序规范化规则和 migration checksum。连错数据库、角色非只读、方向反转、未知对象类型均 BLOCKED。
+
+迁移类变更还必须覆盖 fresh DB、代表性 legacy/minimal schema、前向迁移、迁移后审计以及失败后的回滚/恢复；只证明“看见漂移”不等于迁移安全。
+
+过渡期：
+
+- 正确解析 `[+]`、`[-]`、`[*]`；
+- 未识别 token、空输出或未匹配该 Prisma 版本 `expected_exit_map` 的退出码直接 ERROR；合法“有差异”退出码映射为 `COMPLETED+FAIL`；
+- 任一未被有效 allowlist 覆盖的 drift 都 BLOCKED；
+- DROP/ALTER TYPE/删约束为高风险，绝不受“数量少”豁免。
+
+allowlist 必须绑定对象 identity、actual/desired hash、原因、owner、ticket、批准人、到期时间；对象或哈希变化自动失效。
+
+## 15.4 供应链与 Advisory
+
+删除 `npm audit || true`、`continue-on-error`、API 失败后成功退出及文本绕过。
+
+判定：
+
+| 输入 | 结果 |
+|---|---|
+| 有效 JSON，无阻断漏洞 | PASS |
+| 有效 JSON，有 HIGH/CRITICAL | FAIL |
+| 网络失败、空 JSON、解析失败、未知生态/范围 | ERROR/BLOCKED |
+| 有签名且未过期离线快照 | 可按快照判定并展示 age |
+| 快照过期且实时源不可用 | BLOCKED |
+
+最少覆盖：生产/全依赖 audit、W1 policy 冻结的必需异源漏洞源（初始候选 OSV）、lockfile hash、name+version+integrity+resolved、Git/path/file 依赖、install scripts、SBOM、许可证/registry 策略、直接/传递依赖增删。
+
+Advisory 必须完整分页、遍历所有 vulnerability ranges；version check 异常为 UNKNOWN，UNKNOWN 不写 seen 且触发重试/阻断。seen 仅通知去重，不参与后续风险判定。
+
+## 15.5 租户隔离
+
+1. 从 Prisma DMMF/schema 自动生成直接和关系间接租户模型分母，禁止硬编码 27 项。
+2. 使用 TS AST/调用图识别 alias、默认/相对/重导出、repository wrapper、transaction、raw SQL、动态 export。
+3. 普通业务代码必须通过 scoped client/repository；管理员跨租户模块单独 allowlist。
+4. 自动生成 A/B 租户动态探针：读取、写入、聚合、分页、搜索、批量 ID、附件/导出。
+5. 正例必须通，Org A 访问或导出 Org B 必须拒绝。
+
+RLS 仅作为独立增强项目：先 staging 五个高风险模型试点，另走 DDL 授权、fresh/legacy/rollback；不得悄悄纳入本管线整改部署。
+
+## 15.6 性能与 N+1
+
+- CI 短预算、nightly 稳态、季度完整基线分层；
+- 严格执行 W1 profile-specific 的预热时长、最小请求数/持续时间/并发和分位实现；禁止 5 样本手算 p95；
+- 校验 HTTP 状态和业务响应语义，快速 404/500 不能通过；
+- SSH/TCC/指标 null 为 ERROR；
+- `pg_stat_statements` 未具备时明确盲区，不用 idle query 冒充慢查询；
+- 通过 OTel/Prisma instrumentation 记录每请求 query count；
+- 输入规模 1/10/100 做增长曲线；
+- 失败结果不得覆盖 baseline；baseline 绑定 SHA、环境、数据规模、工具版本。
+
+## 15.7 行为、实弹与对抗
+
+- UI 用干净构建和真实浏览器；绑定候选 SHA、角色、DB、环境；
+- 真单/生产写必须单独授权，并预先定义清理、补偿、幂等和守恒；
+- 对资金、权限、租户、迁移做正向+负向+并发+重复提交；
+- S3/S5 结果独立落账，不允许同命令换标签算异源；
+- 站 7 不计收敛轮，但任何运行时 blocker 均阻断 release readiness。
+
+## 15.8 出口/DoD
+
+- 当前 DB 报告的至少 280 项变化不再被判 CLEAN；
+- audit 空/解析失败必非零且不更新 success；
+- `scanned == target SHA 动态生成的 tenant-model denominator`；分母较基线缩小时默认 BLOCKED；193/约172 仅作为当前回归 fixture；新增 organizationId 模型必须自动进入分母；
+- 别名、重导出、raw SQL、注释欺骗、长 builder、非 export 路径下载等反例被捕获；
+- HTTP 500、null 指标、SSH/TCC 失败均不可能生成性能 PASS；
+- 八站 required 集可由风险定级生成，并由 aggregator 强制。
+
+## 15.9 回滚
+
+scanner 新版可逐站 shadow；失败时该站保持 BLOCKED，不能回退为旧 scanner 的 PASS。规则更新必须保留旧/新双跑对比证据。
+
+---
+
+===== 1266,1414 =====
+# 16. 工作包 W7：不可变制品、原子部署与运行身份
+
+W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+
+## 16.1 目标布局
+
+```text
+~/.local/share/wenqu/releases/<release-id>/
+~/.local/share/wenqu/current -> releases/<release-id>
+~/.config/wenqu/config.toml
+~/.local/state/wenqu/
+~/Library/Logs/Wenqu/
+```
+
+配置、秘密、状态和日志不得进入 release。
+
+## 16.2 Release manifest
+
+```text
+version, source_commit, quality_policy_commit, build_id,
+built_at, builder, schema_version, policy_hash,
+files[path,size,mode,sha256], artifact_sha256,
+python/node/runtime identity, dependency lock/SBOM hash,
+min_schema_version, max_schema_version,
+attestation/signature
+```
+
+缺件、多件、模式错误、额外未登记可执行文件或 hash 漂移均使安装失败。
+
+## 16.3 原子部署
+
+1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+3. 使用独立临时 DB/state/config 做临时端口 smoke，禁止触发或接触生产 migration/DB/state；`/api/build` 对账；
+4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+5. 获取全局 deployment lease、唯一 writer fencing token 和 migration lock；任一锁不唯一或租约失效即 BLOCKED；
+6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+7. 仅执行已授权、可重入、向前向后兼容的 **expand migration**；保存逐语句 rc、前后 catalog diff、migration ledger 和 lock 身份；禁止夹带 destructive contract；
+8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+9. 原子 rename 成最终 release，再原子切换 `current` 并 restart；
+10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+12. expand 后的字段/表至少保留完整观察与回滚窗口；只有所有 reader/writer 已迁移、旧版本回滚窗口被明确关闭、备份恢复再验证且另获生产 DDL 授权后，才能在独立变更中执行 contract migration。
+
+并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+
+安装器必须删除 `doctor || true`。doctor 非零、manifest 不符、linter 缺失均导致整次部署失败。禁止 `cp -R` 覆盖现役目录和保留幽灵文件。
+
+## 16.4 验收
+
+- manifest 缺/多文件、hash 错、版本错、额外脚本；
+- staging 中途 kill -9；
+- symlink 切换后启动失败；
+- 配置/状态被安装器覆盖；
+- DB schema 与二进制不兼容；
+- 回滚后 build API/PID/manifest 不一致；
+- 正源 dashboard 缺闭合标签或缺必需 linter。
+
+以上均必须拒绝部署或自动恢复。回滚演练后检查新事件未丢失。
+
+## 16.5 停等点
+
+正式部署、生产 expand/contract migration、restart、launchctl 修改和回滚均须用户授权；contract 必须晚于观察与回滚窗并再次独立授权。候选制品、离线 smoke 和回滚脚本可先完成。
+
+---
+
+# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+
+## 17.1 结构重构
+
+将单文件 HTML/JS/Python 拆为：
+
+```text
+system/dashboard/index.html
+system/dashboard/app.js
+system/dashboard/app.css
+system/dashboard/server.py
+```
+
+API 版本化 `/api/v1/*`。GET 只读，不得顺手写 health history。
+
+## 17.2 健康模型
+
+主状态：
+
+```text
+GREEN | DEGRADED | BLOCKED | UNKNOWN
+```
+
+总体状态取 required 项中的**最坏值**，不是加权平均。分数仅作趋势，不参与解除硬阻断；任一 P0 时即使展示分数也不得超过红色区间。
+
+以下任一出现必须 BLOCKED/UNKNOWN：
+
+- gatedoctor 非 PASS；
+- source/runtime manifest 漂移；
+- event store/evidence 校验失败；
+- required sentinel ERROR/stale；
+- 危险旧 auto-merge 存活；
+- WAITING 超 SLA 且通知未 delivered；
+- required Gate 缺失、错误 SHA 或过期；
+- EXM 超阈值；
+- P0/P1 未关闭；
+- 唯一正源或环境身份未知；
+- 磁盘达到资源停等阈值。
+
+每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+
+## 17.3 功能要求
+
+- 七段问渠、八站 Bug、九类停等分开展示；
+- 所有 finding 状态含 ACCEPTED_RISK、quarantine 均可钻取；
+- 日志正文可见并明确来源/时点；
+- 自动巡游如保留，必须标注“演示动画，不代表执行”；
+- 页面显示当前 build/release/source/runtime attestation；
+- 数据源缺失返回结构化 ERROR/503，不得 HTTP 200+空集缩小问题数量。
+
+## 17.4 安全
+
+- 服务继续仅绑定 `127.0.0.1` 或权限受控 UDS，禁止 wildcard；严格 Host 校验防 DNS rebinding，CORS 默认拒绝；
+- `/api/build` 等最小非敏感端点可匿名，日志、决策、finding 明细需要本地 session/read authorization；
+- 动态文本统一 `textContent`/安全模板；禁止未转义 `innerHTML`；
+- CSP、`nosniff`、`frame-ancestors 'none'`、`no-store`、`no-referrer`；
+- Host/Origin allowlist、body size limit、Content-Type 精确校验；
+- 第一阶段 `/api/decide` 返回 405；
+- 恢复写操作前必须有：UDS 0600 控制服务或等效隔离、本地 session bootstrap、HttpOnly/SameSite cookie、CSRF、真实 actor、idempotency key、CAS、append-only event；
+- 禁止硬编码“超哥点击”和整文件重写；
+- request audit 日志脱敏且可轮转；
+- 请求超时、最大并发、速率限制、日志响应行数/字节上限和 secret/PII 二次脱敏必须机器化。
+
+健康聚合由独立 aggregator 原子生成带 input watermark 的一致性快照；采集中任一输入版本变化则整份 snapshot 作废重算。Dashboard 不得串行拼接不同时间点 API 后自行得结论。
+
+## 17.5 Playwright/真实浏览器门
+
+- 总览在 fresh/cache/导航后均可见；
+- 七段、八站命名与节点正确；
+- ACCEPTED/OTHER/quarantine 均可钻取；
+- 六个日志正文实际出现；
+- XSS payload 不执行；
+- CSRF/伪 Origin/text/plain 写入被拒；
+- Cache-Control 生效，版本更新不保留坏页面；
+- 键盘/ARIA、reduced-motion、375px 无横溢；
+- 任一 required blocker 时页面不可能显示“良好”。
+
+## 17.6 回滚
+
+Dashboard 故障只能回退到兼容新 API 的只读版本；不能恢复无鉴权写接口或独立加权健康分。Dashboard 故障本身不得改写底层 Gate，但若 policy 把可观测性列为发布必需项，release readiness 应为 BLOCKED，而不是默认放行。
+
+---
+
+===== 1415,1544 =====
+# 18. 工作包 W9：Shadow、Canary 与受控切换
+
+## 18.1 阶段
+
+1. **离线 fixture：** 所有现有红探针、golden、属性、变异和故障注入全过。
+2. **Shadow：** 新旧系统读取同一冻结输入；新系统不合流、不写生产状态，仅比较结果。
+3. **迁移投影观察：** 至少 48 小时满足总记录数量守恒、全部 logical finding 可追溯、零未解释差异；`FIXED→FIXED_PENDING_VERIFY`、非法 ACCEPTED 重开、OTHER quarantine 等有意状态变化必须逐项带 `migration_decision_id`、命中规则和证据。不得要求“零状态变化”而复刻旧错误投影；本阶段也不等同现役观察窗。
+4. **全线 shadow：** 至少 14 天，覆盖两次周任务、14 次 nightly；季度任务用缩短计划强制模拟。
+5. **低风险测试仓 canary：** 先只读 checks，再启用 GitHub 原生 merge queue；生产仓仍人工。
+6. **正式切换：** 用户逐项授权后切 writer epoch、CI required、scheduler、dashboard read model。
+7. **自动合流最后启用：** 默认直接删除本地写控制器，采用 GitHub 原生 merge queue/auto-merge；只有平台确实不支持时，才另立最小权限 GitHub App，禁止个人 `gh`/admin 凭据。
+
+## 18.2 Shadow 判定
+
+必须为零：
+
+- 新系统 false PASS；
+- dashboard 与 aggregator 判定差异；
+- 账本丢失、重复和状态非法；
+- 未授权状态推进；
+- 错 SHA 证据复用；
+- ERROR 刷新 last_success；
+- 告警 created 但未进入 outbox；
+- runtime/source 漂移未报；
+- quarantine 被计为关闭。
+
+旧系统如果比新系统更绿，不以旧系统为正确答案；必须逐项裁定差异根因。
+
+## 18.3 Canary 停止条件
+
+任一出现立即停止新任务、发布和自动合流：
+
+1. dashboard 绿但 Gate 红；
+2. 两个活跃 writer epoch；
+3. run 状态与事件重放结果不同；
+4. approval 重复消费或扩范围；
+5. evidence hash/signature 不符；
+6. check SHA 与 PR head 不一致；
+7. merge controller 使用未知 check；
+8. runtime manifest 漂移；
+9. migration count/hash 不守恒；
+10. sentinel ERROR 但 last_success 更新；
+11. 回滚包或备份不可恢复；
+12. 任一新 P0。
+
+停止后保持 disabled/BLOCKED，不自动回退到旧不安全实现。
+
+## 18.4 切换证据
+
+```text
+evidence/W9/shadow-comparison.jsonl
+evidence/W9/difference-adjudications.jsonl
+evidence/W9/canary-runs/
+evidence/W9/writer-epoch-cutover.json
+evidence/W9/branch-rules-after.json
+evidence/W9/runtime-attestation.json
+evidence/W9/rollback-drill.md
+```
+
+---
+
+# 19. 工作包 W10：14 天观察、回滚演练与战训收官
+
+## 19.1 观察窗硬指标
+
+至少连续 14 天：
+
+- false PASS=0；
+- 未授权状态推进=0；
+- 错 SHA 合流=0；
+- 账本丢失/重复=0；
+- source/runtime 漂移=0；
+- required sentinel stale 未告警=0；
+- WAITING 超 SLA 未通知=0；
+- 自动合流无限重试=0；
+- dashboard/CLI/aggregator 判定差异=0；
+- 合成告警 delivery receipt 达成率=100%；
+- 回滚演练成功率=100%；
+- 两次自然周任务均有有效 PASS 或明确非 PASS 证据；
+- nightly 14 次均可追溯；
+- 强制季度 profile 演练完成。
+
+## 19.2 回滚演练
+
+至少覆盖：
+
+1. current symlink 回到上个兼容 release；
+2. 服务 restart 后 build/manifest/DB schema 对账；
+3. 切换期间产生的新事件仍存在；
+4. outbox 未送消息可继续幂等发送；
+5. branch rules 故障时保持 required，人工受保护 PR 可工作；
+6. SQLite 一致性备份恢复；
+7. CAS 缺块/损坏检测；
+8. scheduler 回退后不会产生双写者。
+
+## 19.3 战训回流
+
+- 每个新发现进入 finding ledger；
+- 同类二犯必须晋升为代码约束/测试/CI Gate；
+- 规则、基线、阈值变更独立审批；
+- 更新 Skill 时同步版本、front matter、机器 schema、实际列表和回归；
+- 运行 governance consistency checker，确保 one-shot/bug Skill、policy、registry、CLI help、CHANGELOG 和 release manifest 使用同一版本与枚举；
+- 最终执行战训四查和独立 S5；
+- 没有新增经验时也要写明依据。
+
+## 19.4 最终出口
+
+先严格区分两个出口：
+
+- **条件放行：** 存在合法、未过期且仅限低风险的 `ACCEPTED_RISK` 时，最多按 §6.1 输出 `AUTHORIZED_CONDITIONAL`；不得称“清零”“最终闭环”或“生产闭环”。
+- **最终生产闭环：** 活跃 `ACCEPTED_RISK=0`，且下列条件全部满足后才允许声明。
+
+最终生产闭环只有同时满足：
+
+- W0–W9 全部 hard DoD；
+- 所有 P0/P1 已关闭；
+- 活跃 ACCEPTED_RISK=0；
+- EXM 熔断解除且逐条有效；
+- invalid ACCEPTED/OTHER/quarantine 已裁定；
+- 清零声明所需范围内零 OPEN/FIXING/FIXED_PENDING_VERIFY；
+- required 证据同一指纹、未过 TTL；
+- INCIDENT 连续三轮异源零新发现，末轮独立 S5；
+- 部署、回滚、告警、备份恢复已演练；
+- 观察窗全部硬指标达标；
+- 明确列出仍未覆盖的威胁边界；
+
+才可对**限定范围、SHA、环境和观察窗**给出最终生产闭环声明。
+
+---
+
+===== 1803,1850 =====
+# 24. 完成定义与证据包
+
+## 24.1 硬完成门
+
+不得用总分作为放行门。只有以下硬条件全部达成才算最终闭环：
+
+- W0–W10 全部 DoD；
+- traceability 零孤儿；
+- 所有旧假绿红探针在新实现中均正确阻断；
+- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+- P0/P1=0；
+- 活跃 ACCEPTED_RISK=0；存在任何合法低风险接受时只能走 `AUTHORIZED_CONDITIONAL`，不得称清零或最终生产闭环；
+- 账本无非法状态、无未裁定 quarantine；
+- 清零范围内无 OPEN/FIXING/FIXED_PENDING_VERIFY；
+- 并发、kill、磁盘满、只读、时钟、网络、TCC 故障注入通过；
+- targeted mutation 和全量测试门达成；
+- 浏览器、launchd、备份恢复、原子部署、回滚均真实演练；
+- shadow/canary/14 天观察窗达标；
+- 独立 S5 与战训四查通过；
+- 未覆盖威胁和生产边界明确列出。
+
+## 24.2 证据包目录
+
+```text
+evidence/<program-run-id>/
+  00-baseline/
+  01-threat-model-and-contracts/
+  02-schemas-and-tla/
+  03-red-probes-before/
+  04-unit-property-mutation/
+  05-concurrency-crash-chaos/
+  06-scanner-goldens/
+  07-migration-reconcile/
+  08-ci-and-branch-rules/
+  09-release-manifest-attestation/
+  10-ui-launchd-alert-backup/
+  11-shadow-canary/
+  12-rollback-drill/
+  13-observation-window/
+  evidence-index.json
+```
+
+每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+
+---
+
+# 25. 本轮复审发现族→工作包→测试→证据追踪矩阵
+

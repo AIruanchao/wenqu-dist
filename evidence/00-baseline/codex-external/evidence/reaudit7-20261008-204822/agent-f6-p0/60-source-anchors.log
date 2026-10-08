@@ -1,0 +1,588 @@
+TIMESTAMP_UTC: 2026-10-08T13:04:06Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: /tmp/reaudit7-source-anchors.sh 
+OUTPUT_BEGIN
+=== frozen identity ===
+d32c859f9043798d9e8a4984e8f57aa64567e33c
+=== approval high-risk/co-sign boundary anchors ===
+     1	# -*- coding: utf-8 -*-
+     2	"""approval_issue.py——审批签发端（P0-2 残余，Codex 六轮收口）。
+     3	
+     4	架构裁定（超哥授权默认案，2026-10-08）：**本地 keyring + CLI 签发**；
+     5	飞书审批流只留抽象接口（``FeishuApprovalSource``——submit/callback 两方法，
+     6	NotImplemented 占位），后续接线时替换实现、签发语义不变。
+     7	
+     8	与消费端（``wenqu_pipeline.ApprovalBroker``）的权限分离：
+     9	- 消费端只验不签（cli.py 既有注释：CLI 只消费不签发）；
+    10	- 本模块只签不消费——产出严格符合 approval-v2 契约的信封（HMAC-SHA256
+    11	  签名 + crypto 随机 nonce + payload 按类型判别封闭），签发前经
+    12	  ``ApprovalBroker.validate_structure`` 预检（纯静态方法，不触库），
+    13	  保证签出来的审批消费端一定收。
+    14	
+    15	签发安全语义：
+    16	1. 高危类型（prod_write/ddl/release/fund_auth）强制双人规则：
+    17	   ``--confirm-two-persons`` + 第二签发人 key 联签（co-signature）——
+    18	   第二 key 对同一信封体再算一个独立 HMAC，**两个签名都验**才落审计。
+    19	   联签记录落在签发审计账本（不在信封内——approval-v2 顶层键集封闭，
+    20	   消费端 ApprovalBroker 不校验联签；此为诚实边界，见模块尾部注释）。
+    21	2. 签发审计账本（append-only jsonl + 哈希链）：谁（actor）/何时（ts）/
+    22	   批了什么（approval_id/type/run_id/task_id/decision/payload 摘要）/
+    23	   TTL（issued_at/expires_at/ttl_seconds）+ key_id + nonce 摘要（**不落
+    24	   nonce 明文**——nonce 是消费凭据，审计只留 sha256 指纹供对账）。
+    25	3. 密钥生命周期经 ``approval_keys``（active/rotated/revoked/expiry）：
+    26	   只有 active 且未过期的 key 可签发；rotated 可验存量；revoked 验签即拒。
+    27	4. 对账（``reconcile_issuance``）：签发审计（批了）× EventStore
+    28	   APPROVAL_CONSUMED 事件（用了）双向核对——批了未用（在期/已过期）、
+    29	   用了没批（无签发记录的消费=旁路签发或账本损坏）、nonce 指纹不匹配、
+    30	   审计链断裂，全部显式分类报告。
+    31	
+    32	纯标准库实现；不触碰 wenqu_pipeline.py（消费端零改动）。
+    33	"""
+    34	
+    35	from __future__ import annotations
+    36	
+   428	    def _check_two_person(self, approval_type: str, *,
+   429	                          confirm_two_persons: bool,
+   430	                          second_key_id: Optional[str],
+   431	                          second_actor: Optional[str]) -> None:
+   432	        high_risk = approval_type in HIGH_RISK_APPROVAL_TYPES
+   433	        given = (confirm_two_persons or second_key_id is not None
+   434	                 or second_actor is not None)
+   435	        if not high_risk and given:
+   436	            raise TwoPersonRuleError(
+   437	                f"approval_type={approval_type!r} 非高危类型"
+   438	                f"（高危={sorted(HIGH_RISK_APPROVAL_TYPES)}），"
+   439	                "不接受双人联签参数（防「已联签」错觉）")
+   440	        if high_risk and not confirm_two_persons:
+   441	            raise TwoPersonRuleError(
+   442	                f"高危类型 {approval_type!r} 必须 --confirm-two-persons"
+   443	                "（双人确认+第二签发人 key 联签）")
+   444	        if high_risk:
+   445	            if not (isinstance(second_key_id, str) and second_key_id.strip()):
+   446	                raise TwoPersonRuleError(
+   447	                    "高危类型必须 --second-key-id（第二签发人 key 联签）")
+   448	            if not (isinstance(second_actor, str) and second_actor.strip()):
+   449	                raise TwoPersonRuleError(
+   450	                    "高危类型必须 --second-actor（第二签发人标识）")
+   451	
+   452	    # ------------------------------------------------------------------ #
+   453	    def issue(self,  # noqa: C901 —— 校验链显式展开（可读性优先）
+   454	              *,
+   455	              actor: str,
+   524	        secret = self._keyring.get_for_signing(chosen_key_id)
+   525	
+   526	        # 5. 高危双人规则
+   527	        self._check_two_person(
+   528	            approval_type, confirm_two_persons=confirm_two_persons,
+   529	            second_key_id=second_key_id, second_actor=second_actor)
+   530	        co_secret: Optional[str] = None
+   531	        if confirm_two_persons and approval_type in HIGH_RISK_APPROVAL_TYPES:
+   532	            assert second_key_id is not None  # _check_two_person 已保证
+   533	            if second_key_id == chosen_key_id:
+   534	                raise TwoPersonRuleError(
+   535	                    "第二签发人 key 不得与主签发 key 相同（真双人，"
+   536	                    "同一把 key 签两遍不是联签）")
+   537	            try:
+   538	                co_secret = self._keyring.get_for_signing(second_key_id)
+   539	            except (KeyNotFoundError, KeyStateError) as exc:
+   540	                # 与主 key 同一契约：联签 key 资格失败也收敛为 IssuanceError
+   541	                # （fail-closed，不落审计）——不向调用方泄漏底层 KeyError 族。
+   542	                raise IssuanceError(
+   543	                    f"第二签发人 key 资格不满足: {exc}") from None
+   544	
+   545	        # 6. 信封构造 + 主签名 +（高危）联签
+   546	        issued_at = issued_at or _utc_now_iso(now_epoch)
+   547	        expires_at = _utc_now_iso(
+   548	            _parse_iso_epoch(issued_at) + ttl_seconds)
+   549	        envelope: Dict[str, Any] = {
+   550	            "schema_version": _APPROVAL_SCHEMA_VERSION,
+   551	            "approval_id": f"apr_{uuid.uuid4().hex}",
+   552	            "approval_type": approval_type,
+   553	            "key_id": chosen_key_id,
+   554	            "run_id": run_id,
+   555	            "task_id": task_id,
+   556	            "stop_event_id": stop_event_id,
+   557	            "stop_type": stop_type,
+   558	            "stage": stage,
+   559	            "environment": environment,
+   560	            "authorized_scope": authorized_scope,
+   561	            "policy_hash": policy_hash,
+   562	            "ruleset_hash": ruleset_hash,
+   563	            "input_watermark": input_watermark,
+   564	            "expected_state_version": expected_state_version,
+   565	            "actor": actor,
+   566	            "issued_at": issued_at,
+   567	            "expires_at": expires_at,
+   568	            "nonce": secrets.token_hex(16),
+   569	            "decision": decision,
+   570	            "signature": "",
+   571	            "payload": payload,
+   572	        }
+   573	        envelope.pop("signature", None)
+   574	        envelope["signature"] = sign_envelope(secret, envelope)
+   575	
+   576	        co_signature: Optional[Dict[str, Any]] = None
+   577	        if co_secret is not None:
+   578	            co_hex = sign_envelope(co_secret, envelope)
+   579	            co_signature = {
+   580	                "schema_version": APPROVAL_ISSUANCE_SCHEMA_VERSION,
+   581	                "approval_id": envelope["approval_id"],
+   582	                "primary_key_id": chosen_key_id,
+   583	                "primary_signature": envelope["signature"],
+   584	                "second_key_id": second_key_id,
+   585	                "second_actor": second_actor,
+   586	                "co_signature": co_hex,
+   587	                "ts": _utc_now_iso(now_epoch),
+   588	            }
+   589	
+   590	        # 7. 双签名自验（先于任何落账——签出来就必须两个签名都真）
+   591	        if not verify_envelope(secret, envelope, envelope["signature"]):
+   592	            raise IssuanceError(
+   593	                "主签名自验失败（不应发生——HMAC 实现或 key 状态异常）")
+   594	        if co_signature is not None and not verify_envelope(
+   595	                co_secret, envelope, co_signature["co_signature"]):
+   596	            raise IssuanceError(
+   597	                "联签自验失败（不应发生——第二 key HMAC 实现异常）")
+   598	        try:
+   599	            ApprovalBroker.validate_structure(envelope)
+   600	        except ApprovalRejected as exc:
+   601	            raise IssuanceError(
+   602	                f"签发预检失败（ApprovalBroker.validate_structure 拒绝——"
+   603	                f"该审批消费端不会收）: {exc}") from None
+   604	
+   605	        # 8. 送达（feishu 未接线 → NotImplementedError 向上抛，不落审计）
+   606	        used_source = source if source is not None else self._source
+   607	        delivery = used_source.submit(envelope, co_signature)
+   608	
+   609	        audit_record = self._audit.append({
+   610	            "record_type": "APPROVAL_ISSUED",
+   611	            "actor": actor,
+   612	            "approval_id": envelope["approval_id"],
+   613	            "approval_type": approval_type,
+   614	            "run_id": run_id,
+   615	            "task_id": task_id,
+   616	            "stop_type": stop_type,
+   617	            "stop_event_id": stop_event_id,
+   618	            "decision": decision,
+   619	            "key_id": chosen_key_id,
+   620	            "nonce_digest": hashlib.sha256(
+   621	                envelope["nonce"].encode("utf-8")).hexdigest(),
+   622	            "issued_at": issued_at,
+   623	            "expires_at": expires_at,
+   624	            "ttl_seconds": ttl_seconds,
+   625	            "high_risk": approval_type in HIGH_RISK_APPROVAL_TYPES,
+   626	            "two_person": co_signature is not None,
+   627	            "second_key_id": second_key_id,
+   628	            "second_actor": second_actor,
+   629	            "co_signature": (co_signature or {}).get("co_signature"),
+   630	            "payload_fields": sorted(payload),
+   631	            "source": used_source.name,
+   632	            "delivery": delivery,
+   633	        })
+   634	        return {"approval": envelope,
+   635	                "co_signature": co_signature,
+   636	                "audit_record": audit_record}
+   637	
+   638	
+   639	# ====================================================================== #
+   640	# 对账：签发审计（批了）× EventStore APPROVAL_CONSUMED（用了）
+   641	# ====================================================================== #
+   642	
+=== consumer reserve target/envelope anchors ===
+  1484	                    and payload.get("nonce_digest") == digest):
+  1485	                return True
+  1486	        return False
+  1487	
+  1488	    @staticmethod
+  1489	    def _approval_consumed_event(
+  1490	        state: RunState, ap: Mapping[str, Any], nonce_digest: str,
+  1491	        preconditions_hash: Optional[str],
+  1492	    ) -> Dict[str, Any]:
+  1493	        """APPROVAL_CONSUMED 控制事件（nonce/risk 消费的唯一正源，观察类）。"""
+  1494	        event: Dict[str, Any] = {
+  1495	            "schema_version": "2.0",
+  1496	            "event_type": "APPROVAL_CONSUMED",
+  1497	            "run_id": state.run_id,
+  1498	            "task_id": state.task_id,
+  1499	            "execution_status": "COMPLETED",
+  1500	            "policy_verdict": "NOT_EVALUATED",
+  1501	            "identity": dict(state.identity),
+  1502	            "state_version": state.state_version,
+  1503	            "ts": _utc_now_iso(),
+  1504	            "actor": ap["actor"],
+  1505	            "approval_id": ap["approval_id"],
+  1506	            "approval_type": ap["approval_type"],
+  1507	            "nonce_digest": nonce_digest,
+  1508	            "stop_type": ap["stop_type"],
+  1509	            "stop_event_id": ap["stop_event_id"],
+  1510	            "expires_at": ap["expires_at"],
+  1511	        }
+  1512	        if preconditions_hash is not None:
+  1513	            event["preconditions_hash"] = preconditions_hash
+  1514	        if ap["approval_type"] == "risk":
+  1515	            event["finding_fingerprints"] = list(
+  1516	                ap["payload"].get("finding_fingerprints") or [])
+  1517	        return event
+  1518	
+  1519	    # ------------------------------------------------------------------ #
+  1520	    # 原子消费（resume 专用：nonce + APPROVAL_CONSUMED + WAITING_RESUMED 同事务）
+  1521	    # ------------------------------------------------------------------ #
+  1522	    def consume(
+  1523	        self,
+  1524	        approval: Mapping[str, Any],
+  1525	        *,
+  2910	    # F4-AUTH-001：预留强制审批消费 + receipt 分级 + 外部正源对账
+  2911	    # ------------------------------------------------------------------ #
+  2912	    def reserve_action(self, run_id: str, action_type: str, target: str,
+  2913	                       approval: Optional[Mapping[str, Any]] = None, *,
+  2914	                       actor: str = "system") -> Dict[str, Any]:
+  2915	        """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。
+  2916	
+  2917	        F4-AUTH-001 根修：预留必须消费一份 action 类型 HMAC 审批
+  2918	        （approval-v2：结构校验 → HMAC 验签 → approval_type 与 action_type
+  2919	        封闭映射匹配 → ``consume_authorization`` 路径的 envelope 绑定
+  2920	        （run_id/task_id/environment/scope/policy/ruleset/watermark/stage
+  2921	        全 exact）+ expected_state_version CAS + TTL + 一次性 nonce）。
+  2922	        无授权 / 验签失败 / 类型不符 / nonce 复用一律拒绝，绝不落事件。
+  2923	
+  2924	        授权消费（APPROVAL_CONSUMED 正源事件）与 ACTION_AUTH_RESERVED 在
+  2925	        **同一** BEGIN IMMEDIATE 事务内原子成对；重放侧校验授权消费链
+  2926	        （reserved 必须有对应 APPROVAL_CONSUMED 且类型匹配）。
+  2927	        """
+  2928	        ActionSaga.validate_descriptor(action_type, target)
+  2929	        if approval is None:
+  2930	            raise ActionError(
+  2931	                "reserve_action requires 对应 action 类型的 HMAC 审批"
+  2932	                "（approval 参数，F4-AUTH-001）——无授权预留一律拒绝")
+  2933	        expected = _ACTION_APPROVAL_TYPE.get(action_type)
+  2934	        if expected is None:
+  2935	            raise ActionError(
+  2936	                f"unknown action_type {action_type!r}：必须是 "
+  2937	                f"{sorted(set(_ACTION_APPROVAL_TYPE))} 之一（带连字符/下划线"
+  2938	                f"等价变体）且携带匹配类型的审批")
+  2939	        ap = self.broker.validate_structure(approval)
+  2940	        self.broker._verify_signature(ap)  # noqa: SLF001 —— 同模块受管复用
+  2941	        if ap["approval_type"] != expected:
+  2942	            raise ApprovalRejected(
+  2943	                f"action_type={action_type!r} 要求 approval_type="
+  2944	                f"{expected!r}，got {ap['approval_type']!r}（类型不符拒绝）")
+  2945	        now = _utc_now_epoch()
+  2946	
+  2947	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  2948	            state = self._load_state(run_id, conn)
+  2949	            self._require_mutable(state)
+  2950	            # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
+  2951	            # 任一步失败整体回滚，授权与预留绝不成单只
+  2952	            self.broker._consume_authorization_txn(  # noqa: SLF001
+  2953	                conn, ap, self._fenced_loader(run_id), now, expected)
+  2954	            state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
+  2955	            action_id = f"act_{uuid.uuid4().hex[:12]}"
+  2956	            event = self._base_event(
+  2957	                "ACTION_AUTH_RESERVED", state, "COMPLETED", "NOT_EVALUATED",
+  2958	                actor=actor, state_version=state.state_version,
+  2959	                action_id=action_id, action_type=action_type,
+  2960	                action_target=target,
+  2961	                approval_id=ap["approval_id"],
+  2962	                nonce_digest=_sha256_hex(ap["nonce"]))
+  2963	            event_hash = self._emit(conn, state, event)
+  2964	            return {"run_id": run_id, "action_id": action_id,
+  2965	                    "action_state": ACTION_RESERVED,
+  2966	                    "action_type": action_type, "action_target": target,
+  2967	                    "approval_id": ap["approval_id"],
+  2968	                    "nonce_digest": _sha256_hex(ap["nonce"]),
+  2969	                    "event_hash": event_hash}
+  2970	
+  2971	        return self._db.transact(_body)
+  2972	
+  2973	    def _advance_action(self, run_id: str, action_id: str, new_state: str,
+  2974	                        *, event_type: str, actor: str,
+  2975	                        **extra: Any) -> Dict[str, Any]:
+  2976	
+  2977	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  2978	            state = self._load_state(run_id, conn)
+  2979	            self._require_mutable(state)
+  2980	            action = state.actions.get(action_id)
+  2981	            if action is None:
+  2982	                raise ActionError(f"unknown action_id {action_id!r} on {run_id}")
+  2983	            ActionSaga.validate_transition(action["action_state"], new_state)
+  2984	            event = self._base_event(
+  2985	                event_type, state, "COMPLETED", "NOT_EVALUATED",
+  2986	                actor=actor, state_version=state.state_version,
+  2987	                action_id=action_id, action_type=action["action_type"],
+  2988	                **extra)
+  2989	            event_hash = self._emit(conn, state, event)
+  2990	            return {"run_id": run_id, "action_id": action_id,
+=== keyring load permission anchors ===
+   260	          ``keyring-events.jsonl`` 为生命周期/吊销拒绝事件账本路径；
+   261	        - 文件型：JSON——推荐 ``{"keys": {key_id: secret}, "meta": {...}}``，
+   262	          兼容顶层扁平 ``{key_id: secret}``（键必须匹配 key_id 命名）。
+   263	        """
+   264	        if not path or not os.path.exists(path):
+   265	            raise FileNotFoundError(f"keyring path not found: {path!r}")
+   266	        keys: Dict[str, str] = {}
+   267	        if os.path.isdir(path):
+   268	            meta: Dict[str, Dict[str, Any]] = {}
+   269	            for name in sorted(os.listdir(path)):
+   270	                if name.endswith(".secret"):
+   271	                    key_id = name[: -len(".secret")]
+   272	                    with open(os.path.join(path, name), "r",
+   273	                              encoding="utf-8") as fh:
+   274	                        secret = fh.read().strip()
+   275	                    keys[key_id] = secret
+   276	                    meta_file = os.path.join(path, f"{key_id}.meta.json")
+   277	                    if os.path.exists(meta_file):
+   278	                        with open(meta_file, "r", encoding="utf-8") as fh:
+   279	                            meta[key_id] = json.load(fh)
+   280	            return cls(keys, metadata=meta,
+   281	                       event_log_path=os.path.join(
+   282	                           path, KEYRING_EVENTS_FILENAME))
+   283	        with open(path, "r", encoding="utf-8") as fh:
+   284	            data = json.load(fh)
+   285	        if not isinstance(data, dict):
+   286	            raise ValueError(f"keyring file {path!r} must hold a JSON object")
+   287	        raw = data.get("keys", data)
+   288	        if not isinstance(raw, dict):
+   289	            raise ValueError(
+   290	                f"keyring file {path!r}: 'keys' must be an object")
+   291	        file_meta = data.get("meta", data.get("metadata"))
+   292	        if file_meta is not None and not isinstance(file_meta, dict):
+   293	            raise ValueError(
+   294	                f"keyring file {path!r}: 'meta' must be an object")
+   295	        return cls(raw, metadata=file_meta)
+   296	
+   297	    # ------------------------------------------------------------------ #
+   298	    @classmethod
+   299	    def generate(cls, key_id: str, *, secret: Optional[str] = None,
+   300	                 nbytes: int = 32) -> "ApprovalKeyring":
+   301	        """生成单 key keyring（测试/初始化用；secret 省略则 crypto 随机）。"""
+   302	        return cls({key_id: secret if secret is not None
+   303	                    else generate_secret(nbytes)})
+   304	
+   305	    def save_json(self, path: str) -> None:
+   306	        """把 keyring（含元数据）落盘为 JSON 文件（0600，供下次 from_path 加载）。"""
+   307	        payload = json.dumps({"keys": dict(self._keys),
+   308	                              "meta": dict(self._meta)},
+   309	                             indent=2, ensure_ascii=False)
+   310	        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+   311	        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+   312	            fh.write(payload + "\n")
+   313	
+   314	    # ------------------------------------------------------------------ #
+   315	    # P0-2 残余：生命周期元数据视图与签发资格
+   316	    # ------------------------------------------------------------------ #
+   317	    def meta(self, key_id: str) -> Dict[str, Any]:
+   318	        """单 key 元数据副本（无元数据的 key 返回 {status: active}）。"""
+   319	        if key_id not in self._keys:
+   320	            raise KeyNotFoundError(
+   321	                f"key_id {key_id!r} not registered in keyring "
+   322	                f"(known: {sorted(self._keys)})") from None
+   323	        return dict(self._meta.get(key_id, {"status": KEY_STATUS_ACTIVE}))
+   324	
+   325	    def _key_expired(self, key_id: str) -> bool:
+   326	        expiry = self._meta.get(key_id, {}).get("expiry")
+   327	        if expiry is None:
+   328	            return False
+   329	        epoch = _parse_iso_or_none(expiry, "expiry")
+   330	        return epoch is not None and epoch <= time.time()
+   440	    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+   441	                 _SECRET_FILE_MODE)
+   442	    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+   443	        fh.write(data)
+   444	    os.chmod(path, _SECRET_FILE_MODE)  # 掩盖既有宽权限文件
+   445	
+   446	
+   447	def ensure_keyring_dir(path: str) -> None:
+   448	    """创建/收敛 keyring 目录为 owner-only（0700——目录需要 x 位）。"""
+   449	    os.makedirs(path, mode=_KEYRING_DIR_MODE, exist_ok=True)
+   450	    os.chmod(path, _KEYRING_DIR_MODE)
+   451	
+   452	
+   453	def write_key_to_dir(keyring_dir: str, key_id: str, secret: str,
+   454	                     meta: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+   455	    """把 secret（0600）+ 元数据边车 ``<key_id>.meta.json``（0600）写入目录。
+   456	
+   457	    返回规范化后的元数据。目录必须是受管 keyring 目录（0700）。
+   458	    """
+   459	    ApprovalKeyring._validate_key_id(key_id)  # noqa: SLF001 —— 复用命名约束
+   460	    ensure_keyring_dir(keyring_dir)
+   461	    _write_private_file(os.path.join(keyring_dir, f"{key_id}.secret"),
+   462	                        secret + "\n")
+   463	    normalized = ApprovalKeyring._normalize_meta(  # noqa: SLF001
+   464	        key_id, dict(meta or {}))
+   465	    normalized.setdefault("created_at", _utc_now_iso())
+   466	    normalized = ApprovalKeyring._normalize_meta(key_id, normalized)
+   467	    save_key_meta(keyring_dir, key_id, normalized)
+   468	    return normalized
+   469	
+   470	
+   471	def save_key_meta(keyring_dir: str, key_id: str,
+   472	                  meta: Mapping[str, Any]) -> None:
+   473	    """（覆盖）写单 key 元数据边车 ``<key_id>.meta.json``（0600）。"""
+   474	    normalized = ApprovalKeyring._normalize_meta(key_id, dict(meta))  # noqa: SLF001
+   475	    payload = json.dumps(normalized, indent=2, ensure_ascii=False,
+   476	                         sort_keys=True)
+   477	    _write_private_file(os.path.join(keyring_dir, f"{key_id}.meta.json"),
+   478	                        payload + "\n")
+   479	
+   480	
+   481	def append_keyring_event(event_log_path: str,
+   482	                         record: Mapping[str, Any]) -> None:
+   483	    """append-only 追加一条 keyring 生命周期事件（jsonl，0600，单次 write）。"""
+   484	    line = json.dumps(dict(record), sort_keys=True, separators=(",", ":"),
+   485	                      ensure_ascii=False)
+   486	    fd = os.open(event_log_path,
+   487	                 os.O_WRONLY | os.O_CREAT | os.O_APPEND, _SECRET_FILE_MODE)
+   488	    try:
+   489	        os.write(fd, (line + "\n").encode("utf-8"))
+   490	    finally:
+   491	        os.close(fd)
+   492	    os.chmod(event_log_path, _SECRET_FILE_MODE)
+=== legacy events frozen claim/implementation anchors ===
+   438	def migrate_legacy_events(sqlite_path: str,
+   439	                          sidecar_path: Optional[str] = None) -> Dict[str, Any]:
+   440	    """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
+   441	
+   442	    契约：
+   443	    - 只读旧表：本函数绝不 CREATE/INSERT/UPDATE/DELETE 旧 ``events`` 表
+   444	      （保留只读兼容；收编后旧表原样留在库中，仅供对账，不再是正源）；
+   445	    - 单一写入 API：每行经 ``EventStore.append`` 以
+   446	      ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
+   447	      事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
+   448	      全部计 duplicate，零重复入账（一次性、幂等）；
+   449	    - 旧行按已入账历史记录原样收编（status 等字段原封不动）：旧表行是
+   450	      旧制度下已落账的数据，收编时重新判定/归一会改写历史账目，故只做
+   451	      搬运、绝不再判；JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
+   452	    - 守恒：rows_seen == imported + duplicates，否则 ConservationError；
+   453	    - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
+   454	      位置溯源。
+   455	
+   456	    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``。
+   457	    """
+   458	    sqlite_path = os.path.abspath(sqlite_path)
+   459	    sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
+   460	                    else sqlite_path + ".legacy-events-sidecar.jsonl")
+   461	    os.makedirs(os.path.dirname(sidecar_path) or ".", exist_ok=True)
+   462	
+   463	    store = EventStore(sqlite_path)
+   464	    try:
+   465	        # 表名是模块常量（不可信输入不进 SQL 文本）；存在性用参数化查询
+   466	        present = store._conn.execute(
+   467	            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+   468	            (LEGACY_EVENTS_TABLE,),
+   469	        ).fetchone() is not None
+   470	
+   471	        legacy_rows: List[Dict[str, Any]] = []
+   472	        if present:
+   473	            cols = {r[1] for r in store._conn.execute(
+   474	                f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
+   475	            missing = _LEGACY_REQUIRED_COLUMNS - cols
+   476	            if missing:
+   477	                # 形状异常 fail-closed：同名表不是旧迁移器产物，绝不猜搬
+   478	                raise RuntimeError(
+   479	                    f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
+   480	                    f"missing columns: {sorted(missing)}; refusing to migrate")
+   481	            # 只读 SELECT——旧表全程零写入
+   482	            for rid, line_sha, status, source_file, source_line, payload in store._conn.execute(
+   483	                f"SELECT id, line_sha, status, source_file, source_line, payload "
+   484	                f"FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
+   485	            ):
+   486	                legacy_rows.append({
+   487	                    "id": rid, "line_sha": line_sha, "status": status,
+   488	                    "source_file": source_file, "source_line": source_line,
+   489	                    "payload": payload,
+   490	                })
+   491	
+   492	        imported = duplicates = 0
+   493	        with open(sidecar_path, "a", encoding="utf-8") as sidecar:
+   494	            for row in legacy_rows:
+   495	                event = {
+   496	                    "event_type": LEGACY_RESIDUE_EVENT_TYPE,
+   497	                    "line_sha": row["line_sha"],
+   498	                    "status": row["status"],
+   499	                    "raw": row["payload"],
+   500	                }
+   501	                _event_hash, inserted = store.append(event)
+   502	                if inserted:
+   503	                    imported += 1
+   504	                    decision = "imported"
+   505	                else:
+   506	                    duplicates += 1
+   507	                    decision = "duplicate"
+   508	                sidecar.write(json.dumps({
+   509	                    "decision": decision,
+   510	                    "legacy_table": LEGACY_EVENTS_TABLE,
+   511	                    "legacy_id": row["id"],
+   512	                    "line_sha": row["line_sha"],
+   513	                    "source_file": row["source_file"],
+   514	                    "source_line": row["source_line"],
+   515	                }, ensure_ascii=False, sort_keys=True) + "\n")
+   516	
+   517	        store.verify_chain()
+   518	        if len(legacy_rows) != imported + duplicates:
+   519	            raise ConservationError(
+   520	                f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
+   521	                f"imported({imported}) + duplicates({duplicates})")
+   522	
+   523	        return {
+   524	            "sqlite_path": sqlite_path,
+   525	            "legacy_table": LEGACY_EVENTS_TABLE,
+   526	            "legacy_table_present": present,
+   527	            "rows_seen": len(legacy_rows),
+   528	            "imported": imported,
+   529	            "duplicates": duplicates,
+   530	            "event_table": "pipeline_events",
+   531	            "write_api": "EventStore.append",
+   532	            "sidecar_path": sidecar_path,
+   533	            "chain_verified": True,
+   534	        }
+   535	    finally:
+   536	        store.close()
+=== P1f count-only anchors ===
+   380	else
+   381	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   382	fi
+   383	
+   384	echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+   385	P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+   386	P1F_COUNT=0
+   387	P1F_FAIL=0
+   388	for tf in $P1F_FILES; do
+   389	  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+   390	    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+   391	    TF_RC=$?
+   392	    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+   393	    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+   394	      P1F_COUNT=$((P1F_COUNT+NF))
+   395	    else
+   396	      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+   397	      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+   398	    fi
+   399	  else
+   400	    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+   401	  fi
+   402	done
+   403	if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+   404	  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+   405	else
+   406	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+   407	fi
+   408	
+   409	echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+   410	if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+   411	  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+   412	  RA_RC=$?
+   413	  if [ $RA_RC -eq 0 ]; then
+   414	    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+   415	  else
+   416	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+   417	  fi
+   418	else
+   419	  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
+   420	fi
+   421	
+   422	echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+   423	if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   424	  python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+   425	  ADV_RC=$?
+OUTPUT_END
+EXIT_CODE: 0

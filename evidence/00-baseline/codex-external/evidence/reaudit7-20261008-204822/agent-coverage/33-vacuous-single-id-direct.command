@@ -1,0 +1,1 @@
+python3 system/tests/test_ac_station_families.py; r1=$?; python3 tools/ac_traceability.py --check --json /tmp/wq7b-vacuous-trace.json; r2=$?; echo DIRECT_SUITE_RC=$r1 TRACE_RC=$r2; grep -c '^def test_' system/tests/test_ac_station_families.py; grep -n -A4 'def test_SC_05' system/tests/test_ac_station_families.py; exit $((r1 || r2))

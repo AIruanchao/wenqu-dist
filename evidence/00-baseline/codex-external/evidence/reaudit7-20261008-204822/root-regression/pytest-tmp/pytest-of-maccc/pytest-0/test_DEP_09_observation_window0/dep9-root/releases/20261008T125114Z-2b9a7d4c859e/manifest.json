@@ -1,0 +1,33 @@
+{
+  "content_digest": "2b9a7d4c859ec7a0406d40fc087bffdb8ca70e984b6bfbdb19a2f9c8aee83a57",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "03e383fdebf9732023265efbb667b78237203f8fccf488e863a18e04c740d1aa",
+      "size": 35
+    },
+    {
+      "mode": "0444",
+      "path": "flag-dep9-expand.txt",
+      "sha256": "41788adb42bbf97f7a38010dbcb1bf71d0ad2c68508d3e4e2c059397eaae57d8",
+      "size": 12
+    },
+    {
+      "mode": "0444",
+      "path": "migrations/001_expand.sql",
+      "sha256": "dacd19598175eabb24771af16cacafb7e8a4c1339bdb16c7f34d61138c60d2c8",
+      "size": 42
+    }
+  ],
+  "release_id": "20261008T125114Z-2b9a7d4c859e",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-expand"
+}

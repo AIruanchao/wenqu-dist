@@ -1,0 +1,224 @@
+TIMESTAMP_UTC: 2026-10-08T12:49:34Z
+CWD: /private/tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: bash -lc $'\ncd "$1"\nP=evidence/00-baseline/codex-external/�\226��\210.md\nsha256sum "$P" 2>/dev/null || shasum -a 256 "$P"\nrg -n "P0-|station-result|schema|Schema|Gate|manifest|required|coverage|审�\211�|�\255��\217\221|EventStore|events|pipeline_events|7789|�\201�\215�索�\225|evidence-index|20 �\235�|APPROVAL_CONSUMED|�\255��\220|模�\235\227�\214\226" "$P" | head -900\n' _ /tmp/wenqu-reaudit7-f6p0-22971 
+OUTPUT_BEGIN
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+8:scope: 问渠 one-shot 七段管线、Bug 八站管线、证据/账本、CI、调度、发布、7789 控制面
+14:> 当前问渠、Bug 管线和 7789 控制面均不得用于生产放行结论；任何部署、合流、分支保护、LaunchAgent、生产 DB、外部告警或回滚动作，仍须逐项获得用户明确授权。
+19:2. **不得直接修改现役目录** `/Users/maccc/.wenqu`、`/Users/maccc/.zcode/quality-system/bin` 或 LaunchAgent 正在引用的脚本；所有实现必须在版本化正源的独立干净 worktree 中完成。
+26:9. **每个工作包必须交付五件套：** 代码/配置、正反测试、证据索引、迁移或部署说明、已演练回滚报告。未演练只能写“已记录回滚路径”。
+27:10. **不得为让 Gate 变绿而修改 Gate 规则、阈值、基线、豁免数量或证据 TTL。** 规则变更必须独立 PR、独立批准、独立对抗验证。
+39:| 7789 控制面 | — | 40/100 | **40/100** | 只可作只读汇总面 |
+50:2. `http://127.0.0.1:7789/api/health` 同时返回 **87 / 良好**，本机磁盘已达 **90%**。
+59:   - 完整 Gate 不是 required check。
+64:9. 租户扫描器硬编码 27 个模型；Schema 中直接含 `organizationId` 的模型约 193 个，遗漏约 172 个。
+65:10. 发布正源 `/Users/maccc/Documents/wenqu-dist`：
+72:    - Git 正源仍未吸收该修复，重新部署仍可能回归。
+96:| 不存在 base ref、零测试 | Gate 可返回“全绿/可推送” | ERROR/BLOCKED |
+98:本轮证据包：`/private/tmp/codex-test/evidence/reaudit-20261007/`，索引为其 `manifest.sha256`。其中包含安全负向红探针、wenqu-dist 回归、health、branch required checks、运行/正源哈希、gatedoctor、waiting 和 launchctl 快照；它仍是本轮复审证据，不等同整改后的完整生产证据包。
+113:2. Bug 八站由唯一 orchestrator 执行；任一 required 站非 PASS 时整线绝不为 PASS。仅 policy 允许且仍有效的低风险接受可使 aggregate=CONDITIONAL，其余 FAIL/ERROR/BLOCKED/缺失/过期一律 BLOCKED。
+115:4. 合流只接受同一 head SHA 的全部 required checks，并另需 exact action authorization；不存在 admin 自动绕闸。
+117:6. 运行体可由 manifest 证明来自唯一正源，部署和回滚均为原子操作。
+118:7. dashboard 只读展示权威聚合结果，永远不能比 Gate 更绿。
+126:| CI 准入完成 | Required Gate 已实际配置并用测试 PR 验证 | 生产闭环 |
+127:| 受控部署完成 | 用户授权、manifest 对账、真环境 smoke、回滚演练 | 观察完成、零盲区 |
+134:# 3. 边界、术语与正源
+140:| 问渠 one-shot | 需求→方案→EQS 前置→实现→递归清零→EQS 全量→Gate 的七段任务管线 |
+142:| 7789 dashboard | 两条管线的只读控制面，不是管线本身，也不能自行制造 PASS |
+150:| 可执行核心/制品 | `wenqu-dist`；`releases/<release-id>` | runner/store/state/gate/dashboard/installer 唯一实现，manifest 校验，不得热改 |
+151:| 策略/Skill | W0/W1 必须确认的正式 quality-policy Git 正源 | 只含受保护 policy/Skill/规则包，不复制 executable core |
+152:| ERP 域插件 | `AIruanchao/qisemi-erp` 正源 | scanners、业务探针、CI adapter |
+154:| 证据 | content-addressed store `evidence/sha256/<digest>` | 原始输出、不可用路径名寻址、每次 Gate 重验哈希 |
+169:schema_version
+170:release_manifest_sha256
+180:2. 任一 required probe 的执行或策略结果非 PASS，整线不得 PASS。
+183:5. 问渠七段必须顺序推进；Bug 八站中相互独立的站应继续/并行取证。任一 required 站非 PASS 时整线绝不为 PASS；仅 policy 允许且有效的低风险接受可形成 CONDITIONAL，其余非 PASS 一律 BLOCKED。禁止因早站失败而形成后续扫描盲区。
+185:7. 审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本。
+195:17. P0/P1 未清、有效 required evidence 过期或 runtime 漂移时禁止生产放行。
+233:schema normalizer
+236:  └─校验身份、TTL、required 集合、状态和证据哈希
+240:  └─只读展示，不写 Gate、不自算放行
+243:禁止“扫描脚本自己写 PASS/心跳，再由同目录脚本统计为健康”的循环自证。Gate aggregator 必须是小型、只读、依赖最少的独立组件，并接受变异测试。
+260:- **站级语义：** required station 只有 `COMPLETED+PASS` 才是 station PASS；CONDITIONAL 不得改写成 PASS，也不得计入“全站 PASS”。
+261:- **内部聚合语义：** 存在 policy 允许的低风险 `ACCEPTED_RISK` 时，aggregate 仍为 CONDITIONAL；未授权时 CLI 返回 exit 4，GitHub required context 发布 failure/blocked，自动合流不得消费。
+263:- **唯一条件放行路径：** 所有非接受项均 PASS，且 approval broker 签发绑定完整 finding 集合和失效域的 risk authorization 后，aggregator 可铸造 `AUTHORIZED_CONDITIONAL` attestation。内部 aggregate、详情页和 dashboard 仍保持琥珀色 CONDITIONAL，不得显示 PASS；P0/P1 永不适用。risk authorization 与 action authorization 是两个判别类型；可由同一个人类批准包同时签发，但必须分别校验、分别消费。
+264:- **Check 映射：** PASS→`success/PASS`；未获 risk authorization 的 CONDITIONAL→`failure/CONDITIONAL_BLOCKED`；合法条件态→`success/AUTHORIZED_CONDITIONAL`；BLOCKED/ERROR/STALE→failure。任何绿色 context 只表达 technical eligibility，不等于动作授权；另一个 `Action Authorization Gate` 只在 exact action authorization 有效时对对应 SHA/action 成功。
+283:| 3 | 权限、审批或依赖 BLOCKED |
+287:只有 `COMPLETED + PASS` 可计 **station required PASS**；`AUTHORIZED_CONDITIONAL` 是独立的显式授权出口，永远不改名为 PASS。
+312:整段不得用豁免伪造 PASSED。`COMPLETED_CONDITIONAL` 仅允许用于 S7，且永远不等于 PASSED。S1_REQUIREMENT、S7_GATE 和 required 安全检查永远不可整段豁免；N/A/风险接受只作用于 policy 明确允许的非关键子检查，并令整线进入 CONDITIONAL。
+321:| 1 | `prod-write` | 一次性 exact-scope 授权 + 对应前置 Gate + 回滚级别 |
+323:| 3 | `release` | 一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案 |
+324:| 4 | `scope` | 一次性新 scope 授权 + 风险、required 集和证据重新冻结 |
+330:STOP-01～03 必须逐类型验证：九类全部覆盖“客观条件已恢复但无授权仍拒绝”“有授权但客观条件未恢复仍拒绝”“错误类型/旧版本/重放审批仍拒绝”。
+366:S7 内部只消费 S1～S6 和 Bugscan Gate，外部 `Wenqu Required Gate` 是其输出。`SUCCEEDED` 仅表示七段编排以 exact PASS 完成，不代表已合流、已发布或已部署；`COMPLETED_CONDITIONAL` 更不得投影成 SUCCEEDED。动作结果进入独立 action/deployment saga。
+379:`BACKUP_VERIFIED` 表示一致性 checkpoint 已完成恢复抽验；`EXPANDED` 只允许已授权、幂等、前后兼容的 additive migration。`ROLLED_BACK` 为成功回切终态；`FAILED_BLOCKED`、`ROLLBACK_FAILED` 都是硬阻断终态，必须保留 current/现场、熔断 writer/合流/后续发布并停等用户，不得继续自动尝试。每次转换绑定 `deployment_id/release_id/previous_release_id/schema_version/writer_epoch/migration_lock_id/backup_id/authorization_id/state_version/evidence`。部署状态独立于任务 run 状态；destructive contract migration 使用独立状态机和独立后续授权，不得夹带在本次激活中。
+419:## 6.4 SQLite 事件正源
+427:events
+431:finding_events
+449:- events 表 trigger 禁止 UPDATE/DELETE；
+454:## 6.5 审批事件
+456:审批采用 `action/stop_type` 判别联合，而不是让所有类型携带无意义的 PR 字段。公共 envelope 最少包含：
+471:release:    release_id + artifact_sha256 + manifest_sha256 + environment + previous_release_id
+472:ddl:        database_identity + statement_digest + before/after_schema_hash + backup_id + rollback_plan_hash
+475:rollback:   failed_deployment_id + exact_previous_release_id + trigger + schema_compatibility_hash
+478:resume 与本地审批消费必须同事务；外部动作按 §6.1 durable saga 处理。过期、重复、错误 actor、错误 scope、错误 SHA/环境、旧版本或 payload 与 discriminator 不符全部拒绝。第一阶段关闭 dashboard 写接口，仅允许受控 CLI/broker 写入。
+494:runner 必须以 argv 数组启动命令，实际 waitpid 捕获退出码；以 `O_NOFOLLOW/lstat/realpath` 拒绝 symlink、非普通文件和根外路径；原始输出复制进 CAS 后 fsync，再写 manifest。调用者不得填写实际退出码或总 findings。
+498:时间证据统一 UTC aware timestamp，并记录 boot ID/clock health。检测到时钟回拨、来源不可信或偏差超策略阈值时，Gate 为 UNKNOWN/BLOCKED。
+508:不能粗暴规定所有内层命令都必须 exit 0；例如“越权请求应被拒绝”的负例可以有非零内层退出码，但外层断言器必须 PASS。Gate 只消费 harness 的可信判定及其原始证据。
+515:┌────────────────── 唯一版本化正源 ──────────────────┐
+520:                          │ build + manifest + tests
+559:每轮先冻结 `run-manifest.json`，再运行：
+561:| 站 | 目标内容 | required 证据 |
+563:| 0 范围冻结 | 项目、SHA、风险、范围、规则、数据配置、required 站集合 | 五元指纹+定级依据 |
+564:| 1 源闸 | Fast、Full Gate、OpenAPI、org guard、反证、rebase、合并身份 | exact-SHA checks |
+578:  "schema_version": "2.0",
+604:  "coverage": {"denominator": 193, "scanned": 193},
+616: └─W1 契约/Schema/威胁模型/TLA/红探针
+634:W3A/W4 框架/W7A 可在冻结契约后并行开发；W3B 必须等待 W3A 与 W6A～W6D 的真实结果契约完成。W8 在 W7A 的布局中完成 dashboard 与迁移投影接线，W7B 才把包括 W8 在内的全部组件打成最终候选。最终制品、启用、接线和切换必须满足上述真实数据依赖。W3A 只产生可验证的源闸原语，不发布最终 required context；W3B 才是八站聚合和合流控制器，因此不存在 W3↔W6A 自依赖。
+639:- 迁移不得先于 schema；
+640:- 自动合流不得先于 Gate；
+662:   - runtime、正源、Skill、policy、plist、crontab、脚本 SHA256；
+668:3. 保存运行体热补 diff；逐项审查后再进入正源，禁止把整个 runtime 反向覆盖 Git。
+685:- baseline bundle 有 manifest 和总 SHA；
+689:- dashboard、CLI、Gate 对外统一显示 BLOCKED；
+691:- maintenance lane 机器策略已证明不能合流、部署或生产写；quality-policy 唯一正源已确认。
+696:evidence/W0/baseline-manifest.json
+714:# 10. 工作包 W1：契约、Schema、威胁模型、TLA 与红探针
+725:schemas/run-event-v2.schema.json
+726:schemas/station-result-v2.schema.json
+727:schemas/finding-event-v2.schema.json
+728:schemas/evidence-v2.schema.json
+729:schemas/approval-v2.schema.json
+730:schemas/health-v2.schema.json
+739:治理文档必须由同一 machine registry/schema 生成或校验，修复当前漂移：
+754:- required 证据字段和 TTL；
+757:- 审批 actor、scope、nonce、有效期和消费规则；
+761:- CONDITIONAL 默认 technical eligibility=false。只有独立 risk authorization 精确绑定 finding 集、severity、理由、补偿控制、scope/environment/policy/ruleset/input watermark/state_version/TTL 后，才能铸造 `AUTHORIZED_CONDITIONAL` attestation；任何 merge/release/prod-write/DDL 仍需另一个对应判别 payload 的 exact action authorization。两类授权分别校验、分别消费；required context 必须显式标注条件放行，任一机制未完整落地时不得动作。
+763:- 性能 endpoint 分母、并发、预热、最小样本/时长、p95/p99/错误率/吞吐与相对退化阈值、baseline 晋升审批。
+769:- JSON Schema 对所有示例和反例给出确定结果；
+778:Schema 在观察期采用 expand/contract；新字段先 additive，旧 reader 保持兼容。禁止用回滚删除已写事件或缩小验证规则。
+786:以下路径均为**建议落在 `/Users/maccc/Documents/wenqu-dist` 仓内的相对路径**；W1 ADR 必须先冻结 owner repo、默认分支、owner、build 入口和安装目的地。若 W0 找到已有正式 quality-policy 正源，可将 policy/Skill 移入该仓，但 executable core 只能有一份，禁止两仓复制同名实现。
+817:- 100 writer × 100 events：零丢失、零重复、唯一序列；
+824:- 从 events 全量重放得到的投影与在线投影完全相同；
+845:- **W3A（源闸基础件，依赖 W2）：** 实现 §12.2 的 fresh base 获取、merge-base/diff、affected/full test 执行、真实 rc 捕获、exact-SHA/provenance 校验和规范化 `source-gate-result.json`；它不读取八站汇总、不发布 Required Gate、不执行合流。
+846:- **W3B（最终控制面，依赖 W3A+W6A～W6D）：** 实现 §12.1、§12.3～§12.8 的独立 aggregator、收敛、required contexts 和 merge/release 控制。W3B 只能消费 W3A 结果与八站结果，W6 不得反向消费 W3B。
+848:## 12.1 Gate 聚合规则
+850:Gate 对外聚合只给：
+863:只有 policy 明确允许的 `COMPLETED+NOT_APPLICABLE` 才能不阻断；SKIP、UNKNOWN、空输出、missing、stale 不属于 N/A。CONDITIONAL 的 required-check 行为严格遵循 §6.1，不得擅自当 PASS。
+874:8. affected Gate 和 full Gate 分开；影响图未知时升级 full，不得缩小范围。
+884:- findings 从 finding events 计算；
+890:- verifier 必须重验 CAS hash、identity、TTL、required 站集合。
+902:最优默认是删除本地 auto-merge 写控制器，使用 GitHub 原生 merge queue/auto-merge 加 required ruleset；本机只读观察和告警。以下控制器要求只适用于平台能力确实不足、并经独立 ADR 批准的最小权限 GitHub App fallback，绝不再使用 shell daemon、个人 `gh` 或 admin token。
+906:3. 只认 branch protection/ruleset 实时枚举出的 required checks；名称精确匹配，禁止子串匹配。
+912:5. PR 必须非 draft、CLEAN、mergeable、审批/CODEOWNERS 满足、无 change request。
+919:## 12.5 CI Required Gate
+924:Bugscan Required Gate
+925:Wenqu Required Gate
+926:Action Authorization Gate
+929:`Bugscan Required Gate` 聚合八站。问渠内部 S7 决策只消费 exact-SHA 的 S1～S6、`Bugscan Required Gate` 和其他冻结的 release inputs；`Wenqu Required Gate` 是 S7 的唯一外部输出，绝不能作为 S7 输入或被 S7 递归聚合。`Action Authorization Gate` 独立表达 §6.1 的 exact action authorization，不能由前两个技术 Gate 推导。三者必须由默认分支固定版本或外部受控 App 发布，冻结 GitHub App/integration ID、workflow commit、expected head/merge-group SHA；PR 不能通过修改自己的 workflow/manifest 自证通过。workflow/action 均钉 commit SHA，workflow 目录受 CODEOWNERS 保护。
+933:经用户批准后，分支保护至少 required：
+937:Bugscan Required Gate
+938:Wenqu Required Gate
+939:Action Authorization Gate
+955:| 无 Fast + Gate FAILURE | 禁止合流 |
+956:| required check 缺失/旧 SHA/同名伪造 | 禁止合流 |
+959:| 技术 Gate 全绿但 Action Authorization Gate 缺失/旧 SHA | 不合流、不发布 |
+965:对 Gate、合流、授权核心模块做 targeted mutation：删除校验、改比较符、插入 `|| true`、吞异常均必须被测试杀死；目标安全模块 mutation kill=100%，整体门槛不低于 90%。
+969:branch protection 保存 before JSON，但任何回滚不得恢复不安全规则。新聚合器故障时保持 required checks、暂停自动合流，改走人工受保护 PR；不得关闭检查换取可合流。
+1018:- `wait-list --jsonl` 带 `schema_version`；
+1039:- CAS/manifest 做只读快照；
+1076:1. 对所有旧 JSONL/waiting/审批文件做逐文件和逐行 SHA 清单。
+1102:- 所有豁免、审批和到期日；
+1129:- 每站输出严格 `station-result.json`；
+1131:- coverage 必须同时给 denominator 和 scanned；未知分母不得 CLEAN；
+1133:- required station 的 ERROR/BLOCKED/SKIP 使整线阻断。
+1137:每站必须冻结：入口、覆盖分母、工具/规则版本、PASS/FAIL/ERROR 判据、TTL、产物 schema、正负测试、责任仓和回滚方式。
+1141:- 站0从 target SHA 生成项目身份、范围、风险、required 站集合和证据失效域；分母缩水默认 BLOCKED。
+1142:- 站1只消费 W3A 的 exact-SHA `source-gate-result.json` 并完成站内 applicability/coverage 适配；不得消费 W3B，不得由 W6 自报 CI 通过或发布 required context。
+1143:- required 集和 registry 来自受保护 policy commit，PR 不可自改。
+1144:- 产物：`run-manifest.json`、station dependency graph、coverage denominator manifest。
+1162:- 每个扫描器有独立 coverage denominator 和 rule digest；任一 required 件缺失/过期即站2非 PASS。
+1184:1. Git `schema.prisma`；
+1187:4. 生产只读 `pg_catalog/information_schema`。
+1189:规范化对象至少包括 schema、table、column(type/null/default)、PK、FK、unique、index、enum、check、trigger、migration history。
+1191:每轮 DB evidence 还必须记录：current database、server/version、schema、role、`transaction_read_only`、Prisma/PostgreSQL 版本、diff 方向、catalog scope、extension-owned object 处理策略、默认值/表达式/顺序规范化规则和 migration checksum。连错数据库、角色非只读、方向反转、未知对象类型均 BLOCKED。
+1193:迁移类变更还必须覆盖 fresh DB、代表性 legacy/minimal schema、前向迁移、迁移后审计以及失败后的回滚/恢复；只证明“看见漂移”不等于迁移安全。
+1224:1. 从 Prisma DMMF/schema 自动生成直接和关系间接租户模型分母，禁止硬编码 27 项。
+1258:- 八站 required 集可由风险定级生成，并由 aggregator 强制。
+1268:W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+1282:## 16.2 Release manifest
+1286:built_at, builder, schema_version, policy_hash,
+1289:min_schema_version, max_schema_version,
+1297:1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+1298:2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+1300:4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+1302:6. 创建一致性 backup/checkpoint，记录 LSN/事务水位或等价游标、schema/data hash，并在隔离环境实际恢复抽验；未验证备份不得继续；
+1304:8. 同时用现役二进制和候选二进制验证 expanded schema 兼容性；任一失败保持旧 current，进入 `FAILED_BLOCKED`，不得自动 down migration；
+1306:10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+1307:11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+1310:并发部署/回滚只能一个成功。staging→release rename 与 current symlink 切换必须位于同一文件系统。restart 后不能用单次 HTTP 200 放行。previous compatible 由 event/policy/CAS/API/schema compatibility range 机器判定。`ROLLBACK_FAILED` 时必须冻结 current 与现场、阻断 writer/merge/release、保持告警并停等人工恢复；禁止循环重试或执行破坏性回滚。
+1312:安装器必须删除 `doctor || true`。doctor 非零、manifest 不符、linter 缺失均导致整次部署失败。禁止 `cp -R` 覆盖现役目录和保留幽灵文件。
+1316:- manifest 缺/多文件、hash 错、版本错、额外脚本；
+1320:- DB schema 与二进制不兼容；
+1321:- 回滚后 build API/PID/manifest 不一致；
+1322:- 正源 dashboard 缺闭合标签或缺必需 linter。
+1355:总体状态取 required 项中的**最坏值**，不是加权平均。分数仅作趋势，不参与解除硬阻断；任一 P0 时即使展示分数也不得超过红色区间。
+1360:- source/runtime manifest 漂移；
+1362:- required sentinel ERROR/stale；
+1365:- required Gate 缺失、错误 SHA 或过期；
+1368:- 唯一正源或环境身份未知；
+1407:- 任一 required blocker 时页面不可能显示“良好”。
+1411:Dashboard 故障只能回退到兼容新 API 的只读版本；不能恢复无鉴权写接口或独立加权健康分。Dashboard 故障本身不得改写底层 Gate，但若 policy 把可观测性列为发布必需项，release readiness 应为 BLOCKED，而不是默认放行。
+1424:6. **正式切换：** 用户逐项授权后切 writer epoch、CI required、scheduler、dashboard read model。
+1447:1. dashboard 绿但 Gate 红；
+1454:8. runtime manifest 漂移；
+1487:- required sentinel stale 未告警=0；
+1502:2. 服务 restart 后 build/manifest/DB schema 对账；
+1505:5. branch rules 故障时保持 required，人工受保护 PR 可工作；
+1513:- 同类二犯必须晋升为代码约束/测试/CI Gate；
+1514:- 规则、基线、阈值变更独立审批；
+1515:- 更新 Skill 时同步版本、front matter、机器 schema、实际列表和回归；
+1516:- 运行 governance consistency checker，确保 one-shot/bug Skill、policy、registry、CLI help、CHANGELOG 和 release manifest 使用同一版本与枚举；
+1535:- required 证据同一指纹、未过 TTL；
+1549:## 20.1 Gate、授权、合流
+1567:| AUTH-03 | AI/runner 尝试自行签发高风险批准 | 拒绝 |
+1569:| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+1573:| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+1575:| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+1585:| STATE-01 | 任意 stage/status | schema 拒绝 |
+1592:| MIG-02 | 缺审批信息的 ACCEPTED | invalid/reopen |
+1631:| REL-01 | manifest 缺件/多件/错 hash | 部署失败 |
+1637:| UI-04 | Gate 红、其他项高分 | 总体 BLOCKED |
+1644:| STOP-01 | 九种 stop type 使用错误类型审批 | 全拒绝 |
+1661:| CI-08 | Wenqu Gate 缺失但 Bugscan 绿 | 不合流 |
+1662:| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+1666:| COND-03 | 合法低风险接受、其余全 PASS、risk 与 action 两类精确授权 | 内部仍 CONDITIONAL；技术 context=`success/AUTHORIZED_CONDITIONAL`；Action Gate 成功后动作恰一次 |
+1688:| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+1700:| DOC-04 | 文档宣称现役/PASS，但 registry 或 Gate 为 BLOCKED | CI 阻断 |
+1731:高风险 stop point 应使用具备 user-presence 的独立 approval broker：Touch ID/系统认证，或外部已认证渠道回执+nonce。签名必须绑定 scope、TTL、state_version、SHA 和环境；AI 只能消费，不能签发。
+1751:高风险 approval 由 user-presence broker 签发；release/runner attestation 优先由被测运行体不可访问的 CI 或独立 broker 签发，verifier 只信钉扎公钥。被测程序、普通同 UID 进程和 runner 子进程不得读取私钥。
+1770:CAS 必须冻结 retention、RPO/RTO 和 GC 规则。GC 前证明目标 digest 没有 event/manifest/backup 引用，并完成恢复抽验；引用图未知或 checkpoint 未锚定时禁止回收。
+1791:- 代码：current 原子切回上个**兼容 v2 schema**的 release；
+1794:- CI：故障时保持 required checks，转人工受保护 PR；
+1812:- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+1830:  02-schemas-and-tla/
+1837:  09-release-manifest-attestation/
+1842:  evidence-index.json
+1856:| FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+1861:| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+1862:| FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+1865:| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+1870:| FND-016 | 当前 43 ACCEPTED 缺要素 | W5 | MIG-02、RISK-01、COND-01/04/05 | risk acceptance events |
+1871:| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+1899:| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+1900:| STOP-01～03 | REQ-STOP-001 / AC-STOP-AUTH-AND-FACT | W1/W2 | nine-type matrix/events |
+1904:| RISK-01 | REQ-RISK-001 / AC-RISK-INVALIDATE | W2/W5 | revoke/invalidate/reopen events |
+1906:| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+1923:正源与 SHA：
+1958:下列行号已在本轮复核时确认存在，仅用于快速定位；ZCode 开工必须先按 W0 记录新 SHA/hash 并重新定位语义，禁止因行号漂移盲改。现役目录只读取证，修复落在对应版本化正源的干净 worktree；尚无远端的 `/Users/maccc/.zcode/quality-system` 先完成 W0 责任仓裁定。
+1976:| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+1978:首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+1998:| 本轮证据包 | PASS；`manifest.sha256` 所列工件逐项 SHA256 校验一致 |
+OUTPUT_END
+EXIT_CODE: 0

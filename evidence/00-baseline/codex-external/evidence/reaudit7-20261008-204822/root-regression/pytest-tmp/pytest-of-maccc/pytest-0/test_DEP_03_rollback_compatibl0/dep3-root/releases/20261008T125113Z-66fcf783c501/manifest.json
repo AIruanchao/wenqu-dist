@@ -1,0 +1,27 @@
+{
+  "content_digest": "66fcf783c50141890198050454357573f3d751f043d517a208a925e7baf7bd39",
+  "created_at": "2026-10-08T12:51:13Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "bin/reader.py",
+      "sha256": "5e0776b7a2a998fc9d6e0dcf1029a9aa19d61ee15578d9e447b2870aa91e0861",
+      "size": 359
+    },
+    {
+      "mode": "0444",
+      "path": "bin/writer.py",
+      "sha256": "a85a4de465cac5beab86fee14903344e9af2d3630fad7eed767762ec68cb6557",
+      "size": 334
+    },
+    {
+      "mode": "0444",
+      "path": "version.txt",
+      "sha256": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+      "size": 2
+    }
+  ],
+  "release_id": "20261008T125113Z-66fcf783c501",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_03_rollback_compatibl0/dep3-src-v2"
+}

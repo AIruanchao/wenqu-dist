@@ -120,6 +120,33 @@ W6/P1F（wave6 产品面补缺——§20 验收 ID STATE-02/05/09/11 对应语�
     COMPLETED/FAIL）。终态后一切写入（含 WAITING）拒绝，迟到的批准只能
     指向新 run。``complete_run`` 的 fail-closed 拒绝语义保持不变（授权
     到位后 COMPLETED_CONDITIONAL 的正道不受影响）。
+
+R7 审批消费双洞根修（Codex 第七轮，2026-10-08）：
+  - R7-AUTH-DUAL-CONSUME-005（P0）——消费侧联签 + payload 绑定实参：
+    1) 高危类型（prod_write/ddl/release/fund_auth，单一正源
+       ``HIGH_RISK_APPROVAL_TYPES``）的 envelope 必须携带 ``cosignatures``
+       数组——至少两名不同 key 的独立联签（各自可验、key_id 互异、均非
+       revoked）；缺失/单签/同 key 双签/联签之一 revoked 或验签失败一律
+       ``ApprovalRejected``。签发端（approval_issue）已产联签并嵌入信封；
+       消费端在 envelope 绑定校验之后、nonce 占位之前补验（拒绝零落账）。
+       低危类型携带 cosignatures 在结构层即拒（防「已联签」错觉——与
+       签发端 TwoPersonRuleError 同语义）；
+    2) exact action descriptor 绑定：``reserve_action`` 新增必填
+       ``action_descriptor``（调用方实参声明的动作描述，键集=该类型
+       payload 判别字段全集）——与审批 payload 逐字段等值比对，任何
+       不符 ``ApprovalRejected``（不再只信 envelope 绑定面）；
+    3) 消费事件持久化对账面：APPROVAL_CONSUMED 事件新增
+       ``payload_digest``（canonical payload sha256）与
+       ``cosign_digests``（联签摘要列表）；重放侧强校验（缺失/形状不符
+       /高危缺双联签摘要即 ``PipelineCorruptionError``）。
+  - R7-AUTH-KEY-PERM-006（P1）：keyring loader 权限 fail-closed 见
+    ``approval_keys.from_path``（0600/0700 + DEV_FIXTURE_EXEMPT_ROOTS
+    豁免清单 + ``WENQU_KEYRING_DEV_FIXTURES`` 显式通道）。
+  - 诚实边界：envelope 顶层新增可选键 ``cosignatures``、消费事件新增
+    ``payload_digest``/``cosign_digests`` 已同步声明进两个 schema 镜像
+    （schemas/approval-v2、schemas/run-event-v2）；冻结契约文档
+    docs/specs/wenqu-vNext-contract.md 的 v1.0 文本未随行更新（本仓
+    工单范围外，登记为后续契约升版工作项）。
 """
 
 from __future__ import annotations
@@ -167,6 +194,9 @@ __all__ = [
     "InvalidRunIdError",
     "RECEIPT_PROVISIONAL",
     "RECEIPT_RECONCILED",
+    "HIGH_RISK_APPROVAL_TYPES",
+    "COSIGNATURE_ENTRY_REQUIRED",
+    "approval_payload_digest",
 ]
 
 # ====================================================================== #
@@ -372,8 +402,10 @@ _APPROVAL_REQUIRED_TOP = (
     "expected_state_version", "actor", "issued_at", "expires_at", "nonce",
     "decision", "signature", "payload",
 )
-#: 键集封闭：envelope 不再有任何可选顶层字段
-_APPROVAL_ALLOWED_TOP = frozenset(_APPROVAL_REQUIRED_TOP)
+#: 键集封闭：envelope 顶层唯一可选键为 cosignatures（R7-AUTH-DUAL-
+# CONSUME-005：高危类型消费时必携带；低危类型携带即结构层拒）
+_APPROVAL_ALLOWED_TOP = frozenset(_APPROVAL_REQUIRED_TOP) | frozenset(
+    {"cosignatures"})
 _APPROVAL_TYPES = frozenset({
     "resume", "risk", "merge", "release", "ddl", "prod_write",
     "fund_auth", "rollback",
@@ -401,6 +433,31 @@ _APPROVAL_PAYLOAD_ALLOWED: Dict[str, frozenset] = {
     atype: frozenset(fields)
     for atype, fields in _APPROVAL_PAYLOAD_DISCRIMINATOR.items()
 }
+
+# ====================================================================== #
+# R7-AUTH-DUAL-CONSUME-005：高危类型联签消费契约（单一正源——签发端
+# approval_issue 与本消费端共用；approval_issue 从此处导入再导出）。
+# ====================================================================== #
+
+#: 高危审批类型——消费时 envelope 必须携带 ≥2 名不同 key 的独立联签
+#: （cosignatures 数组；缺失/单签/同 key 双签/revoked 一律 ApprovalRejected）。
+#: 与签发端双人规则（--confirm-two-persons + 第二 key 联签）同一集合。
+HIGH_RISK_APPROVAL_TYPES = frozenset({
+    "prod_write", "ddl", "release", "fund_auth",
+})
+
+#: 联签条目键集封闭：{key_id, actor, signature}——signature 为该 key 对
+#: 「信封体」（envelope 去掉 signature/cosignatures）的独立 HMAC-SHA256。
+COSIGNATURE_ENTRY_REQUIRED: Tuple[str, ...] = ("key_id", "actor", "signature")
+_COSIGNATURE_ENTRY_ALLOWED = frozenset(COSIGNATURE_ENTRY_REQUIRED)
+#: 消费端要求的最少独立联签数（两名不同 key——单人双签无效）
+_MIN_COSIGNATURES = 2
+
+
+def approval_payload_digest(payload: Mapping[str, Any]) -> str:
+    """canonical payload 的 sha256（R7 消费事件对账面——payload_digest）。"""
+    return hashlib.sha256(
+        _canonical_json(dict(payload)).encode("utf-8")).hexdigest()
 
 # ====================================================================== #
 # P0-4 加固：finding/severity/priority 与风险接受边界（Codex 实锤 #6）
@@ -1372,6 +1429,55 @@ class ApprovalBroker:
         if atype == "release" and payload.get("environment") not in ENVIRONMENTS:
             raise ApprovalRejected(
                 f"invalid payload.environment {payload.get('environment')!r}")
+        # R7-AUTH-DUAL-CONSUME-005：cosignatures（可选顶层键）结构校验——
+        # 键集封闭 {key_id, actor, signature}；仅高危类型可携带（低危携带
+        # 即拒，防「已联签」错觉——与签发端 TwoPersonRuleError 同语义）。
+        # 深度语义（≥2 名不同 key、各自可验、非 revoked）由消费门
+        # _verify_cosignatures 在 keyring 上终审。
+        if "cosignatures" in ap:
+            if atype not in HIGH_RISK_APPROVAL_TYPES:
+                raise ApprovalRejected(
+                    f"approval_type={atype!r} 非高危类型"
+                    f"（高危={sorted(HIGH_RISK_APPROVAL_TYPES)}），"
+                    "不得携带 cosignatures（防「已联签」错觉）")
+            cosigns = ap["cosignatures"]
+            if not isinstance(cosigns, list) or not cosigns:
+                raise ApprovalRejected(
+                    "cosignatures must be a non-empty array of "
+                    "{key_id, actor, signature}")
+            for idx, entry in enumerate(cosigns):
+                if not isinstance(entry, Mapping):
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}] must be a JSON object")
+                stray = sorted(set(entry) - _COSIGNATURE_ENTRY_ALLOWED)
+                if stray:
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}] not closed: unknown fields "
+                        f"{stray}（键集={list(COSIGNATURE_ENTRY_REQUIRED)}）")
+                missing = [k for k in COSIGNATURE_ENTRY_REQUIRED
+                           if k not in entry]
+                if missing:
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}] missing {missing}")
+                kid = entry["key_id"]
+                if not (isinstance(kid, str) and kid.startswith("key_")
+                        and len(kid) > 4
+                        and all(c.isalnum() or c in "-_" for c in kid[4:])):
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}].key_id must match "
+                        "^key_[a-zA-Z0-9_-]+$")
+                if not (isinstance(entry["actor"], str)
+                        and entry["actor"].strip()):
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}].actor must be a non-empty "
+                        "string")
+                sig = entry["signature"]
+                if not (isinstance(sig, str) and len(sig) == 64
+                        and all(c in _HEX64 for c in sig.lower())
+                        and sig == sig.lower()):
+                    raise ApprovalRejected(
+                        f"cosignatures[{idx}].signature must be a lowercase "
+                        "64-hex HMAC-SHA256")
         return ap
 
     # ------------------------------------------------------------------ #
@@ -1388,6 +1494,55 @@ class ApprovalBroker:
             raise ApprovalRejected(
                 "HMAC-SHA256 signature verification failed（伪签名拒绝）",
                 {"key_id": key_id, "approval_id": ap.get("approval_id")})
+
+    # ------------------------------------------------------------------ #
+    # R7-AUTH-DUAL-CONSUME-005：高危联签消费门（在 envelope 绑定校验之后、
+    # nonce 占位之前调用——拒绝零落账、零 nonce 消耗）
+    # ------------------------------------------------------------------ #
+    def _verify_cosignatures(self, ap: Mapping[str, Any]) -> None:
+        """高危类型 envelope 必须携带 ≥2 名不同 key 的独立联签。
+
+        - 缺失 / 空数组 / 单签（<2 条）→ ApprovalRejected；
+        - 同 key 双签（key_id 重复）→ ApprovalRejected；
+        - 任一联签 key 未登记 / revoked / HMAC 验签失败 → ApprovalRejected
+          （fail-closed，绝不静默择优；rotated/expired 仍可验存量——与主
+          验签生命周期语义一致，信封 TTL 兜底）。
+        调用方须已通过 validate_structure（cosignatures 形状已校验）。
+        """
+        atype = ap["approval_type"]
+        if atype not in HIGH_RISK_APPROVAL_TYPES:
+            return  # 低危类型：无联签要求（结构层已拒「低危携带联签」）
+        cosigns = ap.get("cosignatures")
+        if not isinstance(cosigns, list) or len(cosigns) < _MIN_COSIGNATURES:
+            raise ApprovalRejected(
+                f"高危类型 {atype!r} 必须携带 ≥{_MIN_COSIGNATURES} 名不同 "
+                "key 的 cosignatures 联签（R7-AUTH-DUAL-CONSUME-005："
+                "缺失/单签拒绝——不再只信 envelope 主签名）",
+                {"approval_type": atype,
+                 "cosign_count": len(cosigns) if isinstance(cosigns, list)
+                 else None})
+        body = {k: v for k, v in dict(ap).items()
+                if k not in ("signature", "cosignatures")}
+        seen_key_ids: List[str] = []
+        for idx, entry in enumerate(cosigns):
+            key_id = entry["key_id"]
+            if key_id in seen_key_ids:
+                raise ApprovalRejected(
+                    f"cosignatures[{idx}] 与此前条目同 key（{key_id!r}）——"
+                    "同 key 双签不是联签（真双人，R7-AUTH-DUAL-CONSUME-005）",
+                    {"duplicate_key_id": key_id})
+            seen_key_ids.append(key_id)
+            if not self._keyring.has(key_id):
+                raise ApprovalRejected(
+                    f"联签 key_id {key_id!r} 未登记（fail-closed 一律拒）",
+                    {"cosign_index": idx, "key_id": key_id})
+            if not self._keyring.verify_detached(key_id, body,
+                                                 entry["signature"]):
+                raise ApprovalRejected(
+                    f"联签验签失败（cosignatures[{idx}] key_id={key_id}）——"
+                    "revoked key / 伪联签一律拒绝",
+                    {"cosign_index": idx, "key_id": key_id,
+                     "approval_id": ap.get("approval_id")})
 
     # ------------------------------------------------------------------ #
     # 绑定/TTL/CAS/前置条件校验（对给定 run 快照）——全字段 exact 绑定
@@ -1514,6 +1669,18 @@ class ApprovalBroker:
         if ap["approval_type"] == "risk":
             event["finding_fingerprints"] = list(
                 ap["payload"].get("finding_fingerprints") or [])
+        # R7-AUTH-DUAL-CONSUME-005：消费对账面——canonical payload 摘要 +
+        # 联签摘要列表（key 归属 + 签名 sha256 指纹；无联签=空列表）。
+        # 重放侧强校验其存在与形状（缺失/高危缺双联签摘要即 Corruption）。
+        event["payload_digest"] = approval_payload_digest(ap["payload"])
+        event["cosign_digests"] = [
+            {"key_id": entry.get("key_id"),
+             "actor": entry.get("actor"),
+             "signature_digest": _sha256_hex(
+                 entry.get("signature") if isinstance(
+                     entry.get("signature"), str) else "")}
+            for entry in (ap.get("cosignatures") or [])
+            if isinstance(entry, Mapping)]
         return event
 
     # ------------------------------------------------------------------ #
@@ -1666,6 +1833,8 @@ class ApprovalBroker:
         run_loader: Callable[[sqlite3.Connection], RunState],
         now: float,
         expected_approval_type: str,
+        action_descriptor: Optional[Mapping[str, Any]] = None,
+        require_descriptor: bool = False,
     ) -> Dict[str, Any]:
         """consume_authorization 的事务体（在已开启的 BEGIN IMMEDIATE 内执行）。
 
@@ -1673,6 +1842,12 @@ class ApprovalBroker:
         事务内复用——授权消费（旁表 + APPROVAL_CONSUMED 正源事件）与
         ACTION_AUTH_RESERVED 原子成对，中途失败整体回滚。
         调用方须已完成结构校验、验签与 approval_type 路由判定。
+
+        R7-AUTH-DUAL-CONSUME-005（校验次序即拒绝消息语义，勿重排）：
+        nonce 复用 → envelope 绑定（env/scope/policy/ruleset/watermark/
+        stage/CAS 的既有拒绝消息保持不变）→ **高危联签门**（缺失/单签/
+        同 key/revoked 全拒）→ risk 语义 → **exact action descriptor 门**
+        （payload 与调用方实参逐字段等值比对）→ 全过后才占 nonce 落事件。
         """
 
         def _binding(ap: Mapping[str, Any], state: RunState) -> None:
@@ -1747,6 +1922,47 @@ class ApprovalBroker:
                     "可风险接受 finding 指纹精确匹配",
                     {"claimed": claimed, "run_eligible": eligible})
 
+        def _action_descriptor_semantics() -> None:
+            """R7-AUTH-DUAL-CONSUME-005 洞 1a：payload 与实参 exact 绑定。
+
+            reserve_action 的调用方必须以 ``action_descriptor`` 实参声明
+            其将执行的动作描述（键集=该审批类型 payload 判别字段全集），
+            与审批 payload 逐字段等值比对——任何不符即 ApprovalRejected
+            （审批批的是 A、调用方执行 B 的移花接木面在此关闭）。
+            """
+            if not require_descriptor:
+                return
+            if not isinstance(action_descriptor, Mapping):
+                raise ApprovalRejected(
+                    "reserve_action requires action_descriptor（调用方实参"
+                    "声明的动作描述，键集=该类型 payload 判别字段全集）——"
+                    "R7-AUTH-DUAL-CONSUME-005：payload 必须与实参 exact 绑定")
+            expected_fields = _APPROVAL_PAYLOAD_DISCRIMINATOR[
+                expected_approval_type]
+            descriptor = dict(action_descriptor)
+            payload = dict(ap["payload"])
+            stray = sorted(set(descriptor) - set(expected_fields))
+            if stray:
+                raise ApprovalRejected(
+                    f"action_descriptor 含非本类型字段 {stray}（"
+                    f"approval_type={expected_approval_type!r} 的判别字段全集"
+                    f"为 {list(expected_fields)}）")
+            missing = [k for k in expected_fields if k not in descriptor]
+            if missing:
+                raise ApprovalRejected(
+                    f"action_descriptor 缺字段 {missing}（须覆盖该类型 "
+                    "payload 判别字段全集并与审批 payload 等值）")
+            for field in expected_fields:
+                if descriptor[field] != payload.get(field):
+                    raise ApprovalRejected(
+                        f"action descriptor mismatch：审批 payload 的 "
+                        f"{field!r}={payload.get(field)!r} 与 reserve_action "
+                        f"实参 {descriptor[field]!r} 不符——exact action "
+                        "descriptor 绑定拒绝（R7-AUTH-DUAL-CONSUME-005）",
+                        {"field": field,
+                         "approval_value": payload.get(field),
+                         "caller_value": descriptor[field]})
+
         def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
             state = run_loader(conn)
             # 重放检测优先（事件正源 + 旁表，同 consume）
@@ -1760,8 +1976,10 @@ class ApprovalBroker:
                     f"nonce already consumed (approval {ap['approval_id']} "
                     f"不可复用——不变量 #5)")
             _binding(ap, state)
+            self._verify_cosignatures(ap)
             if expected_approval_type == "risk":
                 _risk_semantics(ap, state)
+            _action_descriptor_semantics()
             try:
                 conn.execute(
                     "INSERT INTO approval_consumptions "
@@ -2077,6 +2295,37 @@ class RunManager:
                     raise PipelineCorruptionError(
                         f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
                         f"approval_type（F4-AUTH-001 授权消费链损坏）")
+                # R7-AUTH-DUAL-CONSUME-005：消费对账面强校验——payload_digest
+                # 必在且 64-hex；cosign_digests 必为形状合法列表；高危类型
+                # 必须携带 ≥2 名不同 key 的联签摘要（缺失/缩水=事件损坏）。
+                pd = ev.get("payload_digest")
+                if not _is_sha256_hex(pd):
+                    raise PipelineCorruptionError(
+                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+                        f"payload_digest（R7 消费对账面损坏）")
+                cds = ev.get("cosign_digests")
+                if not isinstance(cds, list):
+                    raise PipelineCorruptionError(
+                        f"run {state.run_id}: APPROVAL_CONSUMED 缺合法 "
+                        f"cosign_digests（R7 消费对账面损坏）")
+                for cd in cds:
+                    if not (isinstance(cd, Mapping)
+                            and isinstance(cd.get("key_id"), str)
+                            and cd.get("key_id")
+                            and isinstance(cd.get("actor"), str)
+                            and _is_sha256_hex(cd.get("signature_digest"))):
+                        raise PipelineCorruptionError(
+                            f"run {state.run_id}: APPROVAL_CONSUMED "
+                            f"cosign_digests 条目形状非法（R7 对账面损坏）")
+                if atype in HIGH_RISK_APPROVAL_TYPES:
+                    cd_keys = [cd.get("key_id") for cd in cds]
+                    if len(cd_keys) < _MIN_COSIGNATURES or \
+                            len(set(cd_keys)) != len(cd_keys):
+                        raise PipelineCorruptionError(
+                            f"run {state.run_id}: 高危 {atype} 的 "
+                            f"APPROVAL_CONSUMED 联签摘要不足/同 key 双签"
+                            f"（须 ≥{_MIN_COSIGNATURES} 名不同 key——R7 "
+                            "消费对账面损坏）")
                 state.consumed_nonce_digests.add(digest)
                 # F4-AUTH-001：记录 nonce→审批类型，供 ACTION_AUTH_RESERVED
                 # 重放校验「授权消费类型与 action_type 匹配」。
@@ -2911,7 +3160,9 @@ class RunManager:
     # ------------------------------------------------------------------ #
     def reserve_action(self, run_id: str, action_type: str, target: str,
                        approval: Optional[Mapping[str, Any]] = None, *,
-                       actor: str = "system") -> Dict[str, Any]:
+                       actor: str = "system",
+                       action_descriptor: Optional[Mapping[str, Any]] = None,
+                       ) -> Dict[str, Any]:
         """预留一个授权动作（ACTION_AUTH_RESERVED control_outbox 事件）。
 
         F4-AUTH-001 根修：预留必须消费一份 action 类型 HMAC 审批
@@ -2924,6 +3175,16 @@ class RunManager:
         授权消费（APPROVAL_CONSUMED 正源事件）与 ACTION_AUTH_RESERVED 在
         **同一** BEGIN IMMEDIATE 事务内原子成对；重放侧校验授权消费链
         （reserved 必须有对应 APPROVAL_CONSUMED 且类型匹配）。
+
+        R7-AUTH-DUAL-CONSUME-005（两道新消费门，均在 envelope 绑定之后、
+        nonce 占位之前——拒绝零落账零消费）：
+        - ``action_descriptor``（必填实参）：调用方声明的动作描述（键集=
+          该审批类型 payload 判别字段全集），与审批 payload 逐字段等值
+          比对——payload 未绑实参的洞关闭（action/method/head_sha/
+          artifact/env 等任一不符即 ApprovalRejected）；
+        - 高危类型（prod_write/ddl/release/fund_auth）envelope 必须携带
+          ≥2 名不同 key 的 cosignatures 联签（各自可验、非 revoked）——
+          签发端双人联签进入消费契约，单签高危审批不再可消费。
         """
         ActionSaga.validate_descriptor(action_type, target)
         if approval is None:
@@ -2948,9 +3209,12 @@ class RunManager:
             state = self._load_state(run_id, conn)
             self._require_mutable(state)
             # 同事务消费授权（旁表 + APPROVAL_CONSUMED 正源事件）——
-            # 任一步失败整体回滚，授权与预留绝不成单只
+            # 任一步失败整体回滚，授权与预留绝不成单只。事务体内依次：
+            # nonce 复用 → envelope 绑定 → 高危联签门 → risk 语义（N/A）→
+            # action_descriptor 门 → 占 nonce 落事件。
             self.broker._consume_authorization_txn(  # noqa: SLF001
-                conn, ap, self._fenced_loader(run_id), now, expected)
+                conn, ap, self._fenced_loader(run_id), now, expected,
+                action_descriptor=action_descriptor, require_descriptor=True)
             state = self._load_state(run_id, conn)  # 折叠入 APPROVAL_CONSUMED
             action_id = f"act_{uuid.uuid4().hex[:12]}"
             event = self._base_event(
@@ -2966,6 +3230,7 @@ class RunManager:
                     "action_type": action_type, "action_target": target,
                     "approval_id": ap["approval_id"],
                     "nonce_digest": _sha256_hex(ap["nonce"]),
+                    "payload_digest": approval_payload_digest(ap["payload"]),
                     "event_hash": event_hash}
 
         return self._db.transact(_body)

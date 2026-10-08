@@ -1,0 +1,27 @@
+{
+  "content_digest": "17761dc83265de7d8536a953405b3a0b3326caed3a7b7ba4fac9b96674ca10f7",
+  "created_at": "2026-10-08T12:51:13Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "dc1cba3a439f6f3c2d925012453caedf1654a6e8386a937b795b1da33f637402",
+      "size": 26
+    },
+    {
+      "mode": "0444",
+      "path": "flag-v1.txt",
+      "sha256": "2d27fbdf4e8ca207afbfa388ca9172fbcc6c70e534af2476b3b704f87debadcf",
+      "size": 3
+    }
+  ],
+  "release_id": "20261008T125113Z-17761dc83265",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_RB_01_no_preauth_rollback0/src-rb-v1"
+}

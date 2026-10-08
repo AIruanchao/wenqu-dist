@@ -1,0 +1,6 @@
+$ WQ_FROZEN_REPO=/tmp/wenqu-reaudit6-root-1791446155 PYTHONDONTWRITEBYTECODE=1 python3 runner_reparent_probe.py
+{"actual_exit_code": null, "marker_exists": false, "round": 1, "timed_out": true, "worker_alive_after_window": false, "worker_pid": 57773}
+{"actual_exit_code": null, "marker_exists": false, "round": 2, "timed_out": true, "worker_alive_after_window": false, "worker_pid": 57818}
+{"actual_exit_code": null, "marker_exists": false, "round": 3, "timed_out": true, "worker_alive_after_window": false, "worker_pid": 57851}
+{"result": "PASS", "rounds": 3}
+exit_code=0

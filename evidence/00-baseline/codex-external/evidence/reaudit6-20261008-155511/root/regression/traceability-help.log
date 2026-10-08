@@ -1,0 +1,14 @@
+CAPTURED_AT=2026-10-08T15:57:47,316146000+08:00
+COMMAND=python3 tools/ac_traceability.py --help 
+--- OUTPUT ---
+usage: ac_traceability.py [-h] [--json JSON] [--plan PLAN] [--check]
+
+§20 131 验收 ID 追踪矩阵生成器
+
+options:
+  -h, --help   show this help message and exit
+  --json JSON  输出 JSON 路径（默认 evidence/traceability-matrix.json）
+  --plan PLAN  方案文件路径（默认仓内快照 evidence/00-baseline/codex-external/方案.md；存在则做 ID
+               集合交叉校验）
+  --check      目录完整性/集合校验失败时 exit 2
+--- EXIT_CODE=0 ---

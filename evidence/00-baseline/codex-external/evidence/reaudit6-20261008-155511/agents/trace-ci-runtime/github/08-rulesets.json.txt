@@ -1,0 +1,2 @@
+$ gh api repos/AIruanchao/wenqu-dist/rulesets
+[]exit_code=0

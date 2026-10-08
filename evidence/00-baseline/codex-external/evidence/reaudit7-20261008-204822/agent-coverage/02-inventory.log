@@ -1,0 +1,228 @@
+COMMAND: set -o pipefail; echo SECTION20; sed -n "1545,1688p" evidence/00-baseline/codex-external/方案.md; echo SECTION251; sed -n "1879,1920p" evidence/00-baseline/codex-external/方案.md; echo TESTS; find system/tests tests -maxdepth 2 -type f -print | sort; echo GATE_FILES; find system -maxdepth 3 -type f \( -name "*gate*" -o -name "*manifest*" -o -name "*trace*" \) -print | sort
+WORKDIR: /tmp/wenqu-reaudit7-coverage-b-22841
+EXIT_CODE: 0
+--- STDOUT ---
+SECTION20
+# 20. 强制红探针与验收矩阵
+
+所有用例必须保存 before/after：旧实现先证明能产生假绿/漏拦，新实现证明正确阻断或正确通过。仅写测试、不执行红探针无效。旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；自动合流、生产写、DDL、真实外部告警和回滚类缺陷禁止在真实系统重放，已有生产日志/审计证据可直接作为 before。
+
+## 20.1 Gate、授权、合流
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| GATE-01 | base ref 不存在/fetch 失败 | ERROR/BLOCKED |
+| GATE-02 | 零测试、scope 未证明纯文档 | BLOCKED |
+| GATE-03 | test runner/依赖缺失 | ERROR |
+| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+| GATE-05 | artifact symlink/hardlink/根外 | BLOCKED |
+| GATE-06 | artifact hash 篡改 | BLOCKED |
+| GATE-07 | commit/env/scope/ruleset 不符 | BLOCKED |
+| GATE-08 | evidence 过 TTL | BLOCKED |
+| GATE-09 | `N=-1/0/超上限` | 参数错误 |
+| GATE-10 | 超过 N+1 | BLOCKED 等人工裁定 |
+| GATE-11 | 同命令换 S 标签 | 不计异源轮 |
+| GATE-12 | unsigned flip/adjudication | BLOCKED |
+| AUTH-01 | 无授权 resume | 拒绝 |
+| AUTH-02 | 过期/重放/扩范围/旧 state_version | 拒绝 |
+| AUTH-03 | AI/runner 尝试自行签发高风险批准 | 拒绝 |
+| ACT-01 | technical PASS，但无 exact merge/release action authorization | context 可表技术 PASS，controller 不动作 |
+| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+| ACT-03 | check 发布前/后 crash 或回执丢失 | outbox 幂等恢复；同一 check_run 更新，不产生伪双绿 |
+| ACT-04 | merge/release 调用前/后 crash 或回执丢失 | 先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试 |
+| ACT-05 | 外部陈旧绿、dispatcher/App 失联 | direct merge 被角色/ruleset 拒绝；动作保持 BLOCKED |
+| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+| MRG-01 | Fast 绿、Security 红 | 不合流 |
+| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+| MRG-03 | check 同名伪造/旧 SHA | 不合流 |
+| MRG-04 | pending/skipped/neutral/cancelled | 不合流 |
+| MRG-05 | head 在聚合后改变 | 旧结论失效 |
+| MRG-06 | GitHub 429/空 JSON/超时 | 断路，不合流 |
+
+## 20.2 状态、账本、迁移
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| STATE-01 | 任意 stage/status | schema 拒绝 |
+| STATE-02 | `../`、绝对路径、NUL、超长 ID | 拒绝 |
+| STATE-03 | 100×100 并发写 | 零丢失/重复 |
+| STATE-04 | 事务各点 kill -9 | 全有或全无 |
+| STATE-05 | 双 writer epoch | 所有写入拒绝 |
+| STATE-06 | WAITING 终态残留 | SUPERSEDED 事件，不静默删 |
+| MIG-01 | 坏 JSON/未知状态 | quarantine+BLOCKED |
+| MIG-02 | 缺审批信息的 ACCEPTED | invalid/reopen |
+| MIG-03 | 两次迁移 | 结果幂等一致 |
+| MIG-04 | 源行数不守恒 | 迁移失败 |
+| MIG-05 | project key 冲突 | 明确冲突，不拆成假项目 |
+
+## 20.3 Bug 扫描器
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| DB-01 | `[+]`/`[-]`/`[*]` | 全识别 |
+| DB-02 | 仅一条 DROP COLUMN/删 FK | FAIL，不因数量少放行 |
+| DB-03 | 未知格式/空输出/命令非零 | ERROR |
+| DB-04 | allowlist 到期/对象 hash 变化 | FAIL |
+| SC-01 | 有效 JSON+HIGH/CRITICAL | FAIL |
+| SC-02 | 空 JSON/registry 超时 | ERROR |
+| SC-03 | install script/resolved/integrity 变化 | FAIL/人工审 |
+| SC-04 | 标题含 `[skip-audit]` | 无绕过效果 |
+| ADV-01 | version parser 异常 | UNKNOWN，不写 seen |
+| ADV-02 | 多页/多 range | 全遍历 |
+| TEN-01 | Prisma alias/re-export/wrapper | 纳入分析 |
+| TEN-02 | 注释含 organizationId | 不能欺骗 |
+| TEN-03 | builder 超 300 字符 | 纳入分析 |
+| TEN-04 | `$queryRaw` 跨租户 | 阻断 |
+| TEN-05 | 路径不含 export/download 的下载 | 纳入扫描 |
+| TEN-06 | Org A 访问/导出 Org B | 动态拒绝 |
+| PERF-01 | HTTP 500 但很快 | FAIL |
+| PERF-02 | SSH/TCC/null 指标 | ERROR |
+| PERF-03 | 尾部极慢样本 | 正确进入 p95/p99 |
+| PERF-04 | 输入 1→100，query count 线性 | FAIL |
+
+## 20.4 调度、发布、UI
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| SCH-01 | launchd 无 Documents 权限 | ERROR+告警 |
+| SCH-02 | 脚本 FAIL 后 touch heartbeat | 测试抓获、last_success 不变 |
+| SCH-03 | 睡眠错过周期 | 唤醒补跑 |
+| ALT-01 | provider 500/超时 | outbox 重试/dead-letter |
+| BAK-01 | 磁盘满/tar/backup 失败 | 不更新 success |
+| REL-01 | manifest 缺件/多件/错 hash | 部署失败 |
+| REL-02 | 部署中 kill -9 | 保持旧 current 或完整新 current |
+| REL-03 | doctor 红 | 部署失败并回退 |
+| UI-01 | 少一个闭合标签 | 构建/启动门失败 |
+| UI-02 | XSS 日志/账本文本 | 不执行 |
+| UI-03 | CSRF/伪 Origin/text/plain 写入 | 拒绝 |
+| UI-04 | Gate 红、其他项高分 | 总体 BLOCKED |
+| UI-05 | ACCEPTED/OTHER/quarantine | 均可钻取 |
+
+## 20.5 补充契约、隔离与治理探针
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| STOP-01 | 九种 stop type 使用错误类型审批 | 全拒绝 |
+| STOP-02 | resource/ext-unavail 未恢复但已批准 | 仍不可 resume |
+| STOP-03 | 九种 stop type 的客观条件已满足但缺一次性授权 | 九类全部拒绝 resume |
+| STATE-07 | 普通事件把 PASSED 改回 RUNNING | 拒绝 |
+| STATE-08 | FAILED 重试 | 新 attempt，旧证据不覆盖 |
+| STATE-09 | SHA/scope/policy 变化 | 强制新 run |
+| STATE-10 | WAITING/FAILED attempt 直接改回 RUNNING | 拒绝；追加新 attempt 后由 stage projection 指向它 |
+| STATE-11 | S7 CONDITIONAL 缺 risk authorization | S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING |
+| AUTH-04 | canonical payload/Unicode/audience 任一字节改变 | 验签失败 |
+| AUTH-05 | 并发双消费 approval | 恰一成功 |
+| AUTH-06 | key revoked/clock rollback/无 user-presence | 拒绝 |
+| RUN-01 | 被测程序读取 Keychain/SSH agent/生产配置 | 隔离拒绝 |
+| RUN-02 | timeout 后子孙进程 | 全部终止，无孤儿写盘 |
+| RUN-03 | fork bomb/输出爆量/网络外连 | 配额/allowlist 阻断 |
+| CI-05 | fork、merge_group、check 不产生 | 明确 FAILURE/BLOCKED |
+| CI-06 | CODEOWNERS 文件存在但 ruleset 未强制 | doctor ERROR |
+| CI-07 | 未授权 App 发布同名 context/旧 details URL | 不可信、阻断 |
+| CI-08 | Wenqu Gate 缺失但 Bugscan 绿 | 不合流 |
+| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+| MRG-07 | 最后校验后 head 变化 | expected-SHA 原子拒绝 |
+| COND-01 | CONDITIONAL 无 risk authorization | technical eligibility=false，技术 context failure |
+| COND-02 | 授权跨 SHA/env/扩 finding 集/重放 | 拒绝 |
+| COND-03 | 合法低风险接受、其余全 PASS、risk 与 action 两类精确授权 | 内部仍 CONDITIONAL；技术 context=`success/AUTHORIZED_CONDITIONAL`；Action Gate 成功后动作恰一次 |
+| COND-04 | P0/P1 尝试风险接受或条件授权 | 拒绝并保持 BLOCKED |
+| COND-05 | 授权后新增 finding、TTL 到期、SHA/scope/policy/watermark 变化 | authorization、attestation、context 失效；动作前重验拒绝 |
+| COND-06 | 并发双消费或动作失败后重放 attestation | 最多一次消费；失败后须新授权 |
+| RISK-01 | 主动撤销或 fingerprint/severity/policy/control 改变 | 追加 REVOKED/INVALIDATED，立即重开并可进入修复链 |
+| DB-05 | 错 DB/role/`transaction_read_only=off` | BLOCKED |
+| DB-06 | catalog 顺序、默认表达式、extension 对象 | golden 规范化正确 |
+| SC-05 | 离线快照签名错误/过期/分页不全 | BLOCKED |
+| TEN-07 | target SHA 新增 tenant model | 分母自动增加 |
+| TEN-08 | 合法管理员跨租户正例/普通角色负例 | 前者通、后者拒 |
+| PERF-05 | 修改 baseline/阈值试图洗绿 | policy hash 阻断 |
+| PERF-06 | 样本/时长/endpoint 分母缩水 | 不得晋升 baseline |
+| STA-01 | 任一站 denominator 缩小 | 整线 BLOCKED |
+| STA-02 | 站2/3/4/7逐站故障 | 继续独立取证，aggregate BLOCKED |
+| SCH-04 | catch-up 与正常调度并发 | 只有一个 logical run |
+| SCH-05 | scheduler 整体故障 | 独立 watchdog 仍告警 |
+| SCH-06 | one-shot job | 只写 wenqu namespace |
+| SCH-07 | `COMPLETED+NOT_APPLICABLE` 或过期/异指纹 PASS | 不刷新任何实体的 `last_success` |
+| DEP-01 | 两个部署者争 lease | 最多一个成功 |
+| DEP-02 | smoke 访问生产 DB/state | 隔离拒绝 |
+| DEP-03 | 新事件后回滚兼容二进制 | 事件零丢失 |
+| DEP-04 | 自签/替换/revoked release key | 拒绝 |
+| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+SECTION251
+## 25.1 全部验收 ID 的反向需求/AC 映射
+
+为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+
+| 测试 ID 范围 | 冻结需求 / AC | 工作包 | 必需证据类 |
+|---|---|---|---|
+| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+| AUTH-01～06 | REQ-AUTH-001 / AC-AUTH-ONE-TIME | W1/W2 | signed payload、replay log |
+| ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+| MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+| STATE-01～11 | REQ-STATE-001 / AC-STATE-APPEND-ONLY | W1/W2 | event log、property/crash run |
+| MIG-01～05 | REQ-MIG-001 / AC-MIG-RECONCILE | W5 | row mapping、decision、quarantine |
+| DB-01～06 | REQ-DB-001 / AC-DB-FOUR-TRACK | W6C | catalog diff、DB identity |
+| SC-01～05 | REQ-SC-001 / AC-SC-FAIL-CLOSED | W6B | audit JSON、SBOM、signature |
+| ADV-01～02 | REQ-ADV-001 / AC-ADV-COMPLETE | W6B | pages/ranges fixture |
+| TEN-01～08 | REQ-TENANT-001 / AC-TENANT-DENOMINATOR | W6C | DMMF/AST/runtime probes |
+| PERF-01～06 | REQ-PERF-001 / AC-PERF-VALID | W6D | raw samples/profile/baseline auth |
+| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+| STOP-01～03 | REQ-STOP-001 / AC-STOP-AUTH-AND-FACT | W1/W2 | nine-type matrix/events |
+| RUN-01～03 | REQ-RUNNER-001 / AC-RUNNER-ISOLATED | W2 | sandbox/quota/process-tree logs |
+| CI-05～09 | REQ-CI-001 / AC-CI-TERMINAL | W3B | check runs/ruleset/DAG validation |
+| COND-01～06 | REQ-COND-001 / AC-COND-NOT-PASS | W1/W2/W3B | risk/action auth、attestation、context |
+| RISK-01 | REQ-RISK-001 / AC-RISK-INVALIDATE | W2/W5 | revoke/invalidate/reopen events |
+| STA-01～02 | REQ-STATION-001 / AC-STATION-COVERAGE | W6A～W6D/W3B | station results/aggregate |
+| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+| RB-01 | REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT | W7B | preauthorization/compatibility/drill |
+| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+| HLT-01 | REQ-HEALTH-001 / AC-HEALTH-ATOMIC | W8 | input watermark/snapshot retry |
+| DOC-01～04 | REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT | W1/W10 | generated consistency report |
+| CAP-01 | REQ-CAP-001 / AC-CAP-SAFE-MARGIN | W0/W7A | peak budget/disk-full injection |
+| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+
+机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+
+---
+
+# 26. ZCode 每个工作包的固定回报格式
+
+```text
+TESTS
+system/tests/conftest.py
+system/tests/fixtures/approval-keys-meta.json
+system/tests/fixtures/approval-keys.json
+system/tests/test_ac_act_run.py
+system/tests/test_ac_auth_cond.py
+system/tests/test_ac_deploy_release.py
+system/tests/test_ac_gate_family.py
+system/tests/test_ac_ops_families.py
+system/tests/test_ac_state_mig.py
+system/tests/test_ac_station_families.py
+system/tests/test_ac_ui_family.py
+system/tests/test_approval_issue.py
+system/tests/test_cli_install_ci.py
+system/tests/test_core_wiring.py
+system/tests/test_events_unified.py
+system/tests/test_gate_schema_hardening.py
+system/tests/test_gate_scope_binding.py
+system/tests/test_infra_hardening.py
+system/tests/test_release_attest.py
+system/tests/test_runner_daemon.py
+system/tests/test_tla_spec.py
+system/tests/test_w4_production.py
+system/tests/test_wenqu_adversarial.py
+system/tests/test_wenqu_pipeline.py
+tests/acceptance.sh
+tests/release-check.sh
+GATE_FILES
+system/bin/gate-learner.py
+system/bin/iron-gate.sh
+system/tests/test_ac_gate_family.py
+system/tests/test_gate_schema_hardening.py
+system/tests/test_gate_scope_binding.py
+system/wenqu_core/gate_aggregator.py
+system/wenqu_core/source_gate.py
+--- STDERR ---

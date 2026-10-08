@@ -1,0 +1,17 @@
+COMMAND=env WENQU_REPO_COPY=/tmp/reaudit6-runner-auth.biRqsY PYTHONDONTWRITEBYTECODE=1 python3 /private/tmp/codex-test/evidence/reaudit6-20261008-155511/agents/runner-auth/scripts/auth_event_probe.py --probe 06
+START=2026-10-08T16:01:20+0800
+{
+  "cross_run_sealed_transplant": "PipelineCorruptionError: event 'RUN_CREATED' (hash 0230dedd6bd0839d…) missing/invalid internal seal——事件流疑遭直写注入（Codex 实锤 #7）",
+  "head_unchanged_after_public_rejections": true,
+  "isolated_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit6-06-56pgothj",
+  "probe": "06",
+  "public_guard_rejections": {
+    "ACTION_COMMITTED": "ValueError: pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected via RunManager._emit with an internal seal; bare EventStore.append of control event_type is forbidden (got event_type='ACTION_COMMITTED')",
+    "APPROVAL_CONSUMED": "ValueError: pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected via RunManager._emit with an internal seal; bare EventStore.append of control event_type is forbidden (got event_type='APPROVAL_CONSUMED')",
+    "RUN_COMPLETED": "ValueError: pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected via RunManager._emit with an internal seal; bare EventStore.append of control event_type is forbidden (got event_type='RUN_COMPLETED')",
+    "SUPERSEDED": "ValueError: pipeline control events (RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_*/SUPERSEDED) must be injected via RunManager._emit with an internal seal; bare EventStore.append of control event_type is forbidden (got event_type='SUPERSEDED')"
+  },
+  "verdict": "PASS"
+}
+EXIT_CODE=0
+END=2026-10-08T16:01:20+0800

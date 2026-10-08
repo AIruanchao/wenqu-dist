@@ -1,0 +1,131 @@
+system/wenqu_core/station7_runtime.py:48:- 进程内完成的腿（哨兵/SLO）actual_exit_code=0 采用 RunManifest.
+system/wenqu_core/station7_runtime.py:66:    RunManifest,
+system/wenqu_core/station7_runtime.py:171:def _require_manifest(manifest: RunManifest) -> RunManifest:
+system/wenqu_core/station7_runtime.py:172:    if not isinstance(manifest, RunManifest):
+system/wenqu_core/station7_runtime.py:174:            f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station7_runtime.py:179:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:281:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:467:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:642:        manifest: RunManifest,
+system/wenqu_core/station7_runtime.py:945:      （RunManifest.to_station_result 同例），绝不代表发生过任何真实
+system/wenqu_core/station7_runtime.py:953:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:1007:    def __init__(self, manifest: RunManifest) -> None:
+system/wenqu_core/station7_runtime.py:1061:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/gate_aggregator.py:417:    run-manifest；见 bugscan_orchestrator.freeze_run_manifest）；给定后
+system/wenqu_core/gate_aggregator.py:765:    def aggregate(self) -> Dict[str, Any]:
+system/wenqu_core/gate_aggregator.py:886:    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+system/wenqu_core/scheduler.py:1881:def refresh_gate_aggregate(paths: "ProductionPaths", *,
+system/wenqu_core/scheduler.py:1904:        # 不是发布门判定——不冒充 freeze_run_manifest 正门（采样器非
+system/wenqu_core/scheduler.py:1906:        # --allow-self-declared 诊断模式；快照如实携带
+system/wenqu_core/scheduler.py:1911:                "--allow-self-declared"]
+system/wenqu_core/ui_probe.py:147:def html_structural_gate(html_text: str, source: str = "index.html") -> list[UIFinding]:
+system/wenqu_core/ui_probe.py:205:def build_gate(dash_dir) -> list[UIFinding]:
+system/wenqu_core/source_gate.py:643:    def execute_gate(self) -> Dict[str, Any]:
+system/wenqu_core/deploy_framework.py:1124:    def _migration_gate_reasons(
+system/wenqu_core/deploy_framework.py:1147:    def _observation_gate(self, migrations: Dict[str, List[str]],
+system/wenqu_core/wenqu_pipeline.py:2751:    def adjudicate_gate_conditional(self, run_id: str, *, reason: str = "",
+system/wenqu_core/cli.py:17:                 须 --manifest <run-manifest.json>（required/分母取冻结值逐站
+system/wenqu_core/cli.py:19:                 --allow-self-declared；退出码 PASS=0/FAIL=1/BLOCKED=2/ERROR=3）
+system/wenqu_core/cli.py:51:    ManifestFreezeError, RunManifest,
+system/wenqu_core/cli.py:547:def _gate_exit_code(outcome: str) -> int:
+system/wenqu_core/cli.py:557:def _gate_error_json(reason: str, **extra: Any) -> int:
+system/wenqu_core/cli.py:577:def cmd_gate(args: argparse.Namespace) -> int:
+system/wenqu_core/cli.py:580:    正门路径（F6-GATE-SCOPE-001，P0 根修）：--manifest <run-manifest.json>
+system/wenqu_core/cli.py:581:    （bugscan_orchestrator.freeze_run_manifest 冻结产物，manifest_hash 防篡改
+system/wenqu_core/cli.py:587:    效力背书，必须显式 --allow-self-declared（仅诊断用途）。
+system/wenqu_core/cli.py:597:    # 0. 模式裁定：--manifest 正门 / --allow-self-declared 诊断豁免 / 默认拒绝。
+system/wenqu_core/cli.py:598:    manifest: Optional[RunManifest] = None
+system/wenqu_core/cli.py:602:                "--manifest 与 --allow-self-declared 互斥：正门路径下 required/"
+system/wenqu_core/cli.py:609:                "--required 与 --manifest 互斥：required 站集合必须来自冻结 "
+system/wenqu_core/cli.py:615:            manifest = RunManifest.load(args.manifest)
+system/wenqu_core/cli.py:626:            "gate 拒绝自报模式：无 --manifest 的裸调用默认拒绝"
+system/wenqu_core/cli.py:628:            "正门路径：--manifest <run-manifest.json>（freeze_run_manifest 冻结"
+system/wenqu_core/cli.py:629:            "产物）；仅诊断用途可显式 --allow-self-declared",
+system/wenqu_core/cli.py:909:             "--manifest，裸调用默认拒绝）")
+system/wenqu_core/cli.py:913:    p.add_argument("--manifest", default=None, metavar="PATH",
+system/wenqu_core/cli.py:914:                   help="冻结 run-manifest.json（freeze_run_manifest 产物）——"
+system/wenqu_core/cli.py:919:    p.add_argument("--allow-self-declared", dest="allow_self_declared",
+system/wenqu_core/cli.py:923:                        "背书）；生产判定必须走 --manifest")
+system/wenqu_core/cli.py:926:                        "（任何站缺报/硬失败都不得 PASS）；与 --manifest 互斥"
+system/wenqu_core/cli.py:931:                        "--manifest 模式下须与冻结值一致）")
+system/wenqu_core/cli.py:935:                        "--manifest 模式下须与冻结值一致）")
+system/wenqu_core/cli.py:936:    p.set_defaults(func=cmd_gate)
+system/wenqu_core/station4_behavior.py:48:- 进程内完成的腿（路由动态腿）actual_exit_code=0 采用 RunManifest.
+system/wenqu_core/station4_behavior.py:68:    RunManifest,
+system/wenqu_core/station4_behavior.py:168:def _require_manifest(manifest: RunManifest) -> RunManifest:
+system/wenqu_core/station4_behavior.py:169:    if not isinstance(manifest, RunManifest):
+system/wenqu_core/station4_behavior.py:171:            f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station4_behavior.py:176:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+system/wenqu_core/station4_behavior.py:271:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:526:    本腿在进程内完成（无子进程）：actual_exit_code=0 采用 RunManifest
+system/wenqu_core/station4_behavior.py:536:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:734:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:981:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:1117:        manifest: RunManifest,
+system/wenqu_core/station4_behavior.py:1456:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/station4_behavior.py:1630:            other_manifest = planner.freeze_run_manifest(
+system/wenqu_core/capacity_monitor.py:655:def enforce_capacity_gate(
+system/wenqu_core/station3_contract.py:49:  RunManifest 正源，绝不采信载荷自报身份（与站1 同款纪律）。
+system/wenqu_core/station3_contract.py:62:        RunManifest,
+system/wenqu_core/station3_contract.py:79:        RunManifest,
+system/wenqu_core/station3_contract.py:478:    - 身份三源一律取冻结 RunManifest；载荷自报身份只作绑定校验对象。
+system/wenqu_core/station3_contract.py:491:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:496:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:498:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:509:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:684:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:825:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1151:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1412:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1690:        manifest: RunManifest,
+system/wenqu_core/station3_contract.py:1695:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/station3_contract.py:1697:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/station3_contract.py:1709:    def manifest(self) -> RunManifest:
+system/wenqu_core/station3_contract.py:1927:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:18:- freeze_run_manifest()：站0 冻结 run-manifest.json——项目身份/commit SHA/
+system/wenqu_core/bugscan_orchestrator.py:65:    "RunManifest",
+system/wenqu_core/bugscan_orchestrator.py:69:    "freeze_run_manifest",
+system/wenqu_core/bugscan_orchestrator.py:357:        entry="freeze_run_manifest()（对齐 `wenqu init` 的 sha256 范围哈希语义；"
+system/wenqu_core/bugscan_orchestrator.py:360:        tools=("wenqu_core.bugscan_orchestrator.freeze_run_manifest",),
+system/wenqu_core/bugscan_orchestrator.py:804:    def freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:818:    ) -> "RunManifest":
+system/wenqu_core/bugscan_orchestrator.py:819:        return freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:836:# RunManifest——站0 冻结件
+system/wenqu_core/bugscan_orchestrator.py:840:class RunManifest:
+system/wenqu_core/bugscan_orchestrator.py:948:    def load(cls, path: str | os.PathLike[str]) -> "RunManifest":
+system/wenqu_core/bugscan_orchestrator.py:965:    def _from_verified_dict(cls, data: Mapping[str, Any]) -> "RunManifest":
+system/wenqu_core/bugscan_orchestrator.py:1014:        执行语义：freeze_run_manifest 在本进程内完成；任何冻结失败都以
+system/wenqu_core/bugscan_orchestrator.py:1020:        argv = ["wenqu_core.bugscan_orchestrator", "freeze_run_manifest", self.run_id]
+system/wenqu_core/bugscan_orchestrator.py:1073:# freeze_run_manifest——模块级入口（Codex W6A §15.2 站0）
+system/wenqu_core/bugscan_orchestrator.py:1076:def freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:1090:) -> RunManifest:
+system/wenqu_core/bugscan_orchestrator.py:1091:    """冻结 run-manifest.json 的内容（返回 RunManifest，由调用方 .save() 落盘）。
+system/wenqu_core/bugscan_orchestrator.py:1186:    return RunManifest(
+system/wenqu_core/bugscan_orchestrator.py:1489:        manifest: RunManifest,
+system/wenqu_core/bugscan_orchestrator.py:1494:        if not isinstance(manifest, RunManifest):
+system/wenqu_core/bugscan_orchestrator.py:1496:                f"manifest must be RunManifest, got {type(manifest).__name__}"
+system/wenqu_core/bugscan_orchestrator.py:1504:    def _extract_gate_fields(gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/bugscan_orchestrator.py:1556:    def adapt(self, gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/bugscan_orchestrator.py:1993:    manifest = planner.freeze_run_manifest(
+system/wenqu_core/bugscan_orchestrator.py:2083:        loaded = RunManifest.load(path)
+system/bin/gate-learner.py:114:def parse_gate_log(log_file: str) -> list:
+system/bin/blast-radius.py
+system/bin/deploy-preflight.sh
+system/bin/hardening-doctor.sh
+system/bin/iron-gate.sh
+system/bin/relay-push.sh
+system/bin/spec-reconcile.py
+system/bin/wenqu
+system/bin/wenqu-dashboard.py
+system/bin/wenqu-env.sh
+system/bin/wenqu-scheduler
+system/bin/wenquctl
+system/bin/workorder-precheck.sh
+system/bin/zero-rework.sh
+system/daemons/auto-merge.sh
+system/install.sh
+system/sentinels/backup-restore-drill.sh
+system/sentinels/ci-event-sentinel.sh
+system/sentinels/conservation-sentinel.sh
+system/sentinels/ssl-cert-sentinel.sh
+system/sentinels/weekly-watchdog.sh

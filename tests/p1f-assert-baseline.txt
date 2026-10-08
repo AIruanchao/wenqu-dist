@@ -1,0 +1,9 @@
+# P1f 断言语义棘轮基线（R7-TRC-VACUOUS-003）——只允许增长，缩水即 CI 红
+test_ac_gate_family 141
+test_ac_state_mig 188
+test_ac_deploy_release 167
+test_ac_station_families 235
+test_ac_ops_families 225
+test_ac_ui_family 89
+test_ac_auth_cond 94
+test_ac_act_run 70

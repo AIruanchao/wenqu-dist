@@ -1,0 +1,22 @@
+=== authoritative hashes ===
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+=== release constants ===
+tools/release_attest.py:79:#: policy_hash，把「验收目录来自哪份方案」钉进 build identity。
+tools/release_attest.py:80:PLAN_SHA256 = "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306"
+tools/release_attest.py:251:        "source_commit": full,
+tools/release_attest.py:252:        "source_commit_short": short,
+tools/release_attest.py:253:        "source_commit_subject": subject,
+tools/release_attest.py:255:        "policy_hash": {"plan_sha256": PLAN_SHA256},
+tools/release_attest.py:456:                    f"source_commit {manifest['source_commit']}"),
+tools/release_attest.py:640:               f"commit={manifest['source_commit'][:12]}… "
+dist/wenqu-dist-1620c7c.manifest.json:4523: "policy_hash": {
+dist/wenqu-dist-1620c7c.manifest.json:4524:  "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306"
+dist/wenqu-dist-1620c7c.manifest.json:4527: "source_commit": "1620c7c030bd1ea5eb096e0509b7f864c4e90a6d",
+dist/wenqu-dist-1620c7c.manifest.json:4528: "source_commit_short": "1620c7c",
+dist/wenqu-dist-1620c7c.manifest.json:4529: "source_commit_subject": "fix(wave6): P1c mktemp fail-closed+P1f 专属覆盖门（七文件 required+计数≥95）+索引 20 条实算达标+10 ID 登记——acceptance 65/65",
+=== extracted lengths/equals ===
+true 96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306 64
+tool 96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306 61 False
+manifest_policy_hash {'plan_sha256': '96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d9fcaaa24612c32306'} dict
+source_commit 1620c7c030bd1ea5eb096e0509b7f864c4e90a6d

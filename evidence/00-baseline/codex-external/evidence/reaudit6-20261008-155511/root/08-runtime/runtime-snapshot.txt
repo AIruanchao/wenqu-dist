@@ -1,0 +1,151 @@
+CAPTURED
+2026-10-08T16:00:24,255003000+08:00
+--- repo current (not audit snapshot) ---
+## main...origin/main
+07a94945ba8defe65d3f9ce5a3b7118a38e40328
+main
+--- listener ---
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  42242 maccc    3u  IPv4 0xd28ce15b5506984f      0t0  TCP 127.0.0.1:7789 (LISTEN)
+pid=42242
+42242     1   502 Thu Oct  8 15:58:34 2026     /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+--- launchctl selected ---
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	state = running
+	program = /opt/homebrew/bin/python3
+	arguments = {
+	runs = 3
+	pid = 42242
+		state = active
+		state = active
+--- installed file ---
+-rwxr-xr-x@ 1 maccc  staff  93097 Oct  8 15:55 /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+675603caca01317029f5cd208c2ebfc62f3c8272caa74491db05426d56dc1b2a  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+--- target b259 file hashes ---
+1cdb3a49b999a774aeafe0ca3baa43d001182ece1df3f3e693ee27303264d0dd  /tmp/wenqu-reaudit6-root-1791446155/system/bin/wenqu-dashboard.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /tmp/wenqu-reaudit6-root-1791446155/system/dashboard/server.py
+--- current tree file hashes ---
+675603caca01317029f5cd208c2ebfc62f3c8272caa74491db05426d56dc1b2a  /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+=== GET / ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:24 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 53624
+
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>问渠 wenqu · 仪表盘</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--fg:#c9d1d9;--dim:#8b949e;--ok:#3fb950;--bad:#f85149;--acc:#58a6ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.6 -apple-system,"PingFang SC",monospace;padding:24px}
+h1{font-size:18px;margin-bottom:4px} .sub{color:var(--dim);font-size:12px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px}
+.card h2{font-size:13px;color:var(--acc);margin-bottom:10px;font-weight:600}
+.row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #21262d;font-size:13px}
+.row:last-child{border:none}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .dim{color:var(--dim)}
+pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:11px;overflow:auto;max-height:260px;color:#a8b3bf}
+.bar{height:6px;background:#21262d;border-radius:3px;overflow:hidden;margin:6px 0}
+.bar>i{display:block;height:100%;background:var(--ok)}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:#1f6feb33;color:var(--acc);margin-left:8px}
+#ts{color:var(--dim);font-size:11px}
+@keyframes flash{0%{background:#f0883e55}100%{background:transparent}}
+.flash{animation:flash 1.6s ease-out}
+@keyframes popnum{0%{transform:scale(1.25);color:#f0883e}100%{transform:scale(1)}}
+.popnum{animation:popnum .9s ease-out}
+.spark{display:flex;align-items:flex-end;gap:2px;height:34px;margin-left:auto}
+.spark i{width:7px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#3fb950,#1f6feb);min-height:2px}
+.spark i.hot{background:linear-gradient(180deg,#f0883e,#f85149)}
+.up{color:var(--ok);font-size:11px}.down{color:var(--bad);font-size:11px}
+.tab{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:6px 18px;cursor:pointer;font-size:13px}
+.tab.active{color:var(--acc);border-color:var(--acc)}
+.pl{margin-bottom:28px}
+.pl h3{font-size:14px;color:var(--fg);margin-bottom:2px}
+.pl .src{color:var(--dim);font-size:11px;margin-bottom:10px}
+.flow{display:flex;flex-direction:column;align-items:center;gap:2px}
+.frow{display:flex;gap:10px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+.node{background:var(--card);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;text-align:center;min-width:130px;max-width:230px}
+.node b{color:var(--acc);font-size:12px;display:block;margin-bottom:2px}
+.node span{color:var(--dim);font-size:11px;line-height:1.45;display:block}
+.node.alt{border-color:#3d44db}
+.node.fin{bord
+=== GET /api/health ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 759
+
+{"score": 40, "grade": "告警", "parts": [{"项": "组件完整", "得分": 27.5, "满分": 30, "比": "92%", "详情": "11/12 在位"}, {"项": "守护与哨兵", "得分": 10.0, "满分": 20, "比": "50%", "详情": "守护 0 活 / cron 3 条"}, {"项": "磁盘（本机/服务器）", "得分": 5.0, "满分": 10, "比": "50%", "详情": "本机 93% / 服务器 84%"}, {"项": "棘轮基线", "得分": 15.0, "满分": 15, "比": "100%", "详情": "3/3 层在位"}, {"项": "账本活性", "得分": 15.0, "满分": 15, "比": "100%", "详情": "今日 8 轮"}, {"项": "决策积压", "得分": 2.0, "满分": 10, "比": "20%", "详情": "4 条待拍"}, {"项": "CI Gate（正源）", "得分": 0.0, "满分": 20, "比": "0%", "详情": "Gate=failure"}]}
+=== GET /api/components ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 585
+
+{"version": "3.7.1", "bin": [{"name": "wenqu-env.sh", "ok": true}, {"name": "iron-gate.sh", "ok": true}, {"name": "blast-radius.py", "ok": true}, {"name": "cursor-auto-verify.sh", "ok": true}, {"name": "deploy-preflight.sh", "ok": true}, {"name": "hardening-doctor.sh", "ok": true}, {"name": "wenqu-dashboard.py", "ok": true}], "sentinels": [{"name": "ci-event-sentinel.sh", "ok": true}, {"name": "conservation-sentinel.sh", "ok": true}, {"name": "ssl-cert-sentinel.sh", "ok": true}], "daemons": [{"name": "auto-merge.sh", "ok": false}, {"name": "conservation-daemon.py", "ok": true}]}
+=== GET /api/bugscan-ledger ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 1485
+
+{"available": true, "projects": [{"key": "0398fa89ba80", "findings": 234, "by_status": {"VERIFIED": 35, "FIXED": 65, "CLOSED": 132, "OTHER": 2}, "by_sev": {"LOW": 35, "MED": 67, "INFO": 70, "HIGH": 61, "OTHER": 1}, "last_ts": "2026-10-04T03:33"}, {"key": "cb8e5f91d61b", "findings": 101, "by_status": {"FIXED": 63, "ACCEPTED": 24, "VERIFIED": 4, "CLOSED": 10}, "by_sev": {"MED": 43, "LOW": 45, "HIGH": 9, "INFO": 4}, "last_ts": "2026-10-07T21:43"}, {"key": "26d1f5d4d38b", "findings": 68, "by_status": {"VERIFIED": 5, "FIXED": 52, "ACCEPTED": 6, "CLOSED": 5}, "by_sev": {"HIGH": 13, "MED": 30, "LOW": 17, "INFO": 8}, "last_ts": "2026-10-07T17:39"}, {"key": "3ebefe7b5b9b", "findings": 30, "by_status": {"VERIFIED": 23, "ACCEPTED": 5, "CLOSED": 2}, "by_sev": {"HIGH": 2, "MED": 9, "LOW": 19}, "last_ts": "2026-09-23T04:48"}, {"key": "1115ebe4fd40", "findings": 26, "by_status": {"FIXED": 15, "OTHER": 11}, "by_sev": {"HIGH": 5, "MED": 8, "LOW": 3, "OTHER": 9, "INFO": 1}, "last_ts": "2026-09-29T06:09"}, {"key": "2036aa7ab8c9", "findings": 22, "by_status": {"CLOSED": 10, "ACCEPTED": 8, "FIXING": 4}, "by_sev": {"INFO": 4, "LOW": 10, "OTHER": 4, "MED": 2, "HIGH": 2}, "last_ts": "2026-10-07T14:27"}], "total": {"findings": 481, "by_status": {"VERIFIED": 67, "FIXED": 195, "CLOSED": 159, "OTHER": 13, "ACCEPTED": 43, "FIXING": 4}, "by_sev": {"LOW": 129, "MED": 159, "INFO": 87, "HIGH": 92, "OTHER": 14}, "last_ts": "2026-10-07T21:43"}, "open_total": 0, "open_items": [], "stale_open": 0}
+=== GET /api/decisions ===
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 1094
+
+[{"id": "DEC-004", "cat": "外部账号", "q": "C 端短信服务商账号（阿里云或腾讯云 SMS 四件套）", "opt": "腾讯云（配好 10 分钟通）", "ttl": 14, "red": false, "ts": "2026-10-06T12:17:06Z", "intent": null}, {"id": "DEC-007", "cat": "数据输入", "q": "真实库存导入数据文件（Excel/CSV）何时给", "opt": "给了即走 SOP（导入+黄金集一步到位）", "ttl": 14, "red": true, "ts": "2026-10-06T12:17:06Z", "intent": null}, {"id": "DEC-008", "cat": "登录操作", "q": "Sentry 浏览器登录密码（等你输一次完成接入验收）", "opt": "你在 Sentry 页输一次 admin 密码即可", "ttl": 14, "red": false, "ts": "2026-10-06T12:17:06Z", "intent": null}, {"id": "DEC-011", "cat": "业务裁定", "q": "BIZ-01：涨价潮第二轮 ×1.25（R5）对 nvme 等其余档——追认落库还是保持现值？（DB 现值未动，价格文件已带锚源说明）", "opt": "追认落库（若 9-20 涨价潮实况成立，nvme 档应与 SATA 同步反映市场价）", "ttl": 14, "red": true, "ts": "2026-10-07T14:31:17", "intent": null}]
+--- decide method ---
+METHOD=GET
+curl: (52) Empty reply from server
+head: /tmp/reaudit6-decide-body: No such file or directory
+
+rc=52
+METHOD=POST
+HTTP/1.0 400 Bad Request
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 44
+
+{"error":"需要 id 与 action=take|reject"}
+rc=0
+METHOD=OPTIONS
+HTTP/1.0 501 Unsupported method ('OPTIONS')
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 08:00:27 GMT
+Connection: close
+Content-Type: text/html;charset=utf-8
+Content-Length: 485
+
+<!DOCTYPE HTML>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <style type="text/css">
+            :root {
+                color-scheme: light dark;
+            }
+        </style>
+        <title>Error response</title>
+    </head>
+    <body>
+        <h1>Error response</h1>
+        <p>Error code: 501</p>
+        <p>Message: Unsupported method ('OPTIONS').</p>
+        <p>Error code explanation: 501 - Server does not support this operation.</p>
+    </body>
+</html>
+
+rc=0

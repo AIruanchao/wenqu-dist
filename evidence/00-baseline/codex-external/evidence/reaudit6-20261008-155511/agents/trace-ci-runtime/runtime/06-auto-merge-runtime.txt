@@ -1,0 +1,11 @@
+$ launchctl list filtered exact labels/auto-merge
+launchctl_rc= 0
+$ ps -axo pid,ppid,command filtered (post-read, not grep self-match)
+<none>
+ps_rc= 0
+$ installed/source archive candidates
+/Users/maccc/.wenqu/bin/auto-merge.sh exists= False is_symlink= False
+/tmp/reaudit6-trace.dxHErV/system/bin/auto-merge.sh exists= False is_symlink= False
+$ crontab -l filtered
+<none>
+crontab_rc= 0 stderr= 

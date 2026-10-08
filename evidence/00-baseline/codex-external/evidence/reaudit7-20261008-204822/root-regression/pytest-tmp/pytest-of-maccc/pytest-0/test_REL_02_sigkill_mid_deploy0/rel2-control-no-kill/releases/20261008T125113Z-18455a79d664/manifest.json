@@ -1,0 +1,33 @@
+{
+  "content_digest": "18455a79d664629ab3beb5a7cb52aae098c82d515aa025aadaa5d5f647ced381",
+  "created_at": "2026-10-08T12:51:13Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "bin/payload.bin",
+      "sha256": "4d8a21cbea23a0d6525790fec7c020fff0c1330ab69bf062d14fec6262c8a2d5",
+      "size": 67108864
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "8b3e89ad71f08984692159b29d08328024649c6d628640044abb9f312c2f28dd",
+      "size": 26
+    },
+    {
+      "mode": "0444",
+      "path": "flag-v2.txt",
+      "sha256": "81db67b6a5702b9b68f0016f061c409bf3fb16d062fc854d1b424bb4e9c28c56",
+      "size": 3
+    }
+  ],
+  "release_id": "20261008T125113Z-18455a79d664",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_REL_02_sigkill_mid_deploy0/src-rel2-v2"
+}

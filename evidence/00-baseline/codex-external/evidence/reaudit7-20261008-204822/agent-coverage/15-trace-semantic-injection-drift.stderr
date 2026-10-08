@@ -1,0 +1,2 @@
+INTEGRITY-FAIL: 方案文件 sha256 与冻结值不符: actual=c5de1e4639893d1cc37424673f66346e5e289546950a9295e0aeb25436c342a9 frozen=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+INTEGRITY-FAIL: §20 语义漂移: GATE-01 注入语义漂移: 方案='base ref 存在且 fetch 成功' 冻结='base ref 不存在/fetch 失败'

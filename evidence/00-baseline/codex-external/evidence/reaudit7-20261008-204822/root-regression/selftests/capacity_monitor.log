@@ -1,0 +1,6 @@
+[1] real sample OK: ratio=0.9492 判定链绿，jsonl 峰值已落
+[2] injection negatives OK: 超阈值/满盘/峰值预算/配额 四向全红
+[3] boundary OK: ratio==threshold 不触发（严格大于语义）
+[4] trend OK: 外推 21596s；平盘 None
+[5] gate OK: CRITICAL→BLOCKED，旧证据/current 完整性清单可证零改动
+SELF-TEST PASS

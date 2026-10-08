@@ -1,0 +1,29 @@
+UTC_START=2026-10-08T12:59:17Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-dr-math.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+python3 /private/tmp/reaudit7-dr-math.py
+--- OUTPUT ---
+report_sha256 074d74ec98e443fe381864be85fd01faa08dd039255fc0a229a1b4da9c5dc10a
+jsonl_sha256 17721d28d4fd506bf56b7feaa7b0625a5a5f85570c3a20ef1d08c65578d02f4d
+rpo_recomputed 2.058311 reported 2.058311 target 300
+rto_recomputed 0.475040 reported 0.47504 target 60
+snapshot {'state/scheduler.db': ('4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc', 69632), 'state/gate-aggregate.json': ('d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29', 911), 'observation/heartbeat.json': ('c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5', 1484), 'observation/samples/2026-10-08.json': ('c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3', 5690), 'observation/shadow/2026-10-08.json': ('e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f', 3899)}
+reconcile {'state/scheduler.db': ('4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc', True, True), 'state/gate-aggregate.json': ('d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29', True, True), 'observation/heartbeat.json': ('c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5', True, True), 'observation/samples/2026-10-08.json': ('c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3', True, True), 'observation/shadow/2026-10-08.json': ('e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f', True, True)}
+result_pass PASS
+byte_match_all PASS
+five_files PASS
+snapshot_reconcile_exact PASS
+rpo_math_exact PASS
+rto_math_exact PASS
+rpo_under_target PASS
+rto_under_target PASS
+jsonl_monotonic PASS
+jsonl_key_order PASS
+jsonl_terminal_pass PASS
+INDEPENDENT_DR_AUDIT PASS
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:59:17Z

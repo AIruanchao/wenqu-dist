@@ -1,0 +1,236 @@
+{
+  "root": "/Users/maccc/.wenqu/observation",
+  "root_exists": true,
+  "files": [
+    {
+      "path": "/Users/maccc/.wenqu/observation/samples/2026-10-08.json",
+      "exists": true,
+      "size": 2645,
+      "mtime": "2026-10-08T06:56:14.783928+00:00",
+      "sha256": "3ac8aca6c7695ae7fb78caafeb113bf86284a6fb651d110d17cefd2358b5ba11",
+      "json": {
+        "window": "W10-observation",
+        "day_index_note": "14 天观察窗，当日启动（launchd 每日 09:05 触发）",
+        "collected_at": "2026-10-08T06:56:04.809402+00:00",
+        "host": "Darwin M2Pro-Agent 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:39:09 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T6020 arm64",
+        "repo": {
+          "path": "/Users/maccc/Documents/wenqu-dist",
+          "head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+          "head_error": null,
+          "dirty": true,
+          "dirty_files": [
+            "M evidence/traceability-matrix.json",
+            " M system/bin/wenquctl",
+            " M system/install.sh",
+            " M system/wenqu_core/cli.py",
+            " M tests/acceptance.sh",
+            "?? tools/observation_daily.py"
+          ],
+          "dirty_error": null
+        },
+        "ci_latest_main": {
+          "conclusion": "success",
+          "createdAt": "2026-10-08T06:38:25Z",
+          "databaseId": 37738717793,
+          "displayTitle": "Merge pull request #3 from AIruanchao/release/v3.7.0",
+          "headSha": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+          "status": "completed",
+          "workflowName": "acceptance"
+        },
+        "dashboard_launchd": {
+          "state": "running",
+          "returncode": 0,
+          "error": null
+        },
+        "legacy_health": {
+          "status": 200,
+          "json": {
+            "score": 40,
+            "grade": "告警",
+            "parts": [
+              {
+                "项": "组件完整",
+                "得分": 27.5,
+                "满分": 30,
+                "比": "92%",
+                "详情": "11/12 在位"
+              },
+              {
+                "项": "守护与哨兵",
+                "得分": 10.0,
+                "满分": 20,
+                "比": "50%",
+                "详情": "守护 0 活 / cron 3 条"
+              },
+              {
+                "项": "磁盘（本机/服务器）",
+                "得分": 5.0,
+                "满分": 10,
+                "比": "50%",
+                "详情": "本机 93% / 服务器 84%"
+              },
+              {
+                "项": "棘轮基线",
+                "得分": 15.0,
+                "满分": 15,
+                "比": "100%",
+                "详情": "3/3 层在位"
+              },
+              {
+                "项": "账本活性",
+                "得分": 15.0,
+                "满分": 15,
+                "比": "100%",
+                "详情": "今日 6 轮"
+              },
+              {
+                "项": "决策积压",
+                "得分": 2.0,
+                "满分": 10,
+                "比": "20%",
+                "详情": "4 条待拍"
+              },
+              {
+                "项": "CI Gate（正源）",
+                "得分": 0.0,
+                "满分": 20,
+                "比": "0%",
+                "详情": "Gate=failure"
+              }
+            ]
+          },
+          "error": null
+        },
+        "disk": {
+          "mount": "/Users/maccc",
+          "used_bytes": 460538769408,
+          "avail_bytes": 33846026240,
+          "used_pct": 93.2
+        }
+      }
+    },
+    {
+      "path": "/Users/maccc/.wenqu/observation/shadow/2026-10-08.json",
+      "exists": true,
+      "size": 2621,
+      "mtime": "2026-10-08T06:56:14.787380+00:00",
+      "sha256": "29d12f83c599e5a92dd428c4b75530ebe37608f55a66953f3200ee8fe65ff46e",
+      "json": {
+        "window": "W9-shadow-clock",
+        "collected_at": "2026-10-08T06:56:04.809402+00:00",
+        "shadow": {
+          "port": 62314,
+          "server_pid": 52802,
+          "ready": true,
+          "ready_seconds": 0.65,
+          "server_log": "/Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log",
+          "terminated": "term",
+          "ready_http": 200,
+          "modular_health": {
+            "status": 503,
+            "json": {
+              "error": {
+                "code": "AGGREGATOR_UNAVAILABLE",
+                "detail": "权威聚合器快照不存在：/Users/maccc/.wenqu/state/gate-aggregate.json（gate_aggregator 产出后自动出现）"
+              }
+            },
+            "error": "http_503"
+          },
+          "modular_health_path": "/api/v1/health",
+          "modular_health_v1_raw": {
+            "status": 503,
+            "error": "http_503"
+          },
+          "modular_health_unversioned_raw": {
+            "status": 404,
+            "error": "http_404"
+          },
+          "legacy_health": {
+            "status": 200,
+            "json": {
+              "score": 40,
+              "grade": "告警",
+              "parts": [
+                {
+                  "项": "组件完整",
+                  "得分": 27.5,
+                  "满分": 30,
+                  "比": "92%",
+                  "详情": "11/12 在位"
+                },
+                {
+                  "项": "守护与哨兵",
+                  "得分": 10.0,
+                  "满分": 20,
+                  "比": "50%",
+                  "详情": "守护 0 活 / cron 3 条"
+                },
+                {
+                  "项": "磁盘（本机/服务器）",
+                  "得分": 5.0,
+                  "满分": 10,
+                  "比": "50%",
+                  "详情": "本机 93% / 服务器 84%"
+                },
+                {
+                  "项": "棘轮基线",
+                  "得分": 15.0,
+                  "满分": 15,
+                  "比": "100%",
+                  "详情": "3/3 层在位"
+                },
+                {
+                  "项": "账本活性",
+                  "得分": 15.0,
+                  "满分": 15,
+                  "比": "100%",
+                  "详情": "今日 6 轮"
+                },
+                {
+                  "项": "决策积压",
+                  "得分": 2.0,
+                  "满分": 10,
+                  "比": "20%",
+                  "详情": "4 条待拍"
+                },
+                {
+                  "项": "CI Gate（正源）",
+                  "得分": 0.0,
+                  "满分": 20,
+                  "比": "0%",
+                  "详情": "Gate=failure"
+                }
+              ]
+            },
+            "error": null
+          },
+          "compare": {
+            "key_sets_equal": null,
+            "score_equal": null,
+            "only_legacy": null,
+            "only_modular": null,
+            "legacy_score": 40,
+            "modular_score": null,
+            "note": "modular health 无 200 JSON（当前为结构化错误态），无法比对"
+          }
+        }
+      }
+    },
+    {
+      "path": "/Users/maccc/.wenqu/observation/logs/observation.log",
+      "exists": false
+    },
+    {
+      "path": "/Users/maccc/.wenqu/observation/logs/observation.err",
+      "exists": false
+    },
+    {
+      "path": "/Users/maccc/.wenqu/observation/logs/shadow-server-2026-10-08.log",
+      "exists": true,
+      "size": 0,
+      "mtime": "2026-10-08T06:51:08.545544+00:00",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tail": ""
+    }
+  ]
+}

@@ -72,6 +72,25 @@
       "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
     },
     "nonce_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "payload_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "R7-AUTH-DUAL-CONSUME-005：APPROVAL_CONSUMED 对账面——canonical payload 的 sha256；重放侧强校验存在与形状（缺失即 Corruption）"
+    },
+    "cosign_digests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key_id", "actor", "signature_digest"],
+        "properties": {
+          "key_id": {"type": "string", "pattern": "^key_[a-zA-Z0-9_-]+$"},
+          "actor": {"type": "string", "minLength": 1},
+          "signature_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      },
+      "description": "R7-AUTH-DUAL-CONSUME-005：APPROVAL_CONSUMED 联签摘要列表（key 归属+actor+签名 sha256 指纹；无联签=空数组）；高危类型必须 ≥2 名不同 key（重放侧强校验）"
+    },
     "expires_at": {"type": "string", "format": "date-time"},
     "finding_fingerprints": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},

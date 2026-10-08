@@ -1,0 +1,9 @@
+UTC_START=2026-10-08T12:49:48Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=echo RULESETS; gh api repos/AIruanchao/wenqu-dist/rulesets; echo RULES_FOR_MAIN; gh api repos/AIruanchao/wenqu-dist/rules/branches/main
+--- OUTPUT ---
+RULESETS
+[]RULES_FOR_MAIN
+[]--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:49:53Z

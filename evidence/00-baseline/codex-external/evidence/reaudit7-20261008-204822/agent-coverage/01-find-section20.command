@@ -1,0 +1,1 @@
+rg -n "^##? +20|§20|25\.1|专属|131/131|三移除|移除锚点|P1f|GATE-SCOPE|GATE-FORMAT-DUP|SCHEMA-BOUND|TRC-GATE|TRC-PARSER|EVID" evidence/00-baseline/codex-external/方案.md /private/tmp/codex-test/验收报告-第六轮.md docs evidence system tools tests 2>/dev/null | head -600

@@ -1,0 +1,9 @@
+{
+  "detail": "rollback failed during deploy recovery: manifest verification failed: {\"drifted\": [\"app.py\"], \"extra\": [], \"missing\": [], \"mode_drifted\": [], \"schema\": null, \"signature\": null}",
+  "last_activated_at": 1791463874.5211499,
+  "release_id": "20261008T125114Z-23cf37b70754",
+  "resume_note": "v1 repaired",
+  "resumed_by": "sre-lead",
+  "status": "ACTIVE",
+  "updated_at": "2026-10-08T12:51:14Z"
+}

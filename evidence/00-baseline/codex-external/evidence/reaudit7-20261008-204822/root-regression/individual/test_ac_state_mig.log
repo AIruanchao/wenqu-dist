@@ -1,0 +1,25 @@
+§20 验收 ID 专属测试：STATE-01~11 / MIG-01~05
+被测体 A 组: system/wenqu_core/store.py + system/wenqu_core/ledger_migrator.py（不依赖 wenqu_pipeline）
+被测体 B 组: system/wenqu_core/wenqu_pipeline.py（wave6/P1F：STATE-02/05/09/11）
+
+  ok   STATE-01  任意 stage/status → schema 拒绝
+  ok   STATE-02  ../、绝对路径、NUL、超长 ID → 拒绝（wenqu_pipeline ID 面）
+  ok   STATE-03  100×100 并发写 → 零丢失/重复
+  ok   STATE-04  事务各点 kill -9 → 全有或全无
+  ok   STATE-05  双 writer epoch → 所有写入拒绝（wenqu_pipeline fencing）
+  ok   STATE-06  WAITING 终态残留 → SUPERSEDED 事件，不静默删
+  ok   STATE-07  普通事件把 PASSED 改回 RUNNING → 拒绝
+  ok   STATE-08  FAILED 重试 → 新 attempt，旧证据不覆盖
+  ok   STATE-09  SHA/scope/policy 变化 → 强制新 run（重放侧 identity 不变量）
+  ok   STATE-10  WAITING/FAILED attempt 直接改回 RUNNING → 拒绝；追加新 attempt 后由 stage projection 指向它
+  ok   STATE-11  S7 CONDITIONAL 缺 risk authorization → 终判 FAILED；后续批准只能创建新 run，不得写 WAITING
+  ok   MIG-01  坏 JSON/未知状态 → quarantine+BLOCKED
+  ok   MIG-02  缺审批信息的 ACCEPTED → invalid/reopen
+  ok   MIG-03  两次迁移 → 结果幂等一致
+  ok   MIG-04  源行数不守恒 → 迁移失败
+  ok   MIG-05  project key 冲突 → 明确冲突，不拆成假项目
+
+不可实现登记：无（16/16 ID 均有专属真实测试）
+
+结果: 16 PASS / 0 FAIL；范围内不可实现 0 条；exit=0
+证据工件: /private/tmp/wenqu-reaudit7-20261008-204822/evidence/04-unit-property-mutation/ac-state-mig.json

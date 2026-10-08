@@ -1,0 +1,18 @@
+TIMESTAMP_UTC: 2026-10-08T13:03:27Z
+CWD: /tmp/wenqu-reaudit7-f6p0-22971
+COMMAND: /tmp/reaudit7-p08.sh 
+OUTPUT_BEGIN
+HEAD=d32c859f9043798d9e8a4984e8f57aa64567e33c
+STUB_META=-rwxr-xr-x 79
+STUB_SHA256=6da37e2ae7a0aabd31bdbf7ab72641a2d973f2d8a0b2f7e17b6405a4d06a2dcd
+STUB_CONTENT_BEGIN
+printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1
+STUB_CONTENT_END
+auto-merge permanently disabled per P0 containment
+STUB_EXEC_RC=1
+LAUNCHCTL_MATCH_BEGIN
+LAUNCHCTL_MATCH_END
+PROCESS_MATCH_BEGIN
+PROCESS_MATCH_END
+OUTPUT_END
+EXIT_CODE: 0

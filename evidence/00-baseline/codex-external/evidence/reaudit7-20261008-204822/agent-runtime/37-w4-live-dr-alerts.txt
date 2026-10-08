@@ -1,0 +1,295 @@
+UTC_START=2026-10-08T12:55:14Z
+PWD=/Users/maccc/Documents/wenqu-dist
+COMMAND_FILE=/private/tmp/reaudit7-cmd-w4-live-artifacts.zsh
+--- COMMAND ---
+#!/bin/zsh
+set -o pipefail
+ROOT="$HOME/.wenqu/observation"
+echo '=== DR reports ==='
+for f in "$ROOT"/drills/*.json; do echo "--- $f ---"; stat -f 'SIZE=%z MODE=%Sp MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; python3 -m json.tool "$f"; done
+echo '=== DR jsonl tail ==='
+for f in "$ROOT"/drills/*.jsonl; do echo "--- $f ---"; stat -f 'SIZE=%z MODE=%Sp MTIME=%Sm' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; tail -30 "$f"; done
+echo '=== alert/receipt inventory ==='
+find "$ROOT/alerts" -maxdepth 1 -type f -print | sort | while read f; do stat -f 'SIZE=%z MODE=%Sp MTIME=%Sm PATH=%N' -t '%Y-%m-%dT%H:%M:%S%z' "$f"; shasum -a 256 "$f"; done
+echo '=== receipts redacted/structured ==='
+if test -f "$ROOT/alerts/receipts.jsonl"; then python3 - "$ROOT/alerts/receipts.jsonl" <<'PY'
+import json,sys
+for i,l in enumerate(open(sys.argv[1]),1):
+ try:d=json.loads(l)
+ except Exception as e: print(i,'INVALID',e);continue
+ print(i,{k:d.get(k) for k in ('message_id','channel','status','sent_at','created_at','title')})
+PY
+fi
+--- OUTPUT ---
+=== DR reports ===
+--- /Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json ---
+SIZE=2208 MODE=-rw-r--r-- MTIME=2026-10-08T17:18:43+0800
+64d327124a904a3742e6e14ab29fa6ccb3b32432f8ed0745eb20014e9df73e87  /Users/maccc/.wenqu/observation/drills/drill-20261008T091843Z.json
+{
+    "drill": "backup-restore",
+    "stamp": "20261008T091843Z",
+    "wenqu_root": "/Users/maccc/.wenqu",
+    "workdir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T//wenqu-drill.sz5q1xQE",
+    "corpus_count": 5,
+    "steps": {
+        "snapshot": {
+            "ok": true,
+            "files": [
+                {
+                    "rel": "state/scheduler.db",
+                    "sha256": "46e5158cc8ab194681914ad528a25c94d2807775c229a63fdf51859df51192a4",
+                    "size": 69632
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "sha256": "5838315636bc12b1ac7087e1fbdbb2190a14c8e25dc3dec5764894b5e116aeac",
+                    "size": 819
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "sha256": "b9608fc57e51560d00fa34f674941f82e089a27438c4891938a1093da3f58925",
+                    "size": 1366
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "sha256": "d85af1d45ab22174e50d46165378a906560825a464f17824b24b6c123b76e878",
+                    "size": 3187
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "sha256": "9a2ad7f0a245330a845e4338707bca1649f2b7118d47405261729dc1cce266f5",
+                    "size": 2621
+                }
+            ]
+        },
+        "tamper": {
+            "ok": true,
+            "actions": [
+                {
+                    "rel": "state/scheduler.db",
+                    "how": "append"
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "how": "truncate"
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "how": "delete"
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "how": "append"
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "how": "truncate"
+                }
+            ]
+        },
+        "restore": {
+            "ok": true,
+            "files_restored": 5
+        },
+        "reconcile": {
+            "files": [
+                {
+                    "rel": "state/scheduler.db",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "46e5158cc8ab194681914ad528a25c94d2807775c229a63fdf51859df51192a4"
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "5838315636bc12b1ac7087e1fbdbb2190a14c8e25dc3dec5764894b5e116aeac"
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "b9608fc57e51560d00fa34f674941f82e089a27438c4891938a1093da3f58925"
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "d85af1d45ab22174e50d46165378a906560825a464f17824b24b6c123b76e878"
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "9a2ad7f0a245330a845e4338707bca1649f2b7118d47405261729dc1cce266f5"
+                }
+            ]
+        }
+    },
+    "result": "PASS",
+    "reason": "4/4 steps ok; all restored files byte-identical to snapshot",
+    "byte_match_all": true
+}
+--- /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json ---
+SIZE=2707 MODE=-rw-r--r-- MTIME=2026-10-08T17:58:02+0800
+074d74ec98e443fe381864be85fd01faa08dd039255fc0a229a1b4da9c5dc10a  /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.json
+{
+    "drill": "backup-restore",
+    "stamp": "20261008T095759Z",
+    "mode": "dr",
+    "wenqu_root": "/Users/maccc/.wenqu",
+    "workdir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T//wenqu-drill.mfiYlAm4",
+    "corpus_count": 5,
+    "steps": {
+        "snapshot": {
+            "ok": true,
+            "files": [
+                {
+                    "rel": "state/scheduler.db",
+                    "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc",
+                    "size": 69632
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29",
+                    "size": 911
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5",
+                    "size": 1484
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3",
+                    "size": 5690
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f",
+                    "size": 3899
+                }
+            ]
+        },
+        "tamper": {
+            "ok": true,
+            "actions": [
+                {
+                    "rel": "state/scheduler.db",
+                    "how": "append"
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "how": "truncate"
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "how": "delete"
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "how": "append"
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "how": "truncate"
+                }
+            ]
+        },
+        "restore": {
+            "ok": true,
+            "files_restored": 5
+        },
+        "reconcile": {
+            "files": [
+                {
+                    "rel": "state/scheduler.db",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc"
+                },
+                {
+                    "rel": "state/gate-aggregate.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29"
+                },
+                {
+                    "rel": "observation/heartbeat.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5"
+                },
+                {
+                    "rel": "observation/samples/2026-10-08.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3"
+                },
+                {
+                    "rel": "observation/shadow/2026-10-08.json",
+                    "cmp": true,
+                    "sha_match": true,
+                    "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f"
+                }
+            ]
+        }
+    },
+    "dr": {
+        "mode": "dr",
+        "fault_delay_s": 2,
+        "rpo_seconds": 2.058311,
+        "rto_seconds": 0.47504,
+        "rpo_target_s": 300,
+        "rto_target_s": 60,
+        "rpo_ok": true,
+        "rto_ok": true,
+        "t_snapshot_done_epoch": 1791453479.932372,
+        "t_fault_epoch": 1791453481.990683,
+        "t_restore_start_epoch": 1791453482.352206,
+        "t_reconcile_done_epoch": 1791453482.827246
+    },
+    "result": "PASS",
+    "reason": "4/4 steps ok; byte-identical restore; RPO=2.058311s<=300s, RTO=0.475040s<=60s (frozen targets met)",
+    "byte_match_all": true,
+    "jsonl": "/Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl"
+}
+=== DR jsonl tail ===
+--- /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl ---
+SIZE=4764 MODE=-rw-r--r-- MTIME=2026-10-08T17:58:02+0800
+17721d28d4fd506bf56b7feaa7b0625a5a5f85570c3a20ef1d08c65578d02f4d  /Users/maccc/.wenqu/observation/drills/drill-20261008T095759Z.jsonl
+{"ts": 1791453479.587930, "t": "2026-10-08T09:57:59Z", "event": "drill_start", "file": "-", "result": "dr", "corpus_count": 5, "wenqu_root": "/Users/maccc/.wenqu"}
+{"ts": 1791453479.658907, "t": "2026-10-08T09:57:59Z", "event": "snapshot_file", "file": "state/scheduler.db", "result": "true", "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc", "size": 69632}
+{"ts": 1791453479.714364, "t": "2026-10-08T09:57:59Z", "event": "snapshot_file", "file": "state/gate-aggregate.json", "result": "true", "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29", "size": 911}
+{"ts": 1791453479.768643, "t": "2026-10-08T09:57:59Z", "event": "snapshot_file", "file": "observation/heartbeat.json", "result": "true", "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5", "size": 1484}
+{"ts": 1791453479.823409, "t": "2026-10-08T09:57:59Z", "event": "snapshot_file", "file": "observation/samples/2026-10-08.json", "result": "true", "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3", "size": 5690}
+{"ts": 1791453479.898510, "t": "2026-10-08T09:57:59Z", "event": "snapshot_file", "file": "observation/shadow/2026-10-08.json", "result": "true", "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f", "size": 3899}
+{"ts": 1791453482.026323, "t": "2026-10-08T09:58:02Z", "event": "fault_window", "file": "-", "result": "true", "rpo_seconds": 2.058311, "fault_delay_s": 2}
+{"ts": 1791453482.062654, "t": "2026-10-08T09:58:02Z", "event": "tamper_file", "file": "state/scheduler.db", "result": "append"}
+{"ts": 1791453482.090291, "t": "2026-10-08T09:58:02Z", "event": "tamper_file", "file": "state/gate-aggregate.json", "result": "truncate"}
+{"ts": 1791453482.119657, "t": "2026-10-08T09:58:02Z", "event": "tamper_file", "file": "observation/heartbeat.json", "result": "delete"}
+{"ts": 1791453482.148433, "t": "2026-10-08T09:58:02Z", "event": "tamper_file", "file": "observation/samples/2026-10-08.json", "result": "append"}
+{"ts": 1791453482.175743, "t": "2026-10-08T09:58:02Z", "event": "tamper_file", "file": "observation/shadow/2026-10-08.json", "result": "truncate"}
+{"ts": 1791453482.325131, "t": "2026-10-08T09:58:02Z", "event": "tamper_verified", "file": "-", "result": "true", "actions": [{"rel": "state/scheduler.db", "how": "append"}, {"rel": "state/gate-aggregate.json", "how": "truncate"}, {"rel": "observation/heartbeat.json", "how": "delete"}, {"rel": "observation/samples/2026-10-08.json", "how": "append"}, {"rel": "observation/shadow/2026-10-08.json", "how": "truncate"}]}
+{"ts": 1791453482.381528, "t": "2026-10-08T09:58:02Z", "event": "restore_file", "file": "state/scheduler.db", "result": "true", "n": 1}
+{"ts": 1791453482.411417, "t": "2026-10-08T09:58:02Z", "event": "restore_file", "file": "state/gate-aggregate.json", "result": "true", "n": 2}
+{"ts": 1791453482.452331, "t": "2026-10-08T09:58:02Z", "event": "restore_file", "file": "observation/heartbeat.json", "result": "true", "n": 3}
+{"ts": 1791453482.484366, "t": "2026-10-08T09:58:02Z", "event": "restore_file", "file": "observation/samples/2026-10-08.json", "result": "true", "n": 4}
+{"ts": 1791453482.514955, "t": "2026-10-08T09:58:02Z", "event": "restore_file", "file": "observation/shadow/2026-10-08.json", "result": "true", "n": 5}
+{"ts": 1791453482.570256, "t": "2026-10-08T09:58:02Z", "event": "reconcile_file", "file": "state/scheduler.db", "result": "true", "sha256": "4fc9a90e48fcf8d889b049bb15e18bb8c37c311768b13d8d6fd1ea27478a2dcc"}
+{"ts": 1791453482.632087, "t": "2026-10-08T09:58:02Z", "event": "reconcile_file", "file": "state/gate-aggregate.json", "result": "true", "sha256": "d6035c7ec0a2e31a43d2fb62597c614a9f2d8439b84394a0efe0330d20393a29"}
+{"ts": 1791453482.689484, "t": "2026-10-08T09:58:02Z", "event": "reconcile_file", "file": "observation/heartbeat.json", "result": "true", "sha256": "c6799b290c2c822c2be2c88d447cc943325930e5f326c8763f0ae32eb02023d5"}
+{"ts": 1791453482.745593, "t": "2026-10-08T09:58:02Z", "event": "reconcile_file", "file": "observation/samples/2026-10-08.json", "result": "true", "sha256": "c4614000c6d580c103c33fdea8ff9756efce1d38835eb77537238c68db415cf3"}
+{"ts": 1791453482.801029, "t": "2026-10-08T09:58:02Z", "event": "reconcile_file", "file": "observation/shadow/2026-10-08.json", "result": "true", "sha256": "e4a31dd027c67e21a2901c70d1fa43a4a2ef67a9c01ee7925bbba2e861b6a45f"}
+{"ts": 1791453482.882164, "t": "2026-10-08T09:58:02Z", "event": "dr_metrics", "file": "-", "result": "true", "rpo_seconds": 2.058311, "rto_seconds": 0.475040, "rpo_target_s": 300, "rto_target_s": 60}
+{"ts": 1791453482.918655, "t": "2026-10-08T09:58:02Z", "event": "drill_pass", "file": "-", "result": "PASS", "rpo_seconds": 2.058311, "rto_seconds": 0.475040}
+=== alert/receipt inventory ===
+SIZE=390 MODE=-rw-r--r-- MTIME=2026-10-08T17:18:09+0800 PATH=/Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt
+afadddfd4fc0aa2cb795769405322fde336fb424f310adf1318c06e586673752  /Users/maccc/.wenqu/observation/alerts/20261008-171809-INFO-aecedff27d57.txt
+SIZE=239 MODE=-rw-r--r-- MTIME=2026-10-08T17:18:09+0800 PATH=/Users/maccc/.wenqu/observation/alerts/receipts.jsonl
+0f2d9521850fb922a2d8317104c65ea8ee36c45314a48cc4fcf608051d2b210f  /Users/maccc/.wenqu/observation/alerts/receipts.jsonl
+=== receipts redacted/structured ===
+1 {'message_id': 'aecedff27d574204a0942485b42109d2', 'channel': 'alertbox', 'status': None, 'sent_at': None, 'created_at': None, 'title': None}
+--- END OUTPUT ---
+EXIT_CODE=0
+UTC_END=2026-10-08T12:55:15Z

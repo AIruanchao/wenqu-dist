@@ -1,0 +1,3 @@
+pipeline	system/wenqu_core/wenqu_pipeline.py	1	/tmp/reaudit6-anchor-pipeline.SXRSR9
+approval_schema	system/schemas/approval-v2.schema.json	1	/tmp/reaudit6-anchor-approval_schema.oztmFf
+trace_tool	tools/ac_traceability.py	1	/tmp/reaudit6-anchor-trace_tool.BVyXk2

@@ -164,13 +164,19 @@ def probe_repo():
     git_bin = find_bin("git")
     if not git_bin:
         return {"error": "git not found"}
+    # R7-OBS-SAMPLE-014：身份正源=fetch 后的 origin/main——不受共享工作树漂移/误删影响
+    run_cmd([git_bin, "fetch", "origin", "main"], timeout=90, cwd=REPO)
+    ident_r = run_cmd([git_bin, "rev-parse", "origin/main"], timeout=15, cwd=REPO)
     head_r = run_cmd([git_bin, "rev-parse", "HEAD"], timeout=15, cwd=REPO)
     dirty_r = run_cmd([git_bin, "status", "--porcelain"], timeout=15, cwd=REPO)
     head = head_r["stdout"] if head_r["returncode"] == 0 else None
+    identity = ident_r["stdout"] if ident_r["returncode"] == 0 else None
     dirty_files = [ln for ln in dirty_r["stdout"].splitlines() if ln.strip()] if dirty_r["returncode"] == 0 else None
     return {
         "path": REPO,
-        "head": head,
+        "identity": identity,
+        "identity_error": None if identity else (ident_r["error"] or ident_r["stderr"][:200]),
+        "worktree_head": head,
         "head_error": None if head else (head_r["error"] or head_r["stderr"][:200]),
         "dirty": (len(dirty_files) > 0) if dirty_files is not None else None,
         "dirty_files": dirty_files if dirty_files is not None else None,
@@ -432,10 +438,18 @@ def main():
         "shadow": safe(probe_shadow),
     }
 
-    sample_path = os.path.join(SAMPLES_DIR, today + ".json")
-    shadow_path = os.path.join(SHADOW_DIR, today + ".json")
-    write_json_atomic(sample_path, sample)
-    write_json_atomic(shadow_path, shadow)
+    # R7-OBS-SAMPLE-014：样本永不覆盖——同日追加时间戳后缀，首样本一经落盘即保全
+    def _no_clobber(base, today_str, payload):
+        path = os.path.join(base, today_str + ".json")
+        if os.path.isfile(path):
+            stamp = time.strftime("%H%M%S")
+            path = os.path.join(base, today_str + "-" + stamp + ".json")
+            payload = dict(payload, append_note="same-day append; identity 见 repo.identity")
+        write_json_atomic(path, payload)
+        return path
+
+    sample_path = _no_clobber(SAMPLES_DIR, today, sample)
+    shadow_path = _no_clobber(SHADOW_DIR, today, shadow)
     rotate(SAMPLES_DIR)
     rotate(SHADOW_DIR)
 

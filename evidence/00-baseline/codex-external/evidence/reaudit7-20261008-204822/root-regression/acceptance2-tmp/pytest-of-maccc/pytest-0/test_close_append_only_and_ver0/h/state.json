@@ -1,0 +1,22 @@
+{
+ "version": "0.3.0-fork24-maccc",
+ "created_at": "2026-10-08T13:01:07Z",
+ "root": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/acceptance2-tmp/pytest-of-maccc/pytest-0/test_close_append_only_and_ver0/r",
+ "scope_hash": "6666370de9aafc34",
+ "files": 2,
+ "exts": [
+  ".py",
+  ".sh",
+  ".js",
+  ".ts",
+  ".tsx",
+  ".go",
+  ".rs",
+  ".java",
+  ".c",
+  ".cpp",
+  ".h",
+  ".sql"
+ ],
+ "skip_dirs": []
+}

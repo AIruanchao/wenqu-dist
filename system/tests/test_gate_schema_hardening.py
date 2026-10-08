@@ -12,6 +12,8 @@
         -> test_f4_schema001_station_rules_via_aggregator_mirror
   F4-TRC-001  §20 语义篡改假绿（ac_traceability 只比 ID 集合）
         -> test_f4_trc001_semantic_tamper_detected
+  R7-SCHEMA  PASS 等值级联 1..64→1..256 生成式扩展（>64 分母分叉闭合）
+        -> test_r7_schema_cascade_256_denominator_fork_closed
 
 纯标准库；可直接 `python3 system/tests/test_gate_schema_hardening.py`（exit 0=全绿），
 也兼容 pytest。jsonschema 不可用时 schema 断言按仓内惯例降级跳过（镜像断言仍执行）。
@@ -185,8 +187,9 @@ def test_f4_gate001_mirror_jsonschema_consistency():
     对正负样例组，mirror_validate_station_result_v2 与
     jsonschema+FormatChecker（严格 date-time）的合法/非法结论必须一致。
     已声明的唯一边界：PASS 的 scanned==denominator 在 schema 侧以 const 级联
-    机器判定 1..64（draft-07 无法表达跨字段数值比较），>64 时 schema 不判、
-    镜像必拒——边界样例单独断言，不进一致性对照。
+    机器判定 1..256（draft-07 无法表达跨字段数值比较；R7-SCHEMA 分母分叉根修
+    生成式扩展自 1..64），>256 时 schema 不判、镜像必拒——边界样例单独断言，
+    不进一致性对照。
     """
     legal = _v2()
     samples = [  # (名字, 文档, 期望合法?)
@@ -300,12 +303,28 @@ def test_f4_gate001_mirror_jsonschema_consistency():
     _ck(f"F4-GATE-001 镜像↔schema 一致性（{len(samples)} 样例零分歧）",
         not mismatch, "; ".join(mismatch[:4]))
 
-    # 已声明边界：分母>64 的缩水在 schema 级联之外——镜像必拒（无界等式）
-    big_shrink = legal | {"coverage": {"denominator": 100, "scanned": 65}}
-    _ck("F4-GATE-001 边界：>64 缩水镜像仍必拒（schema 级联外）",
+    # R7-SCHEMA 分母分叉根修：级联已生成式扩展到 1..256——65/66 与 255/256
+    # 缩水在级联内必须双侧拒（此前 schema 侧不判=与运行镜像分叉，第七轮实证）
+    for sc, dn in ((65, 66), (255, 256), (100, 65)):
+        doc = legal | {"coverage": {"denominator": dn, "scanned": sc}}
+        _ck(f"F4-GATE-001 级联内 >64 缩水镜像拒 PASS {sc}/{dn}",
+            bool(mirror_validate_station_result_v2(doc)))
+        if v is not None:
+            _ck(f"F4-GATE-001 级联内 >64 缩水正式 schema 拒 PASS {sc}/{dn}（R7 分叉闭合）",
+                _is_invalid(v, doc) is True)
+        eq = legal | {"coverage": {"denominator": sc, "scanned": sc}}
+        _ck(f"F4-GATE-001 级联内 >64 等值镜像收 PASS {sc}/{sc}",
+            not mirror_validate_station_result_v2(eq))
+        if v is not None:
+            _ck(f"F4-GATE-001 级联内 >64 等值正式 schema 收 PASS {sc}/{sc}（不误拒全扫）",
+                _is_invalid(v, eq) is False)
+
+    # 已声明边界：分母>256 的缩水在 schema 级联之外——镜像必拒（无界等式兜底）
+    big_shrink = legal | {"coverage": {"denominator": 301, "scanned": 300}}
+    _ck("F4-GATE-001 边界：>256 缩水镜像仍必拒（schema 级联外）",
         bool(mirror_validate_station_result_v2(big_shrink)))
     if v is not None:
-        _ck("F4-GATE-001 边界记录：>64 缩水 schema 侧不判（不误拒合法大分母）",
+        _ck("F4-GATE-001 边界记录：>256 缩水 schema 侧不判（不误拒合法大分母）",
             _is_invalid(v, big_shrink) is False)
 
 
@@ -470,6 +489,69 @@ def test_f4_schema001_station_rules_via_aggregator_mirror():
     out = agg.aggregate()
     _ck("F4-SCHEMA-001 #5 station TIMEOUT+CONDITIONAL 聚合 BLOCKED",
         out["aggregate_outcome"] == BLOCKED, out["reason"])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# R7-SCHEMA（第七轮 P1）：PASS 等值级联 1..64 → 1..256 生成式扩展——
+# >64 分母分叉闭合（正式 Draft-07 schema 此前对 65/66 缩水不判）；>256 由
+# 镜像无界等式兜底（schema $comment 已声明边界）。
+# ══════════════════════════════════════════════════════════════════════
+def test_r7_schema_cascade_256_denominator_fork_closed():
+    """R7 对抗复验：PASS 65/66 正式 schema 必拒；级联结构 1..256 生成式连续；
+    >256 声明边界（schema 不判、镜像无界兜底、聚合纵深 BLOCKED）。"""
+    schema = json.load(open(os.path.join(SCHEMAS, "station-result-v2.schema.json"),
+                            encoding="utf-8"))
+    cascade = schema["allOf"][1]["then"]["properties"]["coverage"]["allOf"]
+    consts = [e["if"]["properties"]["scanned"]["const"] for e in cascade]
+    _ck("R7-SCHEMA schema const 级联 1..256（生成式连续，逐条 then 等值锁定）",
+        consts == list(range(1, 257))
+        and all(e["then"]["properties"]["denominator"]["const"] == n
+                for e, n in zip(cascade, range(1, 257))),
+        f"n={len(consts)} head={consts[:2]} tail={consts[-2:]}")
+    _ck("R7-SCHEMA $comment 声明 1..256 级联 + >256 镜像无界兜底",
+        "1..256" in schema["$comment"] and ">256" in schema["$comment"]
+        and "无界等式" in schema["$comment"])
+
+    def _pass_doc(scanned, denominator):
+        return _v2(coverage={"denominator": denominator, "scanned": scanned})
+
+    try:
+        v = _jsonschema_validator("station-result-v2.schema.json")
+    except ImportError:
+        print("  (skip) jsonschema 未安装，schema 断言降级（镜像断言仍执行）")
+        v = None
+
+    # 对抗复验正主：PASS 65/66（第六/七轮原样反例）正式 schema 必拒
+    _ck("R7-SCHEMA 镜像拒 PASS 65/66（无界等式）",
+        bool(mirror_validate_station_result_v2(_pass_doc(65, 66))))
+    if v is not None:
+        _ck("R7-SCHEMA 正式 schema 拒 PASS 65/66（>64 分叉闭合）",
+            _is_invalid(v, _pass_doc(65, 66)) is True)
+
+    # 级联上沿与出沿：256/256 双收；>256 等值双收（schema 不判但不误拒全扫）
+    for sc, dn, expect_schema_reject in ((256, 255, True), (255, 256, True),
+                                         (256, 256, False), (257, 257, False),
+                                         (300, 300, False)):
+        doc = _pass_doc(sc, dn)
+        _ck(f"R7-SCHEMA 镜像 {'拒' if sc != dn else '收'} PASS {sc}/{dn}",
+            bool(mirror_validate_station_result_v2(doc)) == (sc != dn))
+        if v is not None:
+            _ck(f"R7-SCHEMA schema {'拒' if expect_schema_reject else '收'} PASS {sc}/{dn}",
+                _is_invalid(v, doc) is expect_schema_reject)
+
+    # >256 缩水：schema 声明边界不判 + 镜像无界兜底必拒 + 聚合纵深 BLOCKED
+    big = _pass_doc(300, 299)
+    _ck("R7-SCHEMA >256 缩水镜像必拒（无界兜底）",
+        bool(mirror_validate_station_result_v2(big)))
+    if v is not None:
+        _ck("R7-SCHEMA >256 缩水 schema 不判（声明边界，镜像兜底）",
+            _is_invalid(v, big) is False)
+    agg = GateAggregator({"2"}, SHA, "staging")
+    agg.add(_pass_doc(65, 66))
+    out = agg.aggregate()
+    _ck("R7-SCHEMA 65/66 PASS 聚合 BLOCKED（schema_invalid 记 malformed）",
+        out["aggregate_outcome"] == BLOCKED and out["technical_eligible"] is False
+        and out["stations"]["2"]["schema_valid"] is False, out["reason"])
 
 
 # ══════════════════════════════════════════════════════════════════════

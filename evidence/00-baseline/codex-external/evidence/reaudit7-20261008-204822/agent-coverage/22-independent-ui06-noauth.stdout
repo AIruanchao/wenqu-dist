@@ -1,0 +1,8 @@
+{
+  "request_authorization_header": null,
+  "request_cookie_header": null,
+  "status": 200,
+  "sensitive_marker_returned": true,
+  "body_head": "{\"sensitive.log\": \"REAUDIT7-UI06-NOAUTH-SENSITIVE-7d31\\n\"}"
+}
+UI06_UNAUTH_LOG_RESULT=GAP_FALSE_GREEN

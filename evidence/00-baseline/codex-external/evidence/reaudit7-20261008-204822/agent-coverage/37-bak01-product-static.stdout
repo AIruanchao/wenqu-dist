@@ -1,0 +1,14 @@
+7:#   生产文件本身全程只读（cp 一次），篡改/恢复全部发生在演练沙箱副本上——
+14:#   3 恢复：backup/ 逐文件 cp -p 回 live/（含重建被删文件）
+19:#   另落同缀 .jsonl 事件日志（每行 {ts,t,event,file,result[,...extra]}——
+27:#   RTO = 恢复开始（第一条 cp）-> 全部对账通过的实测耗时。
+68:WORK="$(mktemp -d "${TMPDIR:-/tmp}/wenqu-drill.XXXXXXXX")" || exit 1
+85:ev() {  # $1=event $2=file(空="-") $3=result $4=额外 JSON 片段（可空）
+88:  line=$(printf '{"ts": %s, "t": "%s", "event": "%s", "file": "%s", "result": "%s"%s}' \
+131:write_report() {  # $1=result $2=reason；其余步骤事实由调用方拼进 $STEPS_JSON
+144:  "result": "$1",
+160:  cp -p "$WENQU_ROOT/$rel" "$LIVE/$rel"   || fail "snapshot cp live $rel"
+161:  cp -p "$WENQU_ROOT/$rel" "$BACKUP/$rel" || fail "snapshot cp backup $rel"
+223:  cp -p "$BACKUP/$rel" "$LIVE/$rel" || fail "restore cp $rel"
+283:    write_report PASS "4/4 steps ok; byte-identical restore; RPO=${RPO_S}s<=${DR_RPO_TARGET_S}s, RTO=${RTO_S}s<=${DR_RTO_TARGET_S}s (frozen targets met)"
+291:    fail "DR frozen targets not met: RPO=${RPO_S}s(rpo_ok=$RPO_OK) RTO=${RTO_S}s(rto_ok=$RTO_OK)"

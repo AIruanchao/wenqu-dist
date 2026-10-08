@@ -1,0 +1,44 @@
+captured=2026-10-08T20:52:25+08:00
+=== status ===
+# branch.oid 1495913085eae13155f977fcebc8400b9789e04c
+# branch.head wave6/p1f-gate
+# branch.upstream origin/wave6/p1f-gate
+# branch.ab +0 -0
+1 .M N... 100644 100644 100644 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 b7dac7ba272f8baf5944ce3947dd6f012a6f4c70 evidence/04-unit-property-mutation/ac-ops-families.json
+1 .M N... 100644 100644 100644 dc131734b1e5b8915164cb9aed74ccef703220f5 dc131734b1e5b8915164cb9aed74ccef703220f5 evidence/04-unit-property-mutation/ac-ui-family.json
+1 .M N... 100644 100644 100644 269aa9c86de7dc77e2318c699297b92342c63779 269aa9c86de7dc77e2318c699297b92342c63779 system/VERSION
+1 .M N... 100755 100755 100755 6c237dc89a584744ef58dae83097ebeeb46796fd 6c237dc89a584744ef58dae83097ebeeb46796fd system/bin/wenqu-dashboard.py
+1 .D N... 100644 100644 000000 c3da05429806c69d1cc5a70bf9f1cf88440c627f c3da05429806c69d1cc5a70bf9f1cf88440c627f system/wenqu_core/wenqu_pipeline.py
+? "\"\""
+? SHA256-v3.8.4.txt
+=== identity ===
+1495913085eae13155f977fcebc8400b9789e04c
+wave6/p1f-gate
+=== missing file ===
+ls: /Users/maccc/Documents/wenqu-dist/system/wenqu_core/wenqu_pipeline.py: No such file or directory
+=== d32 frozen copy exists/hash ===
+-rw-r--r--@ 1 maccc  wheel  163997 Oct  8 20:48 /private/tmp/wenqu-reaudit7-20261008-204822/system/wenqu_core/wenqu_pipeline.py
+44692e060d5f45f7b01130f54846048454c86d615fc697ea6408453353839223  /private/tmp/wenqu-reaudit7-20261008-204822/system/wenqu_core/wenqu_pipeline.py
+=== launch aggregate ===
+/Users/maccc/.wenqu/state/gate-aggregate.json os.stat_result(st_mode=33188, st_ino=468767651, st_dev=16777232, st_nlink=1, st_uid=502, st_gid=20, st_size=854, st_atime=1791463884, st_mtime=1791463882, st_ctime=1791463882)
+{
+  "generated_at": "2026-10-08T12:51:16Z",
+  "policy_verdict": "BLOCKED",
+  "aggregate_outcome": "BLOCKED",
+  "technical_eligible": false,
+  "reason": "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）",
+  "reasons": [
+    "wenquctl gate 输出不可解析（rc=1 out= err=Traceback (most recent call last):\n  File \"/Users/maccc/Documents/wenqu-dist/system/wenqu_core/cli.py\", line 41, in <module>\n    from wenqu_core.approval_issue ）"
+  ],
+  "counts": {
+    "required_total": 0,
+    "required_reported": 0,
+    "required_missing": 0,
+    "bypass_stations": 0,
+    "duplicates_ignored": 0,
+    "conflicts": 0,
+    "malformed": 0
+  },
+  "source": "w4-scheduler",
+  "cli_exit": 1
+}

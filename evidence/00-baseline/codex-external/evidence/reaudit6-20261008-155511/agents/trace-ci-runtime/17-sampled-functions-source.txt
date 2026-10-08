@@ -1,0 +1,1240 @@
+
+====================================================================================================
+system/tests/test_ac_gate_family.py
+
+----------------------------------------------------------------------------------------------------
+ID=GATE-01 plan_injection='base ref 不存在/fetch 失败' plan_expectation='ERROR/BLOCKED'
+matrix_fn=test_GATE_01_fetch_fail_or_missing_base_ref_is_error line=228 ast=227-247
+  227: def test_GATE_01_fetch_fail_or_missing_base_ref_is_error(root: Optional[Path] = None) -> None:
+  228:     """GATE-01｜注入：base ref 不存在/fetch 失败｜期望：ERROR/BLOCKED。"""
+  229:     with _tmp(root) as td:
+  230:         # 腿一：remote 指向不存在的路径 → git fetch 非零 → ERROR(2)，绝不 SKIP
+  231:         repo = _make_repo(td)
+  232:         broken = td / f"nowhere-{uuid.uuid4().hex[:8]}"
+  233:         _git(repo, "remote", "add", "broken", str(broken))
+  234:         out_json = td / "g01a.json"
+  235:         gate = SourceGate(str(repo), remote="broken", result_path=str(out_json))
+  236:         result = gate.execute_gate()
+  237:         _ok(result["exit_code"] == EXIT_ERROR, f"fetch 失败须 exit 2，got {result['exit_code']}")
+  238:         _ok(result["execution_status"] == "ERROR", "fetch 失败须 execution_status=ERROR")
+  239:         _ok(result["policy_verdict"] == "NOT_EVALUATED", "ERROR 时不得给策略判定")
+  240:         _ok(result["error"]["type"] == "SourceGateError", "错误类型须为 SourceGateError")
+  241:         _ok("fetch" in result["error"]["message"], "错误信息须指向 fetch")
+  242:         _ok(out_json.exists(), "失败证据工件必须照常落盘")
+  243:         # 腿二：fetch 成功但 base ref 不存在 → verify 阶段 ERROR(2)
+  244:         gate2 = SourceGate(str(repo), base_ref="origin/definitely-missing-ref")
+  245:         exc = _expect_raise(SourceGateError, gate2.fresh_fetch)
+  246:         _ok(exc.execution_status == "ERROR" and exc.exit_code == EXIT_ERROR,
+  247:             f"base ref 不存在须 ERROR/2，got {exc.execution_status}/{exc.exit_code}")
+
+----------------------------------------------------------------------------------------------------
+ID=MRG-03 plan_injection='check 同名伪造/旧 SHA' plan_expectation='不合流'
+matrix_fn=test_MRG_03_same_name_forgery_or_old_sha_no_merge line=528 ast=527-547
+  527: def test_MRG_03_same_name_forgery_or_old_sha_no_merge(root: Optional[Path] = None) -> None:
+  528:     """MRG-03｜注入：check 同名伪造/旧 SHA｜期望：不合流。"""
+  529:     with _tmp(root) as td:
+  530:         sha = "a" * 40
+  531:         # 腿一：旧 SHA 的 check 证据 → C2 绑定违规 → BLOCKED
+  532:         agg = GateAggregator({"1"}, target_sha=sha, environment="test")
+  533:         agg.add(_legacy("1", "PASS", "b" * 40))  # 旧提交 SHA 的绿灯
+  534:         verdict = agg.aggregate()
+  535:         _ok(verdict["aggregate_outcome"] == BLOCKED, "旧 SHA 证据必须 BLOCKED")
+  536:         _ok(verdict["counts"].get("required_reported", 0) == 1
+  537:             and verdict["stations"]["1"]["sha_bound"] is False,
+  538:             "证据已登记但 SHA 未绑定目标（不静默丢弃也不放行）")
+  539:         # 腿二：同名 check 二次伪造（不同 SHA）→ 冲突证据 → BLOCKED，绝不静默择优
+  540:         agg2 = GateAggregator({"1"}, target_sha=sha, environment="test")
+  541:         agg2.add(_legacy("1", "PASS", sha))
+  542:         agg2.add(_legacy("1", "PASS", "e" * 40))  # 同名伪造
+  543:         verdict2 = agg2.aggregate()
+  544:         _ok(verdict2["aggregate_outcome"] == BLOCKED, "同名冲突证据必须 BLOCKED")
+  545:         _ok(verdict2["counts"]["conflicts"] == 1, "冲突须落账 duplicate_station_conflict")
+  546:         _ok(any("duplicate_station_conflict" in r for r in verdict2["reasons"]),
+  547:             "须记 duplicate_station_conflict")
+
+----------------------------------------------------------------------------------------------------
+ID=CI-09 plan_injection='S7 把 Wenqu Required Gate 当自身输入、重复发布或递归聚合' plan_expectation='schema/DAG 校验拒绝并发布 FAILURE'
+matrix_fn=test_CI_09_recursive_aggregate_or_duplicate_publish_rejected line=710 ast=709-767
+  709: def test_CI_09_recursive_aggregate_or_duplicate_publish_rejected(root: Optional[Path] = None) -> None:
+  710:     """CI-09｜注入：S7 把 Wenqu Required Gate 当自身输入、重复发布或递归聚合｜期望：schema/DAG 校验拒绝并发布 FAILURE。"""
+  711:     with _tmp(root) as td:
+  712:         ts = "2026-10-08T00:00:00+00:00"
+  713:         # 腿一：schema 拒绝——station-result 携带非法输入引用字段（S7 吃 Required Gate）
+  714:         good = bo.build_station_result(
+  715:             run_id="ci09run",
+  716:             station_id=7,
+  717:             attempt_id="att-ci09",
+  718:             execution_status="COMPLETED",
+  719:             policy_verdict="PASS",
+  720:             identity={
+  721:                 "project_id": "gate-family",
+  722:                 "commit_sha": "1" * 40,
+  723:                 "environment": "local",
+  724:                 "scope_hash": "2" * 64,
+  725:                 "ruleset_hash": "3" * 64,
+  726:                 "data_config_hash": "4" * 64,
+  727:             },
+  728:             tool={"name": "runtime-sentinel", "version": "1"},
+  729:             execution={
+  730:                 "argv_digest": "5" * 64,
+  731:                 "started_at": ts,
+  732:                 "ended_at": ts,
+  733:                 "timeout_s": 60,
+  734:                 "actual_exit_code": 0,
+  735:                 "expected_exit_set": [0],
+  736:                 "assertion_verdict": "PASS",
+  737:             },
+  738:             coverage={"denominator": 3, "scanned": 3},
+  739:             finding_ids=[],
+  740:             artifacts=[{"cas_digest": "sha256:" + "6" * 64, "size": 16}],
+  741:         )
+  742:         bo.validate_station_result(good)  # 对照：合法结果通过
+  743:         recursive = dict(good)
+  744:         recursive["consumes_wenqu_required_gate"] = True  # S7 递归引用注入
+  745:         exc = _expect_raise(bo.StationResultValidationError, bo.validate_station_result, recursive)
+  746:         _ok("additional properties" in str(exc), "schema 必须拒绝非法输入引用（additionalProperties=false）")
+  747:         # 腿二：递归聚合——聚合输出回灌聚合器（无 station 结构）→ malformed BLOCKED
+  748:         sha = "a" * 40
+  749:         agg_inner = GateAggregator({"1"}, target_sha=sha, environment="test")
+  750:         agg_inner.add(_legacy("1", "PASS", sha))
+  751:         aggregate_output = agg_inner.aggregate()
+  752:         agg_outer = GateAggregator({"1"}, target_sha=sha, environment="test")
+  753:         agg_outer.add(aggregate_output)  # DAG 违规：聚合结果不是站点结果
+  754:         verdict = agg_outer.aggregate()
+  755:         _ok(verdict["aggregate_outcome"] == BLOCKED and verdict["counts"]["malformed"] == 1,
+  756:             "聚合输出不得作为站点结果再入聚合（DAG 校验拒绝）")
+  757:         _ok(agg_outer.to_github_status(verdict)["conclusion"] == "failure",
+  758:             "拒绝时必须发布 failure 而非静默")
+  759:         # 腿三：重复发布不同内容（同站名异证据）→ 冲突 BLOCKED；幂等重发不产生第二绿
+  760:         agg_dup = GateAggregator({"1"}, target_sha=sha, environment="test")
+  761:         agg_dup.add(_legacy("1", "PASS", sha))
+  762:         agg_dup.add(_legacy("1", "PASS", sha))          # 幂等重发：忽略，不双绿
+  763:         agg_dup.add(_legacy("1", "FAIL", sha))          # 异内容重发：冲突
+  764:         verdict_dup = agg_dup.aggregate()
+  765:         _ok(verdict_dup["counts"]["duplicates_ignored"] == 1, "幂等重发只记 duplicate")
+  766:         _ok(verdict_dup["aggregate_outcome"] == BLOCKED and verdict_dup["counts"]["conflicts"] == 1,
+  767:             "异内容重复发布必须冲突 BLOCKED")
+
+====================================================================================================
+system/tests/test_ac_auth_cond.py
+
+----------------------------------------------------------------------------------------------------
+ID=AUTH-04 plan_injection='canonical payload/Unicode/audience 任一字节改变' plan_expectation='验签失败'
+matrix_fn=test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails line=496 ast=495-535
+  495: def test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails(root: Path) -> None:
+  496:     """AUTH-04｜注入：canonical payload/Unicode/audience 任一字节改变｜期望：验签失败。"""
+  497:     with _sandbox("auth04") as td:
+  498:         store, mgr = _mgr(td)
+  499:         run_id, w = _waiting_run(mgr, "task_auth04", "prod-write", ID_STAGING)
+  500:         v = mgr.get_run(run_id).state_version
+  501:         pre = VALID_PRECONDITIONS["prod-write"]
+  502:         # 带 Unicode 的信封（actor/payload 均含 CJK）——canonical JSON 以
+  503:         # ensure_ascii=False 原样签名，任何一字节改动都必须验签失败
+  504:         base = _resume_approval(
+  505:             run_id, "task_auth04", stop_event_id=w["stop_event_id"],
+  506:             stop_type="prod-write", version=v, preconditions=pre,
+  507:             actor="授权人-超哥①")
+  508:         _ok(len(base["actor"]) > 4 and any(ord(c) > 0x2E80 for c in base["actor"]),
+  509:             "对照组信封须真实携带 Unicode")
+  510: 
+  511:         def tampered(**over: Any) -> Dict[str, Any]:
+  512:             bad = copy.deepcopy(base)
+  513:             for k, val in over.items():
+  514:                 bad[k] = val
+  515:             return bad  # 不重签 —— 签名仍是对原 canonical 字节的 HMAC
+  516: 
+  517:         # Unicode 一字符翻转（超→趫）：canonical 字节改变 → 验签失败
+  518:         _raises(ApprovalRejected, lambda: mgr.resume_waiting(
+  519:             run_id, tampered(actor="授权人-趫哥①"), pre), contains="signature verification failed")
+  520:         # audience 半边一：environment（受众环境）staging→production → 验签失败
+  521:         _raises(ApprovalRejected, lambda: mgr.resume_waiting(
+  522:             run_id, tampered(environment="production"), pre), contains="signature verification failed")
+  523:         # audience 半边二：authorized_scope 尾部加一字节 → 验签失败
+  524:         _raises(ApprovalRejected, lambda: mgr.resume_waiting(
+  525:             run_id, tampered(authorized_scope=ID_STAGING["scope_hash"] + "X"), pre),
+  526:             contains="signature verification failed")
+  527:         # canonical 载荷字节：expires_at 一位数字改动（仍合法 date-time）→ 验签失败
+  528:         _raises(ApprovalRejected, lambda: mgr.resume_waiting(
+  529:             run_id, tampered(expires_at="2098-01-01T00:00:00Z"), pre),
+  530:             contains="signature verification failed")
+  531:         # 键序/规范化漂移面：整信封重序列化不改值（canonical 化等价）→ 不属于字节改变，应仍可消费
+  532:         _ok(mgr.resume_waiting(run_id, copy.deepcopy(base), pre)["resumed"] is True,
+  533:             "对照组：未篡改的 Unicode 信封原样消费成功")
+  534:         _ok(store.verify_chain()["ok"], "事件链完整性保持")
+  535:         store.close()
+
+----------------------------------------------------------------------------------------------------
+ID=COND-03 plan_injection='合法低风险接受、其余全 PASS、risk 与 action 两类精确授权' plan_expectation='内部仍 CONDITIONAL；技术 context=success/AUTHORIZED_CONDITIONAL；Action Gate 成功后动作恰一次'
+matrix_fn=test_COND_03_authorized_conditional_action_gate_exactly_once line=953 ast=952-1024
+  952: def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> None:
+  953:     """COND-03｜注入：合法低风险接受、其余全 PASS、risk 与 action 两类精确授权｜
+  954:     期望：内部仍 CONDITIONAL；技术 context=success/AUTHORIZED_CONDITIONAL；Action Gate 成功后动作恰一次。"""
+  955:     # 聚合半边：其余全 PASS + 单条件站 → 整线仍 CONDITIONAL（绝不上绿）
+  956:     agg = GateAggregator({"1"}, target_sha=ID_STAGING["commit_sha"],
+  957:                          environment="staging")
+  958:     agg.add({"station": "1", "outcome": "CONDITIONAL", "sha": ID_STAGING["commit_sha"],
+  959:              "environment": "staging"})
+  960:     v_agg = agg.aggregate()
+  961:     _ok(v_agg["aggregate_outcome"] == CONDITIONAL and not v_agg["technical_eligible"],
+  962:         "其余全 PASS 时条件站仍使整线 CONDITIONAL（内部不洗白）")
+  963: 
+  964:     with _sandbox("cond03") as td:
+  965:         store, mgr = _mgr(td)
+  966:         run_id = _soft_terminal_run(mgr, "task_cond03", ID_STAGING)
+  967:         statuses = mgr.get_run(run_id).stage_statuses()
+  968:         _ok(all(statuses[s] == "PASSED" for s in list(statuses)[:6])
+  969:             and statuses["S7_GATE"] == "COMPLETED_CONDITIONAL",
+  970:             "S1..S6 全 PASS + S7 CONDITIONAL（内部仍 CONDITIONAL）")
+  971:         mgr.register_finding(run_id, "fnd_cond03", "fp-cond03", "LOW", "P3")
+  972: 
+  973:         # risk 类精确授权（指纹精确匹配可接受面）→ 消费成功
+  974:         v = mgr.get_run(run_id).state_version
+  975:         risk = _risk_approval(run_id, "task_cond03", version=v,
+  976:                               fingerprints=["fp-cond03"], severity="LOW")
+  977:         _ok(mgr.authorize_risk(run_id, risk)["consumed"] is True, "risk 类精确授权消费")
+  978: 
+  979:         # action 类精确授权（prod_write 审批）→ Action Gate 全链恰一次
+  980:         action_ap = _action_approval(run_id, "task_cond03", version=v,
+  981:                                      stage="S7_GATE")
+  982:         reserved = mgr.reserve_action(run_id, "prod-write",
+  983:                                       "db://staging/erp#cond03", action_ap)
+  984:         _ok(reserved["action_state"] == "RESERVED", "action 授权预留成功")
+  985:         mgr.start_action(run_id, reserved["action_id"], receipt="cond03 caller self-report")
+  986:         receipt = _external_receipt(reserved, run_id)
+  987:         _ok(mgr.reconcile_receipt(run_id, reserved["action_id"], receipt)["reconciled"]
+  988:             is True, "外部正源回执对账通过（Action Gate 成功）")
+  989:         committed = mgr.commit_action(run_id, reserved["action_id"], receipt)
+  990:         _ok(committed["action_state"] == "COMMITTED"
+  991:             and committed["receipt_status"] == RECEIPT_RECONCILED,
+  992:             "动作经对账回执恰一次 COMMITTED")
+  993: 
+  994:         # 动作恰一次：终态后不可再动、授权不可复用、旧回执不可移植到新动作
+  995:         _raises(ActionError, lambda: mgr.start_action(run_id, reserved["action_id"]))
+  996:         _raises(ActionError, lambda: mgr.commit_action(
+  997:             run_id, reserved["action_id"], receipt))
+  998:         _raises(ApprovalReuseError, lambda: mgr.reserve_action(
+  999:             run_id, "prod-write", "db://staging/erp#cond03-2", action_ap))
+ 1000:         fresh_ap = _action_approval(run_id, "task_cond03", version=v, stage="S7_GATE")
+ 1001:         second = mgr.reserve_action(run_id, "prod-write",
+ 1002:                                     "db://staging/erp#cond03-2", fresh_ap)
+ 1003:         mgr.start_action(run_id, second["action_id"])
+ 1004:         # 旧动作的 attestation 移植到新动作（action_id 不一致）→ Action Gate 拒
+ 1005:         _raises(ActionError, lambda: mgr.commit_action(
+ 1006:             run_id, second["action_id"], receipt), contains="action_id")
+ 1007:         mgr.fail_action(run_id, second["action_id"],
+ 1008:                         "旧 attestation 不可移植——按失败收口")
+ 1009: 
+ 1010:         # 技术上下文：授权后的 CONDITIONAL 完成可成立（AUTHORIZED_CONDITIONAL 的
+ 1011:         # 产品落地面），且 verdict 仍 CONDITIONAL、不升格 SUCCEEDED
+ 1012:         done = mgr.complete_run(run_id)
+ 1013:         _ok(done["final_state"] == "COMPLETED_CONDITIONAL",
+ 1014:             "risk+action 双授权后 COMPLETED_CONDITIONAL 成立")
+ 1015:         _ok(done["policy_verdict"] == "CONDITIONAL" and done["execution_status"] == "COMPLETED",
+ 1016:             "完成事件双轴仍 COMPLETED/CONDITIONAL（内部 CONDITIONAL 语义保持）")
+ 1017:         _ok("risk authorization" in done["terminal_reason"],
+ 1018:             "终态理由须记录授权在案（AUTHORIZED_CONDITIONAL 语义）")
+ 1019:         st = RunManager(EventStore(str(td / "events.db")),
+ 1020:                         keyring=KEYRING).get_run(run_id)
+ 1021:         _ok(st.actions[reserved["action_id"]]["action_state"] == "COMMITTED",
+ 1022:             "重放面：动作恰一次 COMMITTED 随事件流重建")
+ 1023:         _ok(store.verify_chain()["ok"], "事件链完整性保持")
+ 1024:         store.close()
+
+----------------------------------------------------------------------------------------------------
+ID=STOP-02 plan_injection='resource/ext-unavail 未恢复但已批准' plan_expectation='仍不可 resume'
+matrix_fn=test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked line=699 ast=698-729
+  698: def test_STOP_02_resource_ext_unavail_not_recovered_but_approved_still_blocked(root: Path) -> None:
+  699:     """STOP-02｜注入：resource/ext-unavail 未恢复但已批准｜期望：仍不可 resume。"""
+  700:     with _sandbox("stop02") as td:
+  701:         store, mgr = _mgr(td)
+  702:         for stop_type in ("resource", "ext-unavail"):
+  703:             task = f"task_stop02_{stop_type.replace('-', '_')}"
+  704:             run_id, w = _waiting_run(mgr, task, stop_type, ID_STAGING)
+  705:             v = mgr.get_run(run_id).state_version
+  706:             # 授权按『已恢复世界』签发（客观条件内容哈希绑定到恢复后事实）
+  707:             recovered_pre = dict(VALID_PRECONDITIONS[stop_type])
+  708:             ap = _resume_approval(
+  709:                 run_id, task, stop_event_id=w["stop_event_id"],
+  710:                 stop_type=stop_type, version=v, preconditions=recovered_pre)
+  711: 
+  712:             # 注入一：探针未恢复（probe_recovered=False，真 bool）→ 客观条件不满足
+  713:             not_recovered = dict(recovered_pre, probe_recovered=False)
+  714:             _raises(ApprovalPreconditionError, lambda: mgr.resume_waiting(
+  715:                 run_id, ap, not_recovered), contains="not satisfied")
+  716:             # 注入二：自报字符串 "false"（伪装恢复）→ 非真 bool 拒
+  717:             self_reported = dict(recovered_pre, probe_recovered="false")
+  718:             _raises(ApprovalPreconditionError, lambda: mgr.resume_waiting(
+  719:                 run_id, ap, self_reported), contains="boolean")
+  720:             _ok(mgr.get_run(run_id).state == "WAITING",
+  721:                 f"{stop_type}: 已批准但未恢复 → 仍 WAITING")
+  722:             _ok(len(mgr.broker.consumed_approvals(run_id=run_id)) == 0,
+  723:                 f"{stop_type}: 拒绝路径零消费（授权未被烧掉）")
+  724: 
+  725:             # 对照：客观条件真恢复（真 bool True 且与授权哈希一致）→ 放行
+  726:             _ok(mgr.resume_waiting(run_id, ap, recovered_pre)["resumed"],
+  727:                 f"{stop_type}: 恢复+授权齐备 → 放行（必要且充分）")
+  728:         _ok(store.verify_chain()["ok"], "事件链完整性保持")
+  729:         store.close()
+
+====================================================================================================
+system/tests/test_ac_act_run.py
+
+----------------------------------------------------------------------------------------------------
+ID=ACT-01 plan_injection='technical PASS，但无 exact merge/release action authorization' plan_expectation='context 可表技术 PASS，controller 不动作'
+matrix_fn=test_ACT_01_technical_pass_without_exact_authorization_controller_holds line=363 ast=363-408
+  363: def test_ACT_01_technical_pass_without_exact_authorization_controller_holds(
+  364:         root: Optional[Path] = None) -> None:
+  365:     with _tmp(root) as td:
+  366:         store, mgr = _fresh(td)
+  367: 
+  368:         # -- 注入半边：run 达成 technical PASS（context 侧可表达） --
+  369:         run_a = _all_pass_run(mgr, "task_act01_pass")
+  370:         state_a = mgr.get_run(run_a)
+  371:         _ok(state_a.state == "SUCCEEDED" and state_a.terminal,
+  372:             "技术 PASS 必须可表达为 SUCCEEDED 终判（context 可表技术 PASS）")
+  373:         # controller 半边：无 exact action authorization → 零动作
+  374:         _assert_zero_action_side(mgr, run_a, "technical PASS run")
+  375:         # 无授权预留 → ActionError；即使带上合法签发的 merge 审批，
+  376:         # 技术 PASS run 已终态——controller 依旧不动作（TerminalRunError）
+  377:         target = "repo://erp-main/pr-42"
+  378:         exc = _expect_raise(ActionError, mgr.reserve_action, run_a, "merge",
+  379:                             target)
+  380:         _ok("requires" in str(exc) or "审批" in str(exc),
+  381:             f"无授权预留必须拒绝：{exc}")
+  382:         good_merge = _make_approval(run_a, "task_act01_pass",
+  383:                                     state_a.state_version, "merge")
+  384:         _expect_raise(PipelineError, mgr.reserve_action, run_a, "merge",
+  385:                       target, good_merge)
+  386:         _assert_zero_action_side(mgr, run_a, "terminal reserve attempt 后")
+  387: 
+  388:         # -- 同一 run 非终态对照组：technical 绿 ≠ 动作授权，仍需 exact 审批 --
+  389:         run_b = _all_pass_run(mgr, "task_act01_live")
+  390:         # run_b 已终态；另建一个停在 S1 RUNNING 的活 run 验证 controller 门
+  391:         run_c, v_c = _s1_running_run(mgr, "task_act01_live2")
+  392:         _expect_raise(ActionError, mgr.reserve_action, run_c, "release",
+  393:                       "prod://erp/rel-77")
+  394:         _assert_zero_action_side(mgr, run_c, "活 run 无授权预留后")
+  395: 
+  396:         # exact authorization 到位后 controller 才动作（精确授权半边，非全面禁止）
+  397:         rel_ap = _make_approval(run_c, "task_act01_live2", v_c, "release")
+  398:         r = mgr.reserve_action(run_c, "release", "prod://erp/rel-77", rel_ap)
+  399:         _ok(r["action_state"] == "RESERVED", "exact 授权预留应成功")
+  400:         _ok(_count_events(mgr, "APPROVAL_CONSUMED", run_c) == 1,
+  401:             "预留成功应恰消费一次授权")
+  402:         _ok(_count_events(mgr, "ACTION_AUTH_RESERVED", run_c) == 1,
+  403:             "预留成功应恰落一条 RESERVED 事件")
+  404:         # run_a/run_b（technical PASS）始终零动作
+  405:         for rid in (run_a, run_b):
+  406:             _ok(_count_events(mgr, "APPROVAL_CONSUMED", rid) == 0
+  407:                 and _count_events(mgr, "ACTION_AUTH_RESERVED", rid) == 0,
+  408:                 f"technical PASS run {rid} controller 不得动作")
+
+----------------------------------------------------------------------------------------------------
+ID=ACT-04 plan_injection='merge/release 调用前/后 crash 或回执丢失' plan_expectation='先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试'
+matrix_fn=test_ACT_04_query_external_fact_committed_or_failed_unknown line=564 ast=564-634
+  564: def test_ACT_04_query_external_fact_committed_or_failed_unknown(
+  565:         root: Optional[Path] = None) -> None:
+  566:     with _tmp(root) as td:
+  567:         store, mgr = _fresh(td)
+  568:         run_id, v = _s1_running_run(mgr, "task_act04")
+  569: 
+  570:         # -- 动作 1（release）：调用发出后回执丢失 → 先查询外部事实（对账不了）
+  571:         #    → FAILED_UNKNOWN 终态；绝不盲重试（nonce 已消费、终态封死）
+  572:         ap1 = _make_approval(run_id, "task_act04", v, "release")
+  573:         a1 = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap1)
+  574:         mgr.start_action(run_id, a1["action_id"],
+  575:                          receipt="call issued; receipt lost in crash")
+  576:         lost = _make_receipt(a1, run_id)          # 从未到达的回执形态
+  577:         lost["signature"] = "0" * 64              # 不可验签 → 查询外部事实失败
+  578:         rec = mgr.reconcile_receipt(run_id, a1["action_id"], lost)
+  579:         _ok(rec["reconciled"] is False,
+  580:             "回执丢失/不可验签时查询外部事实必须判对账不了")
+  581:         _ok(mgr.get_run(run_id).actions[a1["action_id"]]["action_state"]
+  582:             == "STARTED", "对账不了不得篡改动作状态")
+  583:         f = mgr.fail_action(run_id, a1["action_id"], "receipt lost after call")
+  584:         _ok(f["action_state"] == "FAILED_UNKNOWN",
+  585:             "对账不了必须收口 FAILED_UNKNOWN（绝不猜 COMMITTED）")
+  586:         # 绝不盲重试：终态后任何推进全拒；同一授权不得重新发起调用
+  587:         _expect_raise(ActionError, mgr.start_action, run_id, a1["action_id"])
+  588:         _expect_raise(ActionError, mgr.commit_action, run_id, a1["action_id"],
+  589:                       _make_receipt(a1, run_id))
+  590:         _expect_raise(ActionError, mgr.fail_action, run_id, a1["action_id"])
+  591:         exc = _expect_raise(ApprovalReuseError, mgr.reserve_action, run_id,
+  592:                             "release", "prod://erp/rel-77", ap1)
+  593:         _ok("不可复用" in str(exc), f"同授权重发调用必须拒绝：{exc}")
+  594: 
+  595:         # -- 动作 2（merge）：外部事实声明 COMMITTED → 查询通过后恰一次落账
+  596:         v_now = mgr.get_run(run_id).state_version
+  597:         ap2 = _make_approval(run_id, "task_act04", v_now, "merge")
+  598:         a2 = mgr.reserve_action(run_id, "merge", "repo://erp-main/pr-42", ap2)
+  599:         mgr.start_action(run_id, a2["action_id"], receipt="merge issued")
+  600:         fact2 = _make_receipt(a2, run_id, outcome="COMMITTED",
+  601:                               external_ref="gh-merge-42")
+  602:         rec2 = mgr.reconcile_receipt(run_id, a2["action_id"], fact2)
+  603:         _ok(rec2["reconciled"] is True and rec2["outcome"] == "COMMITTED",
+  604:             "外部正源声明 COMMITTED → 先查询后落账")
+  605:         c2 = mgr.commit_action(run_id, a2["action_id"], fact2)
+  606:         _ok(c2["action_state"] == "COMMITTED"
+  607:             and c2["receipt_status"] == RECEIPT_RECONCILED,
+  608:             "凭外部事实落 COMMITTED（RECONCILED 分级）")
+  609: 
+  610:         # -- 动作 3（ddl）：外部事实声明 FAILED → 不得 COMMITTED，
+  611:         #    走 fail_action → FAILED_UNKNOWN
+  612:         v_now = mgr.get_run(run_id).state_version
+  613:         ap3 = _make_approval(run_id, "task_act04", v_now, "ddl")
+  614:         a3 = mgr.reserve_action(run_id, "ddl", "db://staging/erp", ap3)
+  615:         mgr.start_action(run_id, a3["action_id"])
+  616:         fact3 = _make_receipt(a3, run_id, outcome="FAILED",
+  617:                               external_ref="ddl-exec-9")
+  618:         exc = _expect_raise(ActionError, mgr.commit_action, run_id,
+  619:                             a3["action_id"], fact3)
+  620:         _ok("FAILED_UNKNOWN" in str(exc),
+  621:             f"外部声明 FAILED 不得 COMMITTED：{exc}")
+  622:         _ok(mgr.fail_action(run_id, a3["action_id"])[
+  623:                 "action_state"] == "FAILED_UNKNOWN", "FAILED → FAILED_UNKNOWN")
+  624: 
+  625:         # -- 重放终态面：三动作全部闭口于 {FAILED_UNKNOWN, COMMITTED}，
+  626:         #    无悬挂 STARTED/RESERVED（调用后必收口，绝不悬置盲等）
+  627:         st = RunManager(store, keyring=KEYRING).get_run(run_id)
+  628:         states = {aid_: act["action_state"] for aid_, act in st.actions.items()}
+  629:         _ok(states[a1["action_id"]] == "FAILED_UNKNOWN"
+  630:             and states[a2["action_id"]] == "COMMITTED"
+  631:             and states[a3["action_id"]] == "FAILED_UNKNOWN",
+  632:             f"saga 终态面不符：{states}")
+  633:         _ok(all(s in ("COMMITTED", "FAILED_UNKNOWN")
+  634:                 for s in states.values()), f"不得残留非终态动作：{states}")
+
+----------------------------------------------------------------------------------------------------
+ID=RUN-02 plan_injection='timeout 后子孙进程' plan_expectation='全部终止，无孤儿写盘'
+matrix_fn=test_RUN_02_timeout_kills_all_descendants_no_orphan_writes line=865 ast=865-888
+  865: def test_RUN_02_timeout_kills_all_descendants_no_orphan_writes(
+  866:         root: Optional[Path] = None) -> None:
+  867:     with _tmp(root) as td:
+  868:         script = td / f"attack_{uuid.uuid4().hex[:8]}.py"
+  869:         script.write_text(_RUN02_ATTACK.format(dir=str(td)),
+  870:                           encoding="utf-8")
+  871:         markers = [td / "M_GROUP_CHILD", td / "M_SETSID_GRANDCHILD",
+  872:                    td / "M_DAEMON"]
+  873:         try:
+  874:             ev = TrustedRunner(timeout=1.0).run([sys.executable, str(script)])
+  875:             _ok(ev.timed_out is True, "超时必须被如实记录（证据不丢）")
+  876:             _ok(ev.actual_exit_code is None,
+  877:                 f"超时证据的退出码应为 None：{ev}")
+  878:             time.sleep(3.6)  # 覆盖三个孙进程 t+3s 的写盘窗口
+  879:             survived = [m.name for m in markers if m.exists()]
+  880:             _ok(not survived, f"孤儿写盘被实锤：{survived}")
+  881:             # 全部终止：不得残留任何引用攻击脚本的进程
+  882:             proc = subprocess.run(["ps", "-axo", "pid=,command="],
+  883:                                   capture_output=True, text=True, timeout=10)
+  884:             leftovers = [ln.strip() for ln in proc.stdout.splitlines()
+  885:                          if str(script) in ln]
+  886:             _ok(not leftovers, f"存活的子孙进程：{leftovers}")
+  887:         finally:
+  888:             _kill_survivors(script)
+
+====================================================================================================
+system/tests/test_ac_state_mig.py
+
+----------------------------------------------------------------------------------------------------
+ID=STATE-03 plan_injection='100×100 并发写' plan_expectation='零丢失/重复'
+matrix_fn=test_STATE_03_concurrent_100x100_no_loss_no_dup line=226 ast=226-309
+  226: def test_STATE_03_concurrent_100x100_no_loss_no_dup():
+  227:     """注入：100 个并发 writer × 各 100 条不同事件（真实多连接 WAL 并发）。
+  228: 
+  229:     期望：零丢失（10000 行全在）、零重复（10000 个唯一 event_id，
+  230:     每条恰好 inserted=True 一次）、链仍单一线性且 verify_chain 通过。
+  231:     附加子场景：20 个 writer 并发追加同一内容 → 恰好 1 行（幂等不双入账）。
+  232:     """
+  233:     WRITERS, PER_WRITER = 100, 100
+  234:     with TmpDir("ac-s3-") as td:
+  235:         db = os.path.join(td, "ev.db")
+  236:         EventStore(db).close()          # 预建 schema，再放开并发
+  237:         inserted = [0] * WRITERS
+  238:         errors = []
+  239: 
+  240:         def writer(w):
+  241:             try:
+  242:                 s = EventStore(db)
+  243:                 try:
+  244:                     for i in range(PER_WRITER):
+  245:                         _, ins = s.append({"kind": "load", "writer": w, "i": i})
+  246:                         if ins:
+  247:                             inserted[w] += 1
+  248:                 finally:
+  249:                     s.close()
+  250:             except Exception as e:      # noqa: BLE001
+  251:                 errors.append(f"writer{w}:{type(e).__name__}:{e}")
+  252: 
+  253:         threads = [threading.Thread(target=writer, args=(w,))
+  254:                    for w in range(WRITERS)]
+  255:         for t in threads:
+  256:             t.start()
+  257:         for t in threads:
+  258:             t.join()
+  259:         assert not errors, f"并发写抛错（即丢失面）: {errors[:3]}"
+  260: 
+  261:         store = EventStore(db)
+  262:         try:
+  263:             head, total = store.head()
+  264:             assert total == WRITERS * PER_WRITER, f"丢失/缺行: {total}"
+  265:             assert sum(inserted) == WRITERS * PER_WRITER, \
+  266:                 f"inserted 计数不符: {sum(inserted)}"
+  267:             uniq_ids = rows_of(
+  268:                 store._conn,
+  269:                 "SELECT COUNT(DISTINCT event_id) FROM pipeline_events")[0][0]
+  270:             assert uniq_ids == WRITERS * PER_WRITER, f"重复行: {uniq_ids}"
+  271:             verify = store.verify_chain()
+  272:             assert verify["ok"] and verify["length"] == WRITERS * PER_WRITER
+  273:             assert verify["head"] == head
+  274:         finally:
+  275:             store.close()
+  276: 
+  277:         # 子场景：同内容并发重放 → 恰好 1 行、1 个 inserted=True、hash 全同
+  278:         db2 = os.path.join(td, "idem.db")
+  279:         EventStore(db2).close()
+  280:         results, ierr = [], []
+  281: 
+  282:         def idem_writer():
+  283:             try:
+  284:                 s = EventStore(db2)
+  285:                 try:
+  286:                     results.append(s.append({"same": "retry-payload", "n": 1}))
+  287:                 finally:
+  288:                     s.close()
+  289:             except Exception as e:      # noqa: BLE001
+  290:                 ierr.append(type(e).__name__)
+  291: 
+  292:         threads = [threading.Thread(target=idem_writer) for _ in range(20)]
+  293:         for t in threads:
+  294:             t.start()
+  295:         for t in threads:
+  296:             t.join()
+  297:         assert not ierr, f"幂等并发抛错: {ierr}"
+  298:         assert sum(1 for _, ins in results if ins) == 1
+  299:         assert len({h for h, _ in results}) == 1
+  300:         s2 = EventStore(db2)
+  301:         try:
+  302:             assert s2.head()[1] == 1
+  303:         finally:
+  304:             s2.close()
+  305:     return {"writers": WRITERS, "per_writer": PER_WRITER,
+  306:             "total_rows": WRITERS * PER_WRITER,
+  307:             "distinct_event_ids": WRITERS * PER_WRITER,
+  308:             "chain_verified": True,
+  309:             "same_content_concurrent_rows": 1}
+
+----------------------------------------------------------------------------------------------------
+ID=MIG-04 plan_injection='源行数不守恒' plan_expectation='迁移失败'
+matrix_fn=test_MIG_04_source_conservation_enforced line=879 ast=879-967
+  879: def test_MIG_04_source_conservation_enforced():
+  880:     """注入（合成旧账 + 三类真实破坏）：
+  881:       (a) 迁移后从 events 表直接删 3 行（账本少行=不守恒态）；
+  882:       (b) 审计 sidecar 落在一个目录路径上（任何 OS/用户都写不开）；
+  883:       (c) sqlite 目标落在一个目录路径上（根本开不了库）。
+  884: 
+  885:     期望（被测体已实现面）：
+  886:       (a) 重迁移精确补齐缺失行（imported=3、其余 duplicate），守恒恢复，
+  887:           绝不静默少账——守恒等式 lines==imported+duplicates+quarantined
+  888:           在 DB/sidecar 独立对账下成立；
+  889:       (b) 审计不可写 → 迁移整体失败（异常抛出），events 零行、
+  890:           migration_runs 零行——没有部分导入、没有假守恒记账；
+  891:       (c) 开不了库 → 迁移失败（异常抛出）。
+  892:     诚实边界：ConservationError 守卫本身是防御性的——migrate 的计数与
+  893:     处理循环遍历同一 list，公共 API 构造不出账目不平（已代码通读+注入
+  894:     尝试实证），故此处以同秩语义的运行时面做真实验证。
+  895:     """
+  896:     with TmpDir("ac-m4-") as td:
+  897:         src = os.path.join(td, "legacy"); os.makedirs(src)
+  898:         n_valid = 9
+  899:         lines = ['{"status": "PASS", "ts": "2026-10-01T00:00:00Z", "id": %d}' % i
+  900:                  for i in range(n_valid)]
+  901:         lines += ['{"status": "GHOST", "ts": "t"}', '{bad']
+  902:         _write_lines(src, "conserved.jsonl", lines)
+  903:         db = os.path.join(td, "mig.db")
+  904: 
+  905:         r1 = LedgerMigrator(src, db).migrate()
+  906:         assert r1["conserved"] and r1["conservation"]["imported"] == n_valid
+  907: 
+  908:         # 独立对账（不信 report，直接从源文件/DB/sidecar 重数）
+  909:         src_nonblank = sum(1 for ln in open(os.path.join(src, "conserved.jsonl"),
+  910:                                             encoding="utf-8") if ln.strip())
+  911:         conn = sqlite3.connect(db)
+  912:         try:
+  913:             db_rows = rows_of(conn, "SELECT COUNT(*) FROM events")[0][0]
+  914:             quarantined_shas = {r["line_sha"] for r in
+  915:                                 _sidecar_records(db + ".migration-sidecar.jsonl")
+  916:                                 if r["decision"] == "quarantined"}
+  917:         finally:
+  918:             conn.close()
+  919:         src_shas = {r["line_sha"] for r in LedgerMigrator(src, db).scan()}
+  920:         assert src_nonblank == db_rows + len(quarantined_shas)
+  921:         assert quarantined_shas <= src_shas and db_rows == n_valid
+  922: 
+  923:         # (a) 删行 → 不守恒态 → 重迁移必须补齐，不许静默少账
+  924:         conn = sqlite3.connect(db)
+  925:         try:
+  926:             conn.execute("DELETE FROM events WHERE source_line IN (2, 3, 4)")
+  927:             conn.commit()
+  928:         finally:
+  929:             conn.close()
+  930:         r2 = LedgerMigrator(src, db).migrate()
+  931:         assert r2["conservation"]["imported"] == 3
+  932:         assert r2["conservation"]["duplicates"] == n_valid - 3
+  933:         assert r2["conserved"] is True
+  934:         conn = sqlite3.connect(db)
+  935:         try:
+  936:             assert rows_of(conn, "SELECT COUNT(*) FROM events")[0][0] == n_valid
+  937:         finally:
+  938:             conn.close()
+  939: 
+  940:         # (b) sidecar 写不开（目录路径；对 root 也成立）→ 整体失败、零部分账
+  941:         side_dir = os.path.join(td, "sidecar-is-dir"); os.makedirs(side_dir)
+  942:         db_b = os.path.join(td, "fail-sidecar.db")
+  943:         try:
+  944:             LedgerMigrator(src, db_b, sidecar_path=side_dir).migrate()
+  945:             raise AssertionError("sidecar 不可写时迁移竟成功（假绿）")
+  946:         except (IsADirectoryError, PermissionError, OSError):
+  947:             pass
+  948:         conn = sqlite3.connect(db_b)
+  949:         try:
+  950:             assert rows_of(conn, "SELECT COUNT(*) FROM events")[0][0] == 0
+  951:             assert rows_of(conn, "SELECT COUNT(*) FROM migration_runs")[0][0] == 0
+  952:         finally:
+  953:             conn.close()
+  954: 
+  955:         # (c) 目标库开不了（目录路径）→ 迁移失败
+  956:         try:
+  957:             LedgerMigrator(src, side_dir).migrate()
+  958:             raise AssertionError("开不了库时迁移竟成功（假绿）")
+  959:         except sqlite3.Error:
+  960:             pass
+  961:     return {"independent_recount": {"source_nonblank": src_nonblank,
+  962:                                     "db_rows": n_valid, "quarantined": 2},
+  963:             "deleted_rows_reimported": 3,
+  964:             "unwritable_sidecar": "迁移失败，events=0、migration_runs=0",
+  965:             "unopenable_db": "迁移失败（异常）",
+  966:             "boundary": "ConservationError 为防御性守卫（公共 API 构造不出不平，"
+  967:                         "已实证）；此处验证同秩运行时语义"}
+
+====================================================================================================
+system/tests/test_ac_station_families.py
+
+----------------------------------------------------------------------------------------------------
+ID=DB-02 plan_injection='仅一条 DROP COLUMN/删 FK' plan_expectation='FAIL，不因数量少放行'
+matrix_fn=test_DB_02_single_drop_column_or_fk_still_fails line=639 ast=638-657
+  638: def test_DB_02_single_drop_column_or_fk_still_fails():
+  639:     """DB-02｜注入：仅一条 DROP COLUMN/删 FK｜期望：FAIL，不因数量少放行。
+  640: 
+  641:     两条独立注入：单条 COLUMN_DROP；单条 FK 删除（约束对象 DROP）。
+  642:     各自必须 FAIL 且恰 1 条 finding（exit 1=发现落账语义），绝不 PASS。
+  643:     """
+  644:     contract, ts = _mk_st3(AC_DATA_CONFIG)
+  645:     for change in (
+  646:         {"object": "public.orders", "change_type": "COLUMN_DROP",
+  647:          "expected_hash": "a" * 64},
+  648:         {"object": "public.orders_fk_users", "change_type": "DROP",
+  649:          "expected_hash": "b" * 64},
+  650:     ):
+  651:         st = contract.db_drift_scanner().adapt(
+  652:             _drift_payload(ts, changes=[change]))
+  653:         validate_station_result(st)
+  654:         assert st["policy_verdict"] == "FAIL", (change, st)
+  655:         assert st["execution_status"] == "COMPLETED"
+  656:         assert len(st["finding_ids"]) == 1, st["finding_ids"]
+  657:         assert st["execution"]["actual_exit_code"] == 1  # 有发现→落账退出码
+
+----------------------------------------------------------------------------------------------------
+ID=TEN-06 plan_injection='Org A 访问/导出 Org B' plan_expectation='动态拒绝'
+matrix_fn=test_TEN_06_org_a_access_org_b_dynamically_denied line=1100 ast=1099-1122
+ 1099: def test_TEN_06_org_a_access_org_b_dynamically_denied():
+ 1100:     """TEN-06｜注入：Org A 访问/导出 Org B｜期望：动态拒绝。
+ 1101: 
+ 1102:     动态=运行时探针实测结论（非静态声明）：orgB 主体对 orgA 资源的负例
+ 1103:     放行（未动态拒绝）→ FAIL+negative_allowed finding；真实 DENIED → PASS。
+ 1104:     """
+ 1105:     contract, ts = _mk_st3(AC_DATA_CONFIG)
+ 1106:     principals = {"base_url": "http://app.local",
+ 1107:                   "positive_principal": "orgA/alice",
+ 1108:                   "negative_principal": "orgB/mallory"}
+ 1109:     leaked = _og_payload(ts, [
+ 1110:         _ep("GET", "/api/orgs/%7BorgA%7D/exports", "ALLOWED", "ALLOWED"),
+ 1111:     ], principals=principals)
+ 1112:     st = contract.org_guard_scanner().adapt(leaked)
+ 1113:     assert st["policy_verdict"] == "FAIL", st
+ 1114:     assert any("negative_allowed" in f for f in st["finding_ids"])
+ 1115:     validate_station_result(st)
+ 1116: 
+ 1117:     denied = _og_payload(ts, [
+ 1118:         _ep("GET", "/api/orgs/%7BorgA%7D/exports", "ALLOWED", "DENIED"),
+ 1119:     ], principals=principals)
+ 1120:     st = contract.org_guard_scanner().adapt(denied)
+ 1121:     assert st["policy_verdict"] == "PASS", st
+ 1122:     assert not st["finding_ids"]
+
+----------------------------------------------------------------------------------------------------
+ID=PERF-01 plan_injection='HTTP 500 但很快' plan_expectation='FAIL'
+matrix_fn=test_PERF_01_http_500_fast_still_fails line=1190 ast=1189-1216
+ 1189: def test_PERF_01_http_500_fast_still_fails():
+ 1190:     """PERF-01｜注入：HTTP 500 但很快｜期望：FAIL。
+ 1191: 
+ 1192:     本地真实 HTTP 服务立即回 500（快）；路由动态腿只认状态语义：探到但
+ 1193:     与期望不符 → FAIL+finding。快≠好——速度不参与判定，绝不因响应快折算
+ 1194:     通过（覆盖边界：本包不测延迟阈值，分位数面见文件头部不可实现清单）。
+ 1195:     """
+ 1196:     manifest, _ = _mk_manifest(_next_run_id("perf1"))
+ 1197:     server = _http_server(_Fast500Handler)
+ 1198:     try:
+ 1199:         base = f"http://127.0.0.1:{server.server_address[1]}"
+ 1200:         t0 = time.time()
+ 1201:         st = RouteDynamicScanner(
+ 1202:             manifest,
+ 1203:             routes=[{"name": "orders", "method": "GET", "path": "/",
+ 1204:                      "expected_status": 200}],
+ 1205:             base_url=base, request_timeout_s=5.0,
+ 1206:         ).scan()
+ 1207:         elapsed = time.time() - t0
+ 1208:         assert elapsed < 3.0, elapsed  # 响应确实很快
+ 1209:         validate_station_result(st)
+ 1210:         assert st["coverage"]["scanned"] == 1  # 探到了（拿到真实 500 响应）
+ 1211:         assert st["policy_verdict"] == "FAIL", st
+ 1212:         assert st["execution_status"] == "COMPLETED"
+ 1213:         assert st["finding_ids"] and st["finding_ids"][0].startswith("fnd_route_")
+ 1214:     finally:
+ 1215:         server.shutdown()
+ 1216:         server.server_close()
+
+----------------------------------------------------------------------------------------------------
+ID=STA-01 plan_injection='任一站 denominator 缩小' plan_expectation='整线 BLOCKED'
+matrix_fn=test_STA_01_any_station_denominator_shrink_blocks_line line=385 ast=384-458
+  384: def test_STA_01_any_station_denominator_shrink_blocks_line():
+  385:     """STA-01｜注入：任一站 denominator 缩小｜期望：整线 BLOCKED。
+  386: 
+  387:     三层机械语义各断言一次：
+  388:     (a) 统一入口 build_station_result：scanned<denominator → 强制
+  389:         BLOCKED/NOT_EVALUATED（调用方即便自报 COMPLETED/PASS 也被改写）；
+  390:     (b) validate_station_result：缩水+PASS 的手造结果必被拒（防旁路）；
+  391:     (c) 站2 整线：engine 删卡（五类宇宙分母 5、实际 4）→ 该子件 BLOCKED →
+  392:         站级聚合 coverage 3/4 → 整线 BLOCKED。
+  393:     """
+  394:     ident = dict(ST2_IDENTITY)
+  395:     base_exec = {
+  396:         "argv_digest": _argv_digest(["ac", "sta01"]),
+  397:         "started_at": _iso_z(_utc_now()), "ended_at": _iso_z(_utc_now()),
+  398:         "actual_exit_code": 0, "expected_exit_set": [0],
+  399:         "assertion_verdict": "PASS",
+  400:     }
+  401:     # (a) 统一守卫：站4/站7 任一站缩水一律折叠 BLOCKED
+  402:     for sid in (2, 4, 7):
+  403:         forced = build_station_result(
+  404:             run_id="ac-sta01", station_id=sid, attempt_id="att-sta01",
+  405:             execution_status="COMPLETED", policy_verdict="PASS",
+  406:             identity=ident, tool={"name": "ac", "version": "1"},
+  407:             execution=base_exec,
+  408:             coverage={"denominator": 5, "scanned": 3},
+  409:         )
+  410:         assert forced["execution_status"] == "BLOCKED", forced
+  411:         assert forced["policy_verdict"] == "NOT_EVALUATED", forced
+  412:         validate_station_result(forced)
+  413:     # (b) 防旁路：结构合法但「缩水+PASS」的结果过不了校验器
+  414:     #     （schema：COMPLETED+PASS 必须携带非空 artifacts——模板对齐真实契约）
+  415:     green = build_station_result(
+  416:         run_id="ac-sta01", station_id=3, attempt_id="att-sta01",
+  417:         execution_status="COMPLETED", policy_verdict="PASS",
+  418:         identity=ident, tool={"name": "ac", "version": "1"},
+  419:         execution=base_exec, coverage={"denominator": 5, "scanned": 5},
+  420:         artifacts=[{"cas_digest": f"sha256:{'0' * 64}", "size": 1}],
+  421:     )
+  422:     shrunk = dict(green)
+  423:     shrunk["coverage"] = {"denominator": 5, "scanned": 4}
+  424:     try:
+  425:         validate_station_result(shrunk)
+  426:         raise AssertionError("shrink+PASS must be rejected by validator")
+  427:     except StationResultValidationError as exc:
+  428:         assert "coverage shrink" in str(exc), exc
+  429:     # (c) 站2 整线：engine 宇宙缩水（缺 msg 卡）→ 整线 BLOCKED
+  430:     with tempfile.TemporaryDirectory() as tmp:
+  431:         repo = _mk_st2_repo(tmp)
+  432:         engine_state = repo.parent / "engine-state.json"
+  433:         engine_state.write_text(json.dumps(_engine_cards(drop="msg")),
+  434:                                 encoding="utf-8")
+  435:         baseline = repo.parent / "baseline.json"
+  436:         baseline.write_text('{"clone_pairs": 1, "duplicated_lines": 10}',
+  437:                             encoding="utf-8")
+  438:         runner = _StubRunner([
+  439:             (lambda a: a[:2] == ["npm", "audit"],
+  440:              lambda a: (_ev(a, 0), _j(NPM_CLEAN), b"")),
+  441:             (lambda a: a[0] == "npx", _jscpd_respond(JSCPD_REPORT)),
+  442:             (lambda a: a[0] == "route-probe", lambda a: (_ev(a, 0), b"", b"")),
+  443:         ])
+  444:         report = Station2Static(
+  445:             _next_run_id("sta1"), identity=ST2_IDENTITY, repo_dir=str(repo),
+  446:             runner=runner, baseline_path=str(baseline),
+  447:             engine_state_path=str(engine_state),
+  448:             route_probe_argv=["route-probe", "--static"],
+  449:         ).scan()
+  450:         agg = report["station_result"]
+  451:         engine_sub = report["scanner_results"]["engine"]
+  452:         assert engine_sub["execution_status"] == "BLOCKED", engine_sub
+  453:         assert engine_sub["coverage"]["scanned"] == 4 \
+  454:             < engine_sub["coverage"]["denominator"] == 5
+  455:         assert agg["execution_status"] == "BLOCKED", agg
+  456:         assert agg["policy_verdict"] == "NOT_EVALUATED", agg
+  457:         assert agg["coverage"]["scanned"] == 3 < agg["coverage"]["denominator"] == 4
+  458:         validate_station_result(agg)
+
+====================================================================================================
+system/tests/test_ac_ops_families.py
+
+----------------------------------------------------------------------------------------------------
+ID=SCH-04 plan_injection='catch-up 与正常调度并发' plan_expectation='只有一个 logical run'
+matrix_fn=test_SCH_04_catchup_and_normal_race_single_logical_run line=403 ast=402-476
+  402: def test_SCH_04_catchup_and_normal_race_single_logical_run():
+  403:     """SCH-04 | 注入: catch-up 与正常调度并发 | 期望: 只有一个 logical run。
+  404: 
+  405:     用两个独立调度拥有者（各自持有同一运行态库的独立连接——补跑 worker 与
+  406:     正常 scheduler 的真实形态）对同一 (job_id, scheduled_at) 并发 run_job。
+  407:     """
+  408:     with tempfile.TemporaryDirectory(prefix="wq_sch04_") as tmp:
+  409:         db = os.path.join(tmp, "s.db")
+  410:         side = os.path.join(tmp, "side.log")
+  411:         boot = SchedulerStore(db)
+  412:         ScheduleRegistry(boot).register(_mk_job(
+  413:             "sch04", ("/bin/sh", "-c", "echo x >> " + side), station=4), now=0.0)
+  414:         boot.close()
+  415: 
+  416:         def owner() -> object:
+  417:             st = SchedulerStore(db)
+  418:             try:
+  419:                 rec, last_err = None, None
+  420:                 for _ in range(10):
+  421:                     try:
+  422:                         rec = JobRunner(
+  423:                             st, TrustedRunner(), registry=ScheduleRegistry(st),
+  424:                             outbox=NotificationOutbox(st),
+  425:                             heartbeat=HeartbeatMonitor(st, NotificationOutbox(st)),
+  426:                         ).run_job("sch04", scheduled_at=60.0, now=61.0)
+  427:                         break
+  428:                     except sqlite3.OperationalError as exc:  # BEGIN IMMEDIATE 撞锁重试
+  429:                         last_err = exc
+  430:                         time.sleep(0.05)
+  431:                 if rec is None:
+  432:                     raise AssertionError(f"并发 run_job 未成功: {last_err}")
+  433:                 return rec
+  434:             finally:
+  435:                 st.close()
+  436: 
+  437:         results: list = [None, None]
+  438:         barrier = threading.Barrier(2)
+  439: 
+  440:         def worker(i: int) -> None:
+  441:             barrier.wait()
+  442:             results[i] = owner()
+  443: 
+  444:         threads = [threading.Thread(target=worker, args=(i,)) for i in range(2)]
+  445:         for t in threads:
+  446:             t.start()
+  447:         for t in threads:
+  448:             t.join()
+  449:         assert all(r is not None for r in results), "两个拥有者都应拿到返回记录"
+  450: 
+  451:         st = SchedulerStore(db)
+  452:         try:
+  453:             rows = st.query(
+  454:                 "SELECT run_id FROM scheduler_runs WHERE job_id='sch04' AND scheduled_at=60.0")
+  455:             assert len(rows) == 1, \
+  456:                 f"同一逻辑出现必须只有一个 logical run，实得 {len(rows)} 行: {rows}"
+  457:             run_ids = {r.run_id for r in results}
+  458:             assert run_ids == {rows[0][0]}, \
+  459:                 f"两个拥有者必须归属同一 run_id，实得 {run_ids} vs {rows[0][0]}"
+  460:             # 顺序重放：完成后的重复消费直接命中幂等键，不再执行
+  461:             lines_before = Path(side).read_text().count("x") if os.path.exists(side) else 0
+  462:             st2 = SchedulerStore(db)
+  463:             replay = JobRunner(st2, TrustedRunner(), registry=ScheduleRegistry(st2),
+  464:                                outbox=NotificationOutbox(st2),
+  465:                                heartbeat=HeartbeatMonitor(st2, NotificationOutbox(st2))
+  466:                                ).run_job("sch04", scheduled_at=60.0, now=70.0)
+  467:             st2.close()
+  468:             assert replay.replayed is True, "重放必须标记 replayed=True"
+  469:             lines_after = Path(side).read_text().count("x")
+  470:             assert lines_after == lines_before, "重放不得再次执行副作用"
+  471:             note = (f"并发双拥有者：runs 表恰 1 行、run_id 归一；顺序重放 replayed=True 零副作用。"
+  472:                     f"边界（如实记录）：物理子进程执行了 {lines_before} 次——模块契约以 "
+  473:                     f"(job_id, scheduled_at) 唯一键保证账本级幂等，事务前预检为咨询性")
+  474:             _record("SCH-04", note)
+  475:         finally:
+  476:             st.close()
+
+----------------------------------------------------------------------------------------------------
+ID=ALT-02 plan_injection='waiting 到期但零 send attempt/receipt' plan_expectation='ERROR+告警，不能以 watchdog exit0 记健康'
+matrix_fn=test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health line=779 ast=778-845
+  778: def test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health():
+  779:     """ALT-02 | 注入: waiting 到期但零 send attempt/receipt | 期望: ERROR+告警，不能以 watchdog exit0 记健康。"""
+  780:     with tempfile.TemporaryDirectory(prefix="wq_alt02_") as tmp:
+  781:         store = SchedulerStore(os.path.join(tmp, "s.db"))
+  782:         try:
+  783:             reg = ScheduleRegistry(store)
+  784:             delivered: list[dict] = []
+  785: 
+  786:             def recorder(payload: dict) -> None:
+  787:                 delivered.append(payload)
+  788: 
+  789:             outbox = NotificationOutbox(store, critical_channels=("primary", "fallback"))
+  790:             hb = HeartbeatMonitor(store, outbox)
+  791:             runner = JobRunner(store, TrustedRunner(), registry=reg,
+  792:                                outbox=outbox, heartbeat=hb)
+  793:             reg.register(_mk_job("alt02", ("/bin/sh", "-c", "exit 1"),
+  794:                                  station=5, freshness=900.0), now=0.0)
+  795:             runner.run_job("alt02", scheduled_at=60.0, now=61.0)
+  796: 
+  797:             # 注入：waiting 到期但 dispatcher 从未运行（零 attempt、零 receipt）
+  798:             waiting = store.query(
+  799:                 "SELECT severity, status, attempts, sent_at, next_attempt_at "
+  800:                 "FROM scheduler_outbox")
+  801:             assert waiting and all(w[1] == "PENDING" and w[2] == 0 and w[3] is None
+  802:                                    for w in waiting), \
+  803:                 f"waiting 消息必须零 attempt/零 receipt，实得 {waiting}"
+  804:             assert all(w[0] == "CRITICAL" for w in waiting), "FAIL 作业告警必须是 CRITICAL"
+  805:             zero_attempt_due = store.query(
+  806:                 "SELECT COUNT(*) FROM scheduler_outbox WHERE status='PENDING' "
+  807:                 "AND attempts=0 AND next_attempt_at<=61.0")[0][0]
+  808:             assert zero_attempt_due >= 2, "到期零 attempt 状态必须可被机器检出（>=2 条双通道）"
+  809: 
+  810:             # 期望：watchdog 自身跑完（exit0 等价）绝不制造 attempt/receipt/SENT
+  811:             reports = hb.check_health(now=62.0, notify=True)   # 无异常 = 干净返回
+  812:             assert reports, "watchdog 正常运行"
+  813:             stats_after_watchdog = outbox.stats()
+  814:             assert stats_after_watchdog.get("SENT", 0) == 0, \
+  815:                 f"watchdog exit0 不得记任何送达，实得 {stats_after_watchdog}"
+  816:             assert store.query(
+  817:                 "SELECT COUNT(*) FROM scheduler_outbox WHERE sent_at IS NOT NULL")[0][0] == 0, \
+  818:                 "不得伪造 sent_at 回执"
+  819:             assert {r.state: r.severity for r in reports}.get("FUNCTION_DEAD") == "CRITICAL", \
+  820:                 "健康事实仍必须来自业务结果（FUNCTION_DEAD/CRITICAL）"
+  821: 
+  822:             # ERROR 面 surfaced：dispatch 时通道未注册 -> 结构化 ERROR + attempt 留痕
+  823:             res = outbox.dispatch_due(now=70.0)
+  824:             assert res["failed"] >= 1 and res["errors"], \
+  825:                 f"投递障碍必须 surfaced 为 ERROR 列表，实得 {res}"
+  826:             assert store.query(
+  827:                 "SELECT COUNT(*) FROM scheduler_outbox WHERE last_error IS NOT NULL "
+  828:                 "AND attempts>=1")[0][0] >= 1, "失败 attempt 必须留 last_error 回执"
+  829: 
+  830:             # 告警送达闭环：注册真实通道后 receipt 才成立，零 attempt 违例归零
+  831:             outbox.register_channel("primary", recorder)
+  832:             outbox.register_channel("fallback", recorder)
+  833:             done = outbox.dispatch_due(now=time.time() + 3600.0)
+  834:             assert done["sent"] >= 1, f"通道恢复后 waiting 告警必须真实送达，实得 {done}"
+  835:             assert any("alt02" in d["subject"] for d in delivered)
+  836:             left = store.query(
+  837:                 "SELECT COUNT(*) FROM scheduler_outbox WHERE status='PENDING' "
+  838:                 "AND attempts=0 AND next_attempt_at<=?", (time.time() + 3600.0,))[0][0]
+  839:             assert left == 0, "dispatch 后不得残留零 attempt 的到期 waiting"
+  840:             _record("ALT-02",
+  841:                     "waiting 到期零 attempt/零 receipt 可机器检出；watchdog 干净跑完不产生 "
+  842:                     "SENT/sent_at（健康不凭 exit0）；dispatch 将障碍 surfaced 为 ERROR+"
+  843:                     "last_error 回执；通道恢复后告警真实送达、违例归零")
+  844:         finally:
+  845:             store.close()
+
+----------------------------------------------------------------------------------------------------
+ID=DOC-03 plan_injection='policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本' plan_expectation='CI 阻断'
+matrix_fn=test_DOC_03_policy_forbidden_bypass_text_blocks_ci line=1114 ast=1113-1160
+ 1113: def test_DOC_03_policy_forbidden_bypass_text_blocks_ci():
+ 1114:     """DOC-03 | 注入: policy/Skill 出现 L4、--admin、force-with-lease 或 skip 绕闸文本 | 期望: CI 阻断。"""
+ 1115:     def scan(text: str) -> list:
+ 1116:         hits = []
+ 1117:         for pattern, label in _FORBIDDEN_PATTERNS:
+ 1118:             for m in re.finditer(pattern, text):
+ 1119:                 line = text.count("\n", 0, m.start()) + 1
+ 1120:                 hits.append({"label": label, "match": m.group(0), "line": line})
+ 1121:         return hits
+ 1122: 
+ 1123:     # 真实扫描：policy/Skill 文档根当前必须零命中
+ 1124:     scanned_files = []
+ 1125:     for root in _POLICY_DOC_ROOTS:
+ 1126:         paths = ([root] if root.is_file()
+ 1127:                  else sorted(root.rglob("*.md")) if root.is_dir() else [])
+ 1128:         for p in paths:
+ 1129:             scanned_files.append(p)
+ 1130:             hits = scan(p.read_text(encoding="utf-8", errors="ignore"))
+ 1131:             assert not hits, \
+ 1132:                 f"{p} 出现绕闸文本 {hits}——DOC 红探针命中，CI 必须阻断"
+ 1133:     assert len(scanned_files) >= 8, f"扫描面过小: {len(scanned_files)} 个文件"
+ 1134: 
+ 1135:     # 注入：每种违禁文本都必须被扫描器抓获（CI 阻断判定为真）
+ 1136:     injections = [
+ 1137:         ("紧急情况可直接走 L4 直推通道合并", "L4 直推档位"),
+ 1138:         ("本地联调用 --admin 提权跳过审批", "--admin 越权旗标"),
+ 1139:         ("修不动就 git push --force-with-lease 覆盖远端", "force-with-lease 绕闸推送"),
+ 1140:         ("CI 红了加 --skip-audit 先过门", "skip 绕闸旗标"),
+ 1141:         ("赶时间可以 skip 绕闸直接发版", "skip 绕闸文本"),
+ 1142:     ]
+ 1143:     with tempfile.TemporaryDirectory(prefix="wq_doc03_") as tmp:
+ 1144:         poisoned = Path(tmp) / "policy-poisoned.md"
+ 1145:         for text, label in injections:
+ 1146:             poisoned.write_text("正常段落。\n" + text + "\n正常收尾。\n",
+ 1147:                                 encoding="utf-8")
+ 1148:             hits = scan(poisoned.read_text(encoding="utf-8"))
+ 1149:             assert hits and hits[0]["label"] == label, \
+ 1150:                 f"注入「{text}」未被抓获为 {label}: {hits}"
+ 1151:         # 阴性对照：正常治理文本不误报
+ 1152:         clean = Path(tmp) / "policy-clean.md"
+ 1153:         clean.write_text(
+ 1154:             "# 治理规范\n- 全部变更必须过 Wenqu Gate\n- L3 以下可条件放行，风险授权限时有效\n"
+ 1155:             "- 严禁任何绕过审批与门禁的路径\n", encoding="utf-8")
+ 1156:         assert not scan(clean.read_text(encoding="utf-8")), "正常文本不得误报"
+ 1157:     _record("DOC-03",
+ 1158:             f"真实 policy/Skill 文档根 {len(scanned_files)} 文件零违禁文本；"
+ 1159:             f"5 种注入形态（L4/--admin/force-with-lease/--skip-audit/skip 绕闸）全部抓获；"
+ 1160:             f"阴性对照零误报")
+
+====================================================================================================
+system/tests/test_ac_deploy_release.py
+
+----------------------------------------------------------------------------------------------------
+ID=REL-02 plan_injection='部署中 kill -9' plan_expectation='保持旧 current 或完整新 current'
+matrix_fn=test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current line=291 ast=291-365
+  291: def test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current(td: Path) -> None:
+  292:     """注入：部署进程在大文件构建窗口内被 SIGKILL。期望：current 要么仍是
+  293:     旧 release，要么指向完整（对账通过）的新 release——绝无半写/悬空态。
+  294: 
+  295:     真实子进程跑 deploy()（16MiB 大文件拓宽构建窗口）；父进程在 staging
+  296:     目录出现后按不同延迟 kill -9，另设不杀的对照组。每次 kill 后断言：
+  297:     (1) current 为有效 symlink 且不指向 staging 残留；
+  298:     (2) current 目标 release 完整（verify 通过=旧版或完整新版二择）；
+  299:     (3) releases/ 下所有已命名（非点前缀）release 目录全部对账通过
+  300:         （命名 release 只经 os.rename 原子落位，绝不半写）。
+  301:     """
+  302:     src_v1 = _mk_app_source(td, "src-rel2-v1", flag="v1")
+  303:     src_v2 = _mk_app_source(td, "src-rel2-v2", flag="v2", bigfile=True)
+  304:     trials: List[Tuple[str, Optional[float]]] = [
+  305:         ("kill-at-staging", 0.0),
+  306:         ("kill-5ms", 0.005),
+  307:         ("kill-40ms", 0.04),
+  308:         ("kill-250ms", 0.25),
+  309:         ("control-no-kill", None),
+  310:     ]
+  311:     for name, delay in trials:
+  312:         root = td / f"rel2-{name}"
+  313:         releases, current = root / "releases", root / "current"
+  314:         mgr = DeployManager(str(releases), str(current))
+  315:         mgr.deploy(src_v1)  # 旧 current 先就位
+  316:         v1_real = _real(current)
+  317:         child_src = root / "child_deploy.py"
+  318:         child_src.write_text(
+  319:             _CHILD_DEPLOY.format(
+  320:                 system_dir=str(SYSTEM_DIR), releases=str(releases),
+  321:                 current=str(current), source=str(src_v2)),
+  322:             encoding="utf-8")
+  323:         proc = subprocess.Popen(
+  324:             [sys.executable, str(child_src)],
+  325:             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  326:         if delay is None:
+  327:             out, err = proc.communicate(timeout=180)
+  328:             _ok(proc.returncode == 0,
+  329:                 f"{name}: 对照组 deploy 必须成功: rc={proc.returncode} {err[-300:]}")
+  330:             new_real = _real(current)
+  331:             _ok(new_real != v1_real, f"{name}: 对照组应切到新 release")
+  332:             _ok(mgr.verify(new_real)["ok"] is True,
+  333:                 f"{name}: 对照组新 release 必须完整")
+  334:             continue
+  335:         # 等 staging 目录出现（构建已开始），再按延迟 kill -9
+  336:         deadline = time.time() + 60
+  337:         staging_seen = False
+  338:         while time.time() < deadline:
+  339:             if releases.is_dir() and any(
+  340:                     d.name.startswith(".staging-") for d in releases.iterdir()):
+  341:                 staging_seen = True
+  342:                 break
+  343:             time.sleep(0.002)
+  344:         _ok(staging_seen, f"{name}: 60s 内未见 staging 目录（子进程未进入构建）")
+  345:         if delay > 0:
+  346:             time.sleep(delay)
+  347:         proc.send_signal(signal.SIGKILL)
+  348:         proc.communicate(timeout=30)
+  349: 
+  350:         # 不变量 (1)：current 是有效 symlink，绝不指向 staging 残留
+  351:         _ok(os.path.islink(current), f"{name}: kill 后 current 仍是 symlink")
+  352:         target = _real(current)
+  353:         _ok(os.path.isdir(target), f"{name}: kill 后 current 目标存在")
+  354:         _ok(not Path(target).name.startswith(".staging-"),
+  355:             f"{name}: current 绝不指向 staging 半成品: {target}")
+  356:         # 不变量 (2)：current 目标完整（=旧 current 或完整新 current）
+  357:         rep = mgr.verify(target, strict=False)
+  358:         _ok(rep["ok"] is True,
+  359:             f"{name}: current 目标 release 必须对账通过: {rep}")
+  360:         # 不变量 (3)：所有已命名 release 无一半写
+  361:         for d in sorted(releases.iterdir()):
+  362:             if d.name.startswith("."):
+  363:                 continue  # staging 残留允许存在（进程已被 kill），但绝不命名
+  364:             _ok(mgr.verify(str(d), strict=False)["ok"] is True,
+  365:                 f"{name}: 已命名 release {d.name} 不得半写")
+
+----------------------------------------------------------------------------------------------------
+ID=DEP-03 plan_injection='新事件后回滚兼容二进制' plan_expectation='事件零丢失'
+matrix_fn=test_DEP_03_rollback_compatible_binary_zero_event_loss line=459 ast=459-537
+  459: def test_DEP_03_rollback_compatible_binary_zero_event_loss(td: Path) -> None:
+  460:     """注入：新版本运行期间写入新事件，随后回滚到兼容旧二进制。
+  461:     期望：事件零丢失——旧二进制（冻结读取器，经 current 链接执行）能读出
+  462:     全量事件（含新版本期间写入的），哈希链完好，head 不变，账本文件
+  463:     在回滚前后逐字节时间戳级未动（回滚只切 symlink，绝不碰事件账本）。
+  464:     """
+  465:     root = td / "dep3-root"
+  466:     releases, current = root / "releases", root / "current"
+  467:     db = root / "events.db"
+  468:     writer_src = _WRITER_SRC.format(system_dir=str(SYSTEM_DIR))
+  469: 
+  470:     src_v1 = td / "dep3-src-v1"
+  471:     (src_v1 / "bin").mkdir(parents=True)
+  472:     (src_v1 / "bin" / "reader.py").write_text(_READER_SRC, encoding="utf-8")
+  473:     (src_v1 / "bin" / "writer.py").write_text(writer_src, encoding="utf-8")
+  474:     (src_v1 / "version.txt").write_text("1\n", encoding="utf-8")
+  475:     src_v2 = td / "dep3-src-v2"
+  476:     shutil.copytree(src_v1, src_v2)
+  477:     (src_v2 / "version.txt").write_text("2\n", encoding="utf-8")  # 内容差异→新 release
+  478: 
+  479:     mgr = DeployManager(str(releases), str(current))
+  480:     r1 = mgr.deploy(src_v1)
+  481:     v1_dir = Path(r1["release_dir"])
+  482: 
+  483:     def run_current(script: str, *args: str) -> str:
+  484:         out = subprocess.run(
+  485:             [sys.executable, str(current / "bin" / script), *args],
+  486:             capture_output=True, text=True, timeout=60)
+  487:         _ok(out.returncode == 0, f"{script} 执行失败: {out.stderr[-300:]}")
+  488:         return out.stdout
+  489: 
+  490:     # 旧版本时代：写 2 条事件
+  491:     hashes_v1 = [run_current("writer.py", str(db), "v1-binary", str(n))
+  492:                  for n in (1, 2)]
+  493:     # 新版本部署并运行：再写 5 条事件
+  494:     mgr.deploy(src_v2)
+  495:     hashes_v2 = [run_current("writer.py", str(db), "v2-binary", str(n))
+  496:                  for n in range(1, 6)]
+  497:     all_hashes = hashes_v1 + hashes_v2
+  498:     _ok(len(set(all_hashes)) == 7, "7 条事件哈希必须各异")
+  499: 
+  500:     before_rows = _read_events_raw(db)
+  501:     _ok(len(before_rows) == 7, f"回滚前必须已有 7 条事件: {len(before_rows)}")
+  502:     store = EventStore(str(db))
+  503:     head_before = store.head()
+  504:     chain_before = store.verify_chain()
+  505:     store.close()
+  506:     _ok(head_before[1] == 7 and chain_before["ok"] is True,
+  507:         f"回滚前 head/链完好: {head_before} {chain_before}")
+  508: 
+  509:     # 账本文件（db/-wal/-shm）指纹——回滚绝不能触碰事件账本
+  510:     fingerprints_before = {
+  511:         str(p): _file_fingerprint(p)
+  512:         for p in (db, Path(str(db) + "-wal"), Path(str(db) + "-shm"))
+  513:         if p.exists()}
+  514: 
+  515:     mgr.rollback(str(current), str(v1_dir))  # 回滚到兼容旧二进制
+  516:     _ok(_real(current) == _real(v1_dir), "回滚后 current 必须指向 v1 release")
+  517: 
+  518:     for p, fp in fingerprints_before.items():
+  519:         _ok(_file_fingerprint(Path(p)) == fp,
+  520:             f"回滚触碰了事件账本文件: {p}")
+  521:     # 旧二进制（冻结读取器）读全量：零丢失
+  522:     payload = json.loads(run_current("reader.py", str(db)))
+  523:     _ok(payload["count"] == 7, f"旧二进制必须读出全部 7 条事件: {payload['count']}")
+  524:     eras = {}
+  525:     for ev in payload["events"]:
+  526:         eras.setdefault(ev["era"], set()).add(ev["n"])
+  527:     _ok(eras.get("v1-binary") == {1, 2},
+  528:         f"旧版本时代 2 条事件必须逐条在: {eras}")
+  529:     _ok(eras.get("v2-binary") == {1, 2, 3, 4, 5},
+  530:         f"新版本期间 5 条事件必须零丢失: {eras}")
+  531: 
+  532:     store = EventStore(str(db))
+  533:     head_after = store.head()
+  534:     chain_after = store.verify_chain()
+  535:     store.close()
+  536:     _ok(head_after == head_before and chain_after["ok"] is True,
+  537:         f"回滚后 head 与链校验必须与回滚前一致: {head_after} vs {head_before}")
+
+----------------------------------------------------------------------------------------------------
+ID=RB-01 plan_injection='无预授权自动回滚/错误旧版本' plan_expectation='拒绝'
+matrix_fn=test_RB_01_no_preauth_rollback_and_wrong_previous_refused line=575 ast=575-656
+  575: def test_RB_01_no_preauth_rollback_and_wrong_previous_refused(td: Path) -> None:
+  576:     """注入：无预授权的回滚动作 / 错误类型的合法签名审批 / 错误旧版本回滚。
+  577:     期望：全部拒绝，且零落账、current 绝不切到坏包。
+  578: 
+  579:     腿A（无预授权→拒绝）：RunManager.reserve_action("rollback") 无审批 →
+  580:     ActionError；持合法 HMAC 签名但类型为 release 的审批 → ApprovalRejected
+  581:     （类型不符）；两次拒绝后事件账本零条（绝不落事件）。
+  582:     腿B（错误旧版本→拒绝）：previous 内容漂移 / 目标不存在 / 非 release
+  583:     目录三种错误旧版本 → VerifyError/SwitchError 拒绝回切，current 保持 v2。
+  584:     """
+  585:     # ---- 腿A：无预授权的回滚动作预留一律拒绝（F4-AUTH-001）----
+  586:     db = td / "rb01-events.db"
+  587:     store = EventStore(str(db))
+  588:     ring = ApprovalKeyring.generate("key_rb01")
+  589:     rm = RunManager(store, keyring=ring)
+  590:     target = "deploy/prod-42"
+  591: 
+  592:     exc = _expect_raise(ActionError, rm.reserve_action,
+  593:                         "run-rb01-missing", "rollback", target)
+  594:     _ok("审批" in str(exc) or "approval" in str(exc),
+  595:         f"无授权预留必须以审批缺失拒绝: {exc}")
+  596:     _ok(store.head() == (None, 0), f"拒绝路径必须零落账: {store.head()}")
+  597: 
+  598:     release_payload = {
+  599:         "release_id": "20261008T000000Z-deadbeefcafe",
+  600:         "artifact_sha256": "a" * 64,
+  601:         "manifest_sha256": "b" * 64,
+  602:         "environment": "production",
+  603:         "previous_release_id": "20261001T000000Z-000000000000",
+  604:     }
+  605:     wrong_type = _mk_signed_approval(ring, "release", release_payload)
+  606:     exc = _expect_raise(ApprovalRejected, rm.reserve_action,
+  607:                         "run-rb01-missing", "rollback", target, wrong_type)
+  608:     _ok("approval_type" in str(exc) and "rollback" in str(exc),
+  609:         f"类型不符必须明确拒绝 rollback 预留: {exc}")
+  610:     _ok(store.head() == (None, 0), f"类型不符拒绝仍零落账: {store.head()}")
+  611:     store.close()
+  612: 
+  613:     # ---- 腿B：错误旧版本回滚一律拒绝（deploy_framework）----
+  614:     root = td / "rb01-root"
+  615:     releases, current = root / "releases", root / "current"
+  616:     mgr = DeployManager(str(releases), str(current))
+  617:     src_v1 = _mk_app_source(td, "src-rb-v1", flag="v1")
+  618:     src_v2 = _mk_app_source(td, "src-rb-v2", flag="v2")
+  619:     r1 = mgr.deploy(src_v1)
+  620:     v1_dir = Path(r1["release_dir"])
+  621:     mgr.deploy(src_v2)
+  622:     v2_real = _real(current)
+  623:     _ok(v2_real != _real(v1_dir), "前置：current 已在 v2")
+  624: 
+  625:     # B1：previous 内容漂移（错误旧版本：坏包）
+  626:     victim = v1_dir / "app.py"
+  627:     os.chmod(victim, 0o644)
+  628:     victim.write_text("print('poisoned-previous')\n", encoding="utf-8")
+  629:     os.chmod(victim, 0o444)
+  630:     exc = _expect_raise(VerifyError, mgr.rollback, str(current), str(v1_dir))
+  631:     _ok(exc.report["drifted"] == ["app.py"],
+  632:         f"坏旧版必须以内容漂移被拒: {exc.report}")
+  633:     _ok(_real(current) == v2_real, "B1 拒绝后 current 仍必须停在 v2（绝不切坏包）")
+  634: 
+  635:     # B2：回滚目标不存在
+  636:     exc = _expect_raise(SwitchError, mgr.rollback,
+  637:                         str(current), str(root / "no-such-release"))
+  638:     _ok("rollback target missing" in str(exc),
+  639:         f"不存在旧版必须以目标缺失拒绝: {exc}")
+  640:     _ok(_real(current) == v2_real, "B2 拒绝后 current 仍停在 v2")
+  641: 
+  642:     # B3：非 release 目录（无 manifest 的伪旧版本）
+  643:     fake_prev = root / "fake-previous"
+  644:     fake_prev.mkdir(parents=True)
+  645:     (fake_prev / "app.py").write_text("print('fake')\n", encoding="utf-8")
+  646:     exc = _expect_raise(VerifyError, mgr.rollback, str(current), str(fake_prev))
+  647:     _ok(exc.report["missing"] == ["manifest.json"],
+  648:         f"伪旧版必须以 manifest 缺失拒绝: {exc.report}")
+  649:     _ok(_real(current) == v2_real, "B3 拒绝后 current 仍停在 v2")
+  650: 
+  651:     # 正控：previous 完好时 rollback 正常放行（拒绝是因「错误旧版本」而非误杀）
+  652:     os.chmod(victim, 0o644)
+  653:     victim.write_text("print('app')\n", encoding="utf-8")
+  654:     os.chmod(victim, 0o444)
+  655:     mgr.rollback(str(current), str(v1_dir))
+  656:     _ok(_real(current) == _real(v1_dir), "正控：完好旧版回滚必须放行")

@@ -1,0 +1,8 @@
+COMMAND: cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-anchor-pipeline-clean-7134-55687'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-anchor-schema-clean-7134-55687'; cp -a /private/tmp/wenqu-reaudit7-20261008-204822 '/tmp/wq7b-anchor-trace-clean-7134-55687'; git -C '/tmp/wq7b-anchor-pipeline-clean-7134-55687' rev-parse HEAD; git -C '/tmp/wq7b-anchor-schema-clean-7134-55687' rev-parse HEAD; git -C '/tmp/wq7b-anchor-trace-clean-7134-55687' rev-parse HEAD
+WORKDIR: /tmp
+EXIT_CODE: 0
+--- STDOUT ---
+d32c859f9043798d9e8a4984e8f57aa64567e33c
+d32c859f9043798d9e8a4984e8f57aa64567e33c
+d32c859f9043798d9e8a4984e8f57aa64567e33c
+--- STDERR ---

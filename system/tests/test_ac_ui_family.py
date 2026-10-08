@@ -44,10 +44,12 @@ not_implementable（见证据 JSON 与模块 docstring 诚实边界）。
   4. UI-06「DNS rebinding」需真实 DNS 解析+浏览器宿主；本件在协议级验证其
      产品防御（Host 白名单：伪 Host/无 Host/错端口 Host 全 403，数据面不可达）。
   5. UI-07 慢请求防御实测为 15s 连接读超时（REQUEST_TIMEOUT）；「超大日志」
-     的产品界是行数界（tail -n 20/文件）而非字节界——病态单行超长文件可产生
-     大响应，登记为观察项（本任务不改产品面）。
+     产品界为行数界（tail -n 20/文件）+ 字节界（R7-UI-LOG-BYTES-010：响应硬
+     上限默认 1MiB、WENQU_LOG_MAX_BYTES 可配、超限按字节截断+truncated 标记）
+     双闸；6MiB 病态单行对抗腿已实证 ≤上限+标记+前缀保留。
   6. UI-01「构建/启动门」以产品 --self-check 自检门 + ui_probe 构建门承载并
-     实证红/绿；server 常驻启动路径未强制每次 serve 前自动跑门（登记观察项）。
+     实证红/绿（R7 根修：产品字符串配对门补全常见标签开闭计数，删 </span>
+     必红）；server 常驻启动路径未强制每次 serve 前自动跑门（登记观察项）。
 """
 from __future__ import annotations
 
@@ -83,6 +85,10 @@ from wenqu_core.ui_probe import (                     # noqa: E402
 
 EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ui-family.json"
 DASH = SYSTEM / "dashboard"
+# R7-UI-LOG-AUTH-009：/api/v1/logs 已加鉴权（fail-closed）——沙箱服务统一注入
+# key，日志读取请求统一携带 X-Auth-Key（无 key/错 key 的对抗腿逐条独立注入）。
+DASH_KEY = "ac-ui-family-log-key"
+LOG_KEY_HEADERS = {"X-Auth-Key": DASH_KEY}
 
 _RESULTS: dict = {}
 _METHOD_LEVEL = "L2-HTTP-DOM"
@@ -119,8 +125,9 @@ _NOT_IMPLEMENTABLE = [
         "gap": "真实 DNS rebinding 攻击链（攻击者域名解析到回环+浏览器宿主）",
         "reason": "需真实 DNS 栈与浏览器；单测沙箱不可复现",
         "mitigation": "协议级验证其唯一产品防御点：Host 白名单（伪 Host/无 Host/错端口 "
-                      "Host 全 403 且日志数据面不可达）+ Origin/Sec-Fetch-Site 拒绝；"
-                      "负例假服务无 Host 校验被探针必报",
+                      "Host 全 403 且日志数据面不可达）+ Origin/Sec-Fetch-Site 拒绝 + "
+                      "日志端点 key 鉴权（R7-UI-LOG-AUTH-009：无/错 X-Auth-Key、key 未"
+                      "配置均 403 fail-closed）；负例假服务无 Host 校验被探针必报",
     },
 ]
 
@@ -160,13 +167,15 @@ def _write_snapshot(path: Path, verdict: str, *, score=87, age_seconds: float = 
 class _Dash:
     """在随机空闲端口起 system/dashboard/server.py 子进程（沙箱化环境，退出清理）。"""
 
-    def __init__(self, sandbox: Path, *, ttl_seconds: int = 1800):
+    def __init__(self, sandbox: Path, *, ttl_seconds: int = 1800,
+                 log_key: str | None = DASH_KEY):
         self.sandbox = sandbox
         self.snap = sandbox / "gate-aggregate.json"
         self.home = sandbox / "wenqu-home"
         self.ledger_root = sandbox / "bugscan-ledger"
         self.port = _free_port()
         self.ttl = ttl_seconds
+        self.log_key = log_key  # None=刻意不配置（fail-closed 对抗腿）
         self.proc: subprocess.Popen | None = None
 
     def __enter__(self) -> "_Dash":
@@ -180,6 +189,10 @@ class _Dash:
                    WENQU_DECISIONS=str(self.sandbox / "decisions.jsonl"),
                    WENQU_LEDGER=str(self.sandbox / "rounds.jsonl"),
                    WENQU_REPO_DIR=str(self.sandbox))
+        if self.log_key is None:
+            env.pop("WENQU_DASHBOARD_KEY", None)  # 外壳环境残留也不许放行（fail-closed 决定性）
+        else:
+            env["WENQU_DASHBOARD_KEY"] = self.log_key
         self.err_path = self.sandbox / "server.err.log"
         self.proc = subprocess.Popen(
             [sys.executable, str(DASH / "server.py"), "--port", str(self.port)],
@@ -356,7 +369,8 @@ def test_UI_01_missing_closing_tag_fails_build_and_startup_gate():
 
     三腿：产品 --self-check 启动自检门（真进程、临时端口）红/绿对照；
     ui_probe 构建门（parser 级标签闭合栈）对四种破损形态必报、对真件零误报；
-    parser 门比产品字符串计数门严格（</span> 缺失产品漏报、探针必报）。
+    R7 对抗腿：产品字符串配对门补全常见标签后，删 </span>（第七轮实证产品
+    门漏报的形态）必须 rc1 且点名 span。
     """
     # 腿 1：产品自带启动自检门——完整副本必须绿（基线）
     with tempfile.TemporaryDirectory(prefix="wq_ui01a_") as tmp:
@@ -377,6 +391,20 @@ def test_UI_01_missing_closing_tag_fails_build_and_startup_gate():
         assert r_bad.returncode != 0, "少一个闭合标签后启动自检门仍绿——门失效"
         assert "平衡" in r_bad.stdout or "FAIL" in r_bad.stdout, \
             f"失败应点名结构破损，实得: {r_bad.stdout[-400:]}"
+
+        # R7 对抗腿（第七轮实证缺口）：删首个 </span>——旧产品字符串计数门只对
+        # div 计数漏报；配对门补全后必须 rc1 且点名 span 不平衡。
+        bad_span = Path(tmp) / "dash-broken-span"
+        _copy_dashboard(bad_span)
+        idx_span = bad_span / "index.html"
+        html_span = idx_span.read_text(encoding="utf-8")
+        assert "</span>" in html_span, "注入前置失败：index.html 无 </span>"
+        idx_span.write_text(html_span.replace("</span>", "", 1), encoding="utf-8")
+        r_span = _selfcheck_in(bad_span)
+        assert r_span.returncode != 0, \
+            f"删 </span> 后启动自检门仍绿（rc={r_span.returncode}）——R7 缺口未修"
+        assert "span" in r_span.stdout and ("配对" in r_span.stdout or "平衡" in r_span.stdout), \
+            f"失败应点名 span 配对不平衡，实得: {r_span.stdout[-400:]}"
 
     # 腿 2：探针构建门——破损目录必报，真件零发现
     pristine = build_gate(DASH)
@@ -400,8 +428,10 @@ def test_UI_01_missing_closing_tag_fails_build_and_startup_gate():
     assert product_div_gate is True, "对照前提失败：span 注入不应扰动 div 计数"
     assert "missing-</span>" in caught and caught["missing-</span>"] == "UNCLOSED_TAG", \
         "探针必须抓到产品字符串门漏报的 </span> 缺失"
+    # R7 修复对照：产品配对门现已覆盖 span（腿 1 对抗腿已实证删 </span> 必红）
     _record("UI-01",
-            f"产品 --self-check 启动门：完整副本 rc=0，删一个 </div> 后 rc!=0（点名「div 平衡」）；"
+            f"产品 --self-check 启动门：完整副本 rc=0，删一个 </div> 后 rc!=0（点名「div 平衡」），"
+            f"删一个 </span> 后 rc!=0（R7 根修：配对门补全常见标签并点名 span）；"
             f"探针构建门：真件 0 发现，四种破损形态（</div>/</span>/游离</div>/</html>）全报，"
             f"且抓到产品字符串计数门漏报的 </span> 缺失（parser 严格性 ⊇ 产品门）")
 
@@ -437,8 +467,9 @@ def test_UI_02_xss_log_and_ledger_text_does_not_execute():
                     fh.write(json.dumps(r, ensure_ascii=False) + "\n")
 
             # 传输契约：payload 作为 JSON 数据无损往返（不进 HTML 上下文）
-            st, hd, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs")
-            assert st == 200, f"logs 应 200，实得 {st}"
+            st, hd, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                       headers=LOG_KEY_HEADERS)
+            assert st == 200, f"logs 应 200（带 key），实得 {st}"
             assert hd.get("content-type", "").startswith("application/json"), \
                 f"日志必须以 JSON 传输（非 HTML 上下文），实得 {hd.get('content-type')!r}"
             assert hd.get("x-content-type-options") == "nosniff", "缺 nosniff（MIME 嗅探面）"
@@ -667,22 +698,36 @@ def test_UI_05_accepted_other_and_quarantine_drilldown():
 def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():
     """UI-06 | 注入: DNS rebinding/伪 Host/未认证日志读取 | 期望: 拒绝。
 
-    真服务面（数据面打 /api/v1/logs）：本机合法读 200（数据在场对照）；
-    伪 Host/无 Host/错端口 Host→403 且响应体不含日志 payload（数据不可达）；
-    跨源 Origin/Sec-Fetch-Site→403。负例：无 Host 校验假服务被探针必报。
-    真实 DNS rebinding 链（DNS+浏览器）不可注入，如实登记。
+    真服务面（数据面打 /api/v1/logs）：本机合法读（正确 Host + 匹配 X-Auth-Key）
+    200（数据在场对照）；伪 Host/无 Host/错端口 Host→403 且响应体不含日志
+    payload（数据不可达）；跨源 Origin/Sec-Fetch-Site→403。
+    R7 对抗腿（未认证日志读取，R7-UI-LOG-AUTH-009）：无 X-Auth-Key/错 key→403
+    且 payload 零泄漏；key 未配置的服务实例（fail-closed）→ 403。负例：无
+    Host 校验假服务被探针必报。真实 DNS rebinding 链（DNS+浏览器）不可注入，
+    如实登记。
     """
     marker = "UI06-SENSITIVE-LOG-LINE-9d7f"
     with tempfile.TemporaryDirectory(prefix="wq_ui06_") as tmp:
-        with _Dash(Path(tmp)) as dash:
+        sandbox = Path(tmp)
+        with _Dash(sandbox) as dash:
             _write_snapshot(dash.snap, "PASS")
             (dash.home / "logs").mkdir(parents=True, exist_ok=True)
             (dash.home / "logs" / "sentinel6.log").write_text(
                 marker + "\nnormal line\n", encoding="utf-8")
 
-            # 对照：本机合法请求（正确 Host、无 Origin）数据可读
-            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs")
+            # 对照：本机合法请求（正确 Host + 匹配 X-Auth-Key）数据可读
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                      headers=LOG_KEY_HEADERS)
             assert st == 200 and marker.encode() in body, "注入前提：日志数据应在场可读"
+
+            # R7 对抗腿：未认证读取（有 key 配置但无/错 X-Auth-Key）→ 403 + 零泄漏
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs")
+            assert st == 403, f"无 X-Auth-Key 读日志应 403，实得 {st}"
+            assert marker.encode() not in body, "无 key 拒绝时数据面必须不可达（payload 泄漏）"
+            st, _, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                      headers={"X-Auth-Key": "wrong-key"})
+            assert st == 403 and marker.encode() not in body, \
+                f"错 X-Auth-Key 应 403 且数据不可达，实得 {st}"
 
             for label, hv in (("伪 Host（rebinding 形态）", "evil.example.com:%d" % dash.port),
                               ("无 Host 头", None),
@@ -701,6 +746,18 @@ def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():
             surf = probe_http_surface("127.0.0.1", dash.port)
             assert surf == [], f"真 UI 面探针应零发现，实得 {[x.as_dict() for x in surf]}"
 
+        # R7 fail-closed 腿：WENQU_DASHBOARD_KEY 未配置 → 该端点默认 403（与 decide 同范式）
+        with _Dash(sandbox / "nokey", ttl_seconds=1800, log_key=None) as nokey:
+            _write_snapshot(nokey.snap, "PASS")
+            (nokey.home / "logs").mkdir(parents=True, exist_ok=True)
+            (nokey.home / "logs" / "sentinel6.log").write_text(marker + "\n", encoding="utf-8")
+            st, _, body = raw_request("127.0.0.1", nokey.port, "GET", "/api/v1/logs")
+            assert st == 403, f"key 未配置读日志应默认 403（fail-closed），实得 {st}"
+            assert marker.encode() not in body
+            st, _, _ = raw_request("127.0.0.1", nokey.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": "any-key-at-all"})
+            assert st == 403, "key 未配置时任何 X-Auth-Key 都不得放行（fail-closed）"
+
     # 负例：无 Host 校验的假服务——日志数据面被任意 Host 放行，探针必报
     with _VulnServer() as vuln:
         f = probe_http_surface("127.0.0.1", vuln.port)
@@ -710,17 +767,21 @@ def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():
                    "evil" in x.detail for x in hits), "负例证据应携带数据面泄漏痕迹"
     _record("UI-06",
             "伪 Host/无 Host/错端口 Host→403 且日志 payload 零泄漏（数据面不可达）；跨源 "
-            "Origin/Sec-Fetch-Site 读日志→403；本机合法读对照 200 在场；负例无 Host 校验"
-            "假服务被探针报 HOST_VALIDATION_MISSING（含泄漏证据）。真实 DNS rebinding 链"
-            "（DNS+浏览器）未验证——已登记；协议级防御即产品唯一防线，已实证")
+            "Origin/Sec-Fetch-Site 读日志→403；R7 对抗腿：无 X-Auth-Key/错 key→403 零泄漏、"
+            "key 未配置的实例默认 403（fail-closed，与 decide 同范式）；本机合法读（Host+key）"
+            "对照 200 在场；负例无 Host 校验假服务被探针报 HOST_VALIDATION_MISSING（含泄漏"
+            "证据）。真实 DNS rebinding 链（DNS+浏览器）未验证——已登记；协议级防御即产品"
+            "唯一防线，已实证")
 
 
 def test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources():
     """UI-07 | 注入: 慢请求/高并发/超大日志 | 期望: 不耗尽资源。
 
-    真服务面：超大日志（3 文件×~1.5MB）读取有界（行数界 tail -20）且时延受控；
-    慢速半开请求期间并发服务正常、且被 15s 连读超时收割；超大声明体 413 快拒；
-    60 并发全 200；窗口限速真实触发 429。负例：无限制速假服务被探针必报。
+    真服务面：超大日志（3 文件×~1.5MB）读取有界（行数界 tail -20 + 字节界
+    1MiB 默认上限）且时延受控；R7 对抗腿（独立实例）：6MiB 病态单行→响应
+    ≤1MiB + truncated 标记 + 前缀保留；慢速半开请求期间并发服务正常、且被
+    15s 连读超时收割；超大声明体 413 快拒；60 并发全 200；窗口限速真实触发
+    429。负例：无限制速假服务被探针必报。
     """
     with tempfile.TemporaryDirectory(prefix="wq_ui07_") as tmp:
         with _Dash(Path(tmp)) as dash:
@@ -740,7 +801,7 @@ def test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources():
             # 超大日志：读取有界（行数界）+ 时延受控 + tail 语义正确
             t0 = time.monotonic()
             st, hd, body = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
-                                       timeout=15.0)
+                                       headers=LOG_KEY_HEADERS, timeout=15.0)
             dt = time.monotonic() - t0
             assert st == 200, f"超大日志读取应 200，实得 {st}"
             assert len(body) < 300_000, \
@@ -820,12 +881,38 @@ def test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources():
         f, first_429 = probe_rate_guard("127.0.0.1", vuln.port, burst=200)
         assert first_429 is None and _codes(f) == {"RATE_LIMIT_MISSING"}, \
             f"无限速负例未被探针报出，实得 {sorted(_codes(f))}"
+
+    # R7 对抗腿（R7-UI-LOG-BYTES-010，独立实例防日志尾缓存串扰）：6MiB 病态
+    # 单行——响应必须被默认 1MiB 字节上限硬约束：≤上限 + truncated 标记 +
+    # 前缀保留（按字节截断，不再整行返回 6MiB）；截断载荷仍是合法 JSON。
+    with tempfile.TemporaryDirectory(prefix="wq_ui07b_") as tmp2:
+        with _Dash(Path(tmp2)) as dash2:
+            _write_snapshot(dash2.snap, "PASS")
+            logs2 = dash2.home / "logs"
+            logs2.mkdir(parents=True, exist_ok=True)
+            big_marker = "UI07-BIGLINE-HEAD-3k9f"
+            (logs2 / "oneline.log").write_text(
+                big_marker + "z" * (6 * 1024 * 1024) + "\n", encoding="utf-8")
+            t0 = time.monotonic()
+            st, _, big_body = raw_request("127.0.0.1", dash2.port, "GET", "/api/v1/logs",
+                                          headers=LOG_KEY_HEADERS, timeout=15.0)
+            assert st == 200, f"6MiB 单行日志读取应 200（带 key），实得 {st}"
+            assert len(big_body) <= 1048576, \
+                f"响应必须受 1MiB 默认字节上限硬约束，实得 {len(big_body)}B"
+            assert b'"truncated": true' in big_body, "超限截断必须带 truncated 标记"
+            big_logs = json.loads(big_body)
+            assert big_logs["oneline.log"].startswith(big_marker), \
+                "单行截断必须保内容前缀（按字节截断，非丢行）"
+            assert len(big_logs["oneline.log"]) < 6 * 1024 * 1024, "不得整行返回 6MiB"
+            assert time.monotonic() - t0 < 5.0, "截断路径时延受控"
+
     _record("UI-07",
             f"超大日志（{total_bytes // 1024}KB 源→{len(body) // 1024}KB 响应，tail 行数界、"
-            f"{dt * 1000:.0f}ms、首行截出末行保留）；慢速半开请求期间并发 3×200、"
+            f"{dt * 1000:.0f}ms、首行截出末行保留）；R7 对抗腿：6MiB 病态单行→响应 "
+            f"{len(big_body)}B ≤1MiB 上限+truncated 标记+前缀保留（字节界硬约束）；"
+            f"慢速半开请求期间并发 3×200、"
             f"{stall_t:.1f}s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；"
-            f"限速真实触发（第 {first_429} 发 429）；压力后存活。负例无限速假服务被探针"
-            f"必报。观察项：tail 为行数界非字节界（病态单行可放大响应，产品未改）")
+            f"限速真实触发（第 {first_429} 发 429）；压力后存活。负例无限速假服务被探针必报")
 
 
 # ---------------------------------------------------------------------------
@@ -903,9 +990,14 @@ def main() -> int:
                 "passed": passed,
                 "failed": failed,
                 "observations": [
-                    "UI-07 超大日志的产品界是行数界（tail -n 20/文件）而非字节界："
-                    "病态单行超长日志文件可产生大响应（本任务不改产品面，登记观察）",
+                    "UI-07 超大日志产品界=行数界（tail -n 20）+字节界（R7-UI-LOG-BYTES-010 "
+                    "响应硬上限默认 1MiB/WENQU_LOG_MAX_BYTES 可配/超限按字节截断+truncated "
+                    "标记）双闸；6MiB 病态单行对抗腿实证 ≤上限+标记+前缀保留",
+                    "UI-06 日志端点已加鉴权（R7-UI-LOG-AUTH-009）：WENQU_DASHBOARD_KEY "
+                    "配置后须匹配 X-Auth-Key；未配置默认 403（fail-closed）——无 key/错 "
+                    "key/key 未配置三对抗腿均实证 403+零泄漏",
                     "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；"
+                    "R7 根修后产品配对门覆盖常见标签（删 </span> 必红）；"
                     "server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）",
                 ],
             },

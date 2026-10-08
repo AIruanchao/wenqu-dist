@@ -406,6 +406,40 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
 fi
 
+echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红）=="
+if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
+  P1F2_FAIL=0
+  while read -r bf bn; do
+    case "$bf" in ""|\#*) continue ;; esac
+    bp="$ROOT/system/tests/$bf.py"
+    if [ -f "$bp" ]; then
+      an=$(python3 - "$bp" <<'PYP'
+import re, sys
+n = 0
+for line in open(sys.argv[1], encoding="utf-8"):
+    if line.strip().startswith("#"):
+        continue
+    n += len(re.findall(r"\bassert\s+(?!,)(?!\s*(?:True|1)\b)", line))
+    n += len(re.findall(r"\b(?:_ck|_ok|expect)\s*\(", line))
+print(n)
+PYP
+)
+      if [ "${an:-0}" -lt "$bn" ]; then
+        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 $bn（空壳化/恒真化）"
+      fi
+    else
+      P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
+    fi
+  done < "$ROOT/tests/p1f-assert-baseline.txt"
+  if [ $P1F2_FAIL -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（八文件有效断言 ≥ 冻结基线）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ tests/p1f-assert-baseline.txt 不存在——棘轮未接线"
+fi
+
 echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
 if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
   python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1

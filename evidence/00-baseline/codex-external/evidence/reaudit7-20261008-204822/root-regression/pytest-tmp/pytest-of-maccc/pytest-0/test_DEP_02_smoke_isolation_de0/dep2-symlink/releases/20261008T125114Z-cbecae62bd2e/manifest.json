@@ -1,0 +1,27 @@
+{
+  "content_digest": "cbecae62bd2eabed37249291bfd368c2202efd3e752340c20d5f95ee8cfc95f4",
+  "created_at": "2026-10-08T12:51:14Z",
+  "files": [
+    {
+      "mode": "0444",
+      "path": "app.py",
+      "sha256": "9486029051d5075cceb185e01d48a3f3055ae950db83521ec6cb2ff16c09627a",
+      "size": 13
+    },
+    {
+      "mode": "0444",
+      "path": "doctor.json",
+      "sha256": "9d621993329ad43a94207551ff544207eee6066a2f48a729f7e203115a36dde3",
+      "size": 26
+    },
+    {
+      "mode": "0444",
+      "path": "flag-y2.txt",
+      "sha256": "0713eb6f4ca9be9af55bbc8206bf2ce17fda181e40816e4fedb8fa4c61ca7197",
+      "size": 3
+    }
+  ],
+  "release_id": "20261008T125114Z-cbecae62bd2e",
+  "schema_version": 1,
+  "source_dir": "/private/tmp/codex-test/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_02_smoke_isolation_de0/dep2-symlink-v2"
+}
