@@ -1,0 +1,5 @@
+$ python3 inline cross-type schema/broker validation
+jsonschema_accept=True
+broker_structure_accept=True
+{"actor": "mallory", "approval_id": "apr_cross", "approval_type": "risk", "decision": "approve", "expires_at": "2099-01-01T00:00:00Z", "issued_at": "2026-01-01T00:00:00Z", "nonce": "nonce-cross-type-0001", "payload": {"compensating_controls": ["c"], "expiry": "2099", "finding_fingerprints": ["fp"], "objective_precondition_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "reason": "r", "severity": "LOW", "stop_event_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "stop_type": "prod-write"}, "run_id": "run_x", "schema_version": "2.0", "signature": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "stop_event_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "stop_type": "prod-write"}
+[exit=0]

@@ -1,0 +1,484 @@
+TIMESTAMP_START=2026-10-08T04:29:56Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cat /private/tmp/codex-test/验收报告.md
+--- OUTPUT BEGIN ---
+# 问渠 / Bug 管线整改产物验收报告
+
+> 验收时间：2026-10-07 23:13–23:21（Asia/Shanghai）  
+> 验收人：Codex 独立复核上下文  
+> 方案正源：/private/tmp/codex-test/方案.md  
+> 方案 SHA256：96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  
+> 产物仓：/Users/maccc/Documents/wenqu-dist  
+> 初始验收基线：main@4aeb199884af20f956b704e04dd61df8b39fa16e  
+> 初始状态：clean，main 与 origin/main 对齐，ahead/behind = 0/0  
+> 收尾状态：验收期间被外部 writer 改为脏工作树，详见第 11 节  
+> 证据目录：/private/tmp/codex-test/evidence/acceptance-20261007-231333/
+
+## 1. 最终判定
+
+# **验收不通过：BLOCKED**
+
+当前产物不能获得以下任何一种完成状态：
+
+- 候选实现完成：**不通过**
+- CI 准入完成：**不通过**
+- 受控部署完成：**不通过**
+- 发布后闭环完成：**不通过**
+- 生产可用 / production-ready：**严禁声明**
+
+本轮只确认了“若干新基础模块、Schema、文档和 Dashboard 文件真实存在，部分模块自测可运行”。没有形成方案要求的：
+
+1. 问渠七段状态机闭环；
+2. Bug 八站统一入口与统一结果闭环；
+3. 风险授权、动作授权和一次性原子消费；
+4. station → aggregator → Required Gate → action controller → deployment saga 完整链；
+5. 统一事件正源、CAS、outbox、迁移与投影；
+6. 原子安装、不可变制品、运行身份对账；
+7. active CI 中的独立红探针与完整验收矩阵；
+8. shadow、canary、14 天观察和回滚演练证据。
+
+硬门优先于分数。存在以下 P0 时，即使局部测试全绿也必须 BLOCKED。
+
+## 2. 验收评分
+
+该分数是“对方案 W0–W10 的落地符合度”，不是 7789 自算健康分。
+
+| 工作包 | 权重 | 得分 | 判定 |
+|---|---:|---:|---|
+| W0 快照与危险面隔离 | 8 | 2 | FAIL |
+| W1 契约、Schema、威胁模型、红探针 | 10 | 4 | FAIL |
+| W2 Trusted Runner、事件账本、授权、CAS | 15 | 3 | FAIL |
+| W3 Gate、CI、合流控制 | 15 | 2 | FAIL |
+| W4 调度、Outbox、通知、备份 | 10 | 3 | FAIL |
+| W5 旧账迁移 | 8 | 1 | FAIL |
+| W6 Bug 八站 | 15 | 8 | PARTIAL/BLOCKED |
+| W7 制品、安装、部署、回滚 | 8 | 2 | FAIL |
+| W8 Dashboard 与控制面安全 | 7 | 3 | FAIL |
+| W9 Shadow/Canary/切换 | 2 | 0 | NOT STARTED |
+| W10 观察窗/演练/收官 | 2 | 1 | NOT ELIGIBLE |
+| **总分** | **100** | **29** | **BLOCKED** |
+
+分对象结论：
+
+| 对象 | 本轮结论 |
+|---|---|
+| 问渠 one-shot 七段管线 | **未形成可执行七段状态机，BLOCKED** |
+| Bug 八站管线 | **有局部站点基础件，但无统一可执行闭环，BLOCKED** |
+| 7789 控制面 | 实测 /api/health 为 **40 / 告警 / Gate=failure**；只能作为当前旧运行体观察面，且仍含未授权写接口，不能视为安全只读控制面 |
+
+## 3. 已核实的正向结果
+
+### 3.1 基线与结构
+
+- 方案哈希与交付提示一致。
+- 初始快照时产物仓 clean，HEAD 与 origin/main 对齐；收尾时出现外部未提交漂移，故 clean 条件已失效。
+- system/wenqu_core/ 为 __init__.py 加 12 个模块。
+- system/dashboard/ 有 4 个文件。
+- system/schemas/ 有 5 个 Draft-07 JSON Schema。
+- system/docs/ 有契约、威胁模型、3 个 ADR 和 constitution 模板。
+- Station 5/6 占位实现不会伪造 PASS，而是返回 BLOCKED/NOT_APPLICABLE；这一 fail-closed 占位行为通过。
+
+### 3.2 离线正向回归
+
+以下均在不启动现役服务、不部署、不生产写的条件下完成：
+
+| 验证 | 结果 |
+|---|---|
+| compileall system/wenqu_core system/dashboard | rc=0 |
+| wenqu_core.bugscan_orchestrator self-test | rc=0 |
+| wenqu_core.station2_static self-test | rc=0 |
+| wenqu_core.station3_contract self-test | rc=0 |
+| wenqu_core.station4_behavior self-test | rc=0 |
+| wenqu_core.station7_runtime self-test | rc=0 |
+| /Users/maccc/Documents/wenqu-dist/tests/acceptance.sh | 53 PASS / 0 FAIL |
+| 默认 pytest | 20 passed；实际只覆盖旧 cli/test_wenqu.py |
+
+这些结果只证明旧 CLI 回归和 5 个模块内嵌自测通过；不能抵消第 4 节的独立负探针。
+
+### 3.3 运行面正向事实
+
+- 23:15 快照未发现 auto-merge.sh 活进程。
+- launchd、crontab 中未发现 auto-merge 调度项。
+- auto-merge 最后日志时间为 15:49；“当前已停”属实。
+- com.wenqu.observation-window 已装入 launchd，日历触发为每日 08:00。
+- 7789 页面真实可达；浏览器实看显示 40 分、告警、CI Gate=failure，没有把本轮 Gate 红显示成总体绿。
+
+## 4. P0 阻断项
+
+### P0-1 新核心没有接入安装、CLI、运行体或 active CI
+
+证据：
+
+- /Users/maccc/Documents/wenqu-dist/system/install.sh:14-24 只复制旧 bin/sentinels/daemons/db/ci/templates/specs/config，不安装 wenqu_core、schemas、新 dashboard。
+- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu:109-110 启动旧 wenqu-dashboard.py，不是新 system/dashboard/server.py。
+- 运行目录 /Users/maccc/.wenqu/ 中不存在 wenqu_core、schemas 和新 dashboard。
+- 全仓没有现役 CLI/daemon 调用 GateAggregator、DeployManager、LedgerMigrator 或统一 station dispatcher。
+- /Users/maccc/Documents/wenqu-dist/.github/workflows/acceptance.yml:13-24 只跑旧 CLI/release 测试。
+
+独立反证：
+
+> 在隔离副本中整体移走 system/wenqu_core 和 system/schemas 后，默认 release-check、53 项 acceptance、20 项 pytest 和 CLI selftest 仍全部为 rc=0。
+
+因此“现有 CI 绿”完全不能证明本轮新增核心存在或正确。
+
+### P0-2 问渠七段、九类停等、双授权与动作 Saga 未实现
+
+以下计划核心文件不存在：
+
+- system/wenqu_core/models.py
+- system/wenqu_core/state_machine.py
+- system/wenqu_core/approvals.py
+- system/wenqu_core/evidence.py
+- system/wenqu_core/outbox.py
+- system/bin/wenquctl
+- system/bin/bugscanctl
+
+没有可执行实现覆盖：
+
+- S1_REQUIREMENT → S7_ACCEPTANCE；
+- attempt 不可变与重试新 attempt；
+- run/stage/aggregate 唯一映射；
+- 九类 STOPPED/WAITING 与 resume；
+- risk authorization 与 exact action authorization 分离；
+- nonce、state_version、SHA、environment、scope 一次性原子消费；
+- ACTION_AUTH_RESERVED / ACTION_STARTED / ACTION_COMMITTED / ACTION_FAILED_UNKNOWN；
+- control outbox / external receipt / reconcile。
+
+system/wenqu_core/__init__.py 还宣称存在 evidence.py、approvals.py，与实际文件不符。
+
+### P0-3 station、正式 Schema、Aggregator、Dashboard 契约断链
+
+- gate_aggregator.py 消费旧结构 {station,outcome,sha,environment}。
+- station-result-v2.schema.json 定义的是 {station_id,execution_status,policy_verdict,identity,...}。
+- 合法 station v2 结果无法直接被 Aggregator 消费。
+- Aggregator 输出 aggregate_outcome；新 Dashboard 又期待 generated_at/ts 加 policy_verdict/overall/verdict。
+- 全仓不存在受保护的 gate-aggregate.json 生产者。
+- required_stations 为空的离线负探针实测返回：
+  - aggregate_outcome=PASS
+  - technical_eligible=true
+  - reason=vacuous pass: no required stations configured
+
+这是零分母真空 PASS，违反 fail-closed。
+
+### P0-4 五个 Schema 未编码关键业务不变量
+
+离线 jsonschema.Draft7Validator 实测以下坏样例全部被接受：
+
+1. approval_type=merge 且完全没有 payload；
+2. 顶层 merge 携带 risk 型 payload；
+3. evidence 没有 schema_version、verdict、artifact；
+4. station 为 PASS，但没有 coverage、artifacts；
+5. CRITICAL/P0 finding 直接 ACCEPTED_RISK；
+6. finding 从 OPEN 直接 CLOSED。
+
+根因示例：
+
+- approval-v2.schema.json:7 未要求 payload；
+- 同文件 :33-69 在 payload 内部判别 approval_type，没有与顶层 discriminator 绑定；
+- finding 的“P0/P1 不允许 ACCEPTED_RISK”“CLOSED 只能来自 VERIFIED”只写在 $comment；
+- station 的分母缩水规则只写在 $comment。
+
+Schema 合法不等于业务契约安全。
+
+### P0-5 Trusted Runner / CAS 可被突破
+
+离线负探针实测：
+
+- runner 超时返回 timed_out=true 后，孙进程仍存活并在 0.6 秒后成功写入 marker；
+- CAS get 接受指向 root 外、内容哈希正确的符号链接；
+- CAS shard 父目录为 symlink 时，put 可把内容写到 CAS root 外；
+- 同 digest 路径预置损坏普通文件后，put 仍声称成功且不校验/修复内容。
+
+对应源码：
+
+- /Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:120-148 使用 subprocess.run(timeout=...)，没有进程组/杀树；
+- :186-211 仅保护最终文件，不保护父目录，无临时文件原子替换与 fsync；
+- :198-203 文件已存在时直接返回成功；
+- :213-223 读取跟随 symlink。
+
+此外 runner 默认继承全环境、allowlist 可关闭，无不可变 commit snapshot、网络 deny-by-default、资源/输出上限、低权限隔离或原始输出 CAS。
+
+### P0-6 EventStore 幂等失败，且与迁移器 DB Schema 互斥
+
+离线负探针实测：
+
+- 对同一逻辑事件连续重试两次：
+  - 第一次 inserted=true
+  - 第二次仍 inserted=true
+  - chain length = 2
+- 先创建 EventStore 再运行 LedgerMigrator：
+  - OperationalError: no such column: status
+- 先运行 LedgerMigrator 再创建 EventStore：
+  - OperationalError: no such column: event_hash
+
+原因：
+
+- store.py:77-102 以变化中的 prev_event_hash 参与 event_id 计算，重试不是稳定幂等；
+- store.py:28-49 与 ledger_migrator.py:52-74 都创建名为 events 的表，但列定义完全不兼容；
+- 主库只有一个 events 表，没有 runs、attempts、approvals、findings、risk、outbox、deployments 和 state_version。
+
+W5 不是在迁移到 W2 的统一事件正源，而是在创建第二套互斥正源。
+
+### P0-7 部署框架会生成不可执行制品并激活失败首版
+
+离线临时目录负探针实测：
+
+- 源脚本 mode 0755，build 后 release mode 变为 0444，执行位丢失；
+- 第一次部署没有 previous，self-check 返回 false 时虽抛异常，但 current 仍指向失败 release；
+- manifest 不含 source/policy commit、mode、runtime、Schema 兼容范围、SBOM、签名/attestation；
+- 没有 deployment lease/fencing、migration lock、授权消费、兼容判断、备份恢复或观察窗状态机。
+
+源码锚点：
+
+- /Users/maccc/Documents/wenqu-dist/system/wenqu_core/deploy_framework.py:137-152
+- 同文件 :305-343
+
+更严重的是该框架没有接入现役安装器；实际安装器仍：
+
+- /Users/maccc/Documents/wenqu-dist/system/install.sh:17-24 使用 cp -R 原地覆盖；
+- :51 使用 doctor || true 吞掉失败。
+
+### P0-8 auto-merge 仅“当前停”，危险 writer 仍在源码和安装体中
+
+当前运行面停机属实，但结构性隔离没有完成：
+
+- /Users/maccc/Documents/wenqu-dist/system/daemons/auto-merge.sh:34-46 只按名称子串找 Fast；
+- :48-70 接受 UNSTABLE，会本地修改 PR 分支；
+- :70 使用 gh pr merge --admin；
+- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu:63-70 执行 wenqu start 会再次启动它；
+- 实际安装体 /Users/maccc/.wenqu/daemons/auto-merge.sh 仍存在；
+- Dashboard 仍把该文件“在位”算作组件完整，并显示“无运行中守护（wenqu start）”。
+
+因此“观察期禁 wenqu start”只是人工纪律，不是机器不可违反的约束。必须删除 writer 或让启动路径机器拒绝，而不是依赖口头禁令。
+
+### P0-9 实际 7789 仍是旧控制面，保留未认证写入口
+
+运行身份对账：
+
+- launchd 实际启动 /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789；
+- 其 SHA 与仓内旧 system/bin/wenqu-dashboard.py 一致；
+- 新 system/dashboard 四文件未运行。
+
+旧控制面问题：
+
+- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:850-888 的 /api/decide 没有认证、Origin、Host、CSRF、一次性授权或审计签名，直接重写决策 JSONL；
+- :500-555 多处把账本、健康、决策等动态值拼入 innerHTML；
+- read-only Host 负探针用 Host: attacker.example 请求仍返回 HTTP 200；
+- 浏览器实看可见“采纳/驳回”按钮，故它不是只读汇总面。
+
+本轮没有点击这些按钮，也没有发送任何 POST。
+
+### P0-10 交付没有方案要求的证据包、红探针和最终制品
+
+- 仓内没有 evidence/W0...W10 证据目录。
+- 没有 W0 writer inventory、containment manifest、runtime/source diff。
+- 没有 W5 逐条 legacy reconciliation。
+- 没有 W9 shadow/canary/cutover/runtime attestation。
+- 没有 W10 14 天观察、周任务两轮、回滚演练、RPO/RTO 实测。
+- 方案 §20 共 131 个唯一验收 ID；active workflow 中对应自动测试为 0。
+- SHA256-v3.6.1.txt 指向 wenqu-v3.6.1.tar.gz，但该 tarball 不在仓内；其余多版 SHA 文件同样没有对应制品。
+- /Users/maccc/Documents/wenqu-dist/system/ci/nightly.yml:20,22 仍以 || true 吞掉 Playwright 和 jscpd 失败。
+
+## 5. 站 5 / 站 6 的验收边界
+
+用户说明两站是冻结占位接口，且真实执行需要生产授权和 S5 独立上下文。本轮按该边界验收。
+
+### 通过的部分
+
+- 未获授权时不会执行真实实弹/对抗；
+- 占位结果不会伪装为 PASS；
+- 本轮没有触发站 5/6。
+
+### 不能通过的部分
+
+- IMPLEMENTED=False，即使提供授权参数仍只返回 BLOCKED/NOT_APPLICABLE；
+- INCIDENT profile 因站 6 required 而无法完成；
+- 站 5 没有形成受保护的 required profile；
+- 没有 exact-scope 授权消费、合成租户清理/补偿、S3/S5 对抗结果和原始证据。
+
+结论：
+
+> 占位接口的 fail-closed 行为可以验收通过；它绝不能被计入 W6 完成，更不能支持 W7B 候选制品、生产放行或“八站已完成”声明。
+
+## 6. 观察窗监控验收
+
+### 存在性：通过
+
+/Users/maccc/Library/LaunchAgents/com.wenqu.observation-window.plist：
+
+- 已被 launchd 管理；
+- 每日 08:00 触发；
+- 当前没有启动/停止或改写动作。
+
+### 功能性：不通过
+
+launchctl 快照显示：
+
+- runs = 0
+- last exit code = never exited
+- /Users/maccc/Documents/ERP）Zcode/观察窗日志.jsonl 不存在
+- /tmp/wenqu-obs.log 不存在
+
+因此目前只能证明“已挂计划”，不能证明“成功执行过”。
+
+同时脚本自身有确定性自匹配 bug：
+
+    ps = subprocess.run(["ps","aux"], ...).stdout
+    checks["auto_merge_dead"] = "auto-merge.sh" not in ps
+
+该 Python -c 进程自己的命令行就包含字面量 auto-merge.sh。离线模拟实测 ps 行确实包含该字面量，因此每次运行都会把自身误当成 auto-merge，auto_merge_dead 不能为真。
+
+必须修复为结构化进程匹配（PID、argv、可执行路径、排除自身），再等待至少一次真实 08:00 执行并验证日志 schema、时区、失败告警和 freshness。
+
+## 7. 真实 UI 验收结论
+
+浏览器只读实看：
+
+- 总览实际显示 40 / 告警 / Gate=failure；
+- Dashboard 可读到 481 条 finding 投影；
+- “问渠全流程”页签实际展示的是 Bug 八站静态卡片，不是可执行的问渠七段 run/attempt 状态；
+- Bug 页仍使用 OPEN/FIXING/FIXED/VERIFIED/CLOSED/ACCEPTED/OTHER 混合旧枚举；
+- 总览显示 12/12 组件在位，其中包含危险 auto-merge.sh；
+- 待拍板区域暴露可写“采纳/驳回”按钮；
+- 未展示 exact SHA、ruleset、scope、data/config hash、TTL、runner attestation、Action Authorization Gate、deployment saga。
+
+所以本轮 UI 只能证明“页面能渲染和读取旧投影”，不能证明新控制面已接线。
+
+## 8. 必须整改的最短路径
+
+以下顺序不可调换：
+
+1. **P0 containment**
+   - 从安装包和 wenqu start 删除 auto-merge writer；
+   - 禁止 --admin、UNSTABLE、Fast 子串判定；
+   - 修复观察窗自匹配并取得首次真实运行证据。
+
+2. **统一契约**
+   - 冻结唯一 station-result、gate-aggregate、run/finding/approval/evidence schema；
+   - 用 if/then/else 或 oneOf 真正绑定 discriminator；
+   - 将 P0/P1 风险禁接受、状态迁移、execution/verdict/coverage 一致性编码进机器约束。
+
+3. **W2 核心**
+   - 实现 state machine、approval broker、evidence、control outbox、action saga；
+   - EventStore 与 Migrator 统一一个版本化 DB schema；
+   - 加稳定 idempotency key、state_version CAS、原子授权消费、外部 anchor；
+   - Runner 使用不可变 snapshot、低权限隔离、进程组杀树、env/network/resource/output 限制；
+   - CAS 防父目录 symlink、临时文件加 fsync 加 rename、已存在内容复核。
+
+4. **统一接线**
+   - 建唯一 bugscanctl / wenquctl；
+   - Station v2 → Aggregator → Required contexts → Action Gate → controller；
+   - 新 Dashboard 只消费受保护聚合快照，不自算 PASS，不提供未授权写。
+
+5. **W7**
+   - 替换 cp -R 安装器；
+   - manifest 加 source/policy commit、mode、SBOM、Schema/API 兼容、签名/attestation；
+   - lease/fencing、migration、self-check、readiness、授权回滚和失败冻结；
+   - 打出真实 tarball 并逐文件对账。
+
+6. **独立验收**
+   - 将方案 131/131 AC ID 映射到真实测试和证据；
+   - 新核心测试进入 active .github/workflows required Gate；
+   - mutation/property/concurrency/crash/security/Playwright 真正执行，删除所有关键 || true；
+   - 在隔离环境证明“移除或破坏任何安全核心都会让 CI 红”。
+
+7. **再进入 W9/W10**
+   - shadow 比较；
+   - canary；
+   - 授权切换；
+   - 回滚演练；
+   - 14 天观察、周任务至少两轮、季度演练；
+   - 最后才允许讨论发布后闭环。
+
+## 9. 复验准入条件
+
+ZCode 再提交验收前，至少同时提供：
+
+1. 修复后的 commit SHA，工作树 clean；
+2. active CI required contexts 实时回读；
+3. 131 个 AC 的双向追踪矩阵；
+4. 独立红探针 before/after；
+5. 新核心默认 CI 证据；
+6. 统一 DB migration 加 reconciliation 加 restore；
+7. 不可变 release tarball、manifest、签名、运行 attestation；
+8. auto-merge writer 已物理不可启动的证明；
+9. 观察窗至少一次成功运行日志；
+10. 真实浏览器 Playwright trace/screenshots；
+11. Station 5/6 仍占位时，明确保持 BLOCKED，不得申请 W7B/生产验收；
+12. 未完成 W9/W10 时只能申请“候选实现验收”，不得申请“生产完成”。
+
+## 10. 本轮证据索引
+
+证据根：
+
+/private/tmp/codex-test/evidence/acceptance-20261007-231333/
+
+重点证据（4aeb199 冻结基线与收尾漂移并列保存）：
+
+- baseline.txt
+- final-repo-status.txt
+- compile.log
+- legacy-acceptance.log
+- selftest-*.log
+- adversarial-probes.json
+- runner-cas-probes.json
+- store-migrator-probes.json
+- agent-default-ci-blindness.log
+- runtime-readonly.txt
+- runtime-targeted-readonly.txt
+- runtime-source-identity.txt
+- runtime-dashboard-identity.txt
+- observation-log-readonly.txt
+- observation-self-match-probe.txt
+- dashboard-security-readonly.txt
+- http-api_health.body
+- release-artifacts.txt
+- dod-evidence-presence.txt
+- mid-acceptance-source-drift.txt
+- source-drift-followup-1.txt
+- MANIFEST.sha256
+
+## 11. 验收期间源树漂移（新增硬阻断）
+
+23:21:15 取证时仓库仍为 clean；23:23:35 收尾复查时，在 Codex 未写产物仓的情况下出现：
+
+- M CHANGELOG.md
+- M system/VERSION（3.6.1 → 3.6.2）
+- M system/bin/wenqu-dashboard.py（57 insertions / 30 deletions）
+- ?? SHA256-v3.6.2.txt
+
+文件修改时间集中在 23:22:47–23:23:19，HEAD 仍为 4aeb199，说明验收期间另有 writer 热改同一工作树。新 patch 声称修复锁、部分 XSS、状态钻取、FIXING 趋势和 SSE 限流，但它：
+
+1. 尚未提交，未绑定新的 commit SHA；
+2. 不属于本轮已冻结并完成全套验证的 4aeb199 基线；
+3. 未解决本报告其余核心阻断（未接线、授权、Runner/CAS、EventStore、统一 Gate、部署、CI 等）；
+4. 使先前测试结果不能自动外推到当前工作树；
+5. 直接证明 W0 唯一 writer epoch 与维护隔离未建立。
+
+Codex 没有清理、覆盖、提交或回滚这些外部变化。证据见：
+
+- evidence/acceptance-20261007-231333/mid-acceptance-source-drift.txt
+- evidence/acceptance-20261007-231333/source-drift-followup-1.txt
+
+因此，即使忽略其他 P0，仅“验收目标在验收中漂移”一项也足以判定本轮验收无效并 BLOCKED。ZCode 必须先停止外部 writer、提交并冻结新 SHA，再发起下一轮从零复验。
+
+## 12. 验收声明
+
+本轮严格遵守以下边界：
+
+- 未运行 wenqu start；
+- 未启动、停止或重启任何现役服务；
+- 未加载或卸载 launchd；
+- 未部署、未写生产、未执行 DDL；
+- 未触发站 5/6；
+- 未修改 GitHub 分支保护或 Required Checks；
+- 未发送真实告警；
+- 未点击 Dashboard 决策按钮；
+- Codex 未对产物仓做任何修改；收尾出现的 3 个 modified 文件和 1 个 untracked 文件来自外部并发 writer，已原样保留。
+
+最终状态保持：
+
+# **BLOCKED — 退回 ZCode 整改，不允许合流放行、部署或生产完成声明。**
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:29:56Z

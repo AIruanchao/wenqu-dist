@@ -1,0 +1,386 @@
+===== system/schemas/approval-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/approval-v2.json",
+     4	  "title": "Approval Event Schema v2（判别联合）",
+     5	  "description": "审批采用 action/stop_type 判别联合——Codex 方案 §6.5",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "approval_id": {"type": "string", "pattern": "^apr_[a-zA-Z0-9_]+$"},
+    11	    "approval_type": {
+    12	      "enum": ["resume", "risk", "merge", "release", "ddl", "prod_write", "fund_auth", "rollback"]
+    13	    },
+    14	    "run_id": {"type": "string"},
+    15	    "task_id": {"type": "string"},
+    16	    "stop_event_id": {"type": "string"},
+    17	    "stop_type": {
+    18	      "enum": ["ambiguity", "prod-write", "ddl", "release", "scope", "fund-auth", "exm-fuse", "resource", "ext-unavail"]
+    19	    },
+    20	    "stage": {"type": "string"},
+    21	    "environment": {"enum": ["local", "staging", "production"]},
+    22	    "authorized_scope": {"type": "string"},
+    23	    "policy_hash": {"type": "string"},
+    24	    "ruleset_hash": {"type": "string"},
+    25	    "input_watermark": {"type": "string"},
+    26	    "actor": {"type": "string", "minLength": 1},
+    27	    "issued_at": {"type": "string", "format": "date-time"},
+    28	    "expires_at": {"type": "string", "format": "date-time"},
+    29	    "expected_state_version": {"type": "integer", "minimum": 1},
+    30	    "nonce": {"type": "string", "minLength": 16},
+    31	    "decision": {"enum": ["approve", "deny", "conditional"]},
+    32	    "signature": {"type": "string", "minLength": 32},
+    33	    "payload": {"type": "object"}
+    34	  },
+    35	  "additionalProperties": false,
+    36	  "allOf": [
+    37	    {
+    38	      "if": {"properties": {"approval_type": {"const": "resume"}}},
+    39	      "then": {"properties": {"payload": {"required": ["stop_event_id", "stop_type", "objective_precondition_hash"]}}}
+    40	    },
+    41	    {
+    42	      "if": {"properties": {"approval_type": {"const": "risk"}}},
+    43	      "then": {"properties": {"payload": {"required": ["finding_fingerprints", "severity", "reason", "compensating_controls", "expiry"]}}}
+    44	    },
+    45	    {
+    46	      "if": {"properties": {"approval_type": {"const": "merge"}}},
+    47	      "then": {"properties": {"payload": {"required": ["repo_id", "base_sha", "head_sha", "merge_method"]}}}
+    48	    },
+    49	    {
+    50	      "if": {"properties": {"approval_type": {"const": "release"}}},
+    51	      "then": {"properties": {"payload": {"required": ["release_id", "artifact_sha256", "manifest_sha256", "environment", "previous_release_id"]}}}
+    52	    },
+    53	    {
+    54	      "if": {"properties": {"approval_type": {"const": "ddl"}}},
+    55	      "then": {"properties": {"payload": {"required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]}}}
+    56	    },
+    57	    {
+    58	      "if": {"properties": {"approval_type": {"const": "prod_write"}}},
+    59	      "then": {"properties": {"payload": {"required": ["operation_digest", "data_scope_digest", "idempotency_key", "conservation_hash"]}}}
+    60	    },
+    61	    {
+    62	      "if": {"properties": {"approval_type": {"const": "fund_auth"}}},
+    63	      "then": {"properties": {"payload": {"required": ["subject_role", "amount_scope_digest", "positive_negative_test_hash", "audit_target"]}}}
+    64	    },
+    65	    {
+    66	      "if": {"properties": {"approval_type": {"const": "rollback"}}},
+    67	      "then": {"properties": {"payload": {"required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]}}}
+    68	    }
+    69	  ],
+    70	  "$comment": "审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本（不变量 #5/#7）；过期/重复/错误 actor/scope/SHA/版本/payload 与 discriminator 不符全部拒绝"
+    71	}
+===== system/schemas/evidence-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/evidence-v2.json",
+     4	  "title": "Trusted Evidence Schema v2",
+     5	  "description": "不可伪造证据绑定——Codex 方案 §6.6 契约",
+     6	  "type": "object",
+     7	  "required": ["evidence_id", "run_id", "identity", "tool", "runner", "execution", "fresh_until"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "evidence_id": {"type": "string", "pattern": "^ev_[a-zA-Z0-9_]+$"},
+    11	    "run_id": {"type": "string"},
+    12	    "task_id": {"type": "string"},
+    13	    "stage": {"type": "string"},
+    14	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    15	    "attempt_id": {"type": "string"},
+    16	    "identity": {
+    17	      "type": "object",
+    18	      "required": ["commit_sha", "environment", "scope_hash"],
+    19	      "properties": {
+    20	        "repo_id": {"type": "string"},
+    21	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    22	        "base_sha": {"type": "string"},
+    23	        "environment": {"type": "string"},
+    24	        "scope_hash": {"type": "string"},
+    25	        "ruleset_hash": {"type": "string"},
+    26	        "data_config_hash": {"type": "string"},
+    27	        "lockfile_hash": {"type": "string"}
+    28	      }
+    29	    },
+    30	    "runner": {
+    31	      "type": "object",
+    32	      "required": ["runner_id", "version"],
+    33	      "properties": {
+    34	        "runner_id": {"type": "string"},
+    35	        "version": {"type": "string"}
+    36	      }
+    37	    },
+    38	    "tool": {
+    39	      "type": "object",
+    40	      "required": ["name", "version"],
+    41	      "properties": {
+    42	        "name": {"type": "string"},
+    43	        "version": {"type": "string"},
+    44	        "digest": {"type": "string"}
+    45	      }
+    46	    },
+    47	    "execution": {
+    48	      "type": "object",
+    49	      "required": ["argv_digest", "started_at", "finished_at", "actual_exit_code"],
+    50	      "properties": {
+    51	        "argv_digest": {"type": "string"},
+    52	        "cwd_digest": {"type": "string"},
+    53	        "started_at": {"type": "string", "format": "date-time"},
+    54	        "finished_at": {"type": "string", "format": "date-time"},
+    55	        "actual_exit_code": {"type": "integer"},
+    56	        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    57	        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    58	      }
+    59	    },
+    60	    "artifact": {
+    61	      "type": "object",
+    62	      "properties": {
+    63	        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    64	        "artifact_size": {"type": "integer", "minimum": 1}
+    65	      }
+    66	    },
+    67	    "verdict": {
+    68	      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]
+    69	    },
+    70	    "fresh_until": {
+    71	      "type": "string",
+    72	      "format": "date-time",
+    73	      "description": "由受保护 policy 按 trusted_finished_at + policy_ttl 计算——调用者和工件不得自行声明"
+    74	    }
+    75	  },
+    76	  "additionalProperties": false,
+    77	  "$comment": "evidence 不得是 symlink、外部路径、空文件或无哈希文件（不变量 #11）"
+    78	}
+===== system/schemas/finding-event-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/finding-event-v2.json",
+     4	  "title": "Finding State Machine Schema v2",
+     5	  "description": "Finding 状态机——Codex 方案 §6.3 契约（FIXED→FIXED_PENDING_VERIFY 迁移）",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "event_type", "finding_id", "fingerprint", "severity", "priority", "ts"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "event_type": {
+    11	      "enum": [
+    12	        "FINDING_CREATED", "FINDING_REOPENED",
+    13	        "FIX_STARTED", "FIX_COMPLETED",
+    14	        "VERIFY_STARTED", "VERIFIED",
+    15	        "CLOSED",
+    16	        "ACCEPTED_RISK", "RISK_REVOKED", "RISK_INVALIDATED",
+    17	        "SUPERSEDED"
+    18	      ]
+    19	    },
+    20	    "finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    21	    "parent_finding_id": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"},
+    22	    "fingerprint": {
+    23	      "type": "string",
+    24	      "description": "stable fingerprint: sha256(file_path+line_start+rule_id+code_snippet_hash)"
+    25	    },
+    26	    "severity": {
+    27	      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+    28	      "description": "技术严重度——默认 CRITICAL→P0, HIGH→P1（可由版本化 policy 升级）"
+    29	    },
+    30	    "priority": {
+    31	      "enum": ["P0", "P1", "P2", "P3"],
+    32	      "description": "业务优先级——自动流程不得降级（不变量）"
+    33	    },
+    34	    "state_from": {
+    35	      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK"]
+    36	    },
+    37	    "state_to": {
+    38	      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK", "RISK_REVOKED"]
+    39	    },
+    40	    "risk_acceptance": {
+    41	      "type": "object",
+    42	      "required": ["approver", "reason", "scope", "expiry"],
+    43	      "properties": {
+    44	        "approver": {"type": "string"},
+    45	        "reason": {"type": "string", "minLength": 10},
+    46	        "scope": {"type": "string"},
+    47	        "compensating_controls": {"type": "array", "items": {"type": "string"}},
+    48	        "expiry": {"type": "string", "format": "date-time"}
+    49	      }
+    50	    },
+    51	    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    52	    "identity": {
+    53	      "type": "object",
+    54	      "properties": {
+    55	        "commit_sha": {"type": "string"},
+    56	        "environment": {"type": "string"},
+    57	        "scope_hash": {"type": "string"},
+    58	        "policy_hash": {"type": "string"}
+    59	      }
+    60	    },
+    61	    "ts": {"type": "string", "format": "date-time"},
+    62	    "actor": {"type": "string"}
+    63	  },
+    64	  "additionalProperties": false,
+    65	  "allOf": [
+    66	    {
+    67	      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+    68	      "then": {
+    69	        "properties": {"severity": {"enum": ["MEDIUM", "LOW"]}},
+    70	        "required": ["risk_acceptance"]
+    71	      }
+    72	    },
+    73	    {
+    74	      "if": {"properties": {"event_type": {"const": "CLOSED"}}},
+    75	      "then": {
+    76	        "properties": {"state_from": {"enum": ["VERIFIED"]}},
+    77	        "required": ["state_from"]
+    78	      }
+    79	    },
+    80	    {
+    81	      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+    82	      "then": {
+    83	        "properties": {
+    84	          "severity": {"enum": ["MEDIUM", "LOW"]},
+    85	          "priority": {"enum": ["P2", "P3"]}
+    86	        }
+    87	      }
+    88	    }
+    89	  ],
+    90	  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
+    91	}
+===== system/schemas/run-event-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/run-event-v2.json",
+     4	  "title": "Run/Station Event Schema v2",
+     5	  "description": "统一结果双轴：execution_status × policy_verdict——Codex 方案 §6.1 契约冻结",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "event_type", "run_id", "execution_status", "policy_verdict", "identity"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "event_type": {
+    11	      "enum": ["RUN_CREATED", "STAGE_STARTED", "STAGE_COMPLETED", "RUN_COMPLETED", "WAITING_RAISED", "WAITING_RESUMED", "SUPERSEDED"]
+    12	    },
+    13	    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    14	    "task_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 64},
+    15	    "stage": {"enum": ["S1_REQUIREMENT", "S2_SOLUTION", "S3_EQS_PRE", "S4_IMPLEMENT", "S5_CONVERGENCE", "S6_EQS_FULL", "S7_GATE"]},
+    16	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    17	    "attempt_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    18	    "execution_status": {
+    19	      "enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"],
+    20	      "description": "工具/命令实际执行结果——不可由调用者自报"
+    21	    },
+    22	    "policy_verdict": {
+    23	      "enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"],
+    24	      "description": "策略判定——由 gate aggregator 基于 evidence 计算"
+    25	    },
+    26	    "identity": {
+    27	      "type": "object",
+    28	      "required": ["commit_sha", "environment", "scope_hash"],
+    29	      "properties": {
+    30	        "repo_id": {"type": "string"},
+    31	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    32	        "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    33	        "environment": {"enum": ["local", "staging", "production"]},
+    34	        "scope_hash": {"type": "string"},
+    35	        "ruleset_hash": {"type": "string"},
+    36	        "data_config_hash": {"type": "string"},
+    37	        "lockfile_hash": {"type": "string"}
+    38	      }
+    39	    },
+    40	    "findings": {
+    41	      "type": "array",
+    42	      "items": {"type": "string", "pattern": "^fnd_[a-zA-Z0-9_]+$"}
+    43	    },
+    44	    "evidence_refs": {
+    45	      "type": "array",
+    46	      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    47	    },
+    48	    "state_version": {"type": "integer", "minimum": 1},
+    49	    "ts": {"type": "string", "format": "date-time"},
+    50	    "actor": {"type": "string"},
+    51	    "prev_event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    52	    "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    53	  },
+    54	  "additionalProperties": false,
+    55	  "$comment": "UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态，不得折算为 PASS（不变量 #1）"
+    56	}
+===== system/schemas/station-result-v2.schema.json =====
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/station-result-v2.json",
+     4	  "title": "Bug 八站 Station Result Schema v2",
+     5	  "description": "每站统一结果——Codex 方案 §7.2 契约",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    11	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    12	    "attempt_id": {"type": "string"},
+    13	    "execution_status": {"enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]},
+    14	    "policy_verdict": {"enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]},
+    15	    "identity": {
+    16	      "type": "object",
+    17	      "required": ["commit_sha", "environment", "scope_hash"],
+    18	      "properties": {
+    19	        "project_id": {"type": "string"},
+    20	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    21	        "environment": {"type": "string"},
+    22	        "scope_hash": {"type": "string"},
+    23	        "ruleset_hash": {"type": "string"},
+    24	        "data_config_hash": {"type": "string"},
+    25	        "lockfile_hash": {"type": "string"}
+    26	      }
+    27	    },
+    28	    "tool": {
+    29	      "type": "object",
+    30	      "required": ["name", "version"],
+    31	      "properties": {
+    32	        "name": {"type": "string"},
+    33	        "version": {"type": "string"},
+    34	        "digest": {"type": "string"}
+    35	      }
+    36	    },
+    37	    "execution": {
+    38	      "type": "object",
+    39	      "required": ["argv_digest", "started_at", "ended_at", "actual_exit_code", "expected_exit_set", "assertion_verdict"],
+    40	      "properties": {
+    41	        "argv_digest": {"type": "string"},
+    42	        "cwd_digest": {"type": "string"},
+    43	        "started_at": {"type": "string", "format": "date-time"},
+    44	        "ended_at": {"type": "string", "format": "date-time"},
+    45	        "timeout_s": {"type": "integer", "minimum": 1},
+    46	        "actual_exit_code": {
+    47	          "type": "integer",
+    48	          "description": "trusted runner 实际 waitpid 捕获——不可由调用者填写"
+    49	        },
+    50	        "expected_exit_set": {
+    51	          "type": "array",
+    52	          "items": {"type": "integer"},
+    53	          "description": "该测试允许的内层退出码集合（负例可有非零）"
+    54	        },
+    55	        "assertion_verdict": {
+    56	          "enum": ["PASS", "FAIL", "ERROR"],
+    57	          "description": "测试 harness 对行为是否符合预期的判断"
+    58	        }
+    59	      }
+    60	    },
+    61	    "coverage": {
+    62	      "type": "object",
+    63	      "required": ["denominator", "scanned"],
+    64	      "properties": {
+    65	        "denominator": {"type": "integer", "minimum": 0},
+    66	        "scanned": {"type": "integer", "minimum": 0},
+    67	        "exclusions": {"type": "array", "items": {"type": "string"}}
+    68	      }
+    69	    },
+    70	    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    71	    "artifacts": {
+    72	      "type": "array",
+    73	      "items": {
+    74	        "type": "object",
+    75	        "required": ["cas_digest", "size"],
+    76	        "properties": {
+    77	          "cas_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    78	          "size": {"type": "integer", "minimum": 1}
+    79	        }
+    80	      }
+    81	    }
+    82	  },
+    83	  "additionalProperties": false,
+    84	  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）"
+    85	}

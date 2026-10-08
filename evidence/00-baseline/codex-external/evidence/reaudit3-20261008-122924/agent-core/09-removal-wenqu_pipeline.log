@@ -1,0 +1,27 @@
+$ cp -R /Users/maccc/Documents/wenqu-dist/. /tmp/wenqu-reaudit3-remove-core.X7JfTX/
+[exit=0]
+$ mv /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/wenqu_core/wenqu_pipeline.py /tmp/wenqu-reaudit3-remove-core.X7JfTX/wenqu_pipeline.py.removed
+[exit=0]
+$ test ! -e /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/wenqu_core/wenqu_pipeline.py
+[exit=0]
+$ python3 /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/tests/test_core_wiring.py
+  ✗ test_core_modules_importable: 核心模块 wenqu_pipeline 不可导入: No module named 'wenqu_core.wenqu_pipeline'
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+[exit=1]
+$ python3 /tmp/wenqu-reaudit3-remove-core.X7JfTX/system/tests/test_wenqu_pipeline.py
+Traceback (most recent call last):
+  File "/tmp/wenqu-reaudit3-remove-core.X7JfTX/system/tests/test_wenqu_pipeline.py", line 18, in <module>
+    from wenqu_core.wenqu_pipeline import (
+    ...<5 lines>...
+    )
+ModuleNotFoundError: No module named 'wenqu_core.wenqu_pipeline'
+[exit=1]
+SUMMARY core_wiring_rc=1 pipeline_test_rc=1 temp=/tmp/wenqu-reaudit3-remove-core.X7JfTX

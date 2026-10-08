@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/finding-event-v2.json",
   "title": "Finding State Machine Schema v2",
-  "description": "Finding 状态机——Codex 方案 §6.3 契约（FIXED→FIXED_PENDING_VERIFY 迁移）",
+  "description": "Finding 状态机——Codex 方案 §6.3 契约（FIXED→FIXED_PENDING_VERIFY 迁移）。P0-4 加固：全部转移事件补 state_from 必填与合法来源（非法转换全拒）；ACCEPTED_RISK 只能来自 OPEN 且必须 compensating_controls 非空 + expiry",
   "type": "object",
   "required": ["schema_version", "event_type", "finding_id", "fingerprint", "severity", "priority", "ts"],
   "properties": {
@@ -39,12 +39,16 @@
     },
     "risk_acceptance": {
       "type": "object",
-      "required": ["approver", "reason", "scope", "expiry"],
+      "required": ["approver", "reason", "scope", "expiry", "compensating_controls"],
       "properties": {
         "approver": {"type": "string"},
         "reason": {"type": "string", "minLength": 10},
         "scope": {"type": "string"},
-        "compensating_controls": {"type": "array", "items": {"type": "string"}},
+        "compensating_controls": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
         "expiry": {"type": "string", "format": "date-time"}
       }
     },
@@ -66,26 +70,63 @@
     {
       "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
       "then": {
-        "properties": {"severity": {"enum": ["MEDIUM", "LOW"]}},
-        "required": ["risk_acceptance"]
+        "properties": {
+          "severity": {"enum": ["MEDIUM", "LOW"]},
+          "priority": {"enum": ["P2", "P3"]},
+          "state_from": {"const": "OPEN"}
+        },
+        "required": ["state_from", "risk_acceptance"]
       }
     },
     {
       "if": {"properties": {"event_type": {"const": "CLOSED"}}},
       "then": {
-        "properties": {"state_from": {"enum": ["VERIFIED"]}},
+        "properties": {"state_from": {"const": "VERIFIED"}},
         "required": ["state_from"]
       }
     },
     {
-      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+      "if": {"properties": {"event_type": {"const": "FIX_STARTED"}}},
       "then": {
-        "properties": {
-          "severity": {"enum": ["MEDIUM", "LOW"]},
-          "priority": {"enum": ["P2", "P3"]}
-        }
+        "properties": {"state_from": {"const": "OPEN"}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "FIX_COMPLETED"}}},
+      "then": {
+        "properties": {"state_from": {"const": "FIXING"}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "VERIFY_STARTED"}}},
+      "then": {
+        "properties": {"state_from": {"const": "FIXED_PENDING_VERIFY"}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "VERIFIED"}}},
+      "then": {
+        "properties": {"state_from": {"const": "FIXED_PENDING_VERIFY"}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "RISK_REVOKED"}}},
+      "then": {
+        "properties": {"state_from": {"const": "ACCEPTED_RISK"}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "FINDING_REOPENED"}}},
+      "then": {
+        "properties": {"state_from": {"enum": ["CLOSED", "ACCEPTED_RISK"]}},
+        "required": ["state_from"]
       }
     }
   ],
-  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
+  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；状态机非法转换全拒：FIX_STARTED←OPEN、FIX_COMPLETED←FIXING、VERIFY_STARTED/VERIFIED←FIXED_PENDING_VERIFY、CLOSED←VERIFIED、ACCEPTED_RISK←OPEN（须 compensating_controls 非空+expiry）、RISK_REVOKED←ACCEPTED_RISK、FINDING_REOPENED←CLOSED/ACCEPTED_RISK；revoke 后立即重开"
 }

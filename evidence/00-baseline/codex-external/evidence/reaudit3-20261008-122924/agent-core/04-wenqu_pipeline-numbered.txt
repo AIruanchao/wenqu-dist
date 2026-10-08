@@ -1,0 +1,1792 @@
+     1	# -*- coding: utf-8 -*-
+     2	"""wenqu_pipeline.py——P0-2 七段状态机 + 九类停等 + 审批消费（Codex 方案 W5）。
+     3	
+     4	机器可判定契约正源：``docs/specs/wenqu-vNext-contract.md``（冻结 v1.0）。
+     5	任何与此契约不一致的实现均为实现缺陷。本模块实现其中四件核心：
+     6	
+     7	1. ``SevenStageStateMachine``——七段枚举与转换规则（纯规则引擎，无 IO）：
+     8	   - 七段：S1_REQUIREMENT → S2_SOLUTION → S3_EQS_PRE → S4_IMPLEMENT
+     9	     → S5_CONVERGENCE → S6_EQS_FULL → S7_GATE，顺序不可倒；
+    10	   - 前段非 PASSED 不得启动后段（字面从严：CONDITIONAL 亦不可放行后段）；
+    11	   - Run 状态机：CREATED | RUNNING | WAITING | FAILED | SUCCEEDED
+    12	     | COMPLETED_CONDITIONAL | CANCELLED | SUPERSEDED（契约 §3/§5）；
+    13	   - 段 attempt 状态机：PENDING | RUNNING | PASSED | COMPLETED_CONDITIONAL
+    14	     | FAILED | WAITING | CANCELLED——attempt 一旦终态即不可变，
+    15	     重试/恢复一律创建新 attempt_id（契约 §5，"attempt 不可变"）；
+    16	   - 注意：契约 §5 的 attempt 转换表中不存在 WAITING → RUNNING——
+    17	     因此 WAITING 恢复时旧 attempt 停留在 WAITING，由新 attempt 继续。
+    18	
+    19	2. ``NineStopTypes``——九类停等（契约 §6）与各类恢复的必要且充分条件：
+    20	   - 必要：一次性授权（nonce 一次性消费）+ 客观前置条件齐备，两者缺一不可；
+    21	   - 充分：两者齐备后 resume 必须放行——实现不得附加任何自由裁量阻断。
+    22	
+    23	3. ``ApprovalBroker``——消费 approval-v2 schema（``schemas/approval-v2.schema.json``）
+    24	   格式的审批事件。fail-closed 校验（任一不过即拒绝，绝不静默择优）：
+    25	   - 结构校验：镜像 schema 的 required/enum/pattern/minLength/payload 判别联合；
+    26	   - 一次性：nonce 经 ``approval_consumptions`` 表 PRIMARY KEY 约束原子消费，
+    27	     并发双消费第二个必然失败（不变量 #4/#5"审批不能复用"）；
+    28	   - 绑定：run_id / stop_event_id（精确锚定引发停等的那条链上事件）/
+    29	     stop_type / stage / environment / authorized_scope（=scope_hash，
+    30	     不得扩范围）/ input_watermark（=commit_sha，不得跨 SHA）；
+    31	   - TTL：issued_at <= now < expires_at；
+    32	   - state_version CAS：approval.expected_state_version 必须等于消费时的
+    33	     run 当前 state_version（不得跨状态版本消费）；
+    34	   - 原子性：nonce 消费与 WAITING_RESUMED 事件追加在**同一个**
+    35	     BEGIN IMMEDIATE 事务内对同一 SQLite 文件完成——事务持有独占写锁，
+    36	     "校验→占 nonce→链式插入事件"三步不可分割，崩溃即整体回滚。
+    37	
+    38	4. ``RunManager``——七段 run 的编排与终态判定（事件正源 = EventStore）：
+    39	   - 全部可变状态由 ``pipeline_events`` 重放（replay）推导，本模块不持有
+    40	     任何 run 的第二份正源；控制事件只追加（不变量 #6）；
+    41	   - 每个状态变更事件携带 state_version（单调 +1），重放时校验单调性，
+    42	     与 BEGIN IMMEDIATE 一起构成全转换的乐观并发控制；
+    43	   - ``complete_run`` 终态判定：七段全 PASSED → SUCCEEDED；
+    44	     末段 COMPLETED_CONDITIONAL 且存在已消费、未过期的 risk 授权 →
+    45	     COMPLETED_CONDITIONAL（否则 fail-closed 拒绝）；其余 → FAILED。
+    46	
+    47	事件载荷遵守 ``schemas/run-event-v2.schema.json`` 词表。已知扩展（内部字段，
+    48	对外交换仍以 schema 为准，此处显式声明偏离）：WAITING_RAISED/WAITING_RESUMED
+    49	携带 ``stop_type``/``stop_reason``/``required_preconditions``/``approval_id``/
+    50	``nonce_digest``/``preconditions_hash`` 等停等元数据——schema 的 run 事件
+    51	词表未覆盖停等绑定信息，而 approval-v2 的 stop_event_id 需要可锚定的正源。
+    52	stop_event_id 取值为对应 WAITING_RAISED 事件在哈希链中的 event_hash（64 hex）。
+    53	"""
+    54	
+    55	from __future__ import annotations
+    56	
+    57	import hashlib
+    58	import json
+    59	import sqlite3
+    60	import time
+    61	import uuid
+    62	from dataclasses import dataclass, field
+    63	from datetime import datetime, timezone
+    64	from enum import Enum
+    65	from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+    66	
+    67	from .store import GENESIS_HASH, EventStore
+    68	
+    69	__all__ = [
+    70	    "SevenStageStateMachine",
+    71	    "NineStopTypes",
+    72	    "ApprovalBroker",
+    73	    "RunManager",
+    74	    "RunState",
+    75	    "StageState",
+    76	    "StageAttempt",
+    77	    "WaitingInfo",
+    78	    "PipelineError",
+    79	    "InvalidTransitionError",
+    80	    "StageOrderError",
+    81	    "AttemptImmutabilityError",
+    82	    "RunNotFoundError",
+    83	    "TerminalRunError",
+    84	    "InvalidOutcomeError",
+    85	    "InvalidIdentityError",
+    86	    "PipelineCorruptionError",
+    87	    "ApprovalError",
+    88	    "ApprovalRejected",
+    89	    "ApprovalReuseError",
+    90	    "ApprovalPreconditionError",
+    91	]
+    92	
+    93	# ====================================================================== #
+    94	# 契约常量（wenqu-vNext-contract.md §1/§3/§4/§5/§6 逐字收敛）
+    95	# ====================================================================== #
+    96	
+    97	STAGES: Tuple[str, ...] = (
+    98	    "S1_REQUIREMENT",
+    99	    "S2_SOLUTION",
+   100	    "S3_EQS_PRE",
+   101	    "S4_IMPLEMENT",
+   102	    "S5_CONVERGENCE",
+   103	    "S6_EQS_FULL",
+   104	    "S7_GATE",
+   105	)
+   106	
+   107	# Run 总状态（契约 §3）
+   108	RUN_CREATED_S = "CREATED"
+   109	RUN_RUNNING_S = "RUNNING"
+   110	RUN_WAITING_S = "WAITING"
+   111	RUN_FAILED_S = "FAILED"
+   112	RUN_SUCCEEDED_S = "SUCCEEDED"
+   113	RUN_COMPLETED_CONDITIONAL_S = "COMPLETED_CONDITIONAL"
+   114	RUN_CANCELLED_S = "CANCELLED"
+   115	RUN_SUPERSEDED_S = "SUPERSEDED"
+   116	
+   117	RUN_STATES: Tuple[str, ...] = (
+   118	    RUN_CREATED_S, RUN_RUNNING_S, RUN_WAITING_S, RUN_FAILED_S,
+   119	    RUN_SUCCEEDED_S, RUN_COMPLETED_CONDITIONAL_S, RUN_CANCELLED_S,
+   120	    RUN_SUPERSEDED_S,
+   121	)
+   122	TERMINAL_RUN_STATES = frozenset(
+   123	    {RUN_FAILED_S, RUN_SUCCEEDED_S, RUN_COMPLETED_CONDITIONAL_S,
+   124	     RUN_CANCELLED_S, RUN_SUPERSEDED_S}
+   125	)
+   126	
+   127	# Run 允许转换（契约 §5，唯一）
+   128	RUN_TRANSITIONS: Dict[str, frozenset] = {
+   129	    RUN_CREATED_S: frozenset({RUN_RUNNING_S, RUN_CANCELLED_S}),
+   130	    RUN_RUNNING_S: frozenset({
+   131	        RUN_WAITING_S, RUN_FAILED_S, RUN_SUCCEEDED_S,
+   132	        RUN_COMPLETED_CONDITIONAL_S, RUN_CANCELLED_S, RUN_SUPERSEDED_S,
+   133	    }),
+   134	    RUN_WAITING_S: frozenset({
+   135	        RUN_RUNNING_S, RUN_FAILED_S, RUN_CANCELLED_S, RUN_SUPERSEDED_S,
+   136	    }),
+   137	}
+   138	
+   139	# 段 attempt 状态（契约 §4）
+   140	ATTEMPT_PENDING = "PENDING"
+   141	ATTEMPT_RUNNING = "RUNNING"
+   142	ATTEMPT_PASSED = "PASSED"
+   143	ATTEMPT_COMPLETED_CONDITIONAL = "COMPLETED_CONDITIONAL"
+   144	ATTEMPT_FAILED = "FAILED"
+   145	ATTEMPT_WAITING = "WAITING"
+   146	ATTEMPT_CANCELLED = "CANCELLED"
+   147	
+   148	ATTEMPT_STATES: Tuple[str, ...] = (
+   149	    ATTEMPT_PENDING, ATTEMPT_RUNNING, ATTEMPT_PASSED,
+   150	    ATTEMPT_COMPLETED_CONDITIONAL, ATTEMPT_FAILED, ATTEMPT_WAITING,
+   151	    ATTEMPT_CANCELLED,
+   152	)
+   153	TERMINAL_ATTEMPT_STATES = frozenset(
+   154	    {ATTEMPT_PASSED, ATTEMPT_COMPLETED_CONDITIONAL, ATTEMPT_FAILED,
+   155	     ATTEMPT_WAITING, ATTEMPT_CANCELLED}
+   156	)
+   157	
+   158	# 段 attempt 允许转换（契约 §5，唯一）
+   159	ATTEMPT_TRANSITIONS: Dict[str, frozenset] = {
+   160	    ATTEMPT_PENDING: frozenset({ATTEMPT_RUNNING, ATTEMPT_CANCELLED}),
+   161	    ATTEMPT_RUNNING: frozenset({
+   162	        ATTEMPT_PASSED, ATTEMPT_COMPLETED_CONDITIONAL, ATTEMPT_FAILED,
+   163	        ATTEMPT_WAITING, ATTEMPT_CANCELLED,
+   164	    }),
+   165	}
+   166	
+   167	# 统一结果双轴（契约 §2 / run-event-v2）
+   168	EXECUTION_STATUSES = frozenset(
+   169	    {"COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"}
+   170	)
+   171	POLICY_VERDICTS = frozenset(
+   172	    {"PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"}
+   173	)
+   174	ENVIRONMENTS = frozenset({"local", "staging", "production"})
+   175	
+   176	
+   177	class NineStopTypes(str, Enum):
+   178	    """九类停等（契约 §6）——枚举值与 approval-v2 schema 的 stop_type 完全一致。"""
+   179	
+   180	    AMBIGUITY = "ambiguity"        # 需求歧义：授权 + 新需求四要素与 scope hash 冻结
+   181	    PROD_WRITE = "prod-write"      # 生产写：exact-scope 授权 + 前置 Gate + 回滚级别
+   182	    DDL = "ddl"                    # DDL：exact DDL/环境授权 + 四重验证 + 回滚
+   183	    RELEASE = "release"            # 发布：exact release/SHA/env 授权 + Gate/manifest/回滚预案
+   184	    SCOPE = "scope"                # 范围变更：新 scope 授权 + 风险/required 集/证据重冻结
+   185	    FUND_AUTH = "fund-auth"        # 资金/权限：授权 + 正负测试 + 守恒/审计
+   186	    EXM_FUSE = "exm-fuse"          # 豁免熔断：裁定授权 + 实际解除或独立治理裁定
+   187	    RESOURCE = "resource"          # 资源不足：恢复授权 + 探针恢复 + 安全余量
+   188	    EXT_UNAVAIL = "ext-unavail"    # 外部依赖不可用：恢复授权 + 依赖探针恢复 + 证据重验
+   189	
+   190	    def __str__(self) -> str:  # str 枚举直接以值参与 JSON 序列化
+   191	        return self.value
+   192	
+   193	
+   194	# 各停等类型的客观前置条件规格（恢复的"必要且充分条件"的客观半边）。
+   195	# required：全部键必须存在且取值非空；any_of：至少一组全部非空。
+   196	# 一次性授权（审批消费）是另一半边——两者同时满足 = 充分，缺一 = 不必要地阻断。
+   197	STOP_PRECONDITION_SPECS: Dict[str, Dict[str, Tuple[Tuple[str, ...], ...]]] = {
+   198	    "ambiguity": {
+   199	        "description": "一次性授权 + 新需求四要素与 scope hash 冻结",
+   200	        "required": (("requirement_four_elements",), ("scope_hash",)),
+   201	        "any_of": (),
+   202	    },
+   203	    "prod-write": {
+   204	        "description": "一次性 exact-scope 授权 + 对应前置 Gate + 回滚级别",
+   205	        "required": (("gate_reference",), ("rollback_level",)),
+   206	        "any_of": (),
+   207	    },
+   208	    "ddl": {
+   209	        "description": "一次性 exact DDL/环境授权 + fresh/legacy/minimal/回滚验证",
+   210	        "required": (
+   211	            ("ddl_statement_digest", "environment"),
+   212	            ("verification_fresh", "verification_legacy", "verification_minimal"),
+   213	            ("rollback_verified",),
+   214	        ),
+   215	        "any_of": (),
+   216	    },
+   217	    "release": {
+   218	        "description": "一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案",
+   219	        "required": (
+   220	            ("release_id", "commit_sha", "environment"),
+   221	            ("gate_reference", "manifest_sha256", "rollback_plan"),
+   222	        ),
+   223	        "any_of": (),
+   224	    },
+   225	    "scope": {
+   226	        "description": "一次性新 scope 授权 + 风险、required 集和证据重新冻结",
+   227	        "required": (
+   228	            ("new_scope_hash",),
+   229	            ("risk_refrozen", "required_set_refrozen", "evidence_refrozen"),
+   230	        ),
+   231	        "any_of": (),
+   232	    },
+   233	    "fund-auth": {
+   234	        "description": "一次性资金/权限授权 + 正负测试 + 守恒/审计",
+   235	        "required": (
+   236	            ("fund_subject_role", "positive_test_ref", "negative_test_ref"),
+   237	            ("conservation_check", "audit_target"),
+   238	        ),
+   239	        "any_of": (),
+   240	    },
+   241	    "exm-fuse": {
+   242	        "description": "一次性裁定授权 + 实际解除熔断或完成独立治理裁定",
+   243	        "required": (("adjudication_ref",),),
+   244	        "any_of": ((("fuse_lifted_evidence",), ("independent_ruling_ref",)),),
+   245	    },
+   246	    "resource": {
+   247	        "description": "一次性恢复授权 + 资源探针恢复并满足安全余量",
+   248	        "required": (("resource_probe_ref", "probe_recovered", "safety_margin_met"),),
+   249	        "any_of": (),
+   250	    },
+   251	    "ext-unavail": {
+   252	        "description": "一次性恢复授权 + 外部依赖健康探针恢复并重验证据新鲜度",
+   253	        "required": (("dependency_probe_ref", "probe_recovered",
+   254	                      "evidence_freshness_reverified"),),
+   255	        "any_of": (),
+   256	    },
+   257	}
+   258	
+   259	# ====================================================================== #
+   260	# approval-v2 结构规格（镜像 schemas/approval-v2.schema.json）
+   261	# ====================================================================== #
+   262	
+   263	_APPROVAL_SCHEMA_VERSION = "2.0"
+   264	_APPROVAL_REQUIRED_TOP = (
+   265	    "schema_version", "approval_id", "approval_type", "run_id", "stop_event_id",
+   266	    "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision",
+   267	    "signature", "payload",
+   268	)
+   269	_APPROVAL_ALLOWED_TOP = frozenset(_APPROVAL_REQUIRED_TOP) | frozenset({
+   270	    "task_id", "stage", "environment", "authorized_scope", "policy_hash",
+   271	    "ruleset_hash", "input_watermark", "expected_state_version",
+   272	})
+   273	_APPROVAL_TYPES = frozenset({
+   274	    "resume", "risk", "merge", "release", "ddl", "prod_write",
+   275	    "fund_auth", "rollback",
+   276	})
+   277	_APPROVAL_DECISIONS = frozenset({"approve", "deny", "conditional"})
+   278	# payload 判别联合：按 approval_type 必须含的专属字段（schema oneOf）
+   279	_APPROVAL_PAYLOAD_DISCRIMINATOR: Dict[str, Tuple[str, ...]] = {
+   280	    "resume": ("stop_event_id", "stop_type", "objective_precondition_hash"),
+   281	    "risk": ("finding_fingerprints", "severity", "reason",
+   282	             "compensating_controls", "expiry"),
+   283	    "merge": ("repo_id", "base_sha", "head_sha", "merge_method"),
+   284	    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+   285	                "environment", "previous_release_id"),
+   286	    "ddl": ("database_identity", "statement_digest", "before_schema_hash",
+   287	            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+   288	    "prod_write": ("operation_digest", "data_scope_digest",
+   289	                   "idempotency_key", "conservation_hash"),
+   290	    "fund_auth": ("subject_role", "amount_scope_digest",
+   291	                  "positive_negative_test_hash", "audit_target"),
+   292	    "rollback": ("failed_deployment_id", "exact_previous_release_id",
+   293	                 "trigger", "schema_compatibility_hash"),
+   294	}
+   295	
+   296	# ====================================================================== #
+   297	# 异常
+   298	# ====================================================================== #
+   299	
+   300	
+   301	class PipelineError(RuntimeError):
+   302	    """管线基础错误。"""
+   303	
+   304	
+   305	class InvalidTransitionError(PipelineError):
+   306	    """违反契约 §5 允许转换表的状态跳变。"""
+   307	
+   308	    def __init__(self, kind: str, current: str, new: str) -> None:
+   309	        super().__init__(
+   310	            f"illegal {kind} transition: {current} -> {new} "
+   311	            f"(allowed table: contract §5)"
+   312	        )
+   313	        self.kind, self.current, self.new = kind, current, new
+   314	
+   315	
+   316	class StageOrderError(PipelineError):
+   317	    """违反"前段非 PASSED 不得启动后段"。"""
+   318	
+   319	
+   320	class AttemptImmutabilityError(PipelineError):
+   321	    """attempt 已终态仍被复用（重试必须创建新 attempt_id）。"""
+   322	
+   323	
+   324	class RunNotFoundError(PipelineError):
+   325	    """run_id 在事件正源中不存在。"""
+   326	
+   327	
+   328	class TerminalRunError(PipelineError):
+   329	    """run 已处于终态，拒绝继续变更。"""
+   330	
+   331	
+   332	class InvalidOutcomeError(PipelineError):
+   333	    """双轴结果非法（如非 COMPLETED 执行配 PASS 策略）。"""
+   334	
+   335	
+   336	class InvalidIdentityError(PipelineError):
+   337	    """run 身份（commit_sha/environment/scope_hash）不满足 run-event-v2 契约。"""
+   338	
+   339	
+   340	class PipelineCorruptionError(PipelineError):
+   341	    """重放时检出不单调 state_version 或与转换表矛盾的事件序列（疑遭篡改）。"""
+   342	
+   343	
+   344	class ApprovalError(PipelineError):
+   345	    """审批消费基础错误。"""
+   346	
+   347	
+   348	class ApprovalRejected(ApprovalError):
+   349	    """审批未通过校验（结构/TTL/绑定/CAS/判别联合任一失败）——fail-closed。"""
+   350	
+   351	    def __init__(self, reason: str, detail: Optional[Dict[str, Any]] = None) -> None:
+   352	        super().__init__(f"approval rejected: {reason}")
+   353	        self.reason = reason
+   354	        self.detail = detail or {}
+   355	
+   356	
+   357	class ApprovalReuseError(ApprovalError):
+   358	    """nonce 已被消费——审批不可复用（不变量 #5）。"""
+   359	
+   360	
+   361	class ApprovalPreconditionError(ApprovalError):
+   362	    """客观前置条件不满足"必要且充分"规格，或与授权哈希不匹配。"""
+   363	
+   364	
+   365	# ====================================================================== #
+   366	# 通用小工具
+   367	# ====================================================================== #
+   368	
+   369	
+   370	def _utc_now_iso() -> str:
+   371	    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+   372	
+   373	
+   374	def _utc_now_epoch() -> float:
+   375	    return time.time()
+   376	
+   377	
+   378	def _parse_iso_ts(value: str) -> datetime:
+   379	    """解析 ISO8601；容忍 Z 后缀；naive 视为 UTC（schema format: date-time）。"""
+   380	    if not isinstance(value, str) or not value.strip():
+   381	        raise ValueError(f"invalid date-time: {value!r}")
+   382	    text = value.strip()
+   383	    if text.endswith(("Z", "z")):
+   384	        text = text[:-1] + "+00:00"
+   385	    dt = datetime.fromisoformat(text)
+   386	    if dt.tzinfo is None:
+   387	        dt = dt.replace(tzinfo=timezone.utc)
+   388	    return dt.astimezone(timezone.utc)
+   389	
+   390	
+   391	def _canonical_json(obj: Any) -> str:
+   392	    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+   393	                      ensure_ascii=False)
+   394	
+   395	
+   396	def _sha256_hex(data: str) -> str:
+   397	    return hashlib.sha256(data.encode("utf-8")).hexdigest()
+   398	
+   399	
+   400	def _truthy(value: Any) -> bool:
+   401	    """客观前置条件取值必须"非空"：空串/空列表/空字典/None/False 均不满足。"""
+   402	    if isinstance(value, str):
+   403	        return bool(value.strip())
+   404	    if isinstance(value, (list, tuple, dict, set)):
+   405	        return len(value) > 0
+   406	    return value is not None and value is not False
+   407	
+   408	
+   409	_HEX40 = set("0123456789abcdef")
+   410	_HEX64 = set("0123456789abcdef")
+   411	
+   412	
+   413	def _is_sha1_hex(value: Any) -> bool:
+   414	    return (isinstance(value, str) and len(value) == 40
+   415	            and all(c in _HEX40 for c in value.lower()) and value == value.lower())
+   416	
+   417	
+   418	def _is_sha256_hex(value: Any) -> bool:
+   419	    return (isinstance(value, str) and len(value) == 64
+   420	            and all(c in _HEX64 for c in value.lower()) and value == value.lower())
+   421	
+   422	
+   423	# ====================================================================== #
+   424	# 状态数据结构（重放产物，只读快照）
+   425	# ====================================================================== #
+   426	
+   427	
+   428	@dataclass(frozen=True)
+   429	class StageAttempt:
+   430	    """一次段尝试——终态后不可变，重试/恢复必须创建新 attempt_id。"""
+   431	
+   432	    attempt_id: str
+   433	    stage: str
+   434	    status: str
+   435	    started_at: str
+   436	    finished_at: Optional[str] = None
+   437	    execution_status: Optional[str] = None
+   438	    policy_verdict: Optional[str] = None
+   439	    evidence_refs: Tuple[str, ...] = ()
+   440	    findings: Tuple[str, ...] = ()
+   441	
+   442	
+   443	@dataclass
+   444	class StageState:
+   445	    """单段聚合状态：由该段全部 attempt 序列推导。"""
+   446	
+   447	    stage: str
+   448	    attempts: List[StageAttempt] = field(default_factory=list)
+   449	
+   450	    @property
+   451	    def current_attempt(self) -> Optional[StageAttempt]:
+   452	        return self.attempts[-1] if self.attempts else None
+   453	
+   454	    @property
+   455	    def status(self) -> str:
+   456	        """PENDING（未启动）｜RUNNING｜WAITING｜最近终态。"""
+   457	        cur = self.current_attempt
+   458	        if cur is None:
+   459	            return ATTEMPT_PENDING
+   460	        return cur.status
+   461	
+   462	    @property
+   463	    def passed(self) -> bool:
+   464	        return self.status == ATTEMPT_PASSED
+   465	
+   466	
+   467	@dataclass(frozen=True)
+   468	class WaitingInfo:
+   469	    """run 处于 WAITING 时的停等绑定信息。"""
+   470	
+   471	    stop_type: str
+   472	    stop_event_id: str          # 引发停等的 WAITING_RAISED 事件链上哈希（审批锚点）
+   473	    stage: str
+   474	    reason: str
+   475	    raised_at: str
+   476	    required_preconditions: Tuple[str, ...]
+   477	
+   478	
+   479	@dataclass
+   480	class RunState:
+   481	    """由 pipeline_events 重放推导的 run 只读状态（无第二正源）。"""
+   482	
+   483	    run_id: str
+   484	    task_id: str
+   485	    identity: Dict[str, Any]
+   486	    state: str
+   487	    state_version: int
+   488	    stages: Dict[str, StageState]
+   489	    waiting: Optional[WaitingInfo] = None
+   490	    created_at: Optional[str] = None
+   491	    finished_at: Optional[str] = None
+   492	    terminal_reason: Optional[str] = None
+   493	
+   494	    @property
+   495	    def terminal(self) -> bool:
+   496	        return self.state in TERMINAL_RUN_STATES
+   497	
+   498	    @property
+   499	    def current_stage(self) -> Optional[str]:
+   500	        """最早的未 PASSED 段（全 PASSED 时为 None）。"""
+   501	        for stage in STAGES:
+   502	            if self.stages[stage].status != ATTEMPT_PASSED:
+   503	                return stage
+   504	        return None
+   505	
+   506	    def stage_statuses(self) -> Dict[str, str]:
+   507	        return {s: self.stages[s].status for s in STAGES}
+   508	
+   509	
+   510	# ====================================================================== #
+   511	# SevenStageStateMachine——纯规则引擎（无 IO，可独立复用/测试）
+   512	# ====================================================================== #
+   513	
+   514	
+   515	class SevenStageStateMachine:
+   516	    """七段状态机规则（契约 §1/§3/§4/§5/§6 的可判定实现）。
+   517	
+   518	    本类只做规则判定，不持有状态、不做 IO——状态正源在 EventStore 事件流，
+   519	    由 RunManager 重放。所有校验失败即抛错，绝不返回"宽松默认值"。
+   520	    """
+   521	
+   522	    # ---------------- §1 七段枚举 ----------------
+   523	    STAGES: Tuple[str, ...] = STAGES
+   524	
+   525	    @classmethod
+   526	    def stages(cls) -> Tuple[str, ...]:
+   527	        return cls.STAGES
+   528	
+   529	    @classmethod
+   530	    def stage_index(cls, stage: str) -> int:
+   531	        try:
+   532	            return cls.STAGES.index(stage)
+   533	        except ValueError:
+   534	            raise StageOrderError(
+   535	                f"unknown stage {stage!r}; valid stages: {' -> '.join(cls.STAGES)}"
+   536	            ) from None
+   537	
+   538	    @classmethod
+   539	    def next_stage(cls, stage: str) -> Optional[str]:
+   540	        idx = cls.stage_index(stage)
+   541	        return cls.STAGES[idx + 1] if idx + 1 < len(cls.STAGES) else None
+   542	
+   543	    @classmethod
+   544	    def first_stage(cls) -> str:
+   545	        return cls.STAGES[0]
+   546	
+   547	    @classmethod
+   548	    def last_stage(cls) -> str:
+   549	        return cls.STAGES[-1]
+   550	
+   551	    # ---------------- §5 转换表 ----------------
+   552	    @staticmethod
+   553	    def validate_run_transition(current: str, new: str) -> None:
+   554	        if current not in RUN_TRANSITIONS:
+   555	            raise InvalidTransitionError("run", current, new)
+   556	        if new not in RUN_TRANSITIONS[current]:
+   557	            raise InvalidTransitionError("run", current, new)
+   558	
+   559	    @staticmethod
+   560	    def validate_attempt_transition(current: str, new: str) -> None:
+   561	        if current not in ATTEMPT_TRANSITIONS:
+   562	            raise InvalidTransitionError("attempt", current, new)
+   563	        if new not in ATTEMPT_TRANSITIONS[current]:
+   564	            raise InvalidTransitionError("attempt", current, new)
+   565	
+   566	    # ---------------- §1 前段非 PASSED 不得启动后段 ----------------
+   567	    @classmethod
+   568	    def ensure_prior_stages_passed(
+   569	        cls, stage_statuses: Mapping[str, str], stage: str
+   570	    ) -> None:
+   571	        idx = cls.stage_index(stage)
+   572	        for prior in cls.STAGES[:idx]:
+   573	            if stage_statuses.get(prior) != ATTEMPT_PASSED:
+   574	                raise StageOrderError(
+   575	                    f"cannot start {stage}: prior stage {prior} is "
+   576	                    f"{stage_statuses.get(prior)!r}, not PASSED "
+   577	                    f"(contract §1: 前段非 PASSED 不得启动后段)"
+   578	                )
+   579	
+   580	    # ---------------- §6 九类停等 / 客观前置条件 ----------------
+   581	    @staticmethod
+   582	    def stop_types() -> Tuple[str, ...]:
+   583	        return tuple(t.value for t in NineStopTypes)
+   584	
+   585	    @staticmethod
+   586	    def precondition_spec(stop_type: str) -> Dict[str, Any]:
+   587	        if stop_type not in STOP_PRECONDITION_SPECS:
+   588	            raise StageOrderError(
+   589	                f"unknown stop_type {stop_type!r}; valid: "
+   590	                f"{sorted(STOP_PRECONDITION_SPECS)}"
+   591	            )
+   592	        return STOP_PRECONDITION_SPECS[stop_type]
+   593	
+   594	    @classmethod
+   595	    def validate_preconditions(
+   596	        cls, stop_type: str, supplied: Optional[Mapping[str, Any]]
+   597	    ) -> Dict[str, Any]:
+   598	        """校验客观前置条件是否齐备（必要条件的客观半边）。
+   599	
+   600	        - supplied 必须是非空映射；
+   601	        - spec.required 的每个键组内所有键必须存在且取值非空；
+   602	        - spec.any_of 至少一组全部非空（exm-fuse 的"实际解除或独立裁定"）。
+   603	        返回规范化副本；任何缺失即抛 ApprovalPreconditionError。
+   604	        """
+   605	        spec = cls.precondition_spec(stop_type)
+   606	        if not isinstance(supplied, Mapping) or not supplied:
+   607	            raise ApprovalPreconditionError(
+   608	                "objective preconditions missing/empty",
+   609	                {"stop_type": stop_type, "spec": spec["description"]},
+   610	            )
+   611	        supplied = dict(supplied)
+   612	        missing: List[str] = []
+   613	        for group in spec["required"]:
+   614	            missing.extend(k for k in group if not _truthy(supplied.get(k)))
+   615	        if missing:
+   616	            raise ApprovalPreconditionError(
+   617	                "objective preconditions not satisfied",
+   618	                {"stop_type": stop_type, "missing_keys": sorted(set(missing)),
+   619	                 "spec": spec["description"]},
+   620	            )
+   621	        for alternatives in spec["any_of"]:
+   622	            if not any(all(_truthy(supplied.get(k)) for k in group)
+   623	                       for group in alternatives):
+   624	                raise ApprovalPreconditionError(
+   625	                    "objective preconditions not satisfied (no alternative met)",
+   626	                    {"stop_type": stop_type,
+   627	                     "any_of": [list(g) for group in alternatives for g in [group]],
+   628	                     "spec": spec["description"]},
+   629	                )
+   630	        return supplied
+   631	
+   632	    @staticmethod
+   633	    def objective_precondition_hash(supplied: Mapping[str, Any]) -> str:
+   634	        """客观前置条件的内容哈希——审批授权精确绑定到这组条件。"""
+   635	        return _sha256_hex(_canonical_json(dict(supplied)))
+   636	
+   637	    # ---------------- 双轴结果合法性 ----------------
+   638	    @staticmethod
+   639	    def validate_outcome(execution_status: str, policy_verdict: str,
+   640	                         findings: Sequence[str] = ()) -> None:
+   641	        if execution_status not in EXECUTION_STATUSES:
+   642	            raise InvalidOutcomeError(
+   643	                f"invalid execution_status {execution_status!r}; "
+   644	                f"valid: {sorted(EXECUTION_STATUSES)}")
+   645	        if policy_verdict not in POLICY_VERDICTS:
+   646	            raise InvalidOutcomeError(
+   647	                f"invalid policy_verdict {policy_verdict!r}; "
+   648	                f"valid: {sorted(POLICY_VERDICTS)}")
+   649	        # 契约 §2：阻断态不得折算为 PASS——执行非 COMPLETED 时策略不得 PASS
+   650	        if policy_verdict == "PASS" and execution_status != "COMPLETED":
+   651	            raise InvalidOutcomeError(
+   652	                f"policy PASS requires execution COMPLETED, got {execution_status}"
+   653	            )
+   654	        # 契约 §7 退出码语义：有 findings 即非 0——PASS 不得携带 findings
+   655	        if policy_verdict == "PASS" and findings:
+   656	            raise InvalidOutcomeError(
+   657	                f"policy PASS cannot carry findings ({len(findings)} present); "
+   658	                f"至少应为 CONDITIONAL/FAIL"
+   659	            )
+   660	
+   661	    @staticmethod
+   662	    def verdict_to_attempt_status(policy_verdict: str) -> str:
+   663	        """双轴 verdict → 段终态（契约 §2 从严映射：只有 PASS 是 PASSED）。"""
+   664	        if policy_verdict == "PASS":
+   665	            return ATTEMPT_PASSED
+   666	        if policy_verdict in ("CONDITIONAL", "NOT_APPLICABLE"):
+   667	            # CONDITIONAL ≠ PASS（契约 §2）；N/A 仅由受保护 applicability rule
+   668	            # 生成，执行完成但策略未判过——均入软终态，不得放行后段。
+   669	            return ATTEMPT_COMPLETED_CONDITIONAL
+   670	        return ATTEMPT_FAILED  # FAIL / NOT_EVALUATED
+   671	
+   672	
+   673	# ====================================================================== #
+   674	# _PipelineDb——EventStore 之上的事务/读写内部件
+   675	# ====================================================================== #
+   676	
+   677	
+   678	class _PipelineDb:
+   679	    """与 EventStore 同库（同 SQLite 文件）的内部连接件。
+   680	
+   681	    - 事务：``transact()`` 用 BEGIN IMMEDIATE 取独占写锁，"重放校验→写事件"
+   682	      在同一事务内原子完成——SQLite 单写者模型保证并发下无交错；
+   683	    - 链式插入：``append_event`` 与 store.EventStore.append 的哈希链规则
+   684	      完全一致（复用其 canonical/hash 静态方法，杜绝双实现漂移）；
+   685	    - 限制：不支持 EventStore(":memory:")——每个 :memory: 连接是独立库，
+   686	      必须使用文件路径（WAL 持久于文件）。
+   687	    """
+   688	
+   689	    _BUSY_TIMEOUT_MS = 10000
+   690	
+   691	    def __init__(self, db_path: str) -> None:
+   692	        if not db_path or db_path == ":memory:":
+   693	            raise PipelineError(
+   694	                "in-memory EventStore unsupported: pipeline state requires a "
+   695	                "persistent WAL database file"
+   696	            )
+   697	        self.db_path = db_path
+   698	        # check_same_thread=False：允许"每线程一个 RunManager/连接"的合法用法；
+   699	        # 并发写由 BEGIN IMMEDIATE + busy_timeout 在 SQLite 层串行化。
+   700	        self._conn = sqlite3.connect(db_path, isolation_level=None,
+   701	                                     timeout=self._BUSY_TIMEOUT_MS / 1000.0,
+   702	                                     check_same_thread=False)
+   703	        self._conn.execute(f"PRAGMA busy_timeout={self._BUSY_TIMEOUT_MS}")
+   704	
+   705	    # ------------------------------------------------------------------ #
+   706	    @staticmethod
+   707	    def from_store(store: EventStore) -> "_PipelineDb":
+   708	        """从既有 EventStore 实例推导其底层库文件路径并打开伴随连接。"""
+   709	        # store._conn 为同包内已知实现细节；正源库文件路径经 PRAGMA database_list
+   710	        row = store._conn.execute("PRAGMA database_list").fetchone()  # noqa: SLF001
+   711	        db_path = row[2] if row else ""
+   712	        return _PipelineDb(db_path)
+   713	
+   714	    # ------------------------------------------------------------------ #
+   715	    def transact(self, body: Callable[[sqlite3.Connection], Any]) -> Any:
+   716	        """BEGIN IMMEDIATE 事务：body 抛错即整体回滚。"""
+   717	        self._conn.execute("BEGIN IMMEDIATE")
+   718	        try:
+   719	            result = body(self._conn)
+   720	            self._conn.execute("COMMIT")
+   721	            return result
+   722	        except BaseException:
+   723	            self._conn.execute("ROLLBACK")
+   724	            raise
+   725	
+   726	    # ------------------------------------------------------------------ #
+   727	    @staticmethod
+   728	    def append_event(conn: sqlite3.Connection,
+   729	                     event: Mapping[str, Any]) -> Tuple[str, bool]:
+   730	        """在已开启的事务内链式插入一条事件（与 EventStore.append 同规则）。"""
+   731	        payload = EventStore._canonical_payload(event)  # noqa: SLF001
+   732	        event_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+   733	        row = conn.execute(
+   734	            "SELECT event_hash FROM pipeline_events ORDER BY seq DESC LIMIT 1"
+   735	        ).fetchone()
+   736	        prev = row[0] if row else GENESIS_HASH
+   737	        event_hash = EventStore._compute_hash(prev, payload)  # noqa: SLF001
+   738	        cur = conn.execute(
+   739	            "INSERT OR IGNORE INTO pipeline_events "
+   740	            "(event_id, payload, prev_event_hash, event_hash, created_at) "
+   741	            "VALUES (?, ?, ?, ?, ?)",
+   742	            (event_id, payload, prev, event_hash, time.time()),
+   743	        )
+   744	        return event_hash, cur.rowcount == 1
+   745	
+   746	    # ------------------------------------------------------------------ #
+   747	    @staticmethod
+   748	    def read_events(
+   749	        conn: sqlite3.Connection,
+   750	    ) -> List[Tuple[int, str, Dict[str, Any]]]:
+   751	        """按 seq 升序读取全部事件 (seq, event_hash, payload)。"""
+   752	        rows = conn.execute(
+   753	            "SELECT seq, event_hash, payload FROM pipeline_events ORDER BY seq ASC"
+   754	        ).fetchall()
+   755	        return [(seq, eh, json.loads(payload)) for seq, eh, payload in rows]
+   756	
+   757	    def close(self) -> None:
+   758	        self._conn.close()
+   759	
+   760	
+   761	# ====================================================================== #
+   762	# ApprovalBroker——approval-v2 审批消费
+   763	# ====================================================================== #
+   764	
+   765	
+   766	class ApprovalBroker:
+   767	    """消费 approval-v2 审批事件：fail-closed 校验 + 一次性原子消费。
+   768	
+   769	    校验链（任一失败即抛 ApprovalRejected/ApprovalPreconditionError，
+   770	    且不消费 nonce、不写任何事件）：
+   771	        1. 结构（镜像 schema：required/enum/pattern/minLength/判别联合/
+   772	           additionalProperties=false）；
+   773	        2. decision 必须为 approve（deny/conditional 不足以 resume）；
+   774	        3. TTL：issued_at <= now < expires_at；
+   775	        4. run 绑定：run_id / stop_event_id / stop_type / stage /
+   776	           environment / authorized_scope(=scope_hash) / input_watermark(=commit_sha)；
+   777	        5. state_version CAS：expected_state_version == run 当前版本；
+   778	        6. 客观前置条件：满足该 stop_type 的必要且充分规格，且其内容哈希
+   779	           == payload.objective_precondition_hash（授权精确绑定条件内容）。
+   780	
+   781	    原子消费：第 4-6 步的 run 状态读取、nonce 占用（PRIMARY KEY 冲突即
+   782	    ApprovalReuseError）与 WAITING_RESUMED 事件链式插入全部发生在同一个
+   783	    BEGIN IMMEDIATE 事务内——并发双消费第二个必然撞 nonce 主键失败。
+   784	    """
+   785	
+   786	    _CONSUMPTION_SCHEMA = """
+   787	    CREATE TABLE IF NOT EXISTS approval_consumptions (
+   788	        nonce             TEXT PRIMARY KEY,
+   789	        approval_id       TEXT NOT NULL,
+   790	        approval_type     TEXT NOT NULL,
+   791	        run_id            TEXT NOT NULL,
+   792	        stop_type         TEXT NOT NULL,
+   793	        decision          TEXT NOT NULL,
+   794	        expires_at        TEXT NOT NULL,
+   795	        consumed_at       REAL NOT NULL,
+   796	        preconditions_hash TEXT,
+   797	        resume_event_hash TEXT
+   798	    );
+   799	    CREATE INDEX IF NOT EXISTS idx_approval_consumptions_run
+   800	        ON approval_consumptions(run_id);
+   801	    """
+   802	
+   803	    def __init__(self, store: EventStore,
+   804	                 db: Optional[_PipelineDb] = None) -> None:
+   805	        self._store = store
+   806	        self._db = db if db is not None else _PipelineDb.from_store(store)
+   807	        self._db._conn.executescript(self._CONSUMPTION_SCHEMA)  # noqa: SLF001
+   808	
+   809	    # ------------------------------------------------------------------ #
+   810	    # 结构校验（镜像 approval-v2.schema.json，无外部依赖）
+   811	    # ------------------------------------------------------------------ #
+   812	    @staticmethod
+   813	    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+   814	        if not isinstance(approval, Mapping):
+   815	            raise ApprovalRejected("approval is not a JSON object")
+   816	        ap = dict(approval)
+   817	        for key in _APPROVAL_REQUIRED_TOP:
+   818	            if key not in ap:
+   819	                raise ApprovalRejected(f"missing required field: {key}")
+   820	        unknown = sorted(set(ap) - _APPROVAL_ALLOWED_TOP)
+   821	        if unknown:
+   822	            raise ApprovalRejected(
+   823	                "additional properties forbidden by schema",
+   824	                {"unknown_fields": unknown},
+   825	            )
+   826	        if ap["schema_version"] != _APPROVAL_SCHEMA_VERSION:
+   827	            raise ApprovalRejected(
+   828	                f"schema_version must be {_APPROVAL_SCHEMA_VERSION!r}, "
+   829	                f"got {ap['schema_version']!r}")
+   830	        if not (isinstance(ap["approval_id"], str)
+   831	                and ap["approval_id"].startswith("apr_")
+   832	                and len(ap["approval_id"]) > 4
+   833	                and all(c.isalnum() or c == "_" for c in ap["approval_id"][4:])):
+   834	            raise ApprovalRejected(
+   835	                "approval_id must match ^apr_[a-zA-Z0-9_]+$")
+   836	        if ap["approval_type"] not in _APPROVAL_TYPES:
+   837	            raise ApprovalRejected(
+   838	                f"invalid approval_type {ap['approval_type']!r}; "
+   839	                f"valid: {sorted(_APPROVAL_TYPES)}")
+   840	        if ap["stop_type"] not in STOP_PRECONDITION_SPECS:
+   841	            raise ApprovalRejected(
+   842	                f"invalid stop_type {ap['stop_type']!r}; "
+   843	                f"valid: {SevenStageStateMachine.stop_types()}")
+   844	        if ap["decision"] not in _APPROVAL_DECISIONS:
+   845	            raise ApprovalRejected(
+   846	                f"invalid decision {ap['decision']!r}; "
+   847	                f"valid: {sorted(_APPROVAL_DECISIONS)}")
+   848	        if not (isinstance(ap["run_id"], str) and ap["run_id"]):
+   849	            raise ApprovalRejected("run_id must be a non-empty string")
+   850	        if not (isinstance(ap["stop_event_id"], str) and ap["stop_event_id"]):
+   851	            raise ApprovalRejected("stop_event_id must be a non-empty string")
+   852	        if not (isinstance(ap["actor"], str) and ap["actor"].strip()):
+   853	            raise ApprovalRejected("actor must be a non-empty string")
+   854	        if not (isinstance(ap["nonce"], str) and len(ap["nonce"]) >= 16):
+   855	            raise ApprovalRejected("nonce must be a string of >= 16 chars")
+   856	        if not (isinstance(ap["signature"], str) and len(ap["signature"]) >= 32):
+   857	            raise ApprovalRejected("signature must be a string of >= 32 chars")
+   858	        for ts_field in ("issued_at", "expires_at"):
+   859	            try:
+   860	                _parse_iso_ts(ap[ts_field])
+   861	            except ValueError as exc:
+   862	                raise ApprovalRejected(
+   863	                    f"invalid date-time in {ts_field}: {exc}") from None
+   864	        if _parse_iso_ts(ap["expires_at"]) <= _parse_iso_ts(ap["issued_at"]):
+   865	            raise ApprovalRejected("expires_at must be after issued_at")
+   866	        # payload 判别联合（schema oneOf：按 approval_type 必须含专属字段）
+   867	        payload = ap["payload"]
+   868	        if not isinstance(payload, Mapping):
+   869	            raise ApprovalRejected("payload must be a JSON object")
+   870	        required_payload = _APPROVAL_PAYLOAD_DISCRIMINATOR[ap["approval_type"]]
+   871	        missing = [k for k in required_payload if k not in payload]
+   872	        if missing:
+   873	            raise ApprovalRejected(
+   874	                f"payload discriminator mismatch for "
+   875	                f"approval_type={ap['approval_type']!r}: missing {missing}")
+   876	        empty = [k for k in required_payload if not _truthy(payload.get(k))]
+   877	        if empty:
+   878	            raise ApprovalRejected(
+   879	                "payload discriminator fields must be non-empty",
+   880	                {"empty_fields": empty},
+   881	            )
+   882	        if (ap["approval_type"] == "resume"
+   883	                and not _is_sha256_hex(payload.get("objective_precondition_hash"))):
+   884	            raise ApprovalRejected(
+   885	                "payload.objective_precondition_hash must be sha256 hex (64)")
+   886	        if (ap["approval_type"] == "resume"
+   887	                and payload.get("stop_type") != ap["stop_type"]):
+   888	            raise ApprovalRejected(
+   889	                "payload.stop_type conflicts with top-level stop_type")
+   890	        if (ap["approval_type"] == "resume"
+   891	                and payload.get("stop_event_id") != ap["stop_event_id"]):
+   892	            raise ApprovalRejected(
+   893	                "payload.stop_event_id conflicts with top-level stop_event_id")
+   894	        if "environment" in ap and ap["environment"] not in ENVIRONMENTS:
+   895	            raise ApprovalRejected(
+   896	                f"invalid environment {ap['environment']!r}; "
+   897	                f"valid: {sorted(ENVIRONMENTS)}")
+   898	        if "expected_state_version" in ap and not (
+   899	            isinstance(ap["expected_state_version"], int)
+   900	            and not isinstance(ap["expected_state_version"], bool)
+   901	            and ap["expected_state_version"] >= 1
+   902	        ):
+   903	            raise ApprovalRejected("expected_state_version must be integer >= 1")
+   904	        return ap
+   905	
+   906	    # ------------------------------------------------------------------ #
+   907	    # 绑定/TTL/CAS/前置条件校验（对给定 run 快照）
+   908	    # ------------------------------------------------------------------ #
+   909	    @staticmethod
+   910	    def _validate_resume_binding(ap: Mapping[str, Any], state: RunState,
+   911	                                 now_epoch: float) -> Dict[str, Any]:
+   912	        if state.terminal:
+   913	            raise ApprovalRejected(
+   914	                "run is terminal; approval cannot resume a finished run",
+   915	                {"run_state": state.state})
+   916	        if state.state != RUN_WAITING_S or state.waiting is None:
+   917	            raise ApprovalRejected(
+   918	                f"run is {state.state}, not WAITING——无可恢复停等",
+   919	                {"run_state": state.state})
+   920	        if ap["decision"] != "approve":
+   921	            raise ApprovalRejected(
+   922	                f"decision {ap['decision']!r} 不足以 resume（须 approve）")
+   923	        issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+   924	        expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+   925	        if not (issued <= now_epoch < expires):
+   926	            raise ApprovalRejected(
+   927	                "approval outside TTL window (issued_at <= now < expires_at)",
+   928	                {"now": now_epoch, "issued_at_epoch": issued,
+   929	                 "expires_at_epoch": expires},
+   930	            )
+   931	        if ap["run_id"] != state.run_id:
+   932	            raise ApprovalRejected(
+   933	                "run_id mismatch（审批不得跨 run 复用）",
+   934	                {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+   935	        waiting = state.waiting
+   936	        if ap["stop_event_id"] != waiting.stop_event_id:
+   937	            raise ApprovalRejected(
+   938	                "stop_event_id mismatch——审批必须锚定当前停等事件",
+   939	                {"approval_stop_event_id": ap["stop_event_id"],
+   940	                 "waiting_stop_event_id": waiting.stop_event_id})
+   941	        if ap["stop_type"] != waiting.stop_type:
+   942	            raise ApprovalRejected(
+   943	                "stop_type mismatch",
+   944	                {"approval_stop_type": ap["stop_type"],
+   945	                 "waiting_stop_type": waiting.stop_type})
+   946	        if "stage" in ap and ap["stage"] != waiting.stage:
+   947	            raise ApprovalRejected(
+   948	                "stage mismatch",
+   949	                {"approval_stage": ap["stage"], "waiting_stage": waiting.stage})
+   950	        if "task_id" in ap and ap["task_id"] != state.task_id:
+   951	            raise ApprovalRejected("task_id mismatch")
+   952	        identity = state.identity
+   953	        if "environment" in ap and ap["environment"] != identity["environment"]:
+   954	            raise ApprovalRejected(
+   955	                "environment mismatch（审批不得跨环境）",
+   956	                {"approval_environment": ap["environment"],
+   957	                 "run_environment": identity["environment"]})
+   958	        if ("authorized_scope" in ap
+   959	                and ap["authorized_scope"] != identity["scope_hash"]):
+   960	            raise ApprovalRejected(
+   961	                "authorized_scope != run scope_hash（审批不得扩范围）",
+   962	                {"authorized_scope": ap["authorized_scope"],
+   963	                 "run_scope_hash": identity["scope_hash"]})
+   964	        if ("input_watermark" in ap
+   965	                and _is_sha1_hex(ap["input_watermark"])
+   966	                and ap["input_watermark"] != identity["commit_sha"]):
+   967	            raise ApprovalRejected(
+   968	                "input_watermark(sha) != run commit_sha（审批不得跨 SHA）",
+   969	                {"input_watermark": ap["input_watermark"],
+   970	                 "commit_sha": identity["commit_sha"]})
+   971	        if "expected_state_version" not in ap:
+   972	            raise ApprovalRejected(
+   973	                "resume 审批必须携带 expected_state_version（CAS）")
+   974	        if ap["expected_state_version"] != state.state_version:
+   975	            raise ApprovalRejected(
+   976	                "state_version CAS failure（审批不得跨状态版本）",
+   977	                {"expected": ap["expected_state_version"],
+   978	                 "actual": state.state_version})
+   979	        return dict(ap)
+   980	
+   981	    # ------------------------------------------------------------------ #
+   982	    # 原子消费（nonce + WAITING_RESUMED 同事务）
+   983	    # ------------------------------------------------------------------ #
+   984	    def consume(
+   985	        self,
+   986	        approval: Mapping[str, Any],
+   987	        *,
+   988	        run_loader: Callable[[sqlite3.Connection], RunState],
+   989	        resume_event_builder: Callable[[RunState, Dict[str, Any], str],
+   990	                                       Mapping[str, Any]],
+   991	        objective_preconditions: Optional[Mapping[str, Any]],
+   992	        now_epoch: Optional[float] = None,
+   993	    ) -> Dict[str, Any]:
+   994	        """校验并在单事务内一次性消费审批，返回消费记录。
+   995	
+   996	        参数：
+   997	            run_loader           —— 在事务连接内重放目标 run（保证 CAS 读的是
+   998	                                    事务内新鲜状态，杜绝校验-消费间隙竞态）；
+   999	            resume_event_builder —— (run_state, normalized_approval, nonce_digest)
+  1000	                                    → WAITING_RESUMED 事件（由 RunManager 构造）；
+  1001	            objective_preconditions —— 客观前置条件（将对其做规格校验+哈希比对）。
+  1002	        """
+  1003	        ap = self.validate_structure(approval)          # 1. 结构（纯函数）
+  1004	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1005	
+  1006	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1007	            state = run_loader(conn)                    # 事务内新鲜快照
+  1008	            # 重放检测优先：nonce 是防重放原语——已消费即复用，无论 run 现状；
+  1009	            # 并发首次消费的竞态仍由下方 INSERT 主键兜底。
+  1010	            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+  1011	                            (ap["nonce"],)).fetchone() is not None:
+  1012	                raise ApprovalReuseError(
+  1013	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1014	                    f"不可复用——不变量 #5)")
+  1015	            bound = self._validate_resume_binding(ap, state, now)  # 2-5 绑定/TTL/CAS
+  1016	            # 6. 客观前置条件：必要且充分规格 + 授权哈希精确绑定
+  1017	            supplied = SevenStageStateMachine.validate_preconditions(
+  1018	                bound["stop_type"], objective_preconditions)
+  1019	            precond_hash = SevenStageStateMachine.objective_precondition_hash(
+  1020	                supplied)
+  1021	            if precond_hash != bound["payload"]["objective_precondition_hash"]:
+  1022	                raise ApprovalPreconditionError(
+  1023	                    "objective_precondition_hash mismatch——授权绑定的前置条件"
+  1024	                    "与提交内容不一致",
+  1025	                    {"expected": bound["payload"]["objective_precondition_hash"],
+  1026	                     "actual": precond_hash},
+  1027	                )
+  1028	            nonce_digest = _sha256_hex(bound["nonce"])
+  1029	            event = resume_event_builder(state, bound, nonce_digest)
+  1030	            # —— 写半边：先占 nonce（主键冲突=复用），再链式插入事件；同事务 ——
+  1031	            try:
+  1032	                conn.execute(
+  1033	                    "INSERT INTO approval_consumptions "
+  1034	                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+  1035	                    " decision, expires_at, consumed_at, preconditions_hash, "
+  1036	                    " resume_event_hash) "
+  1037	                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+  1038	                    (bound["nonce"], bound["approval_id"],
+  1039	                     bound["approval_type"], state.run_id, bound["stop_type"],
+  1040	                     bound["decision"], bound["expires_at"], time.time(),
+  1041	                     precond_hash),
+  1042	                )
+  1043	            except sqlite3.IntegrityError as exc:
+  1044	                raise ApprovalReuseError(
+  1045	                    f"nonce already consumed (approval {bound['approval_id']} "
+  1046	                    f"不可复用——不变量 #5): {exc}") from None
+  1047	            event_hash, _inserted = _PipelineDb.append_event(conn, event)
+  1048	            conn.execute(
+  1049	                "UPDATE approval_consumptions SET resume_event_hash = ? "
+  1050	                "WHERE nonce = ?",
+  1051	                (event_hash, bound["nonce"]),
+  1052	            )
+  1053	            return {
+  1054	                "approval_id": bound["approval_id"],
+  1055	                "approval_type": bound["approval_type"],
+  1056	                "nonce_digest": nonce_digest,
+  1057	                "run_id": state.run_id,
+  1058	                "stop_type": bound["stop_type"],
+  1059	                "stop_event_id": bound["stop_event_id"],
+  1060	                "preconditions_hash": precond_hash,
+  1061	                "state_version_before": state.state_version,
+  1062	                "resumed": True,
+  1063	                "event_hash": event_hash,
+  1064	            }
+  1065	
+  1066	        return self._db.transact(_body)
+  1067	
+  1068	    # ------------------------------------------------------------------ #
+  1069	    # 非停等类授权（risk 等）的一次性消费——供 COMPLETED_CONDITIONAL 前置核验
+  1070	    # ------------------------------------------------------------------ #
+  1071	    def consume_authorization(
+  1072	        self,
+  1073	        approval: Mapping[str, Any],
+  1074	        *,
+  1075	        run_loader: Callable[[sqlite3.Connection], RunState],
+  1076	        now_epoch: Optional[float] = None,
+  1077	    ) -> Dict[str, Any]:
+  1078	        """一次性消费非停等授权（approval_type != resume，如 risk）。
+  1079	
+  1080	        与 consume() 同样的 fail-closed 纪律：结构校验（含该类型的 payload
+  1081	        判别联合）→ decision=approve → TTL → run 绑定（run_id/environment/
+  1082	        scope/SHA/task_id，不要求 WAITING）→ 同事务原子占 nonce。
+  1083	        不产生管线事件——授权进入消费台账，供 complete_run 等终态判定核验。
+  1084	        """
+  1085	        ap = self.validate_structure(approval)
+  1086	        if ap["approval_type"] == "resume":
+  1087	            raise ApprovalRejected(
+  1088	                "resume 审批必须经 consume() 与停等事件绑定消费")
+  1089	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1090	
+  1091	        def _binding(ap: Mapping[str, Any], state: RunState) -> None:
+  1092	            if ap["decision"] != "approve":
+  1093	                raise ApprovalRejected(
+  1094	                    f"decision {ap['decision']!r} 不足以授权（须 approve）")
+  1095	            issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+  1096	            expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+  1097	            if not (issued <= now < expires):
+  1098	                raise ApprovalRejected(
+  1099	                    "approval outside TTL window",
+  1100	                    {"now": now, "expires_at_epoch": expires})
+  1101	            if ap["run_id"] != state.run_id:
+  1102	                raise ApprovalRejected(
+  1103	                    "run_id mismatch",
+  1104	                    {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+  1105	            if "task_id" in ap and ap["task_id"] != state.task_id:
+  1106	                raise ApprovalRejected("task_id mismatch")
+  1107	            if state.terminal:
+  1108	                raise ApprovalRejected(
+  1109	                    "run is terminal; authorization has no target",
+  1110	                    {"run_state": state.state})
+  1111	            ident = state.identity
+  1112	            if "environment" in ap and ap["environment"] != ident["environment"]:
+  1113	                raise ApprovalRejected("environment mismatch（审批不得跨环境）")
+  1114	            if ("authorized_scope" in ap
+  1115	                    and ap["authorized_scope"] != ident["scope_hash"]):
+  1116	                raise ApprovalRejected(
+  1117	                    "authorized_scope != run scope_hash（审批不得扩范围）")
+  1118	            if ("input_watermark" in ap
+  1119	                    and _is_sha1_hex(ap["input_watermark"])
+  1120	                    and ap["input_watermark"] != ident["commit_sha"]):
+  1121	                raise ApprovalRejected("input_watermark(sha) != run commit_sha")
+  1122	            if "stage" in ap and ap["stage"] not in state.stages:
+  1123	                raise ApprovalRejected(f"unknown stage {ap['stage']!r}")
+  1124	
+  1125	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1126	            state = run_loader(conn)
+  1127	            # 重放检测优先（同 consume）
+  1128	            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+  1129	                            (ap["nonce"],)).fetchone() is not None:
+  1130	                raise ApprovalReuseError(
+  1131	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1132	                    f"不可复用——不变量 #5)")
+  1133	            _binding(ap, state)
+  1134	            try:
+  1135	                conn.execute(
+  1136	                    "INSERT INTO approval_consumptions "
+  1137	                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+  1138	                    " decision, expires_at, consumed_at, preconditions_hash, "
+  1139	                    " resume_event_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
+  1140	                    (ap["nonce"], ap["approval_id"], ap["approval_type"],
+  1141	                     state.run_id, ap["stop_type"], ap["decision"],
+  1142	                     ap["expires_at"], time.time()),
+  1143	                )
+  1144	            except sqlite3.IntegrityError as exc:
+  1145	                raise ApprovalReuseError(
+  1146	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1147	                    f"不可复用——不变量 #5): {exc}") from None
+  1148	            return {
+  1149	                "approval_id": ap["approval_id"],
+  1150	                "approval_type": ap["approval_type"],
+  1151	                "nonce_digest": _sha256_hex(ap["nonce"]),
+  1152	                "run_id": state.run_id,
+  1153	                "stop_type": ap["stop_type"],
+  1154	                "consumed": True,
+  1155	            }
+  1156	
+  1157	        return self._db.transact(_body)
+  1158	
+  1159	    # ------------------------------------------------------------------ #
+  1160	    def consumed_approvals(self, run_id: Optional[str] = None,
+  1161	                           approval_type: Optional[str] = None
+  1162	                           ) -> List[Dict[str, Any]]:
+  1163	        """查询消费台账（nonce 一次性占用的可审计正源）。"""
+  1164	        sql = ("SELECT nonce, approval_id, approval_type, run_id, stop_type, "
+  1165	               "decision, expires_at, consumed_at, preconditions_hash, "
+  1166	               "resume_event_hash FROM approval_consumptions")
+  1167	        conds, args = [], []
+  1168	        if run_id is not None:
+  1169	            conds.append("run_id = ?")
+  1170	            args.append(run_id)
+  1171	        if approval_type is not None:
+  1172	            conds.append("approval_type = ?")
+  1173	            args.append(approval_type)
+  1174	        if conds:
+  1175	            sql += " WHERE " + " AND ".join(conds)
+  1176	        sql += " ORDER BY consumed_at ASC"
+  1177	        rows = self._db._conn.execute(sql, args).fetchall()  # noqa: SLF001
+  1178	        keys = ("nonce", "approval_id", "approval_type", "run_id", "stop_type",
+  1179	                "decision", "expires_at", "consumed_at", "preconditions_hash",
+  1180	                "resume_event_hash")
+  1181	        return [dict(zip(keys, r)) for r in rows]
+  1182	
+  1183	    def has_unexpired_risk_authorization(self, run_id: str,
+  1184	                                         now_epoch: Optional[float] = None
+  1185	                                         ) -> Optional[Dict[str, Any]]:
+  1186	        """查找 run 已消费、未过期的 risk 授权（COMPLETED_CONDITIONAL 前置）。"""
+  1187	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1188	        for row in self.consumed_approvals(run_id=run_id,
+  1189	                                           approval_type="risk"):
+  1190	            try:
+  1191	                if _parse_iso_ts(row["expires_at"]).timestamp() > now:
+  1192	                    return row
+  1193	            except ValueError:
+  1194	                continue
+  1195	        return None
+  1196	
+  1197	
+  1198	# ====================================================================== #
+  1199	# RunManager——七段 run 编排（事件正源 = EventStore）
+  1200	# ====================================================================== #
+  1201	
+  1202	
+  1203	class RunManager:
+  1204	    """七段 run 生命周期编排：create/advance/raise_waiting/resume/complete。
+  1205	
+  1206	    一切状态变更 = 单个 BEGIN IMMEDIATE 事务内「重放 → 状态机校验 → 追加
+  1207	    事件（state_version +1）」。重放严格校验 state_version 单调与转换表
+  1208	    合法性，矛盾即 PipelineCorruptionError（事件流疑遭篡改）。
+  1209	    """
+  1210	
+  1211	    def __init__(self, store: EventStore,
+  1212	                 broker: Optional[ApprovalBroker] = None) -> None:
+  1213	        self._store = store
+  1214	        self._db = _PipelineDb.from_store(store)
+  1215	        self.broker = broker if broker is not None else ApprovalBroker(
+  1216	            store, db=self._db)
+  1217	
+  1218	    # ------------------------------------------------------------------ #
+  1219	    # 身份校验（run-event-v2.identity）
+  1220	    # ------------------------------------------------------------------ #
+  1221	    @staticmethod
+  1222	    def _validate_identity(identity: Mapping[str, Any]) -> Dict[str, Any]:
+  1223	        if not isinstance(identity, Mapping):
+  1224	            raise InvalidIdentityError("identity must be a JSON object")
+  1225	        ident = dict(identity)
+  1226	        for key in ("commit_sha", "environment", "scope_hash"):
+  1227	            if not (isinstance(ident.get(key), str) and ident[key].strip()):
+  1228	                raise InvalidIdentityError(
+  1229	                    f"identity.{key} must be a non-empty string")
+  1230	        if not _is_sha1_hex(ident["commit_sha"]):
+  1231	            raise InvalidIdentityError(
+  1232	                "identity.commit_sha must be a 40-hex git sha")
+  1233	        if ident["environment"] not in ENVIRONMENTS:
+  1234	            raise InvalidIdentityError(
+  1235	                f"identity.environment must be one of {sorted(ENVIRONMENTS)}")
+  1236	        if "base_sha" in ident and not _is_sha1_hex(ident["base_sha"]):
+  1237	            raise InvalidIdentityError("identity.base_sha must be 40-hex sha")
+  1238	        return ident
+  1239	
+  1240	    # ------------------------------------------------------------------ #
+  1241	    # 事件构造
+  1242	    # ------------------------------------------------------------------ #
+  1243	    @staticmethod
+  1244	    def _base_event(event_type: str, state: RunState,
+  1245	                    execution_status: str, policy_verdict: str, *,
+  1246	                    stage: Optional[str] = None,
+  1247	                    attempt_id: Optional[str] = None,
+  1248	                    actor: str = "system", **extra: Any) -> Dict[str, Any]:
+  1249	        event: Dict[str, Any] = {
+  1250	            "schema_version": "2.0",
+  1251	            "event_type": event_type,
+  1252	            "run_id": state.run_id,
+  1253	            "task_id": state.task_id,
+  1254	            "execution_status": execution_status,
+  1255	            "policy_verdict": policy_verdict,
+  1256	            "identity": dict(state.identity),
+  1257	            "state_version": state.state_version,  # 调用方提交前 +1
+  1258	            "ts": _utc_now_iso(),
+  1259	            "actor": actor,
+  1260	        }
+  1261	        if stage is not None:
+  1262	            event["stage"] = stage
+  1263	        if attempt_id is not None:
+  1264	            event["attempt_id"] = attempt_id
+  1265	        event.update(extra)
+  1266	        return event
+  1267	
+  1268	    # ------------------------------------------------------------------ #
+  1269	    # 重放：事件流 → RunState（唯一状态推导路径）
+  1270	    # ------------------------------------------------------------------ #
+  1271	    @staticmethod
+  1272	    def _replay_fold(state: Optional[RunState], event_hash: str,
+  1273	                     ev: Mapping[str, Any]) -> RunState:
+  1274	        etype = ev.get("event_type")
+  1275	        if state is None:
+  1276	            if etype != "RUN_CREATED":
+  1277	                raise PipelineCorruptionError(
+  1278	                    f"run {ev.get('run_id')!r} 首事件非 RUN_CREATED: {etype}")
+  1279	            ident = ev.get("identity") or {}
+  1280	            stages = {s: StageState(stage=s) for s in STAGES}
+  1281	            state = RunState(
+  1282	                run_id=ev["run_id"], task_id=ev.get("task_id", ""),
+  1283	                identity=dict(ident), state=RUN_CREATED_S,
+  1284	                state_version=int(ev.get("state_version", 1)),
+  1285	                stages=stages, created_at=ev.get("ts"),
+  1286	            )
+  1287	            return state
+  1288	        # state_version 单调 CAS：每个事件 = +1
+  1289	        incoming = ev.get("state_version")
+  1290	        if not isinstance(incoming, int) or incoming != state.state_version + 1:
+  1291	            raise PipelineCorruptionError(
+  1292	                f"run {state.run_id}: non-monotonic state_version at "
+  1293	                f"{etype}: expected {state.state_version + 1}, got {incoming!r}")
+  1294	        state.state_version = incoming
+  1295	
+  1296	        if etype == "STAGE_STARTED":
+  1297	            stage = ev.get("stage")
+  1298	            SevenStageStateMachine.stage_index(stage)
+  1299	            ss = state.stages[stage]
+  1300	            cur = ss.current_attempt
+  1301	            if cur is not None and cur.status not in TERMINAL_ATTEMPT_STATES:
+  1302	                raise PipelineCorruptionError(
+  1303	                    f"run {state.run_id}: STAGE_STARTED while attempt "
+  1304	                    f"{cur.attempt_id} still {cur.status}（attempt 不可变被破坏）")
+  1305	            SevenStageStateMachine.ensure_prior_stages_passed(
+  1306	                {k: v.status for k, v in state.stages.items()}, stage)
+  1307	            ss.attempts.append(StageAttempt(
+  1308	                attempt_id=ev.get("attempt_id", ""), stage=stage,
+  1309	                status=ATTEMPT_RUNNING, started_at=ev.get("ts", "")))
+  1310	            if state.state == RUN_CREATED_S:
+  1311	                SevenStageStateMachine.validate_run_transition(
+  1312	                    state.state, RUN_RUNNING_S)
+  1313	                state.state = RUN_RUNNING_S
+  1314	            elif state.state != RUN_RUNNING_S:
+  1315	                raise PipelineCorruptionError(
+  1316	                    f"run {state.run_id}: STAGE_STARTED while run {state.state}")
+  1317	        elif etype == "STAGE_COMPLETED":
+  1318	            stage = ev.get("stage")
+  1319	            ss = state.stages[stage]
+  1320	            cur = ss.current_attempt
+  1321	            if cur is None or cur.status != ATTEMPT_RUNNING:
+  1322	                raise PipelineCorruptionError(
+  1323	                    f"run {state.run_id}: STAGE_COMPLETED without RUNNING attempt"
+  1324	                    f" on {stage}（current={cur.status if cur else None}）")
+  1325	            attempt_status = SevenStageStateMachine.verdict_to_attempt_status(
+  1326	                ev.get("policy_verdict", "NOT_EVALUATED"))
+  1327	            SevenStageStateMachine.validate_attempt_transition(
+  1328	                cur.status, attempt_status)
+  1329	            new_attempt = StageAttempt(
+  1330	                attempt_id=cur.attempt_id, stage=stage,
+  1331	                status=attempt_status, started_at=cur.started_at,
+  1332	                finished_at=ev.get("ts"),
+  1333	                execution_status=ev.get("execution_status"),
+  1334	                policy_verdict=ev.get("policy_verdict"),
+  1335	                evidence_refs=tuple(ev.get("evidence_refs") or ()),
+  1336	                findings=tuple(ev.get("findings") or ()),
+  1337	            )
+  1338	            ss.attempts[-1] = new_attempt
+  1339	        elif etype == "WAITING_RAISED":
+  1340	            cur_stage = ev.get("stage")
+  1341	            ss = state.stages[cur_stage]
+  1342	            cur = ss.current_attempt
+  1343	            if cur is None or cur.status != ATTEMPT_RUNNING:
+  1344	                raise PipelineCorruptionError(
+  1345	                    f"run {state.run_id}: WAITING_RAISED without RUNNING attempt")
+  1346	            SevenStageStateMachine.validate_attempt_transition(
+  1347	                cur.status, ATTEMPT_WAITING)
+  1348	            ss.attempts[-1] = StageAttempt(
+  1349	                attempt_id=cur.attempt_id, stage=cur_stage,
+  1350	                status=ATTEMPT_WAITING, started_at=cur.started_at,
+  1351	                finished_at=ev.get("ts"))
+  1352	            SevenStageStateMachine.validate_run_transition(
+  1353	                state.state, RUN_WAITING_S)
+  1354	            state.state = RUN_WAITING_S
+  1355	            state.waiting = WaitingInfo(
+  1356	                stop_type=ev["stop_type"], stop_event_id=event_hash,
+  1357	                stage=cur_stage, reason=ev.get("stop_reason", ""),
+  1358	                raised_at=ev.get("ts", ""),
+  1359	                required_preconditions=tuple(
+  1360	                    ev.get("required_preconditions") or ()),
+  1361	            )
+  1362	        elif etype == "WAITING_RESUMED":
+  1363	            if state.state != RUN_WAITING_S or state.waiting is None:
+  1364	                raise PipelineCorruptionError(
+  1365	                    f"run {state.run_id}: WAITING_RESUMED while {state.state}")
+  1366	            SevenStageStateMachine.validate_run_transition(
+  1367	                state.state, RUN_RUNNING_S)
+  1368	            resumed_stage = ev.get("stage") or state.waiting.stage
+  1369	            rs = state.stages[resumed_stage]
+  1370	            prior = rs.current_attempt
+  1371	            if prior is not None and prior.status not in TERMINAL_ATTEMPT_STATES:
+  1372	                raise PipelineCorruptionError(
+  1373	                    f"run {state.run_id}: WAITING_RESUMED while attempt "
+  1374	                    f"{prior.attempt_id} still {prior.status}（attempt 不可变被破坏）")
+  1375	            rs.attempts.append(StageAttempt(
+  1376	                attempt_id=ev.get("attempt_id", ""), stage=resumed_stage,
+  1377	                status=ATTEMPT_RUNNING, started_at=ev.get("ts", "")))
+  1378	            state.state = RUN_RUNNING_S
+  1379	            state.waiting = None
+  1380	        elif etype == "RUN_COMPLETED":
+  1381	            execution = ev.get("execution_status")
+  1382	            verdict = ev.get("policy_verdict")
+  1383	            if execution == "CANCELLED":
+  1384	                final = RUN_CANCELLED_S
+  1385	            elif verdict == "PASS":
+  1386	                final = RUN_SUCCEEDED_S
+  1387	            elif verdict == "CONDITIONAL":
+  1388	                final = RUN_COMPLETED_CONDITIONAL_S
+  1389	            else:
+  1390	                final = RUN_FAILED_S
+  1391	            SevenStageStateMachine.validate_run_transition(state.state, final)
+  1392	            state.state = final
+  1393	            state.finished_at = ev.get("ts")
+  1394	            state.terminal_reason = ev.get("terminal_reason")
+  1395	        elif etype == "SUPERSEDED":
+  1396	            SevenStageStateMachine.validate_run_transition(
+  1397	                state.state, RUN_SUPERSEDED_S)
+  1398	            state.state = RUN_SUPERSEDED_S
+  1399	            state.finished_at = ev.get("ts")
+  1400	            state.terminal_reason = ev.get("supersede_reason", "superseded")
+  1401	        else:
+  1402	            raise PipelineCorruptionError(
+  1403	                f"run {state.run_id}: unknown event_type {etype!r}")
+  1404	        return state
+  1405	
+  1406	    def _load_state(self, run_id: str,
+  1407	                    conn: Optional[sqlite3.Connection] = None) -> RunState:
+  1408	        c = conn if conn is not None else self._db._conn  # noqa: SLF001
+  1409	        state: Optional[RunState] = None
+  1410	        for _seq, event_hash, payload in _PipelineDb.read_events(c):
+  1411	            if payload.get("run_id") != run_id:
+  1412	                continue
+  1413	            state = self._replay_fold(state, event_hash, payload)
+  1414	        if state is None:
+  1415	            raise RunNotFoundError(f"run not found in event store: {run_id}")
+  1416	        return state
+  1417	
+  1418	    def _require_mutable(self, state: RunState) -> None:
+  1419	        if state.terminal:
+  1420	            raise TerminalRunError(
+  1421	                f"run {state.run_id} is terminal ({state.state})——"
+  1422	                f"控制事件只追加，纠错须 supersede/reopen（不变量 #6）")
+  1423	
+  1424	    def _emit(self, conn: sqlite3.Connection, state: RunState,
+  1425	              event: Mapping[str, Any]) -> str:
+  1426	        """追加事件并立即重放折叠进内存 state——校验与正源重放共用同一规则。
+  1427	
+  1428	        事件须携带 state.state_version + 1；_replay_fold 内部会校验单调性、
+  1429	        转换表与段序，因此本方法之后的内存状态与事后重放严格一致。
+  1430	        """
+  1431	        event_hash, _ = _PipelineDb.append_event(conn, event)
+  1432	        self._replay_fold(state, event_hash, event)
+  1433	        return event_hash
+  1434	
+  1435	    # ------------------------------------------------------------------ #
+  1436	    # attempt_id 生成（不可变语义：每次新建即新 id）
+  1437	    # ------------------------------------------------------------------ #
+  1438	    @staticmethod
+  1439	    def _new_attempt_id(stage: str, seq: int) -> str:
+  1440	        return f"att_{stage.lower()}_{seq}_{uuid.uuid4().hex[:8]}"
+  1441	
+  1442	    # ------------------------------------------------------------------ #
+  1443	    # 公开 API
+  1444	    # ------------------------------------------------------------------ #
+  1445	    def create_run(self, task_id: str, identity: Mapping[str, Any],
+  1446	                   actor: str = "system") -> Dict[str, Any]:
+  1447	        """创建七段 run：状态 CREATED，S1..S7 全 PENDING，state_version=1。"""
+  1448	        if not (isinstance(task_id, str) and task_id.strip()
+  1449	                and len(task_id) <= 64
+  1450	                and all(c.isalnum() or c in "-_" for c in task_id)):
+  1451	            raise PipelineError(
+  1452	                "task_id must match ^[a-zA-Z0-9_-]+$ and be <= 64 chars")
+  1453	        ident = self._validate_identity(identity)
+  1454	        run_id = f"run_{time.strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:8]}"
+  1455	        if len(run_id) > 64:
+  1456	            run_id = run_id[:64]
+  1457	
+  1458	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1459	            seed = RunState(
+  1460	                run_id=run_id, task_id=task_id, identity=ident,
+  1461	                state=RUN_CREATED_S, state_version=1,
+  1462	                stages={s: StageState(stage=s) for s in STAGES},
+  1463	            )
+  1464	            event = self._base_event(
+  1465	                "RUN_CREATED", seed, "COMPLETED", "NOT_EVALUATED", actor=actor)
+  1466	            event_hash, _ = _PipelineDb.append_event(conn, event)
+  1467	            # 用与重放完全相同的规则自证事件可折叠（不一致立即失败回滚）
+  1468	            self._replay_fold(None, event_hash, event)
+  1469	            return {"run_id": run_id, "task_id": task_id,
+  1470	                    "state": RUN_CREATED_S, "state_version": 1,
+  1471	                    "stages": dict.fromkeys(STAGES, ATTEMPT_PENDING)}
+  1472	
+  1473	        return self._db.transact(_body)
+  1474	
+  1475	    def get_run(self, run_id: str) -> RunState:
+  1476	        """只读快照（重放推导，无缓存）。"""
+  1477	        return self._load_state(run_id)
+  1478	
+  1479	    def advance_stage(
+  1480	        self,
+  1481	        run_id: str,
+  1482	        *,
+  1483	        execution_status: Optional[str] = None,
+  1484	        policy_verdict: Optional[str] = None,
+  1485	        evidence_refs: Sequence[str] = (),
+  1486	        findings: Sequence[str] = (),
+  1487	        actor: str = "system",
+  1488	    ) -> Dict[str, Any]:
+  1489	        """推进管线（前段 PASSED 后启动后段；attempt 不可变，重试即新 id）。
+  1490	
+  1491	        两种形态（同一方法，显式优于隐式）：
+  1492	        - 不带 outcome：为当前段启动新 attempt（首启/重试）；要求无 RUNNING
+  1493	          attempt、前序全 PASSED、run 非终态；
+  1494	        - 带 outcome：完成当前 RUNNING attempt（双轴结果），若 PASS 且存在
+  1495	          后段则**同事务**自动启动后段新 attempt；S7 PASS 后返回
+  1496	          ready_for_completion=True，由 complete_run 做终态判定。
+  1497	          若当前段 attempt 已终态（如 FAILED）则先创建新 attempt 再完成——
+  1498	          重试使用新 attempt_id，旧 attempt 永不改写。
+  1499	        """
+  1500	        refs = tuple(evidence_refs or ())
+  1501	        fnds = tuple(findings or ())
+  1502	        if (execution_status is None) != (policy_verdict is None):
+  1503	            raise PipelineError(
+  1504	                "execution_status 与 policy_verdict 必须同时提供或同时省略")
+  1505	        if execution_status is not None:
+  1506	            SevenStageStateMachine.validate_outcome(
+  1507	                execution_status, policy_verdict, fnds)
+  1508	
+  1509	        def _append_completed(conn: sqlite3.Connection, state: RunState,
+  1510	                              stage: str, attempt_id: str,
+  1511	                              result: Dict[str, Any]) -> None:
+  1512	            """完成 stage 的 RUNNING attempt（双轴结果 → 段终态），事件折叠自证。"""
+  1513	            attempt_status = SevenStageStateMachine. \
+  1514	                verdict_to_attempt_status(policy_verdict)
+  1515	            SevenStageStateMachine.validate_attempt_transition(
+  1516	                ATTEMPT_RUNNING, attempt_status)
+  1517	            event = self._base_event(
+  1518	                "STAGE_COMPLETED", state, execution_status, policy_verdict,
+  1519	                stage=stage, attempt_id=attempt_id, actor=actor,
+  1520	                state_version=state.state_version + 1,
+  1521	                evidence_refs=list(refs), findings=list(fnds))
+  1522	            self._emit(conn, state, event)
+  1523	            result["attempt_id"] = attempt_id
+  1524	            result["attempt_status"] = attempt_status
+  1525	            result["policy_verdict"] = policy_verdict
+  1526	
+  1527	        def _append_started(conn: sqlite3.Connection, state: RunState,
+  1528	                            stage: str, result: Dict[str, Any]) -> str:
+  1529	            """为 stage 启动新 attempt（首启/重试/推进），事件折叠自证。"""
+  1530	            SevenStageStateMachine.ensure_prior_stages_passed(
+  1531	                {k: v.status for k, v in state.stages.items()}, stage)
+  1532	            ss = state.stages[stage]
+  1533	            cur = ss.current_attempt
+  1534	            if cur is not None and cur.status not in TERMINAL_ATTEMPT_STATES:
+  1535	                raise AttemptImmutabilityError(
+  1536	                    f"attempt {cur.attempt_id} 尚未终态（{cur.status}），"
+  1537	                    f"不得叠加新 attempt")
+  1538	            attempt_id = self._new_attempt_id(stage, len(ss.attempts) + 1)
+  1539	            event = self._base_event(
+  1540	                "STAGE_STARTED", state, "COMPLETED", "NOT_EVALUATED",
+  1541	                stage=stage, attempt_id=attempt_id, actor=actor,
+  1542	                state_version=state.state_version + 1)
+  1543	            self._emit(conn, state, event)
+  1544	            result["started_attempt_id"] = attempt_id
+  1545	            return attempt_id
+  1546	
+  1547	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1548	            state = self._load_state(run_id, conn)
+  1549	            self._require_mutable(state)
+  1550	            if state.state == RUN_WAITING_S:
+  1551	                raise PipelineError(
+  1552	                    f"run {run_id} WAITING（stop_type="
+  1553	                    f"{state.waiting.stop_type if state.waiting else '?'}）——"
+  1554	                    f"须 resume_waiting/cancel 后推进")
+  1555	            stage = state.current_stage
+  1556	            if stage is None:
+  1557	                raise PipelineError(
+  1558	                    f"run {run_id} 七段全 PASSED——无可推进段，调用 complete_run")
+  1559	            ss = state.stages[stage]
+  1560	            cur = ss.current_attempt
+  1561	            result: Dict[str, Any] = {"run_id": run_id, "stage": stage}
+  1562	
+  1563	            if cur is not None and cur.status == ATTEMPT_RUNNING:
+  1564	                if execution_status is None:
+  1565	                    raise PipelineError(
+  1566	                        f"attempt {cur.attempt_id} RUNNING——须提供双轴结果完成它")
+  1567	                _append_completed(conn, state, stage, cur.attempt_id, result)
+  1568	            elif execution_status is None:
+  1569	                # 启动模式：当前段 PENDING（首启）或 attempt 已终态（重试）
+  1570	                _append_started(conn, state, stage, result)
+  1571	                result["run_state"] = state.state
+  1572	                result["state_version"] = state.state_version
+  1573	                result["ready_for_completion"] = (
+  1574	                    state.current_stage is None and not state.terminal)
+  1575	                return result
+  1576	            else:
+  1577	                # 重试模式：旧 attempt 已终态——新 attempt_id 承接本次双轴结果
+  1578	                attempt_id = _append_started(conn, state, stage, result)
+  1579	                _append_completed(conn, state, stage, attempt_id, result)
+  1580	
+  1581	            # PASS 且有后段 → 同事务自动启动后段（"前段 PASSED 后推进"）；
+  1582	            # 折叠后 state.stages[stage].status 已是 PASSED，段序校验基于新鲜状态。
+  1583	            nxt = SevenStageStateMachine.next_stage(stage)
+  1584	            if (state.stages[stage].status == ATTEMPT_PASSED and nxt is not None
+  1585	                    and state.state == RUN_RUNNING_S):
+  1586	                _append_started(conn, state, nxt, result)
+  1587	                result["next_stage"] = nxt
+  1588	                result["next_attempt_id"] = result.pop("started_attempt_id")
+  1589	            result["run_state"] = state.state
+  1590	            result["state_version"] = state.state_version
+  1591	            result["ready_for_completion"] = (
+  1592	                state.current_stage is None and not state.terminal)
+  1593	            return result
+  1594	
+  1595	        return self._db.transact(_body)
+  1596	
+  1597	    def raise_waiting(self, run_id: str, stop_type: str, reason: str,
+  1598	                      actor: str = "system") -> Dict[str, Any]:
+  1599	        """触发停等：run RUNNING→WAITING，当前段 attempt RUNNING→WAITING。
+  1600	
+  1601	        stop_event_id 取 WAITING_RAISED 事件的链上 event_hash——审批的
+  1602	        stop_event_id 必须精确锚定该值。
+  1603	        """
+  1604	        SevenStageStateMachine.precondition_spec(stop_type)  # 校验九类之一
+  1605	        if not (isinstance(reason, str) and reason.strip()):
+  1606	            raise PipelineError("reason must be a non-empty string")
+  1607	
+  1608	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1609	            state = self._load_state(run_id, conn)
+  1610	            self._require_mutable(state)
+  1611	            if state.state != RUN_RUNNING_S:
+  1612	                raise InvalidTransitionError("run", state.state, RUN_WAITING_S)
+  1613	            stage = state.current_stage
+  1614	            if stage is None:
+  1615	                raise PipelineError("七段全 PASSED 的 run 无处停等")
+  1616	            cur = state.stages[stage].current_attempt
+  1617	            if cur is None or cur.status != ATTEMPT_RUNNING:
+  1618	                raise PipelineError(
+  1619	                    f"raise_waiting 需要 RUNNING attempt（当前 "
+  1620	                    f"{cur.status if cur else 'PENDING'}）")
+  1621	            spec = SevenStageStateMachine.precondition_spec(stop_type)
+  1622	            required_keys = sorted({k for group in spec["required"]
+  1623	                                    for k in group})
+  1624	            event = self._base_event(
+  1625	                "WAITING_RAISED", state, "BLOCKED", "NOT_EVALUATED",
+  1626	                stage=stage, attempt_id=cur.attempt_id, actor=actor,
+  1627	                state_version=state.state_version + 1,
+  1628	                stop_type=stop_type, stop_reason=reason,
+  1629	                required_preconditions=required_keys)
+  1630	            event_hash = self._emit(conn, state, event)  # 折叠内校验全部转换
+  1631	            return {
+  1632	                "run_id": run_id, "stage": stage, "stop_type": stop_type,
+  1633	                "stop_event_id": event_hash,
+  1634	                "required_preconditions": required_keys,
+  1635	                "state_version": state.state_version,
+  1636	                "run_state": state.state,
+  1637	            }
+  1638	
+  1639	        return self._db.transact(_body)
+  1640	
+  1641	    def resume_waiting(
+  1642	        self,
+  1643	        run_id: str,
+  1644	        approval: Mapping[str, Any],
+  1645	        objective_preconditions: Mapping[str, Any],
+  1646	        *,
+  1647	        actor: str = "system",
+  1648	    ) -> Dict[str, Any]:
+  1649	        """消费一次性授权后恢复 WAITING：九类停等的必要且充分条件在此会合。
+  1650	
+  1651	        - 必要：一次性授权（ApprovalBroker 原子消费）+ 客观前置条件规格齐备
+  1652	          + 哈希绑定 + TTL + scope/SHA/env/state_version CAS——缺一即拒；
+  1653	        - 充分：以上全部满足后没有任何自由裁量阻断——直接恢复 RUNNING；
+  1654	        - attempt 不可变：旧 attempt 停留 WAITING，恢复创建新 attempt_id。
+  1655	        """
+  1656	        def _loader(conn: sqlite3.Connection) -> RunState:
+  1657	            return self._load_state(run_id, conn)
+  1658	
+  1659	        def _resume_event(state: RunState, ap: Mapping[str, Any],
+  1660	                          nonce_digest: str) -> Mapping[str, Any]:
+  1661	            if state.state != RUN_WAITING_S or state.waiting is None:
+  1662	                raise ApprovalRejected(
+  1663	                    f"run is {state.state}, not WAITING——无可恢复停等")
+  1664	            waiting = state.waiting
+  1665	            stage_ss = state.stages[waiting.stage]
+  1666	            attempt_id = self._new_attempt_id(waiting.stage,
+  1667	                                              len(stage_ss.attempts) + 1)
+  1668	            return self._base_event(
+  1669	                "WAITING_RESUMED", state, "COMPLETED", "NOT_EVALUATED",
+  1670	                stage=waiting.stage, attempt_id=attempt_id, actor=actor,
+  1671	                state_version=state.state_version + 1,
+  1672	                stop_type=waiting.stop_type,
+  1673	                stop_event_id=waiting.stop_event_id,
+  1674	                approval_id=ap["approval_id"], nonce_digest=nonce_digest)
+  1675	
+  1676	        record = self.broker.consume(
+  1677	            approval,
+  1678	            run_loader=_loader,
+  1679	            resume_event_builder=_resume_event,
+  1680	            objective_preconditions=objective_preconditions,
+  1681	        )
+  1682	        state = self.get_run(run_id)
+  1683	        record["run_state"] = state.state
+  1684	        cur_stage = state.current_stage
+  1685	        record["resumed_attempt_id"] = (
+  1686	            state.stages[cur_stage].current_attempt.attempt_id
+  1687	            if cur_stage is not None else None)
+  1688	        return record
+  1689	
+  1690	    def authorize_risk(self, run_id: str,
+  1691	                       approval: Mapping[str, Any]) -> Dict[str, Any]:
+  1692	        """消费一次性 risk 授权进台账——COMPLETED_CONDITIONAL 的前置。"""
+  1693	        return self.broker.consume_authorization(
+  1694	            approval, run_loader=lambda conn: self._load_state(run_id, conn))
+  1695	
+  1696	    def complete_run(self, run_id: str, *, risk_approval_id: Optional[str] = None,
+  1697	                     reason: str = "", actor: str = "system") -> Dict[str, Any]:
+  1698	        """终态判定（契约 §3/§5 映射到 run-event-v2 双轴）：
+  1699	        七段全 PASSED → SUCCEEDED；末段软终态 + 已消费未过期 risk 授权 →
+  1700	        COMPLETED_CONDITIONAL（无授权即 fail-closed 拒绝）；其余 → FAILED。
+  1701	        WAITING 中的 run 不得直接 complete（先 resume/cancel）。
+  1702	        """
+  1703	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1704	            state = self._load_state(run_id, conn)
+  1705	            self._require_mutable(state)
+  1706	            if state.state == RUN_WAITING_S:
+  1707	                raise PipelineError(
+  1708	                    f"run {run_id} WAITING——先 resume_waiting 或 cancel_run")
+  1709	            statuses = state.stage_statuses()
+  1710	            all_passed = all(v == ATTEMPT_PASSED for v in statuses.values())
+  1711	            soft = [s for s, v in statuses.items()
+  1712	                    if v == ATTEMPT_COMPLETED_CONDITIONAL]
+  1713	            unfinished = [s for s, v in statuses.items()
+  1714	                          if v in (ATTEMPT_PENDING, ATTEMPT_RUNNING,
+  1715	                                   ATTEMPT_FAILED, ATTEMPT_WAITING)]
+  1716	            if all_passed:
+  1717	                final, execution, verdict = (
+  1718	                    RUN_SUCCEEDED_S, "COMPLETED", "PASS")
+  1719	                terminal_reason = reason or "七段全 PASSED"
+  1720	            elif soft and not unfinished:
+  1721	                risk = self.broker.has_unexpired_risk_authorization(run_id)
+  1722	                if risk is None or (risk_approval_id is not None
+  1723	                                    and risk["approval_id"] != risk_approval_id):
+  1724	                    raise PipelineError(
+  1725	                        f"run {run_id} 存在软终态段 {soft} 但无可用的已消费、"
+  1726	                        f"未过期 risk 授权——COMPLETED_CONDITIONAL fail-closed")
+  1727	                final, execution, verdict = (
+  1728	                    RUN_COMPLETED_CONDITIONAL_S, "COMPLETED", "CONDITIONAL")
+  1729	                terminal_reason = reason or (
+  1730	                    f"risk authorization {risk['approval_id']} active; "
+  1731	                    f"soft stages: {soft}")
+  1732	            else:
+  1733	                if state.state == RUN_CREATED_S:
+  1734	                    raise InvalidTransitionError(
+  1735	                        "run", RUN_CREATED_S, RUN_FAILED_S)
+  1736	                final, execution, verdict = RUN_FAILED_S, "COMPLETED", "FAIL"
+  1737	                terminal_reason = reason or (
+  1738	                    f"unfinished/failed stages: {unfinished or soft}")
+  1739	            event = self._base_event(
+  1740	                "RUN_COMPLETED", state, execution, verdict, actor=actor,
+  1741	                state_version=state.state_version + 1,
+  1742	                terminal_reason=terminal_reason)
+  1743	            event_hash = self._emit(conn, state, event)  # 折叠内校验终态转换
+  1744	            return {
+  1745	                "run_id": run_id, "final_state": final,
+  1746	                "execution_status": execution, "policy_verdict": verdict,
+  1747	                "terminal_reason": terminal_reason,
+  1748	                "state_version": state.state_version,
+  1749	                "event_hash": event_hash,
+  1750	            }
+  1751	
+  1752	        return self._db.transact(_body)
+  1753	
+  1754	    def cancel_run(self, run_id: str, reason: str = "",
+  1755	                   actor: str = "system") -> Dict[str, Any]:
+  1756	        """取消（CREATED/RUNNING/WAITING → CANCELLED；attempt 亦 CANCELLED 由重放推导）。"""
+  1757	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1758	            state = self._load_state(run_id, conn)
+  1759	            self._require_mutable(state)
+  1760	            event = self._base_event(
+  1761	                "RUN_COMPLETED", state, "CANCELLED", "NOT_EVALUATED",
+  1762	                actor=actor, state_version=state.state_version + 1,
+  1763	                terminal_reason=reason or "cancelled")
+  1764	            event_hash = self._emit(conn, state, event)
+  1765	            return {"run_id": run_id, "final_state": RUN_CANCELLED_S,
+  1766	                    "state_version": state.state_version,
+  1767	                    "event_hash": event_hash}
+  1768	
+  1769	        return self._db.transact(_body)
+  1770	
+  1771	    def supersede_run(self, run_id: str, reason: str,
+  1772	                      actor: str = "system") -> Dict[str, Any]:
+  1773	        """作废（不变量 #3：commit/环境/规则集/范围变化 → 旧 run SUPERSEDED + 新建 run）。"""
+  1774	        if not (isinstance(reason, str) and reason.strip()):
+  1775	            raise PipelineError("supersede reason must be non-empty")
+  1776	
+  1777	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1778	            state = self._load_state(run_id, conn)
+  1779	            self._require_mutable(state)
+  1780	            event = self._base_event(
+  1781	                "SUPERSEDED", state, "CANCELLED", "NOT_EVALUATED",
+  1782	                actor=actor, state_version=state.state_version + 1,
+  1783	                supersede_reason=reason)
+  1784	            event_hash = self._emit(conn, state, event)
+  1785	            return {"run_id": run_id, "final_state": RUN_SUPERSEDED_S,
+  1786	                    "state_version": state.state_version,
+  1787	                    "event_hash": event_hash}
+  1788	
+  1789	        return self._db.transact(_body)
+  1790	
+  1791	    def close(self) -> None:
+  1792	        self._db.close()

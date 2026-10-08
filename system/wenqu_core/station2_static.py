@@ -592,6 +592,14 @@ class _Station2Scanner:
         }
         if exclusions:
             coverage["exclusions"] = sorted(set(exclusions))
+        # 工件契约（station-result-v2）：PASS 必须携带非空 artifacts——以报告主体
+        # （tool/execution/coverage/finding_ids）的规范化内容摘要作为该扫描器
+        # 报告工件，与站0 manifest 工件、站1 gate 工件同一寻址范式
+        artifact_body = json.dumps(
+            {"tool": tool, "execution": execution, "coverage": coverage,
+             "finding_ids": [f.finding_id for f in findings]},
+            separators=(",", ":"), ensure_ascii=False, sort_keys=True,
+        ).encode("utf-8")
         result = build_station_result(
             run_id=self._run_id,
             station_id=STATION_ID,
@@ -603,6 +611,10 @@ class _Station2Scanner:
             execution=execution,
             coverage=coverage,
             finding_ids=[f.finding_id for f in findings],
+            artifacts=[{
+                "cas_digest": f"sha256:{_sha256_hex(artifact_body)}",
+                "size": len(artifact_body),
+            }],
         )
         validate_station_result(result)
         return ScannerReport(
@@ -1650,6 +1662,11 @@ class Station2Static:
             slug: sub_results[slug]["execution"]["argv_digest"] for slug in self._scanners
         }
 
+        aggregate_body = json.dumps(
+            {"argv_digest_map": argv_digest_map, "statuses": statuses,
+             "finding_ids": [f.finding_id for f in all_findings]},
+            separators=(",", ":"), ensure_ascii=False, sort_keys=True,
+        ).encode("utf-8")
         aggregate = build_station_result(
             run_id=self._run_id,
             station_id=STATION_ID,
@@ -1681,6 +1698,10 @@ class Station2Static:
                 **({"exclusions": disabled} if disabled else {}),
             },
             finding_ids=[f.finding_id for f in all_findings],
+            artifacts=[{
+                "cas_digest": f"sha256:{_sha256_hex(aggregate_body)}",
+                "size": len(aggregate_body),
+            }],
         )
         validate_station_result(aggregate)
 

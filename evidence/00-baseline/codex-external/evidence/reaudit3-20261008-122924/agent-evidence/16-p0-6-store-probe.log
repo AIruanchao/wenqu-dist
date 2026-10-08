@@ -1,0 +1,144 @@
+TIMESTAMP_START=2026-10-08T04:31:55Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/p0_6_store_probe.py'
+--- OUTPUT BEGIN ---
+{
+  "consecutive_retry": {
+    "first": [
+      "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b",
+      true
+    ],
+    "second": [
+      "8e365009b507566ba6f0ffd09c89b89d8479ff903e7a677756d384e40778db05",
+      false
+    ],
+    "verify": {
+      "ok": true,
+      "length": 1,
+      "head": "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b"
+    }
+  },
+  "retry_after_intervening": {
+    "A": [
+      "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b",
+      true
+    ],
+    "B": [
+      "de54aa89e22205110cb35fe1bc16846bc6f4926771e286e42234d5cfff8b8204",
+      true
+    ],
+    "retry_A_return": [
+      "c4b537c73ee96d98782f2d2fe803b2c43167c278f6e54d87c557f505bdfb4dba",
+      false
+    ],
+    "retry_hash_equals_original": false,
+    "retry_hash_exists_in_db": false,
+    "rows": [
+      [
+        1,
+        "cc7721b110406bf7511783bce0b5d812402cfc4d358e107a95996e405d039de6",
+        "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b",
+        "{\"kind\":\"A\",\"value\":1}"
+      ],
+      [
+        2,
+        "d7fd9f4eee8bdb94186d651d7ef3a86628b96aa111c29d88bf59e74c1e9c5670",
+        "de54aa89e22205110cb35fe1bc16846bc6f4926771e286e42234d5cfff8b8204",
+        "{\"kind\":\"B\",\"value\":2}"
+      ]
+    ],
+    "head_method": [
+      "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b",
+      2
+    ],
+    "actual_last_hash": "de54aa89e22205110cb35fe1bc16846bc6f4926771e286e42234d5cfff8b8204",
+    "head_is_actual_last": false,
+    "verify_chain_report": {
+      "ok": true,
+      "length": 2,
+      "head": "ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b"
+    }
+  },
+  "coexistence": {
+    "eventstore_then_migrator": {
+      "report": {
+        "source_dir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/src1",
+        "sqlite_path": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/order1.db",
+        "sidecar_path": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/order1.db.migration-sidecar.jsonl",
+        "conserved": true,
+        "conservation": {
+          "equation": "lines_total == imported + duplicates + quarantined",
+          "lines_total": 1,
+          "imported": 1,
+          "duplicates": 0,
+          "quarantined": 0
+        },
+        "files_scanned": 1,
+        "quarantine_reasons": {},
+        "imported_status_counts": {
+          "PASS": 1
+        },
+        "per_file": [
+          {
+            "file": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/src1/f.jsonl",
+            "lines": 1,
+            "imported": 1,
+            "duplicates": 0,
+            "quarantined": 0
+          }
+        ]
+      },
+      "tables": [
+        "events",
+        "migration_runs",
+        "pipeline_events",
+        "sqlite_sequence"
+      ]
+    },
+    "migrator_then_eventstore": {
+      "report": {
+        "source_dir": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/src2",
+        "sqlite_path": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/order2.db",
+        "sidecar_path": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/order2.db.migration-sidecar.jsonl",
+        "conserved": true,
+        "conservation": {
+          "equation": "lines_total == imported + duplicates + quarantined",
+          "lines_total": 1,
+          "imported": 1,
+          "duplicates": 0,
+          "quarantined": 0
+        },
+        "files_scanned": 1,
+        "quarantine_reasons": {},
+        "imported_status_counts": {
+          "PASS": 1
+        },
+        "per_file": [
+          {
+            "file": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit3-p06-livmogh8/src2/f.jsonl",
+            "lines": 1,
+            "imported": 1,
+            "duplicates": 0,
+            "quarantined": 0
+          }
+        ]
+      },
+      "tables": [
+        "events",
+        "migration_runs",
+        "pipeline_events",
+        "sqlite_sequence"
+      ]
+    }
+  },
+  "assessment": {
+    "specific_second_round_duplicate_insert_fixed": true,
+    "specific_table_schema_collision_fixed": true,
+    "residual_duplicate_return_hash_is_nonexistent": true,
+    "residual_head_is_wrong": true,
+    "residual_two_event_tables_not_one_source": true
+  }
+}
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:31:55Z

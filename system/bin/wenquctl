@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# wenquctl——P0-2 七段管线 CLI 壳（P0-1 残余接线）。
+# 实体在 system/wenqu_core/cli.py（纯标准库）；本壳只负责定位 python3。
+set -uo pipefail
+SYS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec python3 "$SYS_DIR/wenqu_core/cli.py" "$@"

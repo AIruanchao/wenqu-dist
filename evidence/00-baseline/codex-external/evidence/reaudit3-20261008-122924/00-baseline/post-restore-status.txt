@@ -1,0 +1,5 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\ \&\&\ git\ status\ --short\ \&\&\ git\ diff\ --exit-code
+START: 2026-10-08T12:30:23+08:00
+
+EXIT_CODE: 0
+END: 2026-10-08T12:30:23+08:00

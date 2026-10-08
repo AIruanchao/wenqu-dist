@@ -1,0 +1,6 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\ \&\&\ bash\ tests/release-check.sh
+START: 2026-10-08T12:30:27+08:00
+tests/release-check.sh: line 5: 1: 用法: release-check.sh <v版本> <fork版本>
+
+EXIT_CODE: 1
+END: 2026-10-08T12:30:27+08:00

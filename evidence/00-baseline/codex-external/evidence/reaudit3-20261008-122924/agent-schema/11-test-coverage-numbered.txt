@@ -1,0 +1,261 @@
+$ nl -ba system/tests/test_core_wiring.py
+     1	#!/usr/bin/env python3
+     2	"""P0-1 核心接线验证——移除 wenqu_core 或 schemas 后此测试必须红。
+     3	
+     4	这是 Codex 验收报告 P0-1 的直接修复：当前移除新核心后旧 CI 仍全绿。
+     5	此测试确保新核心的存在和可导入性是 CI 的硬依赖。
+     6	"""
+     7	import os
+     8	import sys
+     9	import json
+    10	import importlib
+    11	import subprocess
+    12	import tempfile
+    13	
+    14	REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
+    15	CORE = os.path.join(REPO, "wenqu_core")
+    16	SCHEMAS = os.path.join(REPO, "schemas")
+    17	DASHBOARD = os.path.join(REPO, "dashboard")
+    18	INSTALL = os.path.join(REPO, "install.sh")
+    19	
+    20	
+    21	def test_wenqu_core_exists():
+    22	    """wenqu_core 目录存在且非空。"""
+    23	    assert os.path.isdir(CORE), f"wenqu_core 目录不存在: {CORE}"
+    24	    py_files = [f for f in os.listdir(CORE) if f.endswith(".py")]
+    25	    assert len(py_files) >= 8, f"wenqu_core 模块数不足: {len(py_files)} (期望 ≥8)"
+    26	
+    27	
+    28	def test_core_modules_importable():
+    29	    """核心模块全部可导入。"""
+    30	    sys.path.insert(0, REPO)
+    31	    required = [
+    32	        "runner", "store", "source_gate", "bugscan_orchestrator",
+    33	        "scheduler", "gate_aggregator", "ledger_migrator", "deploy_framework",
+    34	        "wenqu_pipeline",
+    35	    ]
+    36	    for mod in required:
+    37	        try:
+    38	            importlib.import_module(f"wenqu_core.{mod}")
+    39	        except ImportError as e:
+    40	            raise AssertionError(f"核心模块 {mod} 不可导入: {e}")
+    41	
+    42	
+    43	def test_schemas_exist_and_valid():
+    44	    """5 个 JSON Schema 存在且可解析。"""
+    45	    expected = [
+    46	        "run-event-v2.schema.json", "station-result-v2.schema.json",
+    47	        "evidence-v2.schema.json", "finding-event-v2.schema.json",
+    48	        "approval-v2.schema.json",
+    49	    ]
+    50	    for name in expected:
+    51	        path = os.path.join(SCHEMAS, name)
+    52	        assert os.path.isfile(path), f"Schema 缺失: {name}"
+    53	        try:
+    54	            json.load(open(path))
+    55	        except (json.JSONDecodeError, OSError) as e:
+    56	            raise AssertionError(f"Schema 不可解析: {name}: {e}")
+    57	
+    58	
+    59	def test_dashboard_files_exist():
+    60	    """新 dashboard 四文件存在。"""
+    61	    for f in ["index.html", "app.css", "app.js", "server.py"]:
+    62	        path = os.path.join(DASHBOARD, f)
+    63	        assert os.path.isfile(path), f"Dashboard 文件缺失: {f}"
+    64	
+    65	
+    66	def test_trusted_runner_produces_evidence():
+    67	    """TrustedRunner 能产出含 actual_exit_code 的证据。"""
+    68	    try:
+    69	        sys.path.insert(0, REPO)
+    70	        from wenqu_core.runner import TrustedRunner
+    71	    except ImportError:
+    72	        return  # CI 环境 pythonpath 差异
+    73	    try:
+    74	        r = TrustedRunner()
+    75	        ev = r.run(["echo", "ci-test"], tempfile.gettempdir())
+    76	        assert ev.actual_exit_code == 0
+    77	        assert len(ev.stdout_sha256) == 64
+    78	    except Exception:
+    79	        pass  # CI 环境可能无法执行子进程——跳过（存在性已验证）
+    80	
+    81	
+    82	def test_gate_aggregator_blocks_empty():
+    83	    """空 required_stations 必须返回 BLOCKED（非真空 PASS）。"""
+    84	    sys.path.insert(0, REPO)
+    85	    from wenqu_core.gate_aggregator import GateAggregator
+    86	    g = GateAggregator(required_stations=set(), target_sha="0"*40, environment="test")
+    87	    v = g.aggregate()
+    88	    assert v["aggregate_outcome"] == "BLOCKED", f"空 required 应 BLOCKED，实际 {v['aggregate_outcome']}"
+    89	    assert v["technical_eligible"] is False
+    90	
+    91	
+    92	def test_schema_rejects_p0_accepted_risk():
+    93	    """CRITICAL severity 不可 ACCEPTED_RISK（Schema 硬化验证）。"""
+    94	    try:
+    95	        import jsonschema
+    96	    except ImportError:
+    97	        return  # CI 环境可能缺 jsonschema——跳过（核心存在性已由其他测试覆盖）
+    98	    schema = json.load(open(os.path.join(SCHEMAS, "finding-event-v2.schema.json")))
+    99	    bad = {
+   100	        "schema_version": "2.0", "event_type": "ACCEPTED_RISK",
+   101	        "finding_id": "fnd_ci", "fingerprint": "fp", "severity": "CRITICAL",
+   102	        "priority": "P0", "ts": "2026-01-01T00:00:00Z",
+   103	        "risk_acceptance": {"approver": "a", "reason": "r"*10, "scope": "s", "expiry": "2026-12-31"},
+   104	    }
+   105	    try:
+   106	        jsonschema.validate(bad, schema)
+   107	        raise AssertionError("CRITICAL ACCEPTED_RISK 应被 Schema 拒绝")
+   108	    except jsonschema.ValidationError:
+   109	        pass  # 正确拒绝
+   110	
+   111	
+   112	def test_install_sh_installs_core():
+   113	    """install.sh 安装后 wenqu_core 可导入（P0-1 接线验证）。"""
+   114	    # 只验证 install.sh 中包含 wenqu_core 安装逻辑
+   115	    script = open(INSTALL).read()
+   116	    assert "wenqu_core" in script, "install.sh 未包含 wenqu_core 安装"
+   117	    assert "TrustedRunner" in script, "install.sh 未包含核心安装验证"
+   118	
+   119	
+   120	if __name__ == "__main__":
+   121	    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+   122	    passed = failed = 0
+   123	    for t in tests:
+   124	        try:
+   125	            t()
+   126	            print(f"  ✓ {t.__name__}")
+   127	            passed += 1
+   128	        except Exception as e:
+   129	            print(f"  ✗ {t.__name__}: {e}")
+   130	            failed += 1
+   131	    print(f"\nP0-1 核心接线: {passed} PASS / {failed} FAIL")
+   132	    sys.exit(1 if failed else 0)
+[exit_code]0
+$ nl -ba tests/acceptance.sh | sed -n 300,390p
+   300	  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+   301	else
+   302	  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+   303	fi
+   304	
+   305	echo "== T. P0 auto-merge containment =="
+   306	P0_MSG="auto-merge permanently disabled per P0 containment"
+   307	P0_STUB_LINE="printf '%s\n' 'auto-merge permanently disabled per P0 containment' >&2; exit 1"
+   308	P0_HOME="$TD/p0-home"; mkdir -p "$P0_HOME/daemons" "$P0_HOME/state"
+   309	printf '%s\n' 'touch "$WENQU_HOME/writer-ran"; exit 0' > "$P0_HOME/daemons/auto-merge.sh"
+   310	P0_OUT=$(WENQU_HOME="$P0_HOME" WENQU_REPO="owner/repo" bash "$ROOT/system/bin/wenqu" start 2>&1); P0_RC=$?
+   311	ck "wenqu start 永久拒绝" 1 "$P0_RC"
+   312	if [ "$P0_OUT" = "$P0_MSG" ] && [ ! -e "$P0_HOME/writer-ran" ] && [ ! -e "$P0_HOME/state/auto-merge.pid" ]; then
+   313	  PASS_N=$((PASS_N+1)); echo "  ✅ start 精确报错且未执行 writer/写 PID"
+   314	else
+   315	  FAIL_N=$((FAIL_N+1)); echo "  ❌ start containment 断言失败"
+   316	fi
+   317	
+   318	P0_OUT=$(bash "$ROOT/system/daemons/auto-merge.sh" ignored 2>&1); P0_RC=$?
+   319	ck "源码 auto-merge stub 拒绝" 1 "$P0_RC"
+   320	if [ "$P0_OUT" = "$P0_MSG" ] && [ "$(cat "$ROOT/system/daemons/auto-merge.sh")" = "$P0_STUB_LINE" ] && [ "$(wc -l < "$ROOT/system/daemons/auto-merge.sh" | tr -d ' ')" = "1" ]; then
+   321	  PASS_N=$((PASS_N+1)); echo "  ✅ 源码 stub 唯一内容、单行且消息精确"
+   322	else
+   323	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 源码 stub 形态或消息错误"
+   324	fi
+   325	
+   326	P0_PREFIX="$TD/p0-prefix"; P0_FAKE_HOME="$TD/p0-fake-home"
+   327	mkdir -p "$P0_PREFIX/bin" "$P0_PREFIX/daemons" "$P0_FAKE_HOME"
+   328	printf '%s\n' 'echo unsafe-writer' > "$P0_PREFIX/daemons/auto-merge.sh"
+   329	HOME="$P0_FAKE_HOME" PATH="$P0_PREFIX/bin:$PATH" bash "$ROOT/system/install.sh" --prefix "$P0_PREFIX" >/dev/null 2>&1; ck "隔离安装" 0 $?
+   330	P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+   331	if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+   332	  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+   333	else
+   334	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
+   335	fi
+   336	
+   337	echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+   338	if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+   339	  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+   340	  CORE_RC=$?
+   341	  if [ $CORE_RC -eq 0 ]; then
+   342	    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+   343	  else
+   344	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+   345	  fi
+   346	else
+   347	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+   348	fi
+   349	
+   350	echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+   351	if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+   352	  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+   353	  PIPE_RC=$?
+   354	  if [ $PIPE_RC -eq 0 ]; then
+   355	    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+   356	  else
+   357	    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+   358	  fi
+   359	else
+   360	  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+   361	fi
+   362	
+   363	echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红）=="
+   364	if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+   365	  python3 "$ROOT/tools/ac_traceability.py" >/dev/null 2>&1
+   366	  AC_RC=$?
+   367	  if [ $AC_RC -eq 0 ]; then
+   368	    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵生成 OK（evidence/traceability-matrix.json 刷新）"
+   369	  else
+   370	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵生成失败（exit=$AC_RC）——evidence 目录或工具损坏"
+   371	  fi
+   372	else
+   373	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   374	fi
+   375	
+   376	echo "================================"
+   377	echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+   378	[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+[exit_code]0
+$ rg -n "P0-4|P0-5|P0-9|dashboard|schema|runner|CAS|symlink|cross" tests system/tests .github/workflows
+system/tests/test_core_wiring.py:2:"""P0-1 核心接线验证——移除 wenqu_core 或 schemas 后此测试必须红。
+system/tests/test_core_wiring.py:16:SCHEMAS = os.path.join(REPO, "schemas")
+system/tests/test_core_wiring.py:17:DASHBOARD = os.path.join(REPO, "dashboard")
+system/tests/test_core_wiring.py:32:        "runner", "store", "source_gate", "bugscan_orchestrator",
+system/tests/test_core_wiring.py:43:def test_schemas_exist_and_valid():
+system/tests/test_core_wiring.py:46:        "run-event-v2.schema.json", "station-result-v2.schema.json",
+system/tests/test_core_wiring.py:47:        "evidence-v2.schema.json", "finding-event-v2.schema.json",
+system/tests/test_core_wiring.py:48:        "approval-v2.schema.json",
+system/tests/test_core_wiring.py:59:def test_dashboard_files_exist():
+system/tests/test_core_wiring.py:60:    """新 dashboard 四文件存在。"""
+system/tests/test_core_wiring.py:66:def test_trusted_runner_produces_evidence():
+system/tests/test_core_wiring.py:70:        from wenqu_core.runner import TrustedRunner
+system/tests/test_core_wiring.py:92:def test_schema_rejects_p0_accepted_risk():
+system/tests/test_core_wiring.py:95:        import jsonschema
+system/tests/test_core_wiring.py:97:        return  # CI 环境可能缺 jsonschema——跳过（核心存在性已由其他测试覆盖）
+system/tests/test_core_wiring.py:98:    schema = json.load(open(os.path.join(SCHEMAS, "finding-event-v2.schema.json")))
+system/tests/test_core_wiring.py:100:        "schema_version": "2.0", "event_type": "ACCEPTED_RISK",
+system/tests/test_core_wiring.py:106:        jsonschema.validate(bad, schema)
+system/tests/test_core_wiring.py:108:    except jsonschema.ValidationError:
+system/tests/test_wenqu_pipeline.py:171:        "schema_version": "2.0",
+system/tests/test_wenqu_pipeline.py:277:    bad = dict(base); bad["schema_version"] = "1.0"
+system/tests/test_wenqu_pipeline.py:316:    # 4) state_version CAS
+system/tests/test_wenqu_pipeline.py:384:        "schema_version": "2.0", "approval_id": "apr_risk_1",
+system/tests/test_wenqu_pipeline.py:471:def t_schema_crosscheck():
+system/tests/test_wenqu_pipeline.py:472:    """结构校验器与 approval-v2.schema.json 交叉验证（jsonschema 可用时）。"""
+system/tests/test_wenqu_pipeline.py:474:        import jsonschema
+system/tests/test_wenqu_pipeline.py:476:        print("  (skip) jsonschema 未安装，跳过交叉验证")
+system/tests/test_wenqu_pipeline.py:478:    schema = json.load(open(os.path.join(REPO, "schemas", "approval-v2.schema.json")))
+system/tests/test_wenqu_pipeline.py:485:    # 合法样例：schema 与内置校验器都放行
+system/tests/test_wenqu_pipeline.py:486:    jsonschema.validate(ap, schema)
+system/tests/test_wenqu_pipeline.py:489:    for mut in (lambda a: a.update({"schema_version": "1.9"}),
+system/tests/test_wenqu_pipeline.py:497:            jsonschema.validate(bad, schema)
+system/tests/test_wenqu_pipeline.py:498:            schema_rejects = False
+system/tests/test_wenqu_pipeline.py:499:        except jsonschema.ValidationError:
+system/tests/test_wenqu_pipeline.py:500:            schema_rejects = True
+system/tests/test_wenqu_pipeline.py:506:        assert schema_rejects and mine_rejects, f"分歧: schema={schema_rejects} mine={mine_rejects} on {bad}"
+system/tests/test_wenqu_pipeline.py:513:    ("审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希）", t_approval_rejections),
+system/tests/test_wenqu_pipeline.py:518:    ("与 approval-v2 schema 交叉验证", t_schema_crosscheck),
+tests/acceptance.sh:247:echo "== Q. fork16：symlink 排除与 CLI 对齐（S10-FA）=="
+tests/acceptance.sh:254:python3 "$WQ" --home "$HQ" run trap-double --path "$RQ" >/dev/null 2>&1; ck "symlink 指向仓外目标被排除" 0 $?
+tests/acceptance.sh:256:[ "$FILES" = "1" ] && { PASS_N=$((PASS_N+1)); echo "  ✅ CLI 冻结范围排除 symlink（1 文件）"; } || { FAIL_N=$((FAIL_N+1)); echo "  ❌ 冻结范围含 symlink（$FILES）"; }
+tests/acceptance.sh:342:    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+tests/acceptance.sh:344:    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+tests/acceptance.sh:355:    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+[exit_code]0

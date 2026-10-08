@@ -1,0 +1,2381 @@
+TIMESTAMP_START=2026-10-08T04:31:14Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=printf '%s\n' '=== 38adb4 diff relevant ==='; git show --format=fuller --find-renames 38adb4 -- system/wenqu_core/gate_aggregator.py system/wenqu_core/bugscan_orchestrator.py system/schemas/station-result-v2.schema.json system/dashboard/server.py system/dashboard/app.js system/bin/wenqu-dashboard.py system/tests/test_core_wiring.py; printf '%s\n' '=== current gate aggregator ==='; nl -ba system/wenqu_core/gate_aggregator.py; printf '%s\n' '=== station schema ==='; nl -ba system/schemas/station-result-v2.schema.json; printf '%s\n' '=== orchestrator ==='; nl -ba system/wenqu_core/bugscan_orchestrator.py; printf '%s\n' '=== dashboard field consumers ==='; rg -n 'aggregate_outcome|policy_verdict|overall|generated_at|station-result|gate-aggregate|GateAggregator|aggregate' system/dashboard system/bin/wenqu-dashboard.py system/wenqu_core tests system/tests
+--- OUTPUT BEGIN ---
+=== 38adb4 diff relevant ===
+=== current gate aggregator ===
+     1	# -*- coding: utf-8 -*-
+     2	"""统一 Gate 聚合器（Codex W3B）。
+     3	
+     4	消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
+     5	
+     6	station-result 输入契约（add() 的每个元素）::
+     7	
+     8	    {
+     9	      "station":     "lint",        # 必填：站点名（required_stations 成员或旁路站点）
+    10	      "outcome":     "PASS",        # 必填：见下方别名表；未知/缺失一律按硬失败
+    11	      "sha":         "<full-sha>",  # 必填（亦接受 target_sha / commit_sha）
+    12	      "environment": "staging",     # 必填：须与构造器 environment 完全一致
+    13	    }
+    14	
+    15	outcome 别名表（大小写不敏感）：
+    16	    PASS/PASSED/OK/SUCCESS/GREEN                            -> PASS
+    17	    CONDITIONAL/WARN/WARNING/SOFT_PASS/PASS_WITH_WARNINGS   -> CONDITIONAL
+    18	    FAIL/FAILED/FAILURE/ERROR/BLOCKED/TIMEOUT/未知/缺失     -> 硬失败（整线 BLOCKED）
+    19	
+    20	硬约束（不可降级）：
+    21	    C1 任一 required 站非 PASS -> 整线非 PASS；
+    22	    C2 任一站点证据 SHA 与 target_sha 不一致（或缺失、无法绑定目标）-> BLOCKED；
+    23	    C3 分母缩水：required 站未全部上报 -> BLOCKED；
+    24	    C4 CONDITIONAL != PASS：条件通过永不映射为绿判定 / GitHub success；
+    25	    C5 环境不一致 / 结构残缺 / 同站冲突证据 -> BLOCKED（宁可阻断，不猜证据）。
+    26	
+    27	technical_eligible 语义：True 仅表示技术硬门（C2/C3/C5 及“无任何站点硬失败”）全部
+    28	通过；与 aggregate_outcome == PASS 不等价——CONDITIONAL 时 technical_eligible 可为
+    29	True，但放行判断必须且只能以 aggregate_outcome == PASS 为准。
+    30	
+    31	GitHub 状态映射（to_github_status）：
+    32	    PASS        -> state=success  / conclusion=success
+    33	    CONDITIONAL -> state=failure  / conclusion=action_required  # 条件项须人工处置，绝不上绿
+    34	    BLOCKED     -> state=failure  / conclusion=failure
+    35	"""
+    36	
+    37	from __future__ import annotations
+    38	
+    39	from typing import Any, Dict, List, Mapping, Optional, Set
+    40	
+    41	__all__ = ["GateAggregator", "PASS", "CONDITIONAL", "BLOCKED"]
+    42	
+    43	PASS = "PASS"
+    44	CONDITIONAL = "CONDITIONAL"
+    45	BLOCKED = "BLOCKED"
+    46	
+    47	_PASS_ALIASES = frozenset({"PASS", "PASSED", "OK", "SUCCESS", "GREEN"})
+    48	_CONDITIONAL_ALIASES = frozenset(
+    49	    {"CONDITIONAL", "WARN", "WARNING", "SOFT_PASS", "PASS_WITH_WARNINGS"}
+    50	)
+    51	_SHA_FIELDS = ("sha", "target_sha", "commit_sha")
+    52	
+    53	_GITHUB_STATE = {
+    54	    PASS: ("success", "success"),
+    55	    CONDITIONAL: ("failure", "action_required"),
+    56	    BLOCKED: ("failure", "failure"),
+    57	}
+    58	
+    59	
+    60	class GateAggregator:
+    61	    """消费 station-result JSON，输出整线统一 gate 判定。
+    62	
+    63	    用法::
+    64	
+    65	        agg = GateAggregator(required_stations={"lint", "test"},
+    66	                             target_sha="abc...", environment="staging")
+    67	        agg.add(station_result_1).add(station_result_2)
+    68	        verdict = agg.aggregate()          # aggregate_outcome / technical_eligible / reason ...
+    69	        status = agg.to_github_status()    # {"state": ..., "conclusion": ..., "description": ...}
+    70	    """
+    71	
+    72	    def __init__(self, required_stations: Set[str], target_sha: str, environment: str) -> None:
+    73	        target_sha = str(target_sha or "").strip().lower()
+    74	        if not target_sha:
+    75	            raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
+    76	        if not isinstance(environment, str) or not environment:
+    77	            raise ValueError("environment is required: gate evidence must be bound to an environment")
+    78	
+    79	        self.required_stations: frozenset = frozenset(
+    80	            s.strip() for s in required_stations if isinstance(s, str) and s.strip()
+    81	        )
+    82	        self.target_sha: str = target_sha
+    83	        self.environment: str = environment
+    84	
+    85	        # 内部登记簿
+    86	        self._stations: Dict[str, Dict[str, Any]] = {}
+    87	        self._duplicates: List[str] = []
+    88	        self._conflicts: List[Dict[str, Any]] = []
+    89	        self._malformed: List[Dict[str, Any]] = []
+    90	        self._sha_violations: List[Dict[str, Any]] = []
+    91	        self._env_violations: List[Dict[str, Any]] = []
+    92	
+    93	    # ------------------------------------------------------------------ #
+    94	    # 登记阶段
+    95	    # ------------------------------------------------------------------ #
+    96	    @staticmethod
+    97	    def _normalize_outcome(raw: Any) -> str:
+    98	        """归一化 outcome；未知/缺失一律按 BLOCKED（硬失败）处理，绝不猜成好结果。"""
+    99	        token = str(raw if raw is not None else "").strip().upper()
+   100	        if token in _PASS_ALIASES:
+   101	            return PASS
+   102	        if token in _CONDITIONAL_ALIASES:
+   103	            return CONDITIONAL
+   104	        return BLOCKED
+   105	
+   106	    def add(self, station_result: dict) -> "GateAggregator":
+   107	        """登记一条 station-result；返回 self 以便链式调用。
+   108	
+   109	        重复站点：内容完全一致视为幂等上报（忽略）；不一致视为冲突证据，
+   110	        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+   111	        """
+   112	        if not isinstance(station_result, Mapping):
+   113	            self._malformed.append(
+   114	                {"reason": "not_a_json_object", "entry": repr(station_result)[:200]}
+   115	            )
+   116	            return self
+   117	
+   118	        station = station_result.get("station")
+   119	        if not isinstance(station, str) or not station.strip():
+   120	            self._malformed.append({
+   121	                "reason": "missing_field:station",
+   122	                "entry_keys": sorted(map(str, station_result.keys())),
+   123	            })
+   124	            return self
+   125	        station = station.strip()
+   126	
+   127	        outcome = station_result.get("outcome")
+   128	        sha = ""
+   129	        for field in _SHA_FIELDS:
+   130	            value = station_result.get(field)
+   131	            if isinstance(value, str) and value.strip():
+   132	                sha = value.strip().lower()
+   133	                break
+   134	        environment = station_result.get("environment")
+   135	
+   136	        entry = {
+   137	            "station": station,
+   138	            "outcome": self._normalize_outcome(outcome),
+   139	            "outcome_raw": str(outcome if outcome is not None else "").strip(),
+   140	            "sha": sha,
+   141	            "environment": environment,
+   142	            "required": station in self.required_stations,
+   143	        }
+   144	
+   145	        previous = self._stations.get(station)
+   146	        if previous is not None:
+   147	            identical = (
+   148	                previous["outcome"] == entry["outcome"]
+   149	                and previous["sha"] == entry["sha"]
+   150	                and previous["environment"] == entry["environment"]
+   151	            )
+   152	            if identical:
+   153	                self._duplicates.append(station)
+   154	            else:
+   155	                self._conflicts.append({"station": station, "first": previous, "second": entry})
+   156	            return self  # 首条为准；冲突已记账，aggregate() 时 BLOCKED
+   157	
+   158	        self._stations[station] = entry
+   159	
+   160	        # C2：SHA 证据绑定（缺失同样无法绑定 -> 违规）
+   161	        if sha != self.target_sha:
+   162	            self._sha_violations.append({
+   163	                "station": station,
+   164	                "reason": "missing_sha" if not sha else "sha_mismatch",
+   165	                "sha": sha or None,
+   166	                "expected": self.target_sha,
+   167	            })
+   168	        # C5：环境证据绑定（缺失同样无法绑定 -> 违规）
+   169	        if environment != self.environment:
+   170	            self._env_violations.append({
+   171	                "station": station,
+   172	                "reason": "missing_environment" if environment is None else "environment_mismatch",
+   173	                "environment": environment,
+   174	                "expected": self.environment,
+   175	            })
+   176	        return self
+   177	
+   178	    # ------------------------------------------------------------------ #
+   179	    # 判定阶段
+   180	    # ------------------------------------------------------------------ #
+   181	    def aggregate(self) -> Dict[str, Any]:
+   182	        """聚合为统一 gate 判定；纯计算，不修改登记状态。"""
+   183	        reasons: List[str] = []
+   184	        hard = False
+   185	
+   186	        def block(reason: str) -> None:
+   187	            nonlocal hard
+   188	            hard = True
+   189	            reasons.append(reason)
+   190	
+   191	        # 1) C2/C5：证据完整性硬门
+   192	        if self._sha_violations:
+   193	            detail = "; ".join(f"{v['station']}:{v['reason']}" for v in self._sha_violations)
+   194	            block(f"sha_evidence_violation [{detail}]")
+   195	        if self._env_violations:
+   196	            detail = "; ".join(f"{v['reason']}" for v in self._env_violations)
+   197	            stations = ",".join(sorted({v["station"] for v in self._env_violations}))
+   198	            block(f"environment_evidence_violation [{stations}] ({detail})")
+   199	        if self._malformed:
+   200	            block(f"malformed_station_result x{len(self._malformed)} "
+   201	                  f"[first={self._malformed[0]['reason']}]")
+   202	        if self._conflicts:
+   203	            names = ",".join(sorted({c["station"] for c in self._conflicts}))
+   204	            block(f"duplicate_station_conflict [{names}]")
+   205	
+   206	        # 2) C3：分母缩水（required 站未全部上报）
+   207	        reported = set(self._stations)
+   208	        missing_required = sorted(self.required_stations - reported)
+   209	        bypass_reported = sorted(reported - self.required_stations)
+   210	        if missing_required:
+   211	            block("denominator_shrinkage: missing required stations [" +
+   212	                  ",".join(missing_required) + "]")
+   213	
+   214	        # 3) 站点硬失败（required 或旁路站一视同仁；未知 outcome 已归入硬失败）
+   215	        hard_failed = sorted(s for s, e in self._stations.items() if e["outcome"] == BLOCKED)
+   216	        if hard_failed:
+   217	            block("station_hard_failure [" + ",".join(hard_failed) + "]")
+   218	
+   219	        # 4) C4：条件项（软，不 block 但整线不得为 PASS）
+   220	        conditional = sorted(s for s, e in self._stations.items() if e["outcome"] == CONDITIONAL)
+   221	        if conditional:
+   222	            reasons.append("conditional_stations [" + ",".join(conditional) + "]")
+   223	
+   224	        if hard:
+   225	            outcome = BLOCKED
+   226	        elif conditional:
+   227	            outcome = CONDITIONAL
+   228	        else:
+   229	            outcome = PASS
+   230	
+   231	        if not self.required_stations:
+   232	            # P0-3 修：零分母真空 PASS 是 fail-closed 违规——没有 required 站的 Gate 必须拒绝
+   233	            outcome = BLOCKED
+   234	            reason = "BLOCKED: no required stations configured — refusing vacuous PASS (P0-3 fix)"
+   235	        elif outcome == PASS:
+   236	            reason = f"all {len(self.required_stations)} required stations PASS"
+   237	        else:
+   238	            reason = reasons[0] if reasons else outcome
+   239	
+   240	        stations_summary = {
+   241	            s: {
+   242	                "outcome": e["outcome"],
+   243	                "required": e["required"],
+   244	                "sha_bound": e["sha"] == self.target_sha,
+   245	                "environment_ok": e["environment"] == self.environment,
+   246	            }
+   247	            for s, e in sorted(self._stations.items())
+   248	        }
+   249	
+   250	        return {
+   251	            "aggregate_outcome": outcome,
+   252	            "technical_eligible": (not hard) and outcome == PASS,  # P0-3: zero-required must also be false
+   253	            "reason": reason,
+   254	            "reasons": reasons,
+   255	            "counts": {
+   256	                "required_total": len(self.required_stations),
+   257	                "required_reported": len(self.required_stations & reported),
+   258	                "required_missing": len(missing_required),
+   259	                "bypass_stations": len(bypass_reported),
+   260	                "duplicates_ignored": len(self._duplicates),
+   261	                "conflicts": len(self._conflicts),
+   262	                "malformed": len(self._malformed),
+   263	            },
+   264	            "stations": stations_summary,
+   265	            "target_sha": self.target_sha,
+   266	            "environment": self.environment,
+   267	        }
+   268	
+   269	    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+   270	        """映射为 GitHub 状态：Commit Status `state` + Checks API `conclusion` 双口径。
+   271	
+   272	        映射表（CONDITIONAL 绝不上绿，见 C4）：
+   273	            PASS->success/success；CONDITIONAL->failure/action_required；BLOCKED->failure/failure
+   274	        """
+   275	        result = aggregate_result if aggregate_result is not None else self.aggregate()
+   276	        outcome = result.get("aggregate_outcome", BLOCKED)
+   277	        state, conclusion = _GITHUB_STATE.get(outcome, ("failure", "failure"))
+   278	        description = f"gate {outcome}: {result.get('reason', '')}".strip()
+   279	        return {
+   280	            "state": state,                    # Commit Status API: success/failure/pending/error
+   281	            "conclusion": conclusion,          # Checks API conclusion
+   282	            "description": description[:140],  # GitHub description 上限 140 字符
+   283	            "context": f"wenqu-gate/{self.environment}",
+   284	            "target_sha": self.target_sha,
+   285	        }
+=== station schema ===
+     1	{
+     2	  "$schema": "http://json-schema.org/draft-07/schema#",
+     3	  "$id": "wenqu:schemas/station-result-v2.json",
+     4	  "title": "Bug 八站 Station Result Schema v2",
+     5	  "description": "每站统一结果——Codex 方案 §7.2 契约",
+     6	  "type": "object",
+     7	  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+     8	  "properties": {
+     9	    "schema_version": {"const": "2.0"},
+    10	    "run_id": {"type": "string", "pattern": "^[a-zA-Z0-9_-]+$"},
+    11	    "station_id": {"type": "integer", "minimum": 0, "maximum": 7},
+    12	    "attempt_id": {"type": "string"},
+    13	    "execution_status": {"enum": ["COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"]},
+    14	    "policy_verdict": {"enum": ["PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"]},
+    15	    "identity": {
+    16	      "type": "object",
+    17	      "required": ["commit_sha", "environment", "scope_hash"],
+    18	      "properties": {
+    19	        "project_id": {"type": "string"},
+    20	        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    21	        "environment": {"type": "string"},
+    22	        "scope_hash": {"type": "string"},
+    23	        "ruleset_hash": {"type": "string"},
+    24	        "data_config_hash": {"type": "string"},
+    25	        "lockfile_hash": {"type": "string"}
+    26	      }
+    27	    },
+    28	    "tool": {
+    29	      "type": "object",
+    30	      "required": ["name", "version"],
+    31	      "properties": {
+    32	        "name": {"type": "string"},
+    33	        "version": {"type": "string"},
+    34	        "digest": {"type": "string"}
+    35	      }
+    36	    },
+    37	    "execution": {
+    38	      "type": "object",
+    39	      "required": ["argv_digest", "started_at", "ended_at", "actual_exit_code", "expected_exit_set", "assertion_verdict"],
+    40	      "properties": {
+    41	        "argv_digest": {"type": "string"},
+    42	        "cwd_digest": {"type": "string"},
+    43	        "started_at": {"type": "string", "format": "date-time"},
+    44	        "ended_at": {"type": "string", "format": "date-time"},
+    45	        "timeout_s": {"type": "integer", "minimum": 1},
+    46	        "actual_exit_code": {
+    47	          "type": "integer",
+    48	          "description": "trusted runner 实际 waitpid 捕获——不可由调用者填写"
+    49	        },
+    50	        "expected_exit_set": {
+    51	          "type": "array",
+    52	          "items": {"type": "integer"},
+    53	          "description": "该测试允许的内层退出码集合（负例可有非零）"
+    54	        },
+    55	        "assertion_verdict": {
+    56	          "enum": ["PASS", "FAIL", "ERROR"],
+    57	          "description": "测试 harness 对行为是否符合预期的判断"
+    58	        }
+    59	      }
+    60	    },
+    61	    "coverage": {
+    62	      "type": "object",
+    63	      "required": ["denominator", "scanned"],
+    64	      "properties": {
+    65	        "denominator": {"type": "integer", "minimum": 0},
+    66	        "scanned": {"type": "integer", "minimum": 0},
+    67	        "exclusions": {"type": "array", "items": {"type": "string"}}
+    68	      }
+    69	    },
+    70	    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    71	    "artifacts": {
+    72	      "type": "array",
+    73	      "items": {
+    74	        "type": "object",
+    75	        "required": ["cas_digest", "size"],
+    76	        "properties": {
+    77	          "cas_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    78	          "size": {"type": "integer", "minimum": 1}
+    79	        }
+    80	      }
+    81	    }
+    82	  },
+    83	  "additionalProperties": false,
+    84	  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）"
+    85	}
+=== orchestrator ===
+     1	"""bugscan_orchestrator.py——Codex 方案 W6A：Bug 八站 Planner/Registry/站0-站1 适配。
+     2	
+     3	血统与契约正源：
+     4	- Codex 方案 W6A §7.1（八站 Planner/Registry）与 §15.2（站0 冻结/站1 源闸适配）。
+     5	- 《问渠轨道规范（发行版 v2.0）》§0 铁律、§1 八站骨架（站序=成本×确定性递增）。
+     6	- wenqu-vNext-contract.md §7 统一退出码、§8 不可变安全不变量。
+     7	- 每站输出严格遵循 schemas/station-result-v2.schema.json（本文件内置结构校验器，
+     8	  jsonschema 可用时叠加真实 schema 复核——双保险，但绝不依赖第三方包）。
+     9	
+    10	职责边界（编排层不造扫描工具）：
+    11	- StationRegistry：版本化八站注册表——每站含入口/覆盖分母/工具插槽/规则/
+    12	  PASS-FAIL-ERROR 判据/证据 TTL（铁律 4：权限/漏洞类 ≤7 天、其余 ≤30 天）。
+    13	- BugscanPlanner：按风险定级生成 required 站集合（W6A 档位映射：
+    14	  FAST=0+1 / STANDARD=0+1+2+3+4 / INCIDENT=0+1+2+3+4+6+7）。
+    15	  风险只允许自动升档（铁律 1：涉权限/资金/租户/迁移/公共基础层自动拉档）；
+    16	  降档必须携带风险接受记录（负责人/理由/范围/到期，30 天日落），
+    17	  且站 0（范围冻结）与站 1（源闸）任何情况下不可省略。
+    18	- freeze_run_manifest()：站0 冻结 run-manifest.json——项目身份/commit SHA/
+    19	  scope/ruleset/data config/required 站集合全部哈希绑定；冻结后不可变
+    20	  （同内容幂等、异内容拒绝覆写）。
+    21	- SourceGateAdapter：站1 源闸适配——只消费 SourceGate 在 exact-SHA 上的
+    22	  既有结果并按 §7 退出码契约机械映射，不自行判定、不重跑；SHA 不匹配/
+    23	  证据过期/载荷畸形一律 fail-closed 抛错，绝不折算为 PASS（不变量：审批与
+    24	  证据不得跨 SHA 复用）。
+    25	
+    26	安全构造（by construction）：
+    27	- 纯 stdlib；无 shell 拼接、无 eval/exec；所有哈希走 canonical JSON。
+    28	- 所有产出 dict 严格按 schema 白名单键构造，additionalProperties:false 对齐。
+    29	- 分母缩水守卫：coverage.scanned < denominator 时该站不得记 PASS，
+    30	  执行状态强制 BLOCKED（schema $comment 与铁律 2）。
+    31	"""
+    32	
+    33	from __future__ import annotations
+    34	
+    35	import hashlib
+    36	import json
+    37	import os
+    38	import re
+    39	import tempfile
+    40	from dataclasses import dataclass, field
+    41	from datetime import datetime, timedelta, timezone
+    42	from pathlib import Path
+    43	from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
+    44	
+    45	__all__ = [
+    46	    "SCHEMA_VERSION",
+    47	    "REGISTRY_VERSION",
+    48	    "LANES",
+    49	    "LANE_REQUIRED_STATIONS",
+    50	    "LANE_CONVERGENCE_ROUNDS",
+    51	    "SCOPE_FLAG_ESCALATION",
+    52	    "EVIDENCE_TTL_CAP_DAYS",
+    53	    "SOURCE_GATE_EXIT_CODE_MAPPING",
+    54	    "StationSpec",
+    55	    "StationCriteria",
+    56	    "StationRegistry",
+    57	    "RiskAcceptance",
+    58	    "BugscanPlan",
+    59	    "BugscanPlanner",
+    60	    "RunManifest",
+    61	    "SourceGateAdapter",
+    62	    "build_station_result",
+    63	    "validate_station_result",
+    64	    "freeze_run_manifest",
+    65	    "default_registry",
+    66	    "BugscanPlanError",
+    67	    "RiskDowngradeError",
+    68	    "ManifestFreezeError",
+    69	    "SourceGateError",
+    70	    "SourceGateShaMismatch",
+    71	    "EvidenceStaleError",
+    72	    "GateResultMalformed",
+    73	    "StationResultValidationError",
+    74	]
+    75	
+    76	__version__ = "1.0.0"
+    77	
+    78	# ---------------------------------------------------------------------------
+    79	# 契约常量
+    80	# ---------------------------------------------------------------------------
+    81	
+    82	SCHEMA_VERSION = "2.0"
+    83	
+    84	#: 注册表版本——站定义/判据/TTL 任何变更必须递增并同步 schemas/ 与规范文档。
+    85	REGISTRY_VERSION = "w6a-1.0.0"
+    86	
+    87	LANE_FAST = "FAST"
+    88	LANE_STANDARD = "STANDARD"
+    89	LANE_INCIDENT = "INCIDENT"
+    90	LANES: Tuple[str, ...] = (LANE_FAST, LANE_STANDARD, LANE_INCIDENT)
+    91	_LANE_ORDER = {LANE_FAST: 0, LANE_STANDARD: 1, LANE_INCIDENT: 2}
+    92	
+    93	#: W6A 档位×站点矩阵（§7.1 冻结；对应规范 §1 的 PR 档/周档+行为面/事件档收敛）。
+    94	#: 站5（实弹面）不在任何自动档——生产写须所有者明确口令（一次性 exact-scope 授权）。
+    95	LANE_REQUIRED_STATIONS: Dict[str, Tuple[int, ...]] = {
+    96	    LANE_FAST: (0, 1),
+    97	    LANE_STANDARD: (0, 1, 2, 3, 4),
+    98	    LANE_INCIDENT: (0, 1, 2, 3, 4, 6, 7),
+    99	}
+   100	
+   101	#: 收敛环轮数（规范 §0 铁律 5：FAST=1 / STANDARD=2 / INCIDENT=3 异源轮）。
+   102	LANE_CONVERGENCE_ROUNDS: Dict[str, int] = {
+   103	    LANE_FAST: 1,
+   104	    LANE_STANDARD: 2,
+   105	    LANE_INCIDENT: 3,
+   106	}
+   107	
+   108	#: 自动升档触发器（规范 §0 铁律 1——只升不降）。
+   109	#: 值为该标志触发的最低档位。
+   110	SCOPE_FLAG_ESCALATION: Dict[str, str] = {
+   111	    "touches_public_infra": LANE_STANDARD,   # 公共基础层 → 至少 STANDARD
+   112	    "touches_migration": LANE_STANDARD,      # 迁移 → 至少 STANDARD
+   113	    "touches_tenant": LANE_STANDARD,         # 租户 → 至少 STANDARD
+   114	    "touches_permissions": LANE_INCIDENT,    # 权限类 → INCIDENT
+   115	    "touches_funds": LANE_INCIDENT,          # 资金类 → INCIDENT
+   116	}
+   117	
+   118	#: 证据时效双上限（规范 §0 铁律 4：权限/漏洞类 ≤7 天、其余 ≤30 天）。
+   119	EVIDENCE_TTL_CAP_DAYS: Dict[str, int] = {
+   120	    "permission_vulnerability": 7,
+   121	    "general": 30,
+   122	}
+   123	
+   124	#: 站1 源闸退出码映射（wenqu-vNext-contract §7 统一退出码→双轴）。
+   125	SOURCE_GATE_EXIT_CODE_MAPPING: Dict[int, Tuple[str, str]] = {
+   126	    0: ("COMPLETED", "PASS"),
+   127	    1: ("COMPLETED", "FAIL"),
+   128	    2: ("ERROR", "NOT_EVALUATED"),
+   129	    3: ("BLOCKED", "NOT_EVALUATED"),
+   130	    4: ("COMPLETED", "CONDITIONAL"),
+   131	    124: ("TIMEOUT", "NOT_EVALUATED"),
+   132	}
+   133	
+   134	#: 降档不可移除的底线站（规范 §1：站 0 与收敛环不可省；PR 档最小集=0+1）。
+   135	DOWNGRADE_FLOOR_STATIONS: FrozenSet[int] = frozenset({0, 1})
+   136	
+   137	#: 风险接受记录日落窗口（规范 §6 豁免纪律：30 天日落失效）。
+   138	RISK_ACCEPTANCE_MAX_DAYS = 30
+   139	
+   140	#: run-event-v2 identity.environment 枚举（manifest 采用其严格子集）。
+   141	ENVIRONMENTS: Tuple[str, ...] = ("local", "staging", "production")
+   142	
+   143	_RE_RUN_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
+   144	_RE_SHA40 = re.compile(r"^[0-9a-f]{40}$")
+   145	_RE_SHA64 = re.compile(r"^[0-9a-f]{64}$")
+   146	_RE_CAS_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+   147	_RE_FND = re.compile(r"^fnd_[a-zA-Z0-9_]+$")
+   148	
+   149	_STATION_RESULT_TOP_KEYS = frozenset({
+   150	    "schema_version", "run_id", "station_id", "attempt_id",
+   151	    "execution_status", "policy_verdict", "identity", "tool",
+   152	    "execution", "coverage", "finding_ids", "artifacts",
+   153	})
+   154	_IDENTITY_KEYS = frozenset({
+   155	    "project_id", "commit_sha", "environment", "scope_hash",
+   156	    "ruleset_hash", "data_config_hash", "lockfile_hash",
+   157	})
+   158	_EXECUTION_KEYS = frozenset({
+   159	    "argv_digest", "cwd_digest", "started_at", "ended_at",
+   160	    "timeout_s", "actual_exit_code", "expected_exit_set", "assertion_verdict",
+   161	})
+   162	_COVERAGE_KEYS = frozenset({"denominator", "scanned", "exclusions"})
+   163	
+   164	
+   165	# ---------------------------------------------------------------------------
+   166	# 异常
+   167	# ---------------------------------------------------------------------------
+   168	
+   169	class BugscanPlanError(ValueError):
+   170	    """定级/计划非法：未知档位、未知范围标志、底线站被移除等。"""
+   171	
+   172	
+   173	class RiskDowngradeError(BugscanPlanError):
+   174	    """降档缺少合法风险接受记录，或记录不满足五要素/日落约束。"""
+   175	
+   176	
+   177	class ManifestFreezeError(ValueError):
+   178	    """站0 冻结失败：身份字段非法、哈希不匹配、冻结件被异内容覆写等。"""
+   179	
+   180	
+   181	class SourceGateError(ValueError):
+   182	    """站1 源闸适配基类——一律 fail-closed，绝不折算为 PASS。"""
+   183	
+   184	
+   185	class SourceGateShaMismatch(SourceGateError):
+   186	    """源闸结果不属于冻结 manifest 的 exact-SHA（证据不得跨 SHA 复用）。"""
+   187	
+   188	
+   189	class EvidenceStaleError(SourceGateError):
+   190	    """源闸证据超出站 TTL（权限/漏洞类 ≤7 天、其余 ≤30 天）。"""
+   191	
+   192	
+   193	class GateResultMalformed(SourceGateError):
+   194	    """源闸载荷畸形：缺字段、类型错、退出码不在 §7 契约内。"""
+   195	
+   196	
+   197	class StationResultValidationError(ValueError):
+   198	    """station-result-v2 结构/不变量校验失败（聚合全部问题一次性抛出）。"""
+   199	
+   200	
+   201	# ---------------------------------------------------------------------------
+   202	# 基础工具：canonical JSON + 哈希 + 时间
+   203	# ---------------------------------------------------------------------------
+   204	
+   205	def _canonical_json(obj: Any) -> str:
+   206	    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+   207	
+   208	
+   209	def _sha256_hex(data: bytes) -> str:
+   210	    return hashlib.sha256(data).hexdigest()
+   211	
+   212	
+   213	def _hash_obj(obj: Any) -> str:
+   214	    return _sha256_hex(_canonical_json(obj).encode("utf-8"))
+   215	
+   216	
+   217	def _utc_now() -> datetime:
+   218	    return datetime.now(timezone.utc)
+   219	
+   220	
+   221	def _iso_z(dt: datetime) -> str:
+   222	    return dt.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+   223	
+   224	
+   225	def _parse_iso(value: str, *, what: str) -> datetime:
+   226	    if not isinstance(value, str) or not value:
+   227	        raise ValueError(f"{what} must be a non-empty ISO-8601 string")
+   228	    text = value.strip()
+   229	    if text.endswith("Z"):
+   230	        text = text[:-1] + "+00:00"
+   231	    try:
+   232	        dt = datetime.fromisoformat(text)
+   233	    except ValueError as exc:
+   234	        raise ValueError(f"{what} is not valid ISO-8601: {value!r}") from exc
+   235	    if dt.tzinfo is None:
+   236	        dt = dt.replace(tzinfo=timezone.utc)
+   237	    return dt.astimezone(timezone.utc)
+   238	
+   239	
+   240	def _require_sha40(value: str, *, what: str) -> str:
+   241	    if not isinstance(value, str) or not _RE_SHA40.match(value):
+   242	        raise ValueError(f"{what} must be a 40-char lowercase hex commit SHA, got {value!r}")
+   243	    return value
+   244	
+   245	
+   246	def _hash_or_digest(value: Any, *, what: str, required: bool = True) -> Optional[str]:
+   247	    """dict → canonical 哈希；64-hex 字符串 → 原样；None 且非必需 → None。"""
+   248	    if value is None:
+   249	        if required:
+   250	            raise ValueError(f"{what} is required (dict or 64-hex digest)")
+   251	        return None
+   252	    if isinstance(value, Mapping):
+   253	        return _hash_obj(dict(value))
+   254	    if isinstance(value, str) and _RE_SHA64.match(value):
+   255	        return value
+   256	    raise ValueError(f"{what} must be a mapping or 64-hex digest, got {type(value).__name__}")
+   257	
+   258	
+   259	# ---------------------------------------------------------------------------
+   260	# StationRegistry——版本化八站注册表（Codex W6A §7.1）
+   261	# ---------------------------------------------------------------------------
+   262	
+   263	@dataclass(frozen=True)
+   264	class StationCriteria:
+   265	    """PASS / FAIL / ERROR 三态判据（铁律 2：BLOCKED/ERROR 时整站不得记 PASS）。"""
+   266	
+   267	    pass_: Tuple[str, ...]
+   268	    fail: Tuple[str, ...]
+   269	    error: Tuple[str, ...]
+   270	
+   271	    def to_dict(self) -> Dict[str, List[str]]:
+   272	        return {
+   273	            "pass": list(self.pass_),
+   274	            "fail": list(self.fail),
+   275	            "error": list(self.error),
+   276	        }
+   277	
+   278	
+   279	@dataclass(frozen=True)
+   280	class StationSpec:
+   281	    """单站定义：入口/覆盖分母/工具插槽/规则/判据/TTL。"""
+   282	
+   283	    station_id: int
+   284	    name: str                 # 中文名（规范 §1 表）
+   285	    slug: str                 # 英文标识
+   286	    entry: str                # 入口（执行件插槽的调用方式）
+   287	    coverage_denominator: str # 覆盖分母语义（分母缩水守卫的计量对象）
+   288	    tools: Tuple[str, ...]    # 工具插槽（按仓配置，注册表给默认件）
+   289	    rules: Tuple[str, ...]    # 规则引用（判据的规则正源编号）
+   290	    criteria: StationCriteria
+   291	    evidence_class: str       # "permission_vulnerability" | "general"（铁律 4 双上限）
+   292	    ttl_days: int             # 证据时效上限（天），≤ EVIDENCE_TTL_CAP_DAYS[evidence_class]
+   293	    notes: Tuple[str, ...] = field(default=())
+   294	
+   295	    def to_dict(self) -> Dict[str, Any]:
+   296	        return {
+   297	            "station_id": self.station_id,
+   298	            "name": self.name,
+   299	            "slug": self.slug,
+   300	            "entry": self.entry,
+   301	            "coverage_denominator": self.coverage_denominator,
+   302	            "tools": list(self.tools),
+   303	            "rules": list(self.rules),
+   304	            "criteria": self.criteria.to_dict(),
+   305	            "evidence_class": self.evidence_class,
+   306	            "ttl_days": self.ttl_days,
+   307	            "notes": list(self.notes),
+   308	        }
+   309	
+   310	
+   311	#: 默认八站定义——逐字收敛《问渠轨道规范 v2.0》§1 骨架表。
+   312	_DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
+   313	    StationSpec(
+   314	        station_id=0,
+   315	        name="范围冻结",
+   316	        slug="scope_freeze",
+   317	        entry="freeze_run_manifest()（对齐 `wenqu init` 的 sha256 范围哈希语义；"
+   318	              "commit SHA/环境/定级理由由 manifest 落账）",
+   319	        coverage_denominator="scope 冻结清单内路径数（denominator=len(paths)）",
+   320	        tools=("wenqu_core.bugscan_orchestrator.freeze_run_manifest",),
+   321	        rules=("W6A-ST0", "规范§1-站0"),
+   322	        criteria=StationCriteria(
+   323	            pass_=("范围分母齐全", "身份三源一致（commit SHA/环境/范围哈希）"),
+   324	            fail=("范围分母缺失", "身份三源不一致"),
+   325	            error=("指纹计算失败（git 不可用/哈希异常）"),
+   326	        ),
+   327	        evidence_class="general",
+   328	        ttl_days=30,
+   329	    ),
+   330	    StationSpec(
+   331	        station_id=1,
+   332	        name="源闸",
+   333	        slug="source_gate",
+   334	        entry="SourceGateAdapter（消费仓 CI 快速门的 exact-SHA 结果，不自行判定）",
+   335	        coverage_denominator="CI 快速门组件数（lint/typecheck/unit/守卫棘轮等）",
+   336	        tools=("ci-fast.yml", "iron-gate.sh"),
+   337	        rules=("W6A-ST1", "规范§1-站1", "退出码契约=wenqu-vNext-contract§7"),
+   338	        criteria=StationCriteria(
+   339	            pass_=("全绿", "棘轮不升"),
+   340	            fail=("任一门红", "棘轮回退或异常升级"),
+   341	            error=("工具缺失/超时/环境错（exit 2/3/124）"),
+   342	        ),
+   343	        evidence_class="general",
+   344	        ttl_days=30,
+   345	    ),
+   346	    StationSpec(
+   347	        station_id=2,
+   348	        name="静态与供应链",
+   349	        slug="static_supply",
+   350	        entry="`wenqu run <station>`（内置 py-static/sh-static/tests/supply + 域探测器）",
+   351	        coverage_denominator="scope 内可扫文件数（按语言分母）",
+   352	        tools=("wenqu run py-static", "wenqu run sh-static", "wenqu run tests",
+   353	               "wenqu run supply", "stations.json 域探测器", "克隆检测", "CVE 审计"),
+   354	        rules=("W6A-ST2", "规范§1-站2", "探测器 rc 契约：exit1=命中落账/exit≥2=环境错"),
+   355	        criteria=StationCriteria(
+   356	            pass_=("克隆≤基线", "CVE 零 HIGH+", "探测器零 FAIL"),
+   357	            fail=("任一探测器命中（自动落账 OPEN）", "CVE HIGH+", "克隆超基线"),
+   358	            error=("探测器 exit≥2 环境错（不落账不计通过）"),
+   359	        ),
+   360	        evidence_class="permission_vulnerability",
+   361	        ttl_days=7,
+   362	    ),
+   363	    StationSpec(
+   364	        station_id=3,
+   365	        name="契约与数据",
+   366	        slug="contract_data",
+   367	        entry="按栈选件：API 契约对账 / 权限矩阵 / schema 漂移",
+   368	        coverage_denominator="对外端点×用例矩阵（正例+负例）数",
+   369	        tools=("API 契约对账", "权限矩阵", "schema 漂移检测"),
+   370	        rules=("W6A-ST3", "规范§1-站3"),
+   371	        criteria=StationCriteria(
+   372	            pass_=("无未归属端点", "负例全拦+正例全通", "漂移全部在白名单"),
+   373	            fail=("存在未归属端点", "负例放行或正例未通", "漂移未白名单"),
+   374	            error=("对账件不可用/依赖服务未起"),
+   375	        ),
+   376	        evidence_class="permission_vulnerability",
+   377	        ttl_days=7,
+   378	    ),
+   379	    StationSpec(
+   380	        station_id=4,
+   381	        name="行为面",
+   382	        slug="behavior",
+   383	        entry="e2e 套件 + 浏览器抽检",
+   384	        coverage_denominator="e2e 测试点数",
+   385	        tools=("e2e 套件", "浏览器抽检"),
+   386	        rules=("W6A-ST4", "规范§1-站4"),
+   387	        criteria=StationCriteria(
+   388	            pass_=("套件全绿", "每测试点有已看证据"),
+   389	            fail=("任一 e2e 红", "证据缺失"),
+   390	            error=("环境起不来/驱动缺失"),
+   391	        ),
+   392	        evidence_class="general",
+   393	        ttl_days=30,
+   394	    ),
+   395	    StationSpec(
+   396	        station_id=5,
+   397	        name="实弹面",
+   398	        slug="live_fire",
+   399	        entry="真实业务流全链操作（生产写须所有者明确口令——一次性 exact-scope 授权）",
+   400	        coverage_denominator="业务流断言点数",
+   401	        tools=("真实业务流全链操作",),
+   402	        rules=("W6A-ST5", "规范§1-站5", "停等类型=prod-write/fund-auth"),
+   403	        criteria=StationCriteria(
+   404	            pass_=("状态断言全 PASS", "数据回基线"),
+   405	            fail=("状态断言失败", "数据未回基线"),
+   406	            error=("生产写授权缺失（BLOCKED，不算通过）"),
+   407	        ),
+   408	        evidence_class="general",
+   409	        ttl_days=30,
+   410	        notes=("不在任何自动档 required 集内——必须显式授权后加入",),
+   411	    ),
+   412	    StationSpec(
+   413	        station_id=6,
+   414	        name="对抗面",
+   415	        slug="adversarial",
+   416	        entry="`wenqu charter` 发射反方评审（异构端点优先）+ `wenqu ingest` 回收产物",
+   417	        coverage_denominator="对抗轴问题数（每轴必问）",
+   418	        tools=("wenqu charter", "wenqu ingest"),
+   419	        rules=("W6A-ST6", "规范§1-站6", "二审定律：零发现结论须 ≥2 独立上下文"),
+   420	        criteria=StationCriteria(
+   421	            pass_=("每轴必问全覆盖", "零发现结论出自 ≥2 独立上下文"),
+   422	            fail=("轴覆盖缺失", "单上下文零发现声明"),
+   423	            error=("异源端点宕机（降级须登记豁免，恢复后补一次异源审）"),
+   424	        ),
+   425	        evidence_class="permission_vulnerability",
+   426	        ttl_days=7,
+   427	        notes=("上游 charter 模板内嵌 wsl.exe 探测命令——跨平台使用须改本机等价只读探测",),
+   428	    ),
+   429	    StationSpec(
+   430	        station_id=7,
+   431	        name="运行时",
+   432	        slug="runtime",
+   433	        entry="常驻哨兵/探针/告警链（不参与收敛声明，事件回流站6）",
+   434	        coverage_denominator="哨兵×探针检查项数",
+   435	        tools=("常驻哨兵", "探针", "告警链"),
+   436	        rules=("W6A-ST7", "规范§1-站7"),
+   437	        criteria=StationCriteria(
+   438	            pass_=("哨兵活着", "真的会叫（告警链实测）"),
+   439	            fail=("哨兵死", "告警链断"),
+   440	            error=("探针不可用"),
+   441	        ),
+   442	        evidence_class="general",
+   443	        ttl_days=30,
+   444	        notes=("INCIDENT 档 required；不参与收敛声明",),
+   445	    ),
+   446	)
+   447	
+   448	
+   449	class StationRegistry:
+   450	    """版本化八站注册表：站 0-7 全集定义 + 一致性自检。
+   451	
+   452	    任何站定义变更（判据/TTL/工具插槽）都必须：递增 REGISTRY_VERSION、
+   453	    同步 schemas/station-result-v2.schema.json 与规范文档、并重新冻结
+   454	    已在跑的 run manifest（指纹变化即失效重跑——铁律 4）。
+   455	    """
+   456	
+   457	    def __init__(self, stations: Iterable[StationSpec] = _DEFAULT_STATIONS) -> None:
+   458	        specs = tuple(stations)
+   459	        by_id: Dict[int, StationSpec] = {}
+   460	        for spec in specs:
+   461	            if not isinstance(spec.station_id, int) or not 0 <= spec.station_id <= 7:
+   462	                raise ValueError(f"station_id must be int in [0,7], got {spec.station_id!r}")
+   463	            if spec.station_id in by_id:
+   464	                raise ValueError(f"duplicate station_id: {spec.station_id}")
+   465	            by_id[spec.station_id] = spec
+   466	        if sorted(by_id) != list(range(8)):
+   467	            raise ValueError(
+   468	                f"registry must define exactly stations 0..7, got {sorted(by_id)}"
+   469	            )
+   470	        self._stations = by_id
+   471	        self.validate()
+   472	
+   473	    # -- 查询 ---------------------------------------------------------------
+   474	    def get(self, station_id: int) -> StationSpec:
+   475	        try:
+   476	            return self._stations[station_id]
+   477	        except KeyError:
+   478	            raise KeyError(f"unknown station_id: {station_id}") from None
+   479	
+   480	    def all(self) -> Tuple[StationSpec, ...]:
+   481	        return tuple(self._stations[i] for i in range(8))
+   482	
+   483	    def required_for(self, lane: str) -> Tuple[int, ...]:
+   484	        if lane not in LANE_REQUIRED_STATIONS:
+   485	            raise BugscanPlanError(f"unknown lane {lane!r}; expected one of {LANES}")
+   486	        return LANE_REQUIRED_STATIONS[lane]
+   487	
+   488	    def ttl_for(self, station_id: int) -> int:
+   489	        return self.get(station_id).ttl_days
+   490	
+   491	    def snapshot(self) -> Dict[str, Any]:
+   492	        """注册表快照（嵌入 manifest 存档，保证判定可复现）。"""
+   493	        return {
+   494	            "registry_version": REGISTRY_VERSION,
+   495	            "stations": {i: self._stations[i].to_dict() for i in range(8)},
+   496	        }
+   497	
+   498	    def registry_digest(self) -> str:
+   499	        return _hash_obj(self.snapshot())
+   500	
+   501	    # -- 自检 ---------------------------------------------------------------
+   502	    def validate(self) -> None:
+   503	        """一致性自检：TTL 双上限、判据三态齐全、工具/规则非空。"""
+   504	        for spec in self.all():
+   505	            cap = EVIDENCE_TTL_CAP_DAYS.get(spec.evidence_class)
+   506	            if cap is None:
+   507	                raise ValueError(
+   508	                    f"station {spec.station_id}: unknown evidence_class "
+   509	                    f"{spec.evidence_class!r} (expected one of "
+   510	                    f"{sorted(EVIDENCE_TTL_CAP_DAYS)})"
+   511	                )
+   512	            if not 1 <= spec.ttl_days <= cap:
+   513	                raise ValueError(
+   514	                    f"station {spec.station_id} ({spec.slug}): ttl_days="
+   515	                    f"{spec.ttl_days} violates 铁律4 cap {cap}d for "
+   516	                    f"{spec.evidence_class}"
+   517	                )
+   518	            if not (spec.criteria.pass_ and spec.criteria.fail and spec.criteria.error):
+   519	                raise ValueError(
+   520	                    f"station {spec.station_id} ({spec.slug}): PASS/FAIL/ERROR "
+   521	                    "criteria must all be non-empty"
+   522	                )
+   523	            if not spec.tools or not spec.rules:
+   524	                raise ValueError(
+   525	                    f"station {spec.station_id} ({spec.slug}): tools and rules "
+   526	                    "must be non-empty"
+   527	                )
+   528	
+   529	
+   530	_DEFAULT_REGISTRY: Optional[StationRegistry] = None
+   531	
+   532	
+   533	def default_registry() -> StationRegistry:
+   534	    """进程级默认注册表（惰性单例；定义不可变，可安全共享）。"""
+   535	    global _DEFAULT_REGISTRY
+   536	    if _DEFAULT_REGISTRY is None:
+   537	        _DEFAULT_REGISTRY = StationRegistry()
+   538	    return _DEFAULT_REGISTRY
+   539	
+   540	
+   541	# ---------------------------------------------------------------------------
+   542	# 风险接受记录（降档唯一合法通道）
+   543	# ---------------------------------------------------------------------------
+   544	
+   545	@dataclass(frozen=True)
+   546	class RiskAcceptance:
+   547	    """降档风险接受记录——五要素对齐 finding-event-v2 risk_acceptance。
+   548	
+   549	    approver（风险负责人）/ reason（理由，≥10 字）/ scope（影响范围）/
+   550	    expiry（到期日，≤30 天日落）。缺任一要素或已过期 = 降档非法。
+   551	    """
+   552	
+   553	    approver: str
+   554	    reason: str
+   555	    scope: str
+   556	    expiry: str  # ISO-8601 date-time
+   557	    compensating_controls: Tuple[str, ...] = ()
+   558	
+   559	    @classmethod
+   560	    def from_mapping(cls, data: Mapping[str, Any]) -> "RiskAcceptance":
+   561	        if not isinstance(data, Mapping):
+   562	            raise RiskDowngradeError(
+   563	                f"risk acceptance must be a mapping, got {type(data).__name__}"
+   564	            )
+   565	        missing = [k for k in ("approver", "reason", "scope", "expiry") if not data.get(k)]
+   566	        if missing:
+   567	            raise RiskDowngradeError(
+   568	                f"risk acceptance missing required fields: {missing} "
+   569	                "(负责人/理由/范围/到期 缺一不可)"
+   570	            )
+   571	        return cls(
+   572	            approver=str(data["approver"]),
+   573	            reason=str(data["reason"]),
+   574	            scope=str(data["scope"]),
+   575	            expiry=str(data["expiry"]),
+   576	            compensating_controls=tuple(str(c) for c in data.get("compensating_controls", ())),
+   577	        )
+   578	
+   579	    def validate(self, now: Optional[datetime] = None) -> datetime:
+   580	        """校验五要素 + 日落约束；返回到期时刻。"""
+   581	        now = now or _utc_now()
+   582	        if not self.approver.strip():
+   583	            raise RiskDowngradeError("risk acceptance approver (风险负责人) is empty")
+   584	        if len(self.reason.strip()) < 10:
+   585	            raise RiskDowngradeError(
+   586	                f"risk acceptance reason too short ({len(self.reason.strip())} chars; "
+   587	                "须 ≥10 字，对齐 finding-event-v2 minLength)"
+   588	            )
+   589	        if not self.scope.strip():
+   590	            raise RiskDowngradeError("risk acceptance scope (影响范围) is empty")
+   591	        expiry = _parse_iso(self.expiry, what="risk acceptance expiry")
+   592	        if expiry <= now:
+   593	            raise RiskDowngradeError(
+   594	                f"risk acceptance expired at {self.expiry} (30 天日落——过期降档非法)"
+   595	            )
+   596	        if expiry > now + timedelta(days=RISK_ACCEPTANCE_MAX_DAYS):
+   597	            raise RiskDowngradeError(
+   598	                f"risk acceptance expiry {self.expiry} exceeds "
+   599	                f"{RISK_ACCEPTANCE_MAX_DAYS}d sunset window"
+   600	            )
+   601	        return expiry
+   602	
+   603	    def to_dict(self) -> Dict[str, Any]:
+   604	        out: Dict[str, Any] = {
+   605	            "approver": self.approver,
+   606	            "reason": self.reason,
+   607	            "scope": self.scope,
+   608	            "expiry": self.expiry,
+   609	        }
+   610	        if self.compensating_controls:
+   611	            out["compensating_controls"] = list(self.compensating_controls)
+   612	        return out
+   613	
+   614	
+   615	# ---------------------------------------------------------------------------
+   616	# BugscanPlanner——风险定级 → required 站集合
+   617	# ---------------------------------------------------------------------------
+   618	
+   619	@dataclass(frozen=True)
+   620	class BugscanPlan:
+   621	    """一次 bugscan 的冻结计划（manifest 的 planning 段正源）。"""
+   622	
+   623	    lane_requested: str
+   624	    lane_effective: str
+   625	    required_stations: Tuple[int, ...]
+   626	    convergence_rounds: int
+   627	    escalated: bool
+   628	    escalation_reasons: Tuple[str, ...]
+   629	    downgrade: Optional[RiskAcceptance]
+   630	    dropped_stations: Tuple[int, ...]
+   631	    registry_version: str
+   632	
+   633	    def to_dict(self) -> Dict[str, Any]:
+   634	        return {
+   635	            "lane_requested": self.lane_requested,
+   636	            "lane_effective": self.lane_effective,
+   637	            "required_stations": list(self.required_stations),
+   638	            "convergence_rounds": self.convergence_rounds,
+   639	            "escalated": self.escalated,
+   640	            "escalation_reasons": list(self.escalation_reasons),
+   641	            "downgrade": self.downgrade.to_dict() if self.downgrade else None,
+   642	            "dropped_stations": list(self.dropped_stations),
+   643	            "registry_version": self.registry_version,
+   644	        }
+   645	
+   646	
+   647	class BugscanPlanner:
+   648	    """根据风险定级生成 required 站集合（Codex W6A §7.1）。
+   649	
+   650	    升档：自动、只增不减——任何 SCOPE_FLAG_ESCALATION 命中即把档位拉到
+   651	    该标志的最低档（铁律 1）。
+   652	
+   653	    降档：永不自动。必须显式给出 RiskAcceptance（负责人/理由/范围/到期，
+   654	    30 天日落）且被移除站不得触碰底线 {0,1}；计划内嵌该记录以供审计。
+   655	    """
+   656	
+   657	    def __init__(self, registry: Optional[StationRegistry] = None) -> None:
+   658	        self._registry = registry or default_registry()
+   659	
+   660	    @property
+   661	    def registry(self) -> StationRegistry:
+   662	        return self._registry
+   663	
+   664	    # -- 定级 ---------------------------------------------------------------
+   665	    @staticmethod
+   666	    def resolve_lane(
+   667	        lane: str,
+   668	        scope_flags: Iterable[str] = (),
+   669	    ) -> Tuple[str, bool, Tuple[str, ...]]:
+   670	        """请求档 + 范围标志 → 生效档（只升不降）。"""
+   671	        if lane not in _LANE_ORDER:
+   672	            raise BugscanPlanError(f"unknown lane {lane!r}; expected one of {LANES}")
+   673	        flags = tuple(scope_flags or ())
+   674	        unknown = [f for f in flags if f not in SCOPE_FLAG_ESCALATION]
+   675	        if unknown:
+   676	            # fail-closed：未知范围标志意味着定级模型失配，禁止猜测。
+   677	            raise BugscanPlanError(
+   678	                f"unknown scope flags {unknown}; known: {sorted(SCOPE_FLAG_ESCALATION)}"
+   679	            )
+   680	        effective = lane
+   681	        reasons: List[str] = []
+   682	        for flag in flags:
+   683	            floor = SCOPE_FLAG_ESCALATION[flag]
+   684	            if _LANE_ORDER[floor] > _LANE_ORDER[effective]:
+   685	                effective = floor
+   686	                reasons.append(f"{flag}→{floor}")
+   687	        return effective, effective != lane, tuple(reasons)
+   688	
+   689	    def plan(
+   690	        self,
+   691	        lane: str,
+   692	        *,
+   693	        scope_flags: Iterable[str] = (),
+   694	        downgrade: Optional[Mapping[str, Any] | RiskAcceptance] = None,
+   695	        downgrade_stations: Iterable[int] = (),
+   696	        now: Optional[datetime] = None,
+   697	    ) -> BugscanPlan:
+   698	        """生成冻结计划。
+   699	
+   700	        - scope_flags 命中 → 自动升档（只增不减）。
+   701	        - downgrade（映射或 RiskAcceptance）+ downgrade_stations → 显式降档：
+   702	          记录五要素校验 + 日落校验；站 0/1 不可移除；只能移除生效档
+   703	          required 集内的站。
+   704	        """
+   705	        effective, escalated, reasons = self.resolve_lane(lane, scope_flags)
+   706	        base_set = set(self._registry.required_for(effective))
+   707	        dropped: List[int] = []
+   708	        drop_req = tuple(downgrade_stations or ())
+   709	        acceptance: Optional[RiskAcceptance] = None
+   710	        if downgrade is None:
+   711	            if drop_req:
+   712	                raise RiskDowngradeError(
+   713	                    f"removing stations {list(drop_req)} requires a risk acceptance "
+   714	                    "record (降档须记录负责人/理由/范围/到期)"
+   715	                )
+   716	        else:
+   717	            acceptance = (
+   718	                downgrade
+   719	                if isinstance(downgrade, RiskAcceptance)
+   720	                else RiskAcceptance.from_mapping(downgrade)
+   721	            )
+   722	            acceptance.validate(now)
+   723	            if not drop_req:
+   724	                raise RiskDowngradeError(
+   725	                    "downgrade record provided but downgrade_stations is empty"
+   726	                )
+   727	            for station_id in drop_req:
+   728	                if station_id not in base_set:
+   729	                    raise RiskDowngradeError(
+   730	                        f"cannot drop station {station_id}: not in "
+   731	                        f"{effective} required set {sorted(base_set)}"
+   732	                    )
+   733	                if station_id in DOWNGRADE_FLOOR_STATIONS:
+   734	                    raise RiskDowngradeError(
+   735	                        f"cannot drop station {station_id}: stations "
+   736	                        f"{sorted(DOWNGRADE_FLOOR_STATIONS)} are never removable "
+   737	                        "(站0 范围冻结与站1 源闸不可省)"
+   738	                    )
+   739	                dropped.append(station_id)
+   740	            base_set -= set(dropped)
+   741	        required = tuple(sorted(base_set))
+   742	        return BugscanPlan(
+   743	            lane_requested=lane,
+   744	            lane_effective=effective,
+   745	            required_stations=required,
+   746	            convergence_rounds=LANE_CONVERGENCE_ROUNDS[effective],
+   747	            escalated=escalated,
+   748	            escalation_reasons=reasons,
+   749	            downgrade=acceptance,
+   750	            dropped_stations=tuple(dropped),
+   751	            registry_version=REGISTRY_VERSION,
+   752	        )
+   753	
+   754	    # -- 站0 冻结（委托模块级函数，见下） -----------------------------------
+   755	    def freeze_run_manifest(
+   756	        self,
+   757	        plan: BugscanPlan,
+   758	        *,
+   759	        run_id: str,
+   760	        project_id: str,
+   761	        commit_sha: str,
+   762	        environment: str,
+   763	        scope: Iterable[str] | Mapping[str, Any],
+   764	        ruleset: Mapping[str, Any] | str,
+   765	        data_config: Mapping[str, Any] | str,
+   766	        base_sha: Optional[str] = None,
+   767	        lockfile_hash: Optional[str] = None,
+   768	        now: Optional[datetime] = None,
+   769	    ) -> "RunManifest":
+   770	        return freeze_run_manifest(
+   771	            plan,
+   772	            run_id=run_id,
+   773	            project_id=project_id,
+   774	            commit_sha=commit_sha,
+   775	            environment=environment,
+   776	            scope=scope,
+   777	            ruleset=ruleset,
+   778	            data_config=data_config,
+   779	            base_sha=base_sha,
+   780	            lockfile_hash=lockfile_hash,
+   781	            now=now,
+   782	            registry=self._registry,
+   783	        )
+   784	
+   785	
+   786	# ---------------------------------------------------------------------------
+   787	# RunManifest——站0 冻结件
+   788	# ---------------------------------------------------------------------------
+   789	
+   790	@dataclass(frozen=True)
+   791	class RunManifest:
+   792	    """冻结后的 run manifest（不可变值对象）。
+   793	
+   794	    - manifest_hash = sha256(canonical(内容 sans manifest_hash))。
+   795	    - save() 幂等且防篡改：已存在文件与本次内容逐字节一致 → no-op；
+   796	      不一致 → ManifestFreezeError（冻结后不可变）。
+   797	    - to_station_result() 产出站0 的 station-result-v2 结果。
+   798	    """
+   799	
+   800	    run_id: str
+   801	    created_at: str
+   802	    frozen_at: str
+   803	    registry_version: str
+   804	    registry_digest: str
+   805	    plan: BugscanPlan
+   806	    project_id: str
+   807	    commit_sha: str
+   808	    base_sha: Optional[str]
+   809	    environment: str
+   810	    scope_hash: str
+   811	    ruleset_hash: str
+   812	    data_config_hash: str
+   813	    lockfile_hash: Optional[str]
+   814	    scope_paths: Tuple[str, ...]
+   815	    scope_exclusions: Tuple[str, ...]
+   816	    required_stations: Tuple[int, ...]
+   817	    station_ttls: Dict[int, int]
+   818	    manifest_hash: str
+   819	
+   820	    # -- 序列化 -------------------------------------------------------------
+   821	    def to_dict(self) -> Dict[str, Any]:
+   822	        out: Dict[str, Any] = {
+   823	            "schema_version": SCHEMA_VERSION,
+   824	            "manifest_kind": "bugscan/run-manifest",
+   825	            "registry_version": self.registry_version,
+   826	            "registry_digest": self.registry_digest,
+   827	            "run_id": self.run_id,
+   828	            "created_at": self.created_at,
+   829	            "frozen_at": self.frozen_at,
+   830	            "planner": self.plan.to_dict(),
+   831	            "identity": {
+   832	                "project_id": self.project_id,
+   833	                "commit_sha": self.commit_sha,
+   834	                "environment": self.environment,
+   835	                "scope_hash": self.scope_hash,
+   836	                "ruleset_hash": self.ruleset_hash,
+   837	                "data_config_hash": self.data_config_hash,
+   838	            },
+   839	            "scope": {
+   840	                "paths": list(self.scope_paths),
+   841	                "exclusions": list(self.scope_exclusions),
+   842	                "denominator": len(self.scope_paths),
+   843	            },
+   844	            "required_stations": list(self.required_stations),
+   845	            "station_ttls": {str(k): v for k, v in sorted(self.station_ttls.items())},
+   846	            "manifest_hash": self.manifest_hash,
+   847	        }
+   848	        if self.base_sha is not None:
+   849	            out["identity"]["base_sha"] = self.base_sha
+   850	        if self.lockfile_hash is not None:
+   851	            out["identity"]["lockfile_hash"] = self.lockfile_hash
+   852	        return out
+   853	
+   854	    def to_json(self) -> str:
+   855	        return _canonical_json(self.to_dict())
+   856	
+   857	    @property
+   858	    def denominator(self) -> int:
+   859	        return len(self.scope_paths)
+   860	
+   861	    def artifact_cas_digest(self) -> Tuple[str, int]:
+   862	        """manifest 自身作为站0 工件：CAS digest + 字节数。"""
+   863	        payload = self.to_json().encode("utf-8")
+   864	        return f"sha256:{_sha256_hex(payload)}", len(payload)
+   865	
+   866	    # -- 落盘 ---------------------------------------------------------------
+   867	    def save(self, path: str | os.PathLike[str]) -> Path:
+   868	        """原子写 run-manifest.json；冻结语义=同内容幂等、异内容拒绝。"""
+   869	        target = Path(path)
+   870	        payload = self.to_json().encode("utf-8")
+   871	        if target.exists():
+   872	            existing = target.read_bytes()
+   873	            if existing == payload:
+   874	                return target  # 幂等：同一冻结件重复保存
+   875	            raise ManifestFreezeError(
+   876	                f"{target} already holds a DIFFERENT frozen manifest "
+   877	                f"({len(existing)}B vs {len(payload)}B)——冻结后不可变；"
+   878	                "如需变更请新建 run（指纹变化即失效重跑）"
+   879	            )
+   880	        target.parent.mkdir(parents=True, exist_ok=True)
+   881	        fd, tmp_name = tempfile.mkstemp(
+   882	            dir=str(target.parent), prefix=".run-manifest-", suffix=".tmp"
+   883	        )
+   884	        try:
+   885	            with os.fdopen(fd, "wb") as fh:
+   886	                fh.write(payload)
+   887	                fh.flush()
+   888	                os.fsync(fh.fileno())
+   889	            os.replace(tmp_name, target)
+   890	        except BaseException:
+   891	            try:
+   892	                os.unlink(tmp_name)
+   893	            except OSError:
+   894	                pass
+   895	            raise
+   896	        return target
+   897	
+   898	    @classmethod
+   899	    def load(cls, path: str | os.PathLike[str]) -> "RunManifest":
+   900	        """读回并校验 manifest_hash（防篡改）。"""
+   901	        raw = Path(path).read_bytes()
+   902	        data = json.loads(raw.decode("utf-8"))
+   903	        if not isinstance(data, Mapping):
+   904	            raise ManifestFreezeError(f"{path}: manifest must be a JSON object")
+   905	        stored_hash = data.get("manifest_hash")
+   906	        body = {k: v for k, v in data.items() if k != "manifest_hash"}
+   907	        recomputed = _hash_obj(body)
+   908	        if stored_hash != recomputed:
+   909	            raise ManifestFreezeError(
+   910	                f"{path}: manifest_hash mismatch (stored {stored_hash!r} != "
+   911	                f"recomputed {recomputed!r})——冻结件被篡改或损坏"
+   912	            )
+   913	        return cls._from_verified_dict(data)
+   914	
+   915	    @classmethod
+   916	    def _from_verified_dict(cls, data: Mapping[str, Any]) -> "RunManifest":
+   917	        plan_data = data["planner"]
+   918	        downgrade = (
+   919	            RiskAcceptance.from_mapping(plan_data["downgrade"])
+   920	            if plan_data.get("downgrade") else None
+   921	        )
+   922	        identity = data["identity"]
+   923	        plan = BugscanPlan(
+   924	            lane_requested=plan_data["lane_requested"],
+   925	            lane_effective=plan_data["lane_effective"],
+   926	            required_stations=tuple(plan_data["required_stations"]),
+   927	            convergence_rounds=int(plan_data["convergence_rounds"]),
+   928	            escalated=bool(plan_data["escalated"]),
+   929	            escalation_reasons=tuple(plan_data.get("escalation_reasons", ())),
+   930	            downgrade=downgrade,
+   931	            dropped_stations=tuple(plan_data.get("dropped_stations", ())),
+   932	            registry_version=data["registry_version"],
+   933	        )
+   934	        return cls(
+   935	            run_id=data["run_id"],
+   936	            created_at=data["created_at"],
+   937	            frozen_at=data["frozen_at"],
+   938	            registry_version=data["registry_version"],
+   939	            registry_digest=data["registry_digest"],
+   940	            plan=plan,
+   941	            project_id=identity["project_id"],
+   942	            commit_sha=identity["commit_sha"],
+   943	            base_sha=identity.get("base_sha"),
+   944	            environment=identity["environment"],
+   945	            scope_hash=identity["scope_hash"],
+   946	            ruleset_hash=identity["ruleset_hash"],
+   947	            data_config_hash=identity["data_config_hash"],
+   948	            lockfile_hash=identity.get("lockfile_hash"),
+   949	            scope_paths=tuple(data["scope"]["paths"]),
+   950	            scope_exclusions=tuple(data["scope"].get("exclusions", ())),
+   951	            required_stations=tuple(data["required_stations"]),
+   952	            station_ttls={int(k): int(v) for k, v in data["station_ttls"].items()},
+   953	            manifest_hash=data["manifest_hash"],
+   954	        )
+   955	
+   956	    # -- 站0 station-result --------------------------------------------------
+   957	    def to_station_result(
+   958	        self,
+   959	        *,
+   960	        attempt_id: Optional[str] = None,
+   961	        timeout_s: int = 60,
+   962	    ) -> Dict[str, Any]:
+   963	        """把冻结成功映射为站0 的 station-result-v2 结果。
+   964	
+   965	        执行语义：freeze_run_manifest 在本进程内完成；任何冻结失败都以
+   966	        异常上抛、绝不产出结果——因此能够走到这里的那次"执行"必然成功
+   967	        （actual_exit_code=0 只在成功路径可达，等价 trusted runner 语义）。
+   968	        """
+   969	        cas, size = self.artifact_cas_digest()
+   970	        attempt = attempt_id or _make_attempt_id(self.run_id, "st0")
+   971	        argv = ["wenqu_core.bugscan_orchestrator", "freeze_run_manifest", self.run_id]
+   972	        result = build_station_result(
+   973	            run_id=self.run_id,
+   974	            station_id=0,
+   975	            attempt_id=attempt,
+   976	            execution_status="COMPLETED",
+   977	            policy_verdict="PASS",
+   978	            identity={
+   979	                "project_id": self.project_id,
+   980	                "commit_sha": self.commit_sha,
+   981	                "environment": self.environment,
+   982	                "scope_hash": self.scope_hash,
+   983	                "ruleset_hash": self.ruleset_hash,
+   984	                "data_config_hash": self.data_config_hash,
+   985	                **({"lockfile_hash": self.lockfile_hash} if self.lockfile_hash else {}),
+   986	            },
+   987	            tool={
+   988	                "name": "wenqu_core.bugscan_orchestrator",
+   989	                "version": __version__,
+   990	                "digest": self.manifest_hash,
+   991	            },
+   992	            execution={
+   993	                "argv_digest": _argv_digest(argv),
+   994	                "started_at": self.created_at,
+   995	                "ended_at": self.frozen_at,
+   996	                "timeout_s": timeout_s,
+   997	                "actual_exit_code": 0,
+   998	                "expected_exit_set": [0],
+   999	                "assertion_verdict": "PASS",
+  1000	            },
+  1001	            coverage={
+  1002	                "denominator": self.denominator,
+  1003	                "scanned": self.denominator,
+  1004	                "exclusions": list(self.scope_exclusions),
+  1005	            },
+  1006	            finding_ids=[],
+  1007	            artifacts=[{"cas_digest": cas, "size": size}],
+  1008	        )
+  1009	        return result
+  1010	
+  1011	
+  1012	def _make_attempt_id(run_id: str, tag: str) -> str:
+  1013	    seed = _hash_obj({"run_id": run_id, "tag": tag, "ts": _iso_z(_utc_now())})
+  1014	    return f"att-{tag}-{seed[:12]}"
+  1015	
+  1016	
+  1017	def _argv_digest(argv: Sequence[str]) -> str:
+  1018	    """与 runner.TrustedRunner.argv_digest 同算法（canonical JSON of argv list）。"""
+  1019	    canonical = json.dumps(list(argv), separators=(",", ":"), ensure_ascii=False)
+  1020	    return _sha256_hex(canonical.encode("utf-8"))
+  1021	
+  1022	
+  1023	# ---------------------------------------------------------------------------
+  1024	# freeze_run_manifest——模块级入口（Codex W6A §15.2 站0）
+  1025	# ---------------------------------------------------------------------------
+  1026	
+  1027	def freeze_run_manifest(
+  1028	    plan: BugscanPlan,
+  1029	    *,
+  1030	    run_id: str,
+  1031	    project_id: str,
+  1032	    commit_sha: str,
+  1033	    environment: str,
+  1034	    scope: Iterable[str] | Mapping[str, Any],
+  1035	    ruleset: Mapping[str, Any] | str,
+  1036	    data_config: Mapping[str, Any] | str,
+  1037	    base_sha: Optional[str] = None,
+  1038	    lockfile_hash: Optional[str] = None,
+  1039	    now: Optional[datetime] = None,
+  1040	    registry: Optional[StationRegistry] = None,
+  1041	) -> RunManifest:
+  1042	    """冻结 run-manifest.json 的内容（返回 RunManifest，由调用方 .save() 落盘）。
+  1043	
+  1044	    绑定（不变量 #2/#3）：run_id + commit_sha + environment + scope_hash +
+  1045	    ruleset_hash + data_config_hash + required 站集合 + 各站 TTL。
+  1046	    run 起跑后任一指纹变化 → 旧证据立即失效，须重新冻结（新 run）。
+  1047	    """
+  1048	    registry = registry or default_registry()
+  1049	    if not isinstance(plan, BugscanPlan):
+  1050	        raise ManifestFreezeError(f"plan must be BugscanPlan, got {type(plan).__name__}")
+  1051	    if not isinstance(run_id, str) or not _RE_RUN_ID.match(run_id):
+  1052	        raise ManifestFreezeError(
+  1053	            f"run_id must match {_RE_RUN_ID.pattern}, got {run_id!r}"
+  1054	        )
+  1055	    if not isinstance(project_id, str) or not project_id.strip():
+  1056	        raise ManifestFreezeError("project_id must be a non-empty string")
+  1057	    try:
+  1058	        _require_sha40(commit_sha, what="commit_sha")
+  1059	        if base_sha is not None:
+  1060	            _require_sha40(base_sha, what="base_sha")
+  1061	    except ValueError as exc:
+  1062	        if isinstance(exc, ManifestFreezeError):
+  1063	            raise
+  1064	        raise ManifestFreezeError(str(exc)) from exc
+  1065	    if environment not in ENVIRONMENTS:
+  1066	        raise ManifestFreezeError(
+  1067	            f"environment must be one of {ENVIRONMENTS}, got {environment!r}"
+  1068	        )
+  1069	
+  1070	    # scope：list → paths（无排除）；mapping → {"paths":…, "exclusions":…}
+  1071	    if isinstance(scope, Mapping):
+  1072	        paths_raw = scope.get("paths", ())
+  1073	        exclusions_raw = scope.get("exclusions", ())
+  1074	    else:
+  1075	        paths_raw, exclusions_raw = scope, ()
+  1076	    if not isinstance(paths_raw, (list, tuple)):
+  1077	        raise ManifestFreezeError("scope.paths must be a list/tuple of strings")
+  1078	    if not isinstance(exclusions_raw, (list, tuple)):
+  1079	        raise ManifestFreezeError("scope.exclusions must be a list/tuple of strings")
+  1080	    paths = tuple(sorted({str(p) for p in paths_raw if str(p).strip()}))
+  1081	    exclusions = tuple(sorted({str(e) for e in exclusions_raw if str(e).strip()}))
+  1082	    if not paths:
+  1083	        raise ManifestFreezeError(
+  1084	            "scope must contain at least one path (范围分母齐全——空 scope 冻结非法)"
+  1085	        )
+  1086	    scope_hash = _hash_obj({"paths": list(paths), "exclusions": list(exclusions)})
+  1087	
+  1088	    try:
+  1089	        ruleset_hash = _hash_or_digest(ruleset, what="ruleset")
+  1090	        data_config_hash = _hash_or_digest(data_config, what="data_config")
+  1091	        lockfile_digest = _hash_or_digest(lockfile_hash, what="lockfile_hash", required=False)
+  1092	    except ValueError as exc:
+  1093	        raise ManifestFreezeError(str(exc)) from exc
+  1094	
+  1095	    # required 站与计划一致 + TTL 全部落账
+  1096	    required = tuple(sorted(set(plan.required_stations)))
+  1097	    for station_id in required:
+  1098	        registry.get(station_id)  # 未注册站 → KeyError（fail-closed）
+  1099	    station_ttls = {i: registry.ttl_for(i) for i in required}
+  1100	
+  1101	    started = now or _utc_now()
+  1102	    created_at = _iso_z(started)
+  1103	    frozen_at = _iso_z(_utc_now())
+  1104	    if _parse_iso(frozen_at, what="frozen_at") < _parse_iso(created_at, what="created_at"):
+  1105	        frozen_at = created_at  # 时钟回拨保护：结束不得早于开始
+  1106	
+  1107	    body: Dict[str, Any] = {
+  1108	        "schema_version": SCHEMA_VERSION,
+  1109	        "manifest_kind": "bugscan/run-manifest",
+  1110	        "registry_version": REGISTRY_VERSION,
+  1111	        "registry_digest": registry.registry_digest(),
+  1112	        "run_id": run_id,
+  1113	        "created_at": created_at,
+  1114	        "frozen_at": frozen_at,
+  1115	        "planner": plan.to_dict(),
+  1116	        "identity": {
+  1117	            "project_id": project_id,
+  1118	            "commit_sha": commit_sha,
+  1119	            "environment": environment,
+  1120	            "scope_hash": scope_hash,
+  1121	            "ruleset_hash": ruleset_hash,
+  1122	            "data_config_hash": data_config_hash,
+  1123	        },
+  1124	        "scope": {
+  1125	            "paths": list(paths),
+  1126	            "exclusions": list(exclusions),
+  1127	            "denominator": len(paths),
+  1128	        },
+  1129	        "required_stations": list(required),
+  1130	        "station_ttls": {str(k): v for k, v in sorted(station_ttls.items())},
+  1131	    }
+  1132	    if base_sha is not None:
+  1133	        body["identity"]["base_sha"] = base_sha
+  1134	    if lockfile_digest is not None:
+  1135	        body["identity"]["lockfile_hash"] = lockfile_digest
+  1136	    manifest_hash = _hash_obj(body)
+  1137	    return RunManifest(
+  1138	        run_id=run_id,
+  1139	        created_at=created_at,
+  1140	        frozen_at=frozen_at,
+  1141	        registry_version=REGISTRY_VERSION,
+  1142	        registry_digest=registry.registry_digest(),
+  1143	        plan=plan,
+  1144	        project_id=project_id,
+  1145	        commit_sha=commit_sha,
+  1146	        base_sha=base_sha,
+  1147	        environment=environment,
+  1148	        scope_hash=scope_hash,
+  1149	        ruleset_hash=ruleset_hash,
+  1150	        data_config_hash=data_config_hash,
+  1151	        lockfile_hash=lockfile_digest,
+  1152	        scope_paths=paths,
+  1153	        scope_exclusions=exclusions,
+  1154	        required_stations=required,
+  1155	        station_ttls=station_ttls,
+  1156	        manifest_hash=manifest_hash,
+  1157	    )
+  1158	
+  1159	
+  1160	# ---------------------------------------------------------------------------
+  1161	# station-result-v2 构造与校验
+  1162	# ---------------------------------------------------------------------------
+  1163	
+  1164	def build_station_result(
+  1165	    *,
+  1166	    run_id: str,
+  1167	    station_id: int,
+  1168	    attempt_id: str,
+  1169	    execution_status: str,
+  1170	    policy_verdict: str,
+  1171	    identity: Mapping[str, Any],
+  1172	    tool: Mapping[str, Any],
+  1173	    execution: Mapping[str, Any],
+  1174	    coverage: Mapping[str, Any],
+  1175	    finding_ids: Iterable[str] = (),
+  1176	    artifacts: Iterable[Mapping[str, Any]] = (),
+  1177	) -> Dict[str, Any]:
+  1178	    """按 schema 白名单构造 station-result-v2，并强制安全不变量：
+  1179	
+  1180	    1. 分母缩水守卫：scanned < denominator → 强制 BLOCKED/NOT_EVALUATED
+  1181	       （铁律 2 与 schema $comment——该站绝不能记 PASS）。
+  1182	    2. 执行非完成态（ERROR/BLOCKED/TIMEOUT/CANCELLED）→ 禁止 PASS。
+  1183	    3. policy PASS 必须有 assertion_verdict=PASS 支撑。
+  1184	    """
+  1185	    if coverage.get("scanned", 0) < coverage.get("denominator", 0):
+  1186	        execution_status = "BLOCKED"
+  1187	        policy_verdict = "NOT_EVALUATED"
+  1188	    if execution_status in ("ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"):
+  1189	        if policy_verdict == "PASS":
+  1190	            raise StationResultValidationError(
+  1191	                f"station {station_id}: execution_status={execution_status} "
+  1192	                "forbids policy_verdict=PASS（铁律2：站内任一件 BLOCKED/ERROR"
+  1193	                "→整站不得记 PASS）"
+  1194	            )
+  1195	    if policy_verdict == "PASS" and execution.get("assertion_verdict") != "PASS":
+  1196	        raise StationResultValidationError(
+  1197	            f"station {station_id}: policy PASS requires assertion_verdict=PASS"
+  1198	        )
+  1199	
+  1200	    result: Dict[str, Any] = {
+  1201	        "schema_version": SCHEMA_VERSION,
+  1202	        "run_id": run_id,
+  1203	        "station_id": station_id,
+  1204	        "attempt_id": attempt_id,
+  1205	        "execution_status": execution_status,
+  1206	        "policy_verdict": policy_verdict,
+  1207	        "identity": dict(identity),
+  1208	        "tool": dict(tool),
+  1209	        "execution": dict(execution),
+  1210	        "coverage": {
+  1211	            "denominator": coverage.get("denominator", 0),
+  1212	            "scanned": coverage.get("scanned", 0),
+  1213	            **({"exclusions": list(coverage["exclusions"])}
+  1214	               if coverage.get("exclusions") else {}),
+  1215	        },
+  1216	        "finding_ids": list(finding_ids),
+  1217	    }
+  1218	    artifacts_list = [dict(a) for a in artifacts]
+  1219	    if artifacts_list:
+  1220	        result["artifacts"] = artifacts_list
+  1221	    validate_station_result(result)
+  1222	    return result
+  1223	
+  1224	
+  1225	def validate_station_result(result: Any) -> None:
+  1226	    """结构校验（schema 的可执行等价物）+ 不变量复核；失败聚合抛出。
+  1227	
+  1228	    可用时额外用 jsonschema 对 schemas/station-result-v2.schema.json
+  1229	    做全量复核（双保险）；jsonschema 不可用时以本内置校验器为准。
+  1230	    """
+  1231	    issues: List[str] = []
+  1232	
+  1233	    def _check(condition: bool, message: str) -> None:
+  1234	        if not condition:
+  1235	            issues.append(message)
+  1236	
+  1237	    if not isinstance(result, Mapping):
+  1238	        raise StationResultValidationError(
+  1239	            f"station result must be a mapping, got {type(result).__name__}"
+  1240	        )
+  1241	    extra = set(result) - set(_STATION_RESULT_TOP_KEYS)
+  1242	    _check(not extra, f"additional properties not allowed: {sorted(extra)}")
+  1243	    for key in ("schema_version", "run_id", "station_id", "attempt_id",
+  1244	                "execution_status", "policy_verdict", "identity", "tool",
+  1245	                "execution"):
+  1246	        _check(key in result, f"missing required property: {key}")
+  1247	
+  1248	    _check(result.get("schema_version") == SCHEMA_VERSION,
+  1249	           f"schema_version must be {SCHEMA_VERSION!r}")
+  1250	    _check(isinstance(result.get("run_id"), str) and bool(_RE_RUN_ID.match(result.get("run_id", ""))),
+  1251	           f"run_id must match {_RE_RUN_ID.pattern}")
+  1252	    sid = result.get("station_id")
+  1253	    _check(isinstance(sid, int) and not isinstance(sid, bool) and 0 <= sid <= 7,
+  1254	           f"station_id must be int in [0,7], got {sid!r}")
+  1255	    _check(isinstance(result.get("attempt_id"), str) and result.get("attempt_id") != "",
+  1256	           "attempt_id must be a non-empty string")
+  1257	    _check(result.get("execution_status") in
+  1258	           ("COMPLETED", "ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"),
+  1259	           f"invalid execution_status: {result.get('execution_status')!r}")
+  1260	    _check(result.get("policy_verdict") in
+  1261	           ("PASS", "FAIL", "CONDITIONAL", "NOT_APPLICABLE", "NOT_EVALUATED"),
+  1262	           f"invalid policy_verdict: {result.get('policy_verdict')!r}")
+  1263	
+  1264	    identity = result.get("identity")
+  1265	    if isinstance(identity, Mapping):
+  1266	        extra_i = set(identity) - set(_IDENTITY_KEYS)
+  1267	        _check(not extra_i, f"identity additional properties: {sorted(extra_i)}")
+  1268	        _check(isinstance(identity.get("commit_sha"), str)
+  1269	               and bool(_RE_SHA40.match(identity.get("commit_sha", ""))),
+  1270	               "identity.commit_sha must be 40-char lowercase hex")
+  1271	        _check(isinstance(identity.get("environment"), str)
+  1272	               and identity.get("environment") != "",
+  1273	               "identity.environment must be a non-empty string")
+  1274	        _check(isinstance(identity.get("scope_hash"), str)
+  1275	               and identity.get("scope_hash") != "",
+  1276	               "identity.scope_hash must be a non-empty string")
+  1277	        for opt in ("project_id", "ruleset_hash", "data_config_hash", "lockfile_hash"):
+  1278	            if opt in identity:
+  1279	                _check(isinstance(identity[opt], str), f"identity.{opt} must be a string")
+  1280	    else:
+  1281	        issues.append("identity must be an object")
+  1282	
+  1283	    tool = result.get("tool")
+  1284	    if isinstance(tool, Mapping):
+  1285	        _check(isinstance(tool.get("name"), str) and tool.get("name") != "",
+  1286	               "tool.name must be a non-empty string")
+  1287	        _check(isinstance(tool.get("version"), str) and tool.get("version") != "",
+  1288	               "tool.version must be a non-empty string")
+  1289	        if "digest" in tool:
+  1290	            _check(isinstance(tool["digest"], str), "tool.digest must be a string")
+  1291	    else:
+  1292	        issues.append("tool must be an object")
+  1293	
+  1294	    execution = result.get("execution")
+  1295	    if isinstance(execution, Mapping):
+  1296	        extra_e = set(execution) - set(_EXECUTION_KEYS)
+  1297	        _check(not extra_e, f"execution additional properties: {sorted(extra_e)}")
+  1298	        for key in ("argv_digest", "started_at", "ended_at", "actual_exit_code",
+  1299	                    "expected_exit_set", "assertion_verdict"):
+  1300	            _check(key in execution, f"execution missing required property: {key}")
+  1301	        _check(isinstance(execution.get("argv_digest"), str)
+  1302	               and execution.get("argv_digest") != "",
+  1303	               "execution.argv_digest must be a non-empty string")
+  1304	        for ts_key in ("started_at", "ended_at"):
+  1305	            value = execution.get(ts_key)
+  1306	            ok = isinstance(value, str)
+  1307	            if ok:
+  1308	                try:
+  1309	                    _parse_iso(value, what=f"execution.{ts_key}")
+  1310	                except ValueError:
+  1311	                    ok = False
+  1312	            _check(ok, f"execution.{ts_key} must be an ISO-8601 date-time")
+  1313	        exit_code = execution.get("actual_exit_code")
+  1314	        _check(isinstance(exit_code, int) and not isinstance(exit_code, bool),
+  1315	               f"execution.actual_exit_code must be an int, got {exit_code!r}")
+  1316	        expected = execution.get("expected_exit_set")
+  1317	        _check(isinstance(expected, list)
+  1318	               and all(isinstance(x, int) and not isinstance(x, bool) for x in expected),
+  1319	               "execution.expected_exit_set must be a list of ints")
+  1320	        _check(execution.get("assertion_verdict") in ("PASS", "FAIL", "ERROR"),
+  1321	               f"invalid execution.assertion_verdict: {execution.get('assertion_verdict')!r}")
+  1322	        if "timeout_s" in execution:
+  1323	            _check(isinstance(execution["timeout_s"], int)
+  1324	                   and not isinstance(execution["timeout_s"], bool)
+  1325	                   and execution["timeout_s"] >= 1,
+  1326	                   "execution.timeout_s must be an int >= 1")
+  1327	        if "cwd_digest" in execution:
+  1328	            _check(isinstance(execution["cwd_digest"], str),
+  1329	                   "execution.cwd_digest must be a string")
+  1330	    else:
+  1331	        issues.append("execution must be an object")
+  1332	
+  1333	    coverage = result.get("coverage")
+  1334	    if coverage is not None:
+  1335	        if isinstance(coverage, Mapping):
+  1336	            extra_c = set(coverage) - set(_COVERAGE_KEYS)
+  1337	            _check(not extra_c, f"coverage additional properties: {sorted(extra_c)}")
+  1338	            for key in ("denominator", "scanned"):
+  1339	                if key in coverage:
+  1340	                    value = coverage[key]
+  1341	                    _check(isinstance(value, int) and not isinstance(value, bool)
+  1342	                           and value >= 0,
+  1343	                           f"coverage.{key} must be an int >= 0")
+  1344	            if "exclusions" in coverage:
+  1345	                _check(isinstance(coverage["exclusions"], list)
+  1346	                       and all(isinstance(x, str) for x in coverage["exclusions"]),
+  1347	                       "coverage.exclusions must be a list of strings")
+  1348	        else:
+  1349	            issues.append("coverage must be an object")
+  1350	
+  1351	    findings = result.get("finding_ids", [])
+  1352	    _check(isinstance(findings, list)
+  1353	           and all(isinstance(x, str) and _RE_FND.match(x) for x in findings),
+  1354	           "finding_ids must be a list of strings matching ^fnd_[a-zA-Z0-9_]+$")
+  1355	
+  1356	    artifacts = result.get("artifacts", [])
+  1357	    if isinstance(artifacts, list):
+  1358	        for idx, art in enumerate(artifacts):
+  1359	            if isinstance(art, Mapping):
+  1360	                _check(isinstance(art.get("cas_digest"), str)
+  1361	                       and bool(_RE_CAS_DIGEST.match(art.get("cas_digest", ""))),
+  1362	                       f"artifacts[{idx}].cas_digest must match sha256:<64hex>")
+  1363	                size = art.get("size")
+  1364	                _check(isinstance(size, int) and not isinstance(size, bool) and size >= 1,
+  1365	                       f"artifacts[{idx}].size must be an int >= 1")
+  1366	                extra_a = set(art) - {"cas_digest", "size"}
+  1367	                _check(not extra_a,
+  1368	                       f"artifacts[{idx}] additional properties: {sorted(extra_a)}")
+  1369	            else:
+  1370	                issues.append(f"artifacts[{idx}] must be an object")
+  1371	    else:
+  1372	        issues.append("artifacts must be a list")
+  1373	
+  1374	    # -- 不变量复核（schema $comment + 铁律 2）-------------------------------
+  1375	    if isinstance(coverage, Mapping) and isinstance(execution, Mapping):
+  1376	        denom = coverage.get("denominator", 0)
+  1377	        scanned = coverage.get("scanned", 0)
+  1378	        if isinstance(denom, int) and isinstance(scanned, int) and scanned < denom:
+  1379	            _check(result.get("execution_status") == "BLOCKED",
+  1380	                   "coverage shrink (scanned<denominator) requires execution_status=BLOCKED")
+  1381	            _check(result.get("policy_verdict") != "PASS",
+  1382	                   "coverage shrink (scanned<denominator) forbids policy_verdict=PASS")
+  1383	        if result.get("execution_status") in ("ERROR", "BLOCKED", "TIMEOUT", "CANCELLED"):
+  1384	            _check(result.get("policy_verdict") != "PASS",
+  1385	                   "non-COMPLETED execution_status forbids policy_verdict=PASS")
+  1386	
+  1387	    if issues:
+  1388	        raise StationResultValidationError(
+  1389	            "station-result-v2 validation failed: " + "; ".join(issues)
+  1390	        )
+  1391	
+  1392	    # -- 双保险：jsonschema 可用时对真实 schema 全量复核 ----------------------
+  1393	    _cross_check_with_jsonschema(result)
+  1394	
+  1395	
+  1396	def _cross_check_with_jsonschema(result: Mapping[str, Any]) -> None:
+  1397	    schema_path = (
+  1398	        Path(__file__).resolve().parent.parent / "schemas" / "station-result-v2.schema.json"
+  1399	    )
+  1400	    try:
+  1401	        import jsonschema  # type: ignore
+  1402	    except ImportError:
+  1403	        return  # 第三方不可用：内置校验器即正源
+  1404	    try:
+  1405	        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+  1406	        jsonschema.validate(result, schema)
+  1407	    except FileNotFoundError:
+  1408	        return  # schema 文件不存在（嵌入部署等）——内置校验器兜底
+  1409	    except Exception as exc:  # noqa: BLE001——任何复核失败都不得静默
+  1410	        raise StationResultValidationError(
+  1411	            f"jsonschema cross-check against {schema_path} failed: {exc}"
+  1412	        ) from exc
+  1413	
+  1414	
+  1415	# ---------------------------------------------------------------------------
+  1416	# SourceGateAdapter——站1 源闸适配（Codex W6A §15.2）
+  1417	# ---------------------------------------------------------------------------
+  1418	
+  1419	class SourceGateAdapter:
+  1420	    """站1 适配器：消费 SourceGate 在 exact-SHA 上的既有结果。
+  1421	
+  1422	    本适配器不运行任何门禁、不重新解释工具输出——只做三件事：
+  1423	    1. 绑定校验：gate_result.commit_sha 必须等于冻结 manifest 的 commit_sha
+  1424	       （证据/审批不得跨 SHA 复用——不变量 #5），不匹配即抛
+  1425	       SourceGateShaMismatch。
+  1426	    2. 时效校验：gate 结束时刻 + 站 TTL ≥ now（铁律 4），过期抛
+  1427	       EvidenceStaleError。
+  1428	    3. 机械映射：退出码 → (execution_status, policy_verdict)，按
+  1429	       wenqu-vNext-contract §7 契约表（SOURCE_GATE_EXIT_CODE_MAPPING）；
+  1430	       退出码不在契约内 → GateResultMalformed（fail-closed）。
+  1431	
+  1432	    身份三源（commit_sha/environment/scope_hash 等）一律取自冻结 manifest
+  1433	    正源，绝不采信 gate_result 自报身份。
+  1434	    """
+  1435	
+  1436	    STATION_ID = 1
+  1437	
+  1438	    def __init__(
+  1439	        self,
+  1440	        manifest: RunManifest,
+  1441	        *,
+  1442	        registry: Optional[StationRegistry] = None,
+  1443	        now: Optional[datetime] = None,
+  1444	    ) -> None:
+  1445	        if not isinstance(manifest, RunManifest):
+  1446	            raise SourceGateError(
+  1447	                f"manifest must be RunManifest, got {type(manifest).__name__}"
+  1448	            )
+  1449	        self._manifest = manifest
+  1450	        self._registry = registry or default_registry()
+  1451	        self._now = now
+  1452	
+  1453	    # -- 输入契约 -----------------------------------------------------------
+  1454	    @staticmethod
+  1455	    def _extract_gate_fields(gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+  1456	        if not isinstance(gate_result, Mapping):
+  1457	            raise GateResultMalformed(
+  1458	                f"gate_result must be a mapping, got {type(gate_result).__name__}"
+  1459	            )
+  1460	        missing = [k for k in ("commit_sha", "exit_code") if k not in gate_result]
+  1461	        if missing:
+  1462	            raise GateResultMalformed(f"gate_result missing fields: {missing}")
+  1463	        try:
+  1464	            sha = _require_sha40(gate_result["commit_sha"], what="gate_result.commit_sha")
+  1465	        except ValueError as exc:
+  1466	            raise GateResultMalformed(str(exc)) from exc
+  1467	        exit_code = gate_result["exit_code"]
+  1468	        if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+  1469	            raise GateResultMalformed(
+  1470	                f"gate_result.exit_code must be an int, got {exit_code!r}"
+  1471	            )
+  1472	        if exit_code not in SOURCE_GATE_EXIT_CODE_MAPPING:
+  1473	            raise GateResultMalformed(
+  1474	                f"gate_result.exit_code {exit_code} not in §7 contract "
+  1475	                f"{sorted(SOURCE_GATE_EXIT_CODE_MAPPING)} (fail-closed)"
+  1476	            )
+  1477	        tool = gate_result.get("tool")
+  1478	        if not isinstance(tool, Mapping) or not tool.get("name") or not tool.get("version"):
+  1479	            raise GateResultMalformed(
+  1480	                "gate_result.tool must be an object with non-empty name/version"
+  1481	            )
+  1482	        for ts_key in ("started_at", "ended_at"):
+  1483	            if ts_key not in gate_result:
+  1484	                raise GateResultMalformed(f"gate_result missing {ts_key}")
+  1485	            try:
+  1486	                _parse_iso(gate_result[ts_key], what=f"gate_result.{ts_key}")
+  1487	            except ValueError as exc:
+  1488	                raise GateResultMalformed(str(exc)) from exc
+  1489	        components = gate_result.get("components", [])
+  1490	        if not isinstance(components, list) or not all(
+  1491	            isinstance(c, Mapping) and isinstance(c.get("name"), str) for c in components
+  1492	        ):
+  1493	            raise GateResultMalformed(
+  1494	                "gate_result.components must be a list of objects with a name"
+  1495	            )
+  1496	        return {
+  1497	            "commit_sha": sha,
+  1498	            "exit_code": exit_code,
+  1499	            "tool": dict(tool),
+  1500	            "started_at": gate_result["started_at"],
+  1501	            "ended_at": gate_result["ended_at"],
+  1502	            "argv_digest": gate_result.get("argv_digest"),
+  1503	            "components": [dict(c) for c in components],
+  1504	        }
+  1505	
+  1506	    # -- 适配 ---------------------------------------------------------------
+  1507	    def adapt(self, gate_result: Mapping[str, Any]) -> Dict[str, Any]:
+  1508	        """消费源闸结果 → 站1 station-result-v2（严格 schema 合规）。"""
+  1509	        parsed = self._extract_gate_fields(gate_result)
+  1510	
+  1511	        # 1) exact-SHA 绑定（不匹配=证据不属于本 run，拒绝而非降级）
+  1512	        if parsed["commit_sha"] != self._manifest.commit_sha:
+  1513	            raise SourceGateShaMismatch(
+  1514	                f"gate ran at {parsed['commit_sha']} but manifest froze "
+  1515	                f"{self._manifest.commit_sha}——证据不得跨 SHA 复用，请在冻结 SHA 重跑源闸"
+  1516	            )
+  1517	
+  1518	        # 2) 时效（铁律 4 双上限，按站 TTL）
+  1519	        now = self._now or _utc_now()
+  1520	        ttl_days = self._registry.ttl_for(self.STATION_ID)
+  1521	        ended = _parse_iso(parsed["ended_at"], what="gate_result.ended_at")
+  1522	        fresh_until = ended + timedelta(days=ttl_days)
+  1523	        if fresh_until < now:
+  1524	            raise EvidenceStaleError(
+  1525	                f"gate evidence aged out: ended {parsed['ended_at']} + TTL "
+  1526	                f"{ttl_days}d < now {_iso_z(now)}——重跑源闸后重新适配"
+  1527	            )
+  1528	
+  1529	        # 3) §7 退出码 → 双轴（机械映射，不自行判定）
+  1530	        execution_status, policy_verdict = SOURCE_GATE_EXIT_CODE_MAPPING[parsed["exit_code"]]
+  1531	
+  1532	        # 覆盖：组件级分母（未给组件时以门整体为单件——denominator 不缩水）
+  1533	        components = parsed["components"]
+  1534	        if components:
+  1535	            denominator = len(components)
+  1536	            scanned = sum(
+  1537	                1 for c in components
+  1538	                if str(c.get("status", "COMPLETED")).upper() != "NOT_RUN"
+  1539	            )
+  1540	        else:
+  1541	            denominator = scanned = 1
+  1542	        shrink = scanned < denominator
+  1543	        if shrink:
+  1544	            # 分母缩水守卫：整站 BLOCKED，绝不记 PASS（schema $comment）。
+  1545	            execution_status = "BLOCKED"
+  1546	            policy_verdict = "NOT_EVALUATED"
+  1547	        assertion = "PASS" if (policy_verdict == "PASS" and not shrink) else (
+  1548	            "FAIL" if policy_verdict == "FAIL" else "ERROR"
+  1549	        )
+  1550	
+  1551	        manifest_identity: Dict[str, Any] = {
+  1552	            "project_id": self._manifest.project_id,
+  1553	            "commit_sha": self._manifest.commit_sha,
+  1554	            "environment": self._manifest.environment,
+  1555	            "scope_hash": self._manifest.scope_hash,
+  1556	            "ruleset_hash": self._manifest.ruleset_hash,
+  1557	            "data_config_hash": self._manifest.data_config_hash,
+  1558	        }
+  1559	        if self._manifest.lockfile_hash:
+  1560	            manifest_identity["lockfile_hash"] = self._manifest.lockfile_hash
+  1561	
+  1562	        tool = {
+  1563	            "name": str(parsed["tool"]["name"]),
+  1564	            "version": str(parsed["tool"]["version"]),
+  1565	        }
+  1566	        if parsed["tool"].get("digest"):
+  1567	            tool["digest"] = str(parsed["tool"]["digest"])
+  1568	
+  1569	        execution: Dict[str, Any] = {
+  1570	            "argv_digest": str(parsed["argv_digest"]) if parsed["argv_digest"]
+  1571	            else _argv_digest([tool["name"], self._manifest.run_id]),
+  1572	            "started_at": parsed["started_at"],
+  1573	            "ended_at": parsed["ended_at"],
+  1574	            "actual_exit_code": parsed["exit_code"],
+  1575	            "expected_exit_set": [0],
+  1576	            "assertion_verdict": assertion,
+  1577	        }
+  1578	
+  1579	        return build_station_result(
+  1580	            run_id=self._manifest.run_id,
+  1581	            station_id=self.STATION_ID,
+  1582	            attempt_id=_make_attempt_id(self._manifest.run_id, "st1"),
+  1583	            execution_status=execution_status,
+  1584	            policy_verdict=policy_verdict,
+  1585	            identity=manifest_identity,
+  1586	            tool=tool,
+  1587	            execution=execution,
+  1588	            coverage={"denominator": denominator, "scanned": scanned},
+  1589	            finding_ids=[],
+  1590	        )
+  1591	
+  1592	
+  1593	# ---------------------------------------------------------------------------
+  1594	# 端到端自证（python3 bugscan_orchestrator.py）
+  1595	# ---------------------------------------------------------------------------
+  1596	
+  1597	def _self_test() -> int:
+  1598	    """端到端冒烟：planner 升档 → 冻结 → 站0/站1 结果 → 双重校验。"""
+  1599	    registry = default_registry()
+  1600	    registry.validate()
+  1601	    print(f"[1] registry {REGISTRY_VERSION} OK: 8 stations, "
+  1602	          f"digest={registry.registry_digest()[:12]}…")
+  1603	
+  1604	    planner = BugscanPlanner(registry)
+  1605	    plan = planner.plan("FAST", scope_flags=("touches_migration",))
+  1606	    assert plan.lane_effective == "STANDARD" and plan.escalated
+  1607	    assert plan.required_stations == (0, 1, 2, 3, 4)
+  1608	    assert plan.convergence_rounds == 2
+  1609	    print(f"[2] planner auto-escalation OK: FAST --touches_migration--> "
+  1610	          f"STANDARD, required={plan.required_stations}, rounds={plan.convergence_rounds}")
+  1611	
+  1612	    sha = "1" * 40
+  1613	    manifest = planner.freeze_run_manifest(
+  1614	        plan,
+  1615	        run_id="selftest-run-001",
+  1616	        project_id="wenqu-selftest",
+  1617	        commit_sha=sha,
+  1618	        environment="local",
+  1619	        scope=["src/**", "tests/**"],
+  1620	        ruleset={"version": "w6a", "rules": ["W6A-ST0", "W6A-ST1"]},
+  1621	        data_config={"profile": "default"},
+  1622	    )
+  1623	    st0 = manifest.to_station_result()
+  1624	    validate_station_result(st0)
+  1625	    print(f"[3] freeze OK: run={manifest.run_id} scope_hash={manifest.scope_hash[:12]}… "
+  1626	          f"manifest_hash={manifest.manifest_hash[:12]}… ; station-0 result PASS "
+  1627	          f"(coverage {st0['coverage']['scanned']}/{st0['coverage']['denominator']})")
+  1628	
+  1629	    gate = {
+  1630	        "commit_sha": sha,
+  1631	        "exit_code": 0,
+  1632	        "tool": {"name": "ci-fast", "version": "1"},
+  1633	        "started_at": manifest.frozen_at,
+  1634	        "ended_at": manifest.frozen_at,
+  1635	        "components": [
+  1636	            {"name": "lint", "status": "COMPLETED", "exit_code": 0},
+  1637	            {"name": "typecheck", "status": "COMPLETED", "exit_code": 0},
+  1638	            {"name": "unit", "status": "COMPLETED", "exit_code": 0},
+  1639	        ],
+  1640	    }
+  1641	    adapter = SourceGateAdapter(manifest, registry=registry)
+  1642	    st1 = adapter.adapt(gate)
+  1643	    validate_station_result(st1)
+  1644	    print(f"[4] source-gate adapt OK: exit 0 → COMPLETED/PASS "
+  1645	          f"(coverage {st1['coverage']['scanned']}/{st1['coverage']['denominator']})")
+  1646	
+  1647	    # 负例快检：跨 SHA 必拒 / 缩水必 BLOCKED / 降档必录五要素
+  1648	    try:
+  1649	        adapter.adapt({**gate, "commit_sha": "2" * 40})
+  1650	        raise AssertionError("sha mismatch must raise")
+  1651	    except SourceGateShaMismatch:
+  1652	        pass
+  1653	    st1_shrink = adapter.adapt({
+  1654	        **gate,
+  1655	        "components": [
+  1656	            {"name": "lint", "status": "COMPLETED", "exit_code": 0},
+  1657	            {"name": "unit", "status": "NOT_RUN"},
+  1658	        ],
+  1659	    })
+  1660	    assert st1_shrink["execution_status"] == "BLOCKED"
+  1661	    assert st1_shrink["policy_verdict"] != "PASS"
+  1662	    try:
+  1663	        planner.plan("STANDARD", downgrade_stations=(4,))
+  1664	        raise AssertionError("downgrade without record must raise")
+  1665	    except RiskDowngradeError:
+  1666	        pass
+  1667	    try:  # 到期超出 30 天日落窗口 → 拒绝
+  1668	        planner.plan(
+  1669	            "STANDARD",
+  1670	            downgrade={"approver": "risk-owner", "reason": "行为面环境维护窗口暂停",
+  1671	                       "scope": "station 4 only", "expiry": "2099-01-01T00:00:00Z"},
+  1672	            downgrade_stations=(4,),
+  1673	        )
+  1674	        raise AssertionError("downgrade beyond 30d sunset must raise")
+  1675	    except RiskDowngradeError:
+  1676	        pass
+  1677	    try:  # 站0 不可降档移除
+  1678	        planner.plan(
+  1679	            "STANDARD",
+  1680	            downgrade={"approver": "risk-owner", "reason": "试图跳过范围冻结",
+  1681	                       "scope": "station 0", "expiry": _iso_z(_utc_now() + timedelta(days=7))},
+  1682	            downgrade_stations=(0,),
+  1683	        )
+  1684	        raise AssertionError("dropping station 0 must raise")
+  1685	    except RiskDowngradeError:
+  1686	        pass
+  1687	    good = planner.plan(
+  1688	        "STANDARD",
+  1689	        downgrade={"approver": "risk-owner", "reason": "行为面环境维护窗口暂停",
+  1690	                   "scope": "station 4 only", "expiry": _iso_z(_utc_now() + timedelta(days=7))},
+  1691	        downgrade_stations=(4,),
+  1692	    )
+  1693	    assert good.required_stations == (0, 1, 2, 3)
+  1694	    assert good.downgrade is not None and good.dropped_stations == (4,)
+  1695	    print("[5] negative paths OK: cross-SHA refused / shrink→BLOCKED / "
+  1696	          "downgrade requires valid 5-element record (30d sunset + floor {0,1} enforced)")
+  1697	
+  1698	    import tempfile as _tf
+  1699	    with _tf.TemporaryDirectory() as tmp:
+  1700	        path = Path(tmp) / "run-manifest.json"
+  1701	        manifest.save(path)
+  1702	        manifest.save(path)  # 幂等
+  1703	        loaded = RunManifest.load(path)
+  1704	        assert loaded.manifest_hash == manifest.manifest_hash
+  1705	        print(f"[6] manifest save/load OK: {path.name} idempotent + hash verified")
+  1706	    print("SELF-TEST PASS")
+  1707	    return 0
+  1708	
+  1709	
+  1710	if __name__ == "__main__":
+  1711	    raise SystemExit(_self_test())
+=== dashboard field consumers ===
+system/dashboard/app.js:439:  const verdict=String(h.policy_verdict||h.overall||h.verdict||'NOT_EVALUATED');
+system/dashboard/app.js:472:  const meta=el('div','dim fs11 mt8','快照源 '+(h.source||'gate-aggregator')+' · 时间 '+(h.generated_at||h.ts||'—'));
+system/tests/test_core_wiring.py:46:        "run-event-v2.schema.json", "station-result-v2.schema.json",
+system/tests/test_core_wiring.py:85:    from wenqu_core.gate_aggregator import GateAggregator
+system/tests/test_core_wiring.py:86:    g = GateAggregator(required_stations=set(), target_sha="0"*40, environment="test")
+system/tests/test_core_wiring.py:87:    v = g.aggregate()
+system/tests/test_core_wiring.py:88:    assert v["aggregate_outcome"] == "BLOCKED", f"空 required 应 BLOCKED，实际 {v['aggregate_outcome']}"
+system/wenqu_core/station7_runtime.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规。
+system/wenqu_core/station7_runtime.py:11:三条腿（每腿独立产出一份 station_id=7 的 station-result-v2，可单独留证；
+system/wenqu_core/station7_runtime.py:386:            policy_verdict = "FAIL" if dead else "NOT_EVALUATED"
+system/wenqu_core/station7_runtime.py:389:            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+system/wenqu_core/station7_runtime.py:391:            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+system/wenqu_core/station7_runtime.py:425:            policy_verdict=policy_verdict,
+system/wenqu_core/station7_runtime.py:555:            policy_verdict = "FAIL" if breached else "NOT_EVALUATED"
+system/wenqu_core/station7_runtime.py:558:            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+system/wenqu_core/station7_runtime.py:560:            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+system/wenqu_core/station7_runtime.py:588:            policy_verdict=policy_verdict,
+system/wenqu_core/station7_runtime.py:732:            policy_verdict = "FAIL" if broken else "NOT_EVALUATED"
+system/wenqu_core/station7_runtime.py:735:            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+system/wenqu_core/station7_runtime.py:737:            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+system/wenqu_core/station7_runtime.py:774:            policy_verdict=policy_verdict,
+system/wenqu_core/station7_runtime.py:794:# 整站合并——三条腿 → 单一 station-result-v2
+system/wenqu_core/station7_runtime.py:799:    """把站7 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+system/wenqu_core/station7_runtime.py:850:    policy_verdict = _worst_policy(r["policy_verdict"] for r in results)
+system/wenqu_core/station7_runtime.py:887:        policy_verdict=policy_verdict,
+system/wenqu_core/station7_runtime.py:915:    """站7 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。"""
+system/wenqu_core/station7_runtime.py:942:      policy_verdict=NOT_APPLICABLE（对齐注册表判据：error=生产写授权
+system/wenqu_core/station7_runtime.py:971:            policy_verdict="NOT_APPLICABLE",
+system/wenqu_core/station7_runtime.py:1025:            policy_verdict="NOT_APPLICABLE",
+system/wenqu_core/station7_runtime.py:1103:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 2, "scanned": 2}
+system/wenqu_core/station7_runtime.py:1118:        assert st["execution_status"] == "BLOCKED" and st["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station7_runtime.py:1130:        assert st["policy_verdict"] == "FAIL" and st["finding_ids"][0].startswith("fnd_sentinel_")
+system/wenqu_core/station7_runtime.py:1146:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 3, "scanned": 3}
+system/wenqu_core/station7_runtime.py:1155:        assert st["policy_verdict"] == "FAIL" and len(st["finding_ids"]) == 1
+system/wenqu_core/station7_runtime.py:1210:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 1, "scanned": 1}
+system/wenqu_core/station7_runtime.py:1224:        assert st["policy_verdict"] == "FAIL" and st["coverage"]["scanned"] == 3
+system/wenqu_core/station7_runtime.py:1266:        assert combined["station_id"] == 7 and combined["policy_verdict"] == "PASS"
+system/wenqu_core/station7_runtime.py:1271:              f"{combined['policy_verdict']}（不计收敛轮/可阻断发布）")
+system/wenqu_core/station7_runtime.py:1277:        assert st5["station_id"] == 5 and st5["policy_verdict"] == "NOT_APPLICABLE"
+system/wenqu_core/station7_runtime.py:1282:        assert st6["station_id"] == 6 and st6["policy_verdict"] == "NOT_APPLICABLE"
+system/wenqu_core/__init__.py:16:  WebGuiScanner → station-result-v2，分母自 tests/ 动态计算）
+system/wenqu_core/__init__.py:18:  station-result-v2；不计收敛轮但可阻断发布；含站5/站6 占位接口）
+system/dashboard/server.py:102:def read_gate_aggregate():
+system/dashboard/server.py:106:    path = os.environ.get("WENQU_GATE_AGGREGATE") or os.path.join(WQ, "state", "gate-aggregate.json")
+system/dashboard/server.py:117:    gen = snap.get("generated_at") or snap.get("ts")
+system/dashboard/server.py:119:        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照缺 generated_at/ts 时间戳字段"}
+system/dashboard/server.py:123:        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "generated_at 不是 ISO 时间戳"}
+system/dashboard/server.py:130:    if not any(k in snap for k in ("policy_verdict", "overall", "verdict")):
+system/dashboard/server.py:131:        return {"ok": False, "code": "AGGREGATOR_MALFORMED", "detail": "快照缺 policy_verdict/overall 判定字段"}
+system/dashboard/server.py:145:        r = read_gate_aggregate()
+system/dashboard/server.py:149:            verdict = snap.get("policy_verdict") or snap.get("overall") or snap.get("verdict")
+system/dashboard/server.py:666:            r = read_gate_aggregate()
+system/dashboard/server.py:849:           (s == 200 and isinstance(j, dict) and any(k in j for k in ("policy_verdict", "overall", "verdict")))
+system/dashboard/server.py:915:    print(f"  health 正源 = gate_aggregator 快照（{os.environ.get('WENQU_GATE_AGGREGATE') or os.path.join(WQ, 'state', 'gate-aggregate.json')}）")
+system/wenqu_core/gate_aggregator.py:4:消费流水线各 station 产出的 station-result JSON，聚合为整线统一的 gate 判定。
+system/wenqu_core/gate_aggregator.py:6:station-result 输入契约（add() 的每个元素）::
+system/wenqu_core/gate_aggregator.py:28:通过；与 aggregate_outcome == PASS 不等价——CONDITIONAL 时 technical_eligible 可为
+system/wenqu_core/gate_aggregator.py:29:True，但放行判断必须且只能以 aggregate_outcome == PASS 为准。
+system/wenqu_core/gate_aggregator.py:41:__all__ = ["GateAggregator", "PASS", "CONDITIONAL", "BLOCKED"]
+system/wenqu_core/gate_aggregator.py:60:class GateAggregator:
+system/wenqu_core/gate_aggregator.py:61:    """消费 station-result JSON，输出整线统一 gate 判定。
+system/wenqu_core/gate_aggregator.py:65:        agg = GateAggregator(required_stations={"lint", "test"},
+system/wenqu_core/gate_aggregator.py:68:        verdict = agg.aggregate()          # aggregate_outcome / technical_eligible / reason ...
+system/wenqu_core/gate_aggregator.py:106:    def add(self, station_result: dict) -> "GateAggregator":
+system/wenqu_core/gate_aggregator.py:107:        """登记一条 station-result；返回 self 以便链式调用。
+system/wenqu_core/gate_aggregator.py:110:        两者都会在 aggregate() 时以 BLOCKED 或备注形式体现，绝不静默择优。
+system/wenqu_core/gate_aggregator.py:156:            return self  # 首条为准；冲突已记账，aggregate() 时 BLOCKED
+system/wenqu_core/gate_aggregator.py:181:    def aggregate(self) -> Dict[str, Any]:
+system/wenqu_core/gate_aggregator.py:251:            "aggregate_outcome": outcome,
+system/wenqu_core/gate_aggregator.py:269:    def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+system/wenqu_core/gate_aggregator.py:275:        result = aggregate_result if aggregate_result is not None else self.aggregate()
+system/wenqu_core/gate_aggregator.py:276:        outcome = result.get("aggregate_outcome", BLOCKED)
+system/wenqu_core/station4_behavior.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规
+system/wenqu_core/station4_behavior.py:13:三条腿（每腿独立产出一份 station_id=4 的 station-result-v2，可单独留证；
+system/wenqu_core/station4_behavior.py:14:整站结果由 combine_station4_results 合并为单一条目——GateAggregator 同站
+system/wenqu_core/station4_behavior.py:407:            policy_verdict = "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:411:            policy_verdict = "FAIL" if failed else "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:415:            policy_verdict = "FAIL"
+system/wenqu_core/station4_behavior.py:419:            policy_verdict = "PASS"
+system/wenqu_core/station4_behavior.py:461:            policy_verdict=policy_verdict,
+system/wenqu_core/station4_behavior.py:619:            policy_verdict = "FAIL" if mismatched else "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:622:            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+system/wenqu_core/station4_behavior.py:624:            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+system/wenqu_core/station4_behavior.py:660:            policy_verdict=policy_verdict,
+system/wenqu_core/station4_behavior.py:824:            policy_verdict = "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:828:            policy_verdict = "FAIL" if failed else "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:831:            execution_status, policy_verdict, assertion = "COMPLETED", "FAIL", "FAIL"
+system/wenqu_core/station4_behavior.py:833:            execution_status, policy_verdict, assertion = "COMPLETED", "PASS", "PASS"
+system/wenqu_core/station4_behavior.py:884:            policy_verdict=policy_verdict,
+system/wenqu_core/station4_behavior.py:906:# 整站合并——三条腿 → 单一 station-result-v2
+system/wenqu_core/station4_behavior.py:911:    """把站4 各腿结果合并为单一条目（GateAggregator 同站只接受一条）。
+system/wenqu_core/station4_behavior.py:917:    - policy_verdict：NOT_APPLICABLE 腿不参与；任一 FAIL→FAIL，任一
+system/wenqu_core/station4_behavior.py:970:    policy_verdict = _worst_policy(r["policy_verdict"] for r in results)
+system/wenqu_core/station4_behavior.py:1007:        policy_verdict=policy_verdict,
+system/wenqu_core/station4_behavior.py:1036:    """站4 门面：顺序执行给定的腿扫描器并合并为单一 station-result-v2。"""
+system/wenqu_core/station4_behavior.py:1122:        assert st["policy_verdict"] == "PASS" and st["execution_status"] == "COMPLETED"
+system/wenqu_core/station4_behavior.py:1135:        assert st["policy_verdict"] == "FAIL" and st["execution_status"] == "COMPLETED"
+system/wenqu_core/station4_behavior.py:1147:        assert st["execution_status"] == "BLOCKED" and st["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:1162:        assert st["coverage"]["scanned"] == 0 and st["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:1165:              f"{st['policy_verdict']}")
+system/wenqu_core/station4_behavior.py:1195:            assert st["policy_verdict"] == "PASS" and st["coverage"]["scanned"] == 2
+system/wenqu_core/station4_behavior.py:1205:            assert st["policy_verdict"] == "FAIL" and st["finding_ids"][0].startswith("fnd_route_")
+system/wenqu_core/station4_behavior.py:1215:            assert st["execution_status"] == "BLOCKED" and st["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station4_behavior.py:1232:            assert combined["station_id"] == 4 and combined["policy_verdict"] == "PASS"
+system/wenqu_core/station4_behavior.py:1236:                  f"{combined['execution_status']}/{combined['policy_verdict']}")
+system/wenqu_core/station4_behavior.py:1295:        assert st["policy_verdict"] == "PASS" and st["coverage"] == {"denominator": 2, "scanned": 2}
+system/wenqu_core/station4_behavior.py:1300:        assert st["policy_verdict"] == "FAIL" and st["finding_ids"][0].startswith("fnd_gui_")
+system/wenqu_core/station3_contract.py:10:- 输出严格遵循 schemas/station-result-v2.schema.json：复用
+system/wenqu_core/station3_contract.py:123:#: 站3 固定编号（schemas/station-result-v2.station_id ∈ [0,7]）。
+system/wenqu_core/station3_contract.py:555:        """映射为站3 单件 station-result-v2（经 build/validate 双保险）。"""
+system/wenqu_core/station3_contract.py:560:            execution_status, policy_verdict = "BLOCKED", "NOT_EVALUATED"
+system/wenqu_core/station3_contract.py:563:            execution_status, policy_verdict = "COMPLETED", "FAIL"
+system/wenqu_core/station3_contract.py:566:            execution_status, policy_verdict = "COMPLETED", "PASS"
+system/wenqu_core/station3_contract.py:612:            policy_verdict=policy_verdict,
+system/wenqu_core/station3_contract.py:1340:    """站3「契约与数据」总适配：四个子适配器的工厂 + 聚合为单一 station-result-v2。
+system/wenqu_core/station3_contract.py:1354:    - policy_verdict：FAIL > NOT_EVALUATED > CONDITIONAL > NOT_APPLICABLE > PASS。
+system/wenqu_core/station3_contract.py:1389:        #: run() 最近一次聚合所用的各组件 station-result（审计用）。
+system/wenqu_core/station3_contract.py:1431:        """消费四份底层载荷 → 聚合为站3 单一 station-result-v2。
+system/wenqu_core/station3_contract.py:1478:        policies = [sub["policy_verdict"] for _, sub in sub_results]
+system/wenqu_core/station3_contract.py:1479:        policy_verdict = "PASS"
+system/wenqu_core/station3_contract.py:1482:                policy_verdict = candidate
+system/wenqu_core/station3_contract.py:1516:            else (1 if policy_verdict == "FAIL" else 0)
+system/wenqu_core/station3_contract.py:1523:                "policy_verdict": sub["policy_verdict"],
+system/wenqu_core/station3_contract.py:1530:            "kind": "station3/aggregate",
+system/wenqu_core/station3_contract.py:1548:            policy_verdict=policy_verdict,
+system/wenqu_core/station3_contract.py:1638:    assert st["policy_verdict"] == "PASS" and st["coverage"] == {
+system/wenqu_core/station3_contract.py:1651:    assert st_bad["policy_verdict"] == "FAIL"
+system/wenqu_core/station3_contract.py:1659:    assert st_shrink["policy_verdict"] != "PASS"
+system/wenqu_core/station3_contract.py:1680:    assert st_og["policy_verdict"] == "PASS"
+system/wenqu_core/station3_contract.py:1686:    assert st_og_bad["policy_verdict"] == "FAIL"
+system/wenqu_core/station3_contract.py:1714:    assert st_pm["policy_verdict"] == "FAIL"      # runtime vs db 冲突
+system/wenqu_core/station3_contract.py:1721:    assert st_pm_ok["policy_verdict"] == "PASS"
+system/wenqu_core/station3_contract.py:1746:    assert st_clean["policy_verdict"] == "PASS" and not st_clean["finding_ids"]
+system/wenqu_core/station3_contract.py:1749:    assert st_drop["policy_verdict"] == "FAIL"   # DROP=HIGH，未白名单
+system/wenqu_core/station3_contract.py:1753:    assert st_wl["policy_verdict"] == "PASS"     # 三绑定全中 → 受治理漂移
+system/wenqu_core/station3_contract.py:1759:    assert st_wl_exp["policy_verdict"] == "FAIL"  # 过期白名单=无效
+system/wenqu_core/station3_contract.py:1804:    assert final["policy_verdict"] == "PASS" and final["execution_status"] == "COMPLETED"
+system/wenqu_core/station3_contract.py:1814:    assert final_bad["policy_verdict"] == "FAIL"
+system/wenqu_core/station3_contract.py:1821:    print(f"[7] aggregate OK: 全绿→PASS (coverage "
+system/wenqu_core/scheduler.py:9:                       （§7）产出结构化结果：execution_status + policy_verdict +
+system/wenqu_core/scheduler.py:88:#: 统一退出码契约（§7）：actual_exit_code → (execution_status, policy_verdict)。
+system/wenqu_core/scheduler.py:371:    policy_verdict: str
+system/wenqu_core/scheduler.py:403:    last_policy_verdict: Optional[str]
+system/wenqu_core/scheduler.py:454:    policy_verdict      TEXT NOT NULL,
+system/wenqu_core/scheduler.py:477:    last_policy_verdict    TEXT,
+system/wenqu_core/scheduler.py:1062:        " last_execution_status, last_policy_verdict, consecutive_failures"
+system/wenqu_core/scheduler.py:1074:    def _classify_refresh(execution_status: str, policy_verdict: str,
+system/wenqu_core/scheduler.py:1085:        if execution_status != "COMPLETED" or policy_verdict != "PASS":
+system/wenqu_core/scheduler.py:1093:                   execution_status: str, policy_verdict: str,
+system/wenqu_core/scheduler.py:1098:            execution_status, policy_verdict, finished_at, ttl_seconds, now
+system/wenqu_core/scheduler.py:1103:        succeeded = execution_status == "COMPLETED" and policy_verdict == "PASS"
+system/wenqu_core/scheduler.py:1109:                " last_policy_verdict, consecutive_failures, updated_at"
+system/wenqu_core/scheduler.py:1114:                    policy_verdict, 0 if succeeded else 1, now,
+system/wenqu_core/scheduler.py:1134:            " last_policy_verdict=?, consecutive_failures=?, updated_at=?"
+system/wenqu_core/scheduler.py:1138:                policy_verdict, 0 if succeeded else cur_failures + 1, now,
+system/wenqu_core/scheduler.py:1146:                      policy_verdict: str, finished_at: Optional[float],
+system/wenqu_core/scheduler.py:1154:                execution_status=execution_status, policy_verdict=policy_verdict,
+system/wenqu_core/scheduler.py:1168:            " h.last_execution_status, h.last_policy_verdict,"
+system/wenqu_core/scheduler.py:1232:                last_policy_verdict=last_verdict,
+system/wenqu_core/scheduler.py:1403:                " policy_verdict, actual_exit_code, commit_sha, argv_digest,"
+system/wenqu_core/scheduler.py:1418:                execution_status=status, policy_verdict=verdict,
+system/wenqu_core/scheduler.py:1440:            execution_status=status, policy_verdict=verdict, actual_exit_code=rc,
+system/wenqu_core/scheduler.py:1475:            "execution_status": row[8], "policy_verdict": row[9],
+system/wenqu_core/scheduler.py:1528:            "policy_verdict": record.policy_verdict,
+system/wenqu_core/wenqu_pipeline.py:438:    policy_verdict: Optional[str] = None
+system/wenqu_core/wenqu_pipeline.py:639:    def validate_outcome(execution_status: str, policy_verdict: str,
+system/wenqu_core/wenqu_pipeline.py:645:        if policy_verdict not in POLICY_VERDICTS:
+system/wenqu_core/wenqu_pipeline.py:647:                f"invalid policy_verdict {policy_verdict!r}; "
+system/wenqu_core/wenqu_pipeline.py:650:        if policy_verdict == "PASS" and execution_status != "COMPLETED":
+system/wenqu_core/wenqu_pipeline.py:655:        if policy_verdict == "PASS" and findings:
+system/wenqu_core/wenqu_pipeline.py:662:    def verdict_to_attempt_status(policy_verdict: str) -> str:
+system/wenqu_core/wenqu_pipeline.py:664:        if policy_verdict == "PASS":
+system/wenqu_core/wenqu_pipeline.py:666:        if policy_verdict in ("CONDITIONAL", "NOT_APPLICABLE"):
+system/wenqu_core/wenqu_pipeline.py:1245:                    execution_status: str, policy_verdict: str, *,
+system/wenqu_core/wenqu_pipeline.py:1255:            "policy_verdict": policy_verdict,
+system/wenqu_core/wenqu_pipeline.py:1326:                ev.get("policy_verdict", "NOT_EVALUATED"))
+system/wenqu_core/wenqu_pipeline.py:1334:                policy_verdict=ev.get("policy_verdict"),
+system/wenqu_core/wenqu_pipeline.py:1382:            verdict = ev.get("policy_verdict")
+system/wenqu_core/wenqu_pipeline.py:1484:        policy_verdict: Optional[str] = None,
+system/wenqu_core/wenqu_pipeline.py:1502:        if (execution_status is None) != (policy_verdict is None):
+system/wenqu_core/wenqu_pipeline.py:1504:                "execution_status 与 policy_verdict 必须同时提供或同时省略")
+system/wenqu_core/wenqu_pipeline.py:1507:                execution_status, policy_verdict, fnds)
+system/wenqu_core/wenqu_pipeline.py:1514:                verdict_to_attempt_status(policy_verdict)
+system/wenqu_core/wenqu_pipeline.py:1518:                "STAGE_COMPLETED", state, execution_status, policy_verdict,
+system/wenqu_core/wenqu_pipeline.py:1525:            result["policy_verdict"] = policy_verdict
+system/wenqu_core/wenqu_pipeline.py:1746:                "execution_status": execution, "policy_verdict": verdict,
+system/wenqu_core/source_gate.py:17:  （统一结果双轴 execution_status × policy_verdict 均无 SKIP 枚举，见契约 §2）。
+system/wenqu_core/source_gate.py:649:        结果携带统一双轴（execution_status × policy_verdict）与统一退出码；
+system/wenqu_core/source_gate.py:658:            "generated_at": datetime.now(timezone.utc).isoformat(),
+system/wenqu_core/source_gate.py:684:            "policy_verdict": None,
+system/wenqu_core/source_gate.py:711:                result["policy_verdict"] = "NOT_APPLICABLE"
+system/wenqu_core/source_gate.py:731:                    result["policy_verdict"] = "NOT_EVALUATED"
+system/wenqu_core/source_gate.py:735:                    result["policy_verdict"] = "FAIL"
+system/wenqu_core/source_gate.py:739:                    result["policy_verdict"] = "PASS"
+system/wenqu_core/source_gate.py:765:            result["policy_verdict"] = "NOT_EVALUATED"
+system/wenqu_core/source_gate.py:776:            result["policy_verdict"] = "NOT_EVALUATED"
+system/wenqu_core/bugscan_orchestrator.py:7:- 每站输出严格遵循 schemas/station-result-v2.schema.json（本文件内置结构校验器，
+system/wenqu_core/bugscan_orchestrator.py:151:    "execution_status", "policy_verdict", "identity", "tool",
+system/wenqu_core/bugscan_orchestrator.py:198:    """station-result-v2 结构/不变量校验失败（聚合全部问题一次性抛出）。"""
+system/wenqu_core/bugscan_orchestrator.py:453:    同步 schemas/station-result-v2.schema.json 与规范文档、并重新冻结
+system/wenqu_core/bugscan_orchestrator.py:797:    - to_station_result() 产出站0 的 station-result-v2 结果。
+system/wenqu_core/bugscan_orchestrator.py:956:    # -- 站0 station-result --------------------------------------------------
+system/wenqu_core/bugscan_orchestrator.py:963:        """把冻结成功映射为站0 的 station-result-v2 结果。
+system/wenqu_core/bugscan_orchestrator.py:977:            policy_verdict="PASS",
+system/wenqu_core/bugscan_orchestrator.py:1161:# station-result-v2 构造与校验
+system/wenqu_core/bugscan_orchestrator.py:1170:    policy_verdict: str,
+system/wenqu_core/bugscan_orchestrator.py:1178:    """按 schema 白名单构造 station-result-v2，并强制安全不变量：
+system/wenqu_core/bugscan_orchestrator.py:1187:        policy_verdict = "NOT_EVALUATED"
+system/wenqu_core/bugscan_orchestrator.py:1189:        if policy_verdict == "PASS":
+system/wenqu_core/bugscan_orchestrator.py:1192:                "forbids policy_verdict=PASS（铁律2：站内任一件 BLOCKED/ERROR"
+system/wenqu_core/bugscan_orchestrator.py:1195:    if policy_verdict == "PASS" and execution.get("assertion_verdict") != "PASS":
+system/wenqu_core/bugscan_orchestrator.py:1206:        "policy_verdict": policy_verdict,
+system/wenqu_core/bugscan_orchestrator.py:1228:    可用时额外用 jsonschema 对 schemas/station-result-v2.schema.json
+system/wenqu_core/bugscan_orchestrator.py:1244:                "execution_status", "policy_verdict", "identity", "tool",
+system/wenqu_core/bugscan_orchestrator.py:1260:    _check(result.get("policy_verdict") in
+system/wenqu_core/bugscan_orchestrator.py:1262:           f"invalid policy_verdict: {result.get('policy_verdict')!r}")
+system/wenqu_core/bugscan_orchestrator.py:1381:            _check(result.get("policy_verdict") != "PASS",
+system/wenqu_core/bugscan_orchestrator.py:1382:                   "coverage shrink (scanned<denominator) forbids policy_verdict=PASS")
+system/wenqu_core/bugscan_orchestrator.py:1384:            _check(result.get("policy_verdict") != "PASS",
+system/wenqu_core/bugscan_orchestrator.py:1385:                   "non-COMPLETED execution_status forbids policy_verdict=PASS")
+system/wenqu_core/bugscan_orchestrator.py:1389:            "station-result-v2 validation failed: " + "; ".join(issues)
+system/wenqu_core/bugscan_orchestrator.py:1398:        Path(__file__).resolve().parent.parent / "schemas" / "station-result-v2.schema.json"
+system/wenqu_core/bugscan_orchestrator.py:1428:    3. 机械映射：退出码 → (execution_status, policy_verdict)，按
+system/wenqu_core/bugscan_orchestrator.py:1508:        """消费源闸结果 → 站1 station-result-v2（严格 schema 合规）。"""
+system/wenqu_core/bugscan_orchestrator.py:1530:        execution_status, policy_verdict = SOURCE_GATE_EXIT_CODE_MAPPING[parsed["exit_code"]]
+system/wenqu_core/bugscan_orchestrator.py:1546:            policy_verdict = "NOT_EVALUATED"
+system/wenqu_core/bugscan_orchestrator.py:1547:        assertion = "PASS" if (policy_verdict == "PASS" and not shrink) else (
+system/wenqu_core/bugscan_orchestrator.py:1548:            "FAIL" if policy_verdict == "FAIL" else "ERROR"
+system/wenqu_core/bugscan_orchestrator.py:1584:            policy_verdict=policy_verdict,
+system/wenqu_core/bugscan_orchestrator.py:1661:    assert st1_shrink["policy_verdict"] != "PASS"
+system/wenqu_core/station2_static.py:11:- 每站输出严格遵循 schemas/station-result-v2.schema.json（复用 W6A 的
+system/wenqu_core/station2_static.py:58:    report["station_result"]        # 站2 聚合 station-result-v2（schema 合规）
+system/wenqu_core/station2_static.py:360:def _unified_exit(execution_status: str, policy_verdict: str) -> int:
+system/wenqu_core/station2_static.py:368:    if policy_verdict == "FAIL":
+system/wenqu_core/station2_static.py:370:    if policy_verdict == "CONDITIONAL":
+system/wenqu_core/station2_static.py:514:    """站2 执行件基座：身份绑定、runner 执行通道、station-result 组装。"""
+system/wenqu_core/station2_static.py:556:        policy_verdict: str,
+system/wenqu_core/station2_static.py:570:        if execution_status == "COMPLETED" and policy_verdict in ("PASS", "NOT_APPLICABLE"):
+system/wenqu_core/station2_static.py:572:        elif policy_verdict == "FAIL":
+system/wenqu_core/station2_static.py:600:            policy_verdict=policy_verdict,
+system/wenqu_core/station2_static.py:626:            policy_verdict="NOT_EVALUATED",
+system/wenqu_core/station2_static.py:653:            policy_verdict="NOT_EVALUATED",
+system/wenqu_core/station2_static.py:823:            policy_verdict=verdict,
+system/wenqu_core/station2_static.py:1074:            policy_verdict="FAIL" if (over_pairs or over_lines) else "PASS",
+system/wenqu_core/station2_static.py:1275:            policy_verdict="FAIL" if open_count else "PASS",
+system/wenqu_core/station2_static.py:1394:                policy_verdict="NOT_APPLICABLE",
+system/wenqu_core/station2_static.py:1461:                policy_verdict="FAIL",
+system/wenqu_core/station2_static.py:1476:            policy_verdict="PASS",
+system/wenqu_core/station2_static.py:1495:    """站2（静态与供应链）聚合适配器：四执行件 → 站级 station-result-v2。
+system/wenqu_core/station2_static.py:1628:        verdicts = [reports[slug].result["policy_verdict"] for slug in self._scanners]
+system/wenqu_core/station2_static.py:1638:            aggregate_verdict = "NOT_EVALUATED"
+system/wenqu_core/station2_static.py:1640:            aggregate_verdict = "FAIL"
+system/wenqu_core/station2_static.py:1642:            aggregate_verdict = "PASS"
+system/wenqu_core/station2_static.py:1653:        aggregate = build_station_result(
+system/wenqu_core/station2_static.py:1658:            policy_verdict=aggregate_verdict,
+system/wenqu_core/station2_static.py:1671:                "actual_exit_code": _unified_exit(intended_status, aggregate_verdict),
+system/wenqu_core/station2_static.py:1674:                    "PASS" if aggregate_verdict in ("PASS", "NOT_APPLICABLE")
+system/wenqu_core/station2_static.py:1675:                    else ("FAIL" if aggregate_verdict == "FAIL" else "ERROR")
+system/wenqu_core/station2_static.py:1685:        validate_station_result(aggregate)
+system/wenqu_core/station2_static.py:1688:            "station_result": aggregate,
+system/wenqu_core/station2_static.py:1818:        assert rep.result["policy_verdict"] == "PASS", rep
+system/wenqu_core/station2_static.py:1830:        assert rep.result["policy_verdict"] == "FAIL", rep
+system/wenqu_core/station2_static.py:1872:        assert rep.result["policy_verdict"] == "PASS", rep
+system/wenqu_core/station2_static.py:1882:        assert rep.result["policy_verdict"] == "FAIL", rep
+system/wenqu_core/station2_static.py:1901:        assert rep.result["policy_verdict"] == "PASS", rep
+system/wenqu_core/station2_static.py:1908:        assert rep.result["policy_verdict"] == "FAIL" and len(rep.findings) == 1
+system/wenqu_core/station2_static.py:1928:        assert rep.result["policy_verdict"] == "FAIL" and len(rep.findings) == 1
+system/wenqu_core/station2_static.py:1947:        assert rep.result["policy_verdict"] == "PASS" and not rep.findings
+system/wenqu_core/station2_static.py:1956:        assert rep.result["policy_verdict"] == "NOT_APPLICABLE", rep
+system/wenqu_core/station2_static.py:1978:        assert agg["policy_verdict"] == "FAIL" and agg["execution_status"] == "COMPLETED"
+system/wenqu_core/station2_static.py:1984:        print("[7a] aggregate OK: supply FAIL -> station FAIL, coverage 4/4 scanners, "
+system/wenqu_core/station2_static.py:1999:        assert agg["execution_status"] == "BLOCKED" and agg["policy_verdict"] == "NOT_EVALUATED"
+system/wenqu_core/station2_static.py:2003:        print("[7b] aggregate negative OK: any non-COMPLETED scanner -> station BLOCKED "
+system/wenqu_core/station2_static.py:2018:        assert agg["policy_verdict"] == "PASS" and agg["execution_status"] == "COMPLETED"
+system/wenqu_core/station2_static.py:2021:        print("[7c] aggregate all-green OK: station PASS, unified exit 0")
+system/tests/test_wenqu_pipeline.py:118:        out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+system/tests/test_wenqu_pipeline.py:128:    assert done["final_state"] == "SUCCEEDED" and done["policy_verdict"] == "PASS"
+system/tests/test_wenqu_pipeline.py:129:    expect(TerminalRunError, lambda: mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS"))
+system/tests/test_wenqu_pipeline.py:144:    out = mgr.advance_stage(run_id, execution_status="ERROR", policy_verdict="FAIL")
+system/tests/test_wenqu_pipeline.py:151:    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+system/tests/test_wenqu_pipeline.py:209:    expect(PipelineError, lambda: mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS"))
+system/tests/test_wenqu_pipeline.py:335:    mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")  # S1 done→S2 running
+system/tests/test_wenqu_pipeline.py:405:        mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+system/tests/test_wenqu_pipeline.py:406:    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="CONDITIONAL")
+system/tests/test_wenqu_pipeline.py:413:    out = mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="CONDITIONAL")
+system/tests/test_wenqu_pipeline.py:422:    assert done["policy_verdict"] == "CONDITIONAL"
+system/tests/test_wenqu_pipeline.py:442:    mgr.advance_stage(run3, execution_status="ERROR", policy_verdict="FAIL")
+system/tests/test_wenqu_pipeline.py:454:    mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:31:14Z

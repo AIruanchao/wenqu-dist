@@ -1,0 +1,106 @@
+COMMAND: bash -lc set\ +e\;\ uid=\$\(id\ -u\)\;\ echo\ \"LAUNCHCTL_PRINT\"\;\ launchctl\ print\ gui/\$uid/com.wenqu.dashboard\ 2\>\&1\ \|\ sed\ -n\ \"1\,180p\"\;\ echo\ \"LSOF\"\;\ lsof\ -nP\ -iTCP:7789\ -sTCP:LISTEN\ 2\>\&1\;\ echo\ \"PS\"\;\ pgrep\ -lf\ \"wenqu-dashboard\|dashboard/server.py\"\ \|\|\ true\;\ echo\ \"SOURCE_HASHES\"\;\ sha256sum\ /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py\ /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py\ 2\>\&1\;\ echo\ \"INSTALLED_HASHES\"\;\ sha256sum\ /Users/maccc/.wenqu/bin/wenqu-dashboard.py\ /Users/maccc/.wenqu/dashboard/server.py\ 2\>\&1\;\ echo\ \"HEALTH_HEADERS\"\;\ curl\ --max-time\ 5\ -sS\ -D\ -\ -o\ /tmp/reaudit3-health.\$\$.body\ http://127.0.0.1:7789/api/health\;\ cat\ /tmp/reaudit3-health.\$\$.body\;\ rm\ -f\ /tmp/reaudit3-health.\$\$.body
+START: 2026-10-08T12:31:38+08:00
+LAUNCHCTL_PRINT
+gui/502/com.wenqu.dashboard = {
+	active count = 1
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	type = LaunchAgent
+	state = running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		/Users/maccc/.wenqu/bin/wenqu-dashboard.py
+		7789
+	}
+
+	stdout path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	stderr path = /Users/maccc/.wenqu/logs/dashboard-launchd.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_REPO_DIR => /Users/maccc/qisemi-research/qisemi-erp-fresh
+		XPC_SERVICE_NAME => com.wenqu.dashboard
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 11
+	pid = 81385
+	immediate reason = inefficient
+	forks = 32942
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Terminated: 15
+
+	resource coalition = {
+		ID = 448492
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	jetsam coalition = {
+		ID = 448493
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	spawn type = daemon (3)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}
+LSOF
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  81385 maccc    3u  IPv4 0x12e69d706a0997d4      0t0  TCP 127.0.0.1:7789 (LISTEN)
+PS
+758 /opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.hermes/profiles/dachui80/scripts/ops-dashboard/server.py --port 8199
+81385 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789
+SOURCE_HASHES
+72ba1db7a8e2a292ac0feff836988fc8f064a75bf421996ed2ce0247e1873ddf  /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py
+fb4c6ce2c3096acc663beeb8a5008e5218baa2e91ccddca7921c047191cdb27b  /Users/maccc/Documents/wenqu-dist/system/dashboard/server.py
+INSTALLED_HASHES
+sha256sum: /Users/maccc/.wenqu/dashboard/server.py: No such file or directory
+52aba1b580c809ada269060db9028e781214b8b772f300a1ebb6a5182cdda331  /Users/maccc/.wenqu/bin/wenqu-dashboard.py
+HEALTH_HEADERS
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.8
+Date: Thu, 08 Oct 2026 04:31:41 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 759
+
+{"score": 40, "grade": "告警", "parts": [{"项": "组件完整", "得分": 27.5, "满分": 30, "比": "92%", "详情": "11/12 在位"}, {"项": "守护与哨兵", "得分": 10.0, "满分": 20, "比": "50%", "详情": "守护 0 活 / cron 3 条"}, {"项": "磁盘（本机/服务器）", "得分": 5.0, "满分": 10, "比": "50%", "详情": "本机 93% / 服务器 84%"}, {"项": "棘轮基线", "得分": 15.0, "满分": 15, "比": "100%", "详情": "3/3 层在位"}, {"项": "账本活性", "得分": 15.0, "满分": 15, "比": "100%", "详情": "今日 4 轮"}, {"项": "决策积压", "得分": 2.0, "满分": 10, "比": "20%", "详情": "4 条待拍"}, {"项": "CI Gate（正源）", "得分": 0.0, "满分": 20, "比": "0%", "详情": "Gate=failure"}]}
+EXIT_CODE: 0
+END: 2026-10-08T12:31:41+08:00

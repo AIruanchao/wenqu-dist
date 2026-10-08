@@ -1,0 +1,351 @@
+$ for f in system/schemas/*.json; do python3 -m json.tool "$f" >/dev/null; echo "$f rc=$?"; done
+system/schemas/approval-v2.schema.json rc=0
+system/schemas/evidence-v2.schema.json rc=0
+system/schemas/finding-event-v2.schema.json rc=0
+system/schemas/run-event-v2.schema.json rc=0
+system/schemas/station-result-v2.schema.json rc=0
+$ rg -n "cross|validate|Draft7|schema|approval-v2|state_from|ACCEPTED_RISK|Content-Type|Origin|Host|CSRF|Auth-Key|X-Wenqu" system tests tools .github
+system/schemas/evidence-v2.schema.json:2:  "$schema": "http://json-schema.org/draft-07/schema#",
+system/schemas/evidence-v2.schema.json:3:  "$id": "wenqu:schemas/evidence-v2.json",
+system/schemas/evidence-v2.schema.json:9:    "schema_version": {"const": "2.0"},
+tools/ac_traceability.py:59:    "RISK": ("REQ-RISK-001", "AC-RISK-INVALIDATE", "W2/W5", "revoke/invalidate/reopen events"),
+tools/ac_traceability.py:96:    ("ACT", 6): ("merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段", "schema 拒绝"),
+tools/ac_traceability.py:104:    ("STATE", 1): ("任意 stage/status", "schema 拒绝"),
+tools/ac_traceability.py:147:    ("UI", 3): ("CSRF/伪 Origin/text/plain 写入", "拒绝"),
+tools/ac_traceability.py:169:    ("CI", 9): ("S7 把 Wenqu Required Gate 当自身输入、重复发布或递归聚合", "schema/DAG 校验拒绝并发布 FAILURE"),
+tools/ac_traceability.py:197:    ("DEP", 5): ("previous release 超 schema 范围", "拒绝回滚"),
+tools/ac_traceability.py:203:    ("UI", 6): ("DNS rebinding/伪 Host/未认证日志读取", "拒绝"),
+tools/ac_traceability.py:247:        "test_function": "test_schema_rejects_p0_accepted_risk",
+tools/ac_traceability.py:248:        "note": "Schema 层拒 CRITICAL ACCEPTED_RISK（P0-4 批 e00de14 已扩到全量加固）；"
+tools/ac_traceability.py:312:def cross_check_plan(plan_path, catalog):
+tools/ac_traceability.py:488:        plan_check = cross_check_plan(args.plan, catalog)
+tools/ac_traceability.py:553:            "plan_cross_check": plan_check,
+system/schemas/finding-event-v2.schema.json:2:  "$schema": "http://json-schema.org/draft-07/schema#",
+system/schemas/finding-event-v2.schema.json:3:  "$id": "wenqu:schemas/finding-event-v2.json",
+system/schemas/finding-event-v2.schema.json:7:  "required": ["schema_version", "event_type", "finding_id", "fingerprint", "severity", "priority", "ts"],
+system/schemas/finding-event-v2.schema.json:9:    "schema_version": {"const": "2.0"},
+system/schemas/finding-event-v2.schema.json:16:        "ACCEPTED_RISK", "RISK_REVOKED", "RISK_INVALIDATED",
+system/schemas/finding-event-v2.schema.json:34:    "state_from": {
+system/schemas/finding-event-v2.schema.json:35:      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK"]
+system/schemas/finding-event-v2.schema.json:38:      "enum": ["OPEN", "FIXING", "FIXED_PENDING_VERIFY", "VERIFIED", "CLOSED", "ACCEPTED_RISK", "RISK_REVOKED"]
+system/schemas/finding-event-v2.schema.json:67:      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+system/schemas/finding-event-v2.schema.json:76:        "properties": {"state_from": {"enum": ["VERIFIED"]}},
+system/schemas/finding-event-v2.schema.json:77:        "required": ["state_from"]
+system/schemas/finding-event-v2.schema.json:81:      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+system/schemas/finding-event-v2.schema.json:90:  "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
+tests/acceptance.sh:342:    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+tests/acceptance.sh:344:    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+system/schemas/run-event-v2.schema.json:2:  "$schema": "http://json-schema.org/draft-07/schema#",
+system/schemas/run-event-v2.schema.json:3:  "$id": "wenqu:schemas/run-event-v2.json",
+system/schemas/run-event-v2.schema.json:7:  "required": ["schema_version", "event_type", "run_id", "execution_status", "policy_verdict", "identity"],
+system/schemas/run-event-v2.schema.json:9:    "schema_version": {"const": "2.0"},
+system/schemas/approval-v2.schema.json:2:  "$schema": "http://json-schema.org/draft-07/schema#",
+system/schemas/approval-v2.schema.json:3:  "$id": "wenqu:schemas/approval-v2.json",
+system/schemas/approval-v2.schema.json:7:  "required": ["schema_version", "approval_id", "approval_type", "run_id", "stop_event_id", "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision", "signature", "payload"],
+system/schemas/approval-v2.schema.json:9:    "schema_version": {"const": "2.0"},
+system/schemas/approval-v2.schema.json:55:      "then": {"properties": {"payload": {"required": ["database_identity", "statement_digest", "before_schema_hash", "after_schema_hash", "backup_id", "rollback_plan_hash"]}}}
+system/schemas/approval-v2.schema.json:67:      "then": {"properties": {"payload": {"required": ["failed_deployment_id", "exact_previous_release_id", "trigger", "schema_compatibility_hash"]}}}
+system/schemas/station-result-v2.schema.json:2:  "$schema": "http://json-schema.org/draft-07/schema#",
+system/schemas/station-result-v2.schema.json:3:  "$id": "wenqu:schemas/station-result-v2.json",
+system/schemas/station-result-v2.schema.json:7:  "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
+system/schemas/station-result-v2.schema.json:9:    "schema_version": {"const": "2.0"},
+system/dashboard/index.html:7:<meta http-equiv="X-Content-Type-Options" content="nosniff">
+system/docs/security/threat-model.md:26:| T-04 | localhost CSRF/恶意网页写决策 | Host/Origin/CORS/CSRF 防护+写鉴权 | UI-03 |
+system/docs/security/threat-model.md:44:schema normalizer → 严格验证+typed result（可信传递）
+system/wenqu_core/__init__.py:7:  approval-v2 一次性审批原子消费 + RunManager（事件正源重放推导）
+system/tests/test_core_wiring.py:2:"""P0-1 核心接线验证——移除 wenqu_core 或 schemas 后此测试必须红。
+system/tests/test_core_wiring.py:16:SCHEMAS = os.path.join(REPO, "schemas")
+system/tests/test_core_wiring.py:43:def test_schemas_exist_and_valid():
+system/tests/test_core_wiring.py:46:        "run-event-v2.schema.json", "station-result-v2.schema.json",
+system/tests/test_core_wiring.py:47:        "evidence-v2.schema.json", "finding-event-v2.schema.json",
+system/tests/test_core_wiring.py:48:        "approval-v2.schema.json",
+system/tests/test_core_wiring.py:92:def test_schema_rejects_p0_accepted_risk():
+system/tests/test_core_wiring.py:93:    """CRITICAL severity 不可 ACCEPTED_RISK（Schema 硬化验证）。"""
+system/tests/test_core_wiring.py:95:        import jsonschema
+system/tests/test_core_wiring.py:97:        return  # CI 环境可能缺 jsonschema——跳过（核心存在性已由其他测试覆盖）
+system/tests/test_core_wiring.py:98:    schema = json.load(open(os.path.join(SCHEMAS, "finding-event-v2.schema.json")))
+system/tests/test_core_wiring.py:100:        "schema_version": "2.0", "event_type": "ACCEPTED_RISK",
+system/tests/test_core_wiring.py:106:        jsonschema.validate(bad, schema)
+system/tests/test_core_wiring.py:107:        raise AssertionError("CRITICAL ACCEPTED_RISK 应被 Schema 拒绝")
+system/tests/test_core_wiring.py:108:    except jsonschema.ValidationError:
+system/wenqu_core/station7_runtime.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规。
+system/wenqu_core/station7_runtime.py:69:    validate_station_result,
+system/wenqu_core/station7_runtime.py:292:            self._validate(dict(s), i) for i, s in enumerate(sentinels)
+system/wenqu_core/station7_runtime.py:299:    def _validate(spec: Mapping[str, Any], index: int) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:479:            self._validate_slo(dict(s), i) for i, s in enumerate(slos)
+system/wenqu_core/station7_runtime.py:488:    def _validate_slo(slo: Mapping[str, Any], index: int) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:652:            self._validate(dict(c), i) for i, c in enumerate(channels)
+system/wenqu_core/station7_runtime.py:666:    def _validate(channel: Mapping[str, Any], index: int) -> Dict[str, Any]:
+system/wenqu_core/station7_runtime.py:814:            validate_station_result(result)
+system/wenqu_core/station7_runtime.py:1055:    registry.validate()
+system/wenqu_core/station7_runtime.py:1102:        validate_station_result(st)
+system/wenqu_core/station7_runtime.py:1145:        validate_station_result(st)
+system/wenqu_core/station7_runtime.py:1209:        validate_station_result(st)
+system/wenqu_core/station7_runtime.py:1265:        validate_station_result(combined)
+system/wenqu_core/station7_runtime.py:1276:        validate_station_result(st5)
+system/wenqu_core/station7_runtime.py:1281:        validate_station_result(st6)
+system/dashboard/app.js:52: {n:3,name:'契约与数据',tier:'周',exec:'openapi 对账 + org-guard + db-schema-recon-4track 漂移白名单（周一 08:00）+ api-perm-matrix（静态矩阵 org/session/none/exempt+双面探针）+ 迁移类 DDL 三段式',pass:'无未归属端点；无未解释漂移；矩阵三源一致（仲裁序=运行时＞DB＞静态，不投票）；负例（越权/跨租户）全拦+正例全通'},
+system/dashboard/app.js:149: {n:4,name:'DB 漂移周哨兵',st:'站3',badge:'✅现役',one:'db-schema-recon-4track 漂移白名单周扫',det:'launchd 周一 08:00 + erp_readonly 只读账户 + watchdog；首跑 CLEAN（基线 27 还在收敛）'},
+system/dashboard/app.js:169: 'schema 对账只对当前 schema（迁移类已强制 DDL 三段式+实弹双核验）',
+system/bin/risk-scorer.py:91:    if "schema.prisma" in filepath:
+system/bin/risk-scorer.py:93:        reasons.append("schema change +15")
+system/wenqu_core/runner.py:90:    def _validate_argv(self, argv: List[str]) -> None:
+system/wenqu_core/runner.py:121:        self._validate_argv(argv)
+system/bin/wenqu-dashboard.py:244: {n:3,name:'契约与数据',tier:'周',exec:'openapi 对账 + org-guard + db-schema-recon-4track 漂移白名单（周一 08:00）+ api-perm-matrix（静态矩阵 org/session/none/exempt+双面探针）+ 迁移类 DDL 三段式',pass:'无未归属端点；无未解释漂移；矩阵三源一致（仲裁序=运行时＞DB＞静态，不投票）；负例（越权/跨租户）全拦+正例全通'},
+system/bin/wenqu-dashboard.py:322: {n:4,name:'DB 漂移周哨兵',st:'站3',badge:'✅现役',one:'db-schema-recon-4track 漂移白名单周扫',det:'launchd 周一 08:00 + erp_readonly 只读账户 + watchdog；首跑 CLEAN（基线 27 还在收敛）'},
+system/bin/wenqu-dashboard.py:342: 'schema 对账只对当前 schema（迁移类已强制 DDL 三段式+实弹双核验）',
+system/bin/wenqu-dashboard.py:538:    const r=await fetch('/api/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,action:act})});
+system/bin/wenqu-dashboard.py:858:        self.send_header("Content-Type", ctype)
+system/bin/wenqu-dashboard.py:870:            origins = self.headers.get_all("Origin", [])
+system/bin/wenqu-dashboard.py:877:            hosts = self.headers.get_all("Host", [])
+system/bin/wenqu-dashboard.py:881:            supplied_keys = self.headers.get_all("X-Auth-Key", [])
+system/bin/wenqu-dashboard.py:1202:                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+system/dashboard/server.py:6:  - T-04 localhost CSRF/DNS rebinding：严格 Host 校验 + Origin/Sec-Fetch-Site 校验 + CORS 默认拒绝
+system/dashboard/server.py:553:                     ("X-Content-Type-Options", "nosniff"),
+system/dashboard/server.py:564:        self.send_header("Content-Type", ctype)
+system/dashboard/server.py:578:    # ── 入口安全闸：Host（防 DNS rebinding）→ Origin/Sec-Fetch-Site（CORS 默认拒绝）→ 速率限制 ──
+system/dashboard/server.py:586:            self._err(403, "HOST_FORBIDDEN", "Host 头不是允许的本地源（DNS rebinding 防护）")
+system/dashboard/server.py:599:        host = (self.headers.get("Host") or "").strip()
+system/dashboard/server.py:615:        origin = self.headers.get("Origin")
+system/dashboard/server.py:701:            self.send_header("Content-Type", ctype)
+system/dashboard/server.py:729:            ct = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+system/dashboard/server.py:730:            if ct != "application/json":  # Content-Type 精确校验（仅接受 application/json）
+system/dashboard/server.py:732:                return self._err(415, "UNSUPPORTED_MEDIA_TYPE", "Content-Type 必须为 application/json")
+system/dashboard/server.py:792:    ck("server.py 关键控制存在（版本化/限速/405/Host/回环绑定）",
+system/dashboard/server.py:852:        s, _, _, j = req("POST", "/api/decide", headers={"Content-Type": "application/json"},
+system/dashboard/server.py:856:        s, _, _, _ = req("POST", "/api/v1/decide", headers={"Content-Type": "application/json"}, body="{}")
+system/dashboard/server.py:861:        s, _, _, _ = req("GET", "/", headers={"Host": "evil.example.com:%d" % bind_port})
+system/dashboard/server.py:862:        ck("伪 Host（DNS rebinding）→ 403", s == 403)
+system/dashboard/server.py:863:        s, _, _, _ = req("GET", "/", headers={"Origin": "http://evil.example.com"})
+system/dashboard/server.py:864:        ck("跨源 Origin → 403", s == 403)
+system/dashboard/server.py:865:        s, _, _, _ = req("GET", "/", headers={"Sec-Fetch-Site": "cross-site"})
+system/dashboard/server.py:866:        ck("Sec-Fetch-Site: cross-site → 403", s == 403)
+system/dashboard/server.py:869:        s, _, _, j = req("POST", "/api/v1/x", headers={"Content-Type": "text/plain"}, body="hello")
+system/dashboard/server.py:870:        ck("Content-Type 非 application/json → 415",
+system/tests/test_wenqu_pipeline.py:74:    SM.validate_run_transition("CREATED", "RUNNING")
+system/tests/test_wenqu_pipeline.py:75:    SM.validate_run_transition("WAITING", "RUNNING")
+system/tests/test_wenqu_pipeline.py:76:    SM.validate_run_transition("RUNNING", "SUCCEEDED")
+system/tests/test_wenqu_pipeline.py:77:    expect(InvalidTransitionError, lambda: SM.validate_run_transition("CREATED", "WAITING"))
+system/tests/test_wenqu_pipeline.py:78:    expect(InvalidTransitionError, lambda: SM.validate_run_transition("SUCCEEDED", "RUNNING"))
+system/tests/test_wenqu_pipeline.py:79:    expect(InvalidTransitionError, lambda: SM.validate_run_transition("WAITING", "SUCCEEDED"))
+system/tests/test_wenqu_pipeline.py:80:    SM.validate_attempt_transition("PENDING", "RUNNING")
+system/tests/test_wenqu_pipeline.py:81:    SM.validate_attempt_transition("RUNNING", "WAITING")
+system/tests/test_wenqu_pipeline.py:82:    expect(InvalidTransitionError, lambda: SM.validate_attempt_transition("WAITING", "RUNNING"))
+system/tests/test_wenqu_pipeline.py:84:    SM.validate_outcome("COMPLETED", "PASS")
+system/tests/test_wenqu_pipeline.py:85:    expect(InvalidOutcomeError, lambda: SM.validate_outcome("ERROR", "PASS"))
+system/tests/test_wenqu_pipeline.py:86:    expect(InvalidOutcomeError, lambda: SM.validate_outcome("TIMEOUT", "PASS"))
+system/tests/test_wenqu_pipeline.py:87:    expect(InvalidOutcomeError, lambda: SM.validate_outcome("COMPLETED", "PASS", ["fnd_x"]))
+system/tests/test_wenqu_pipeline.py:88:    expect(InvalidOutcomeError, lambda: SM.validate_outcome("COMPLETED", "GREEN"))
+system/tests/test_wenqu_pipeline.py:94:    SM.validate_preconditions("ambiguity", {"requirement_four_elements": "四要素", "scope_hash": "sh"})
+system/tests/test_wenqu_pipeline.py:95:    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("ambiguity", {"scope_hash": "sh"}))
+system/tests/test_wenqu_pipeline.py:96:    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("ambiguity", None))
+system/tests/test_wenqu_pipeline.py:97:    SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1", "fuse_lifted_evidence": "probe"})
+system/tests/test_wenqu_pipeline.py:98:    SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1", "independent_ruling_ref": "ruling-9"})
+system/tests/test_wenqu_pipeline.py:99:    expect(ApprovalPreconditionError, lambda: SM.validate_preconditions("exm-fuse", {"adjudication_ref": "EXM-1"}))
+system/tests/test_wenqu_pipeline.py:171:        "schema_version": "2.0",
+system/tests/test_wenqu_pipeline.py:277:    bad = dict(base); bad["schema_version"] = "1.0"
+system/tests/test_wenqu_pipeline.py:384:        "schema_version": "2.0", "approval_id": "apr_risk_1",
+system/tests/test_wenqu_pipeline.py:471:def t_schema_crosscheck():
+system/tests/test_wenqu_pipeline.py:472:    """结构校验器与 approval-v2.schema.json 交叉验证（jsonschema 可用时）。"""
+system/tests/test_wenqu_pipeline.py:474:        import jsonschema
+system/tests/test_wenqu_pipeline.py:476:        print("  (skip) jsonschema 未安装，跳过交叉验证")
+system/tests/test_wenqu_pipeline.py:478:    schema = json.load(open(os.path.join(REPO, "schemas", "approval-v2.schema.json")))
+system/tests/test_wenqu_pipeline.py:485:    # 合法样例：schema 与内置校验器都放行
+system/tests/test_wenqu_pipeline.py:486:    jsonschema.validate(ap, schema)
+system/tests/test_wenqu_pipeline.py:487:    ApprovalBroker.validate_structure(ap)
+system/tests/test_wenqu_pipeline.py:489:    for mut in (lambda a: a.update({"schema_version": "1.9"}),
+system/tests/test_wenqu_pipeline.py:497:            jsonschema.validate(bad, schema)
+system/tests/test_wenqu_pipeline.py:498:            schema_rejects = False
+system/tests/test_wenqu_pipeline.py:499:        except jsonschema.ValidationError:
+system/tests/test_wenqu_pipeline.py:500:            schema_rejects = True
+system/tests/test_wenqu_pipeline.py:502:            ApprovalBroker.validate_structure(bad)
+system/tests/test_wenqu_pipeline.py:506:        assert schema_rejects and mine_rejects, f"分歧: schema={schema_rejects} mine={mine_rejects} on {bad}"
+system/tests/test_wenqu_pipeline.py:518:    ("与 approval-v2 schema 交叉验证", t_schema_crosscheck),
+system/bin/iron-gate.sh:65:  [ -f "$rf" ] && grep -E "^export (async )?function [A-Z]" "$rf" | grep -vE "GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|dynamic|revalidate|runtime" | head -1
+system/wenqu_core/station4_behavior.py:9:- schemas/station-result-v2.schema.json：每腿与整站产出严格合规
+system/wenqu_core/station4_behavior.py:11:  jsonschema 双保险）。
+system/wenqu_core/station4_behavior.py:62:    validate_station_result,
+system/wenqu_core/station4_behavior.py:176:    （schema 要求 size ≥ 1，空文件不作为工件登记）。"""
+system/wenqu_core/station4_behavior.py:538:            self._validate_route(dict(r), i) for i, r in enumerate(routes)
+system/wenqu_core/station4_behavior.py:545:    def _validate_route(route: Mapping[str, Any], index: int) -> Dict[str, Any]:
+system/wenqu_core/station4_behavior.py:934:            validate_station_result(result)
+system/wenqu_core/station4_behavior.py:1059:    registry.validate()
+system/wenqu_core/station4_behavior.py:1121:        validate_station_result(st)
+system/wenqu_core/station4_behavior.py:1194:            validate_station_result(st)
+system/wenqu_core/station4_behavior.py:1231:            validate_station_result(combined)
+system/wenqu_core/station4_behavior.py:1251:                raise AssertionError("cross-run legs must be refused")
+system/wenqu_core/station4_behavior.py:1294:        validate_station_result(st)
+system/bin/check-openapi-compat.py:9:  2. requestBody schema：可选字段变必填（required 列表新增）、字段删除
+system/bin/check-openapi-compat.py:10:  3. response schema：字段删除、类型变更
+system/bin/check-openapi-compat.py:31:    """从 openapi 提取兼容性形状骨架（paths/methods/schema 字段名+required+类型，丢弃描述类噪音）。"""
+system/bin/check-openapi-compat.py:39:            rb = op.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})
+system/bin/check-openapi-compat.py:40:            req = schema_fields(rb)
+system/bin/check-openapi-compat.py:45:                sc = r.get("content", {}).get("application/json", {}).get("schema", {})
+system/bin/check-openapi-compat.py:46:                f = schema_fields(sc)
+system/bin/check-openapi-compat.py:55:def schema_fields(schema: dict, depth: int = 0) -> dict:
+system/bin/check-openapi-compat.py:56:    """递归提取 schema 形状：{字段名: 类型, __required__: [...]}。"""
+system/bin/check-openapi-compat.py:57:    if depth > 4 or not isinstance(schema, dict):
+system/bin/check-openapi-compat.py:60:    props = schema.get("properties")
+system/bin/check-openapi-compat.py:62:        req = set(schema.get("required") or [])
+system/bin/check-openapi-compat.py:66:            inner = schema_fields(sub, depth + 1)
+system/bin/check-openapi-compat.py:71:    items = schema.get("items")
+system/bin/check-openapi-compat.py:73:        inner = schema_fields(items, depth + 1)
+system/wenqu_core/wenqu_pipeline.py:23:3. ``ApprovalBroker``——消费 approval-v2 schema（``schemas/approval-v2.schema.json``）
+system/wenqu_core/wenqu_pipeline.py:25:   - 结构校验：镜像 schema 的 required/enum/pattern/minLength/payload 判别联合；
+system/wenqu_core/wenqu_pipeline.py:47:事件载荷遵守 ``schemas/run-event-v2.schema.json`` 词表。已知扩展（内部字段，
+system/wenqu_core/wenqu_pipeline.py:48:对外交换仍以 schema 为准，此处显式声明偏离）：WAITING_RAISED/WAITING_RESUMED
+system/wenqu_core/wenqu_pipeline.py:50:``nonce_digest``/``preconditions_hash`` 等停等元数据——schema 的 run 事件
+system/wenqu_core/wenqu_pipeline.py:51:词表未覆盖停等绑定信息，而 approval-v2 的 stop_event_id 需要可锚定的正源。
+system/wenqu_core/wenqu_pipeline.py:178:    """九类停等（契约 §6）——枚举值与 approval-v2 schema 的 stop_type 完全一致。"""
+system/wenqu_core/wenqu_pipeline.py:260:# approval-v2 结构规格（镜像 schemas/approval-v2.schema.json）
+system/wenqu_core/wenqu_pipeline.py:265:    "schema_version", "approval_id", "approval_type", "run_id", "stop_event_id",
+system/wenqu_core/wenqu_pipeline.py:278:# payload 判别联合：按 approval_type 必须含的专属字段（schema oneOf）
+system/wenqu_core/wenqu_pipeline.py:286:    "ddl": ("database_identity", "statement_digest", "before_schema_hash",
+system/wenqu_core/wenqu_pipeline.py:287:            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+system/wenqu_core/wenqu_pipeline.py:293:                 "trigger", "schema_compatibility_hash"),
+system/wenqu_core/wenqu_pipeline.py:379:    """解析 ISO8601；容忍 Z 后缀；naive 视为 UTC（schema format: date-time）。"""
+system/wenqu_core/wenqu_pipeline.py:553:    def validate_run_transition(current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:560:    def validate_attempt_transition(current: str, new: str) -> None:
+system/wenqu_core/wenqu_pipeline.py:595:    def validate_preconditions(
+system/wenqu_core/wenqu_pipeline.py:639:    def validate_outcome(execution_status: str, policy_verdict: str,
+system/wenqu_core/wenqu_pipeline.py:762:# ApprovalBroker——approval-v2 审批消费
+system/wenqu_core/wenqu_pipeline.py:767:    """消费 approval-v2 审批事件：fail-closed 校验 + 一次性原子消费。
+system/wenqu_core/wenqu_pipeline.py:771:        1. 结构（镜像 schema：required/enum/pattern/minLength/判别联合/
+system/wenqu_core/wenqu_pipeline.py:810:    # 结构校验（镜像 approval-v2.schema.json，无外部依赖）
+system/wenqu_core/wenqu_pipeline.py:813:    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/wenqu_pipeline.py:823:                "additional properties forbidden by schema",
+system/wenqu_core/wenqu_pipeline.py:826:        if ap["schema_version"] != _APPROVAL_SCHEMA_VERSION:
+system/wenqu_core/wenqu_pipeline.py:828:                f"schema_version must be {_APPROVAL_SCHEMA_VERSION!r}, "
+system/wenqu_core/wenqu_pipeline.py:829:                f"got {ap['schema_version']!r}")
+system/wenqu_core/wenqu_pipeline.py:866:        # payload 判别联合（schema oneOf：按 approval_type 必须含专属字段）
+system/wenqu_core/wenqu_pipeline.py:910:    def _validate_resume_binding(ap: Mapping[str, Any], state: RunState,
+system/wenqu_core/wenqu_pipeline.py:1003:        ap = self.validate_structure(approval)          # 1. 结构（纯函数）
+system/wenqu_core/wenqu_pipeline.py:1015:            bound = self._validate_resume_binding(ap, state, now)  # 2-5 绑定/TTL/CAS
+system/wenqu_core/wenqu_pipeline.py:1017:            supplied = SevenStageStateMachine.validate_preconditions(
+system/wenqu_core/wenqu_pipeline.py:1085:        ap = self.validate_structure(approval)
+system/wenqu_core/wenqu_pipeline.py:1222:    def _validate_identity(identity: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/wenqu_pipeline.py:1250:            "schema_version": "2.0",
+system/wenqu_core/wenqu_pipeline.py:1311:                SevenStageStateMachine.validate_run_transition(
+system/wenqu_core/wenqu_pipeline.py:1327:            SevenStageStateMachine.validate_attempt_transition(
+system/wenqu_core/wenqu_pipeline.py:1346:            SevenStageStateMachine.validate_attempt_transition(
+system/wenqu_core/wenqu_pipeline.py:1352:            SevenStageStateMachine.validate_run_transition(
+system/wenqu_core/wenqu_pipeline.py:1366:            SevenStageStateMachine.validate_run_transition(
+system/wenqu_core/wenqu_pipeline.py:1391:            SevenStageStateMachine.validate_run_transition(state.state, final)
+system/wenqu_core/wenqu_pipeline.py:1396:            SevenStageStateMachine.validate_run_transition(
+system/wenqu_core/wenqu_pipeline.py:1453:        ident = self._validate_identity(identity)
+system/wenqu_core/wenqu_pipeline.py:1506:            SevenStageStateMachine.validate_outcome(
+system/wenqu_core/wenqu_pipeline.py:1515:            SevenStageStateMachine.validate_attempt_transition(
+system/install.sh:17:# P0-1 修：安装 wenqu_core（新核心）+ schemas + dashboard
+system/install.sh:18:mkdir -p "$PREFIX/lib/wenqu_core" "$PREFIX/schemas" "$PREFIX/dashboard"
+system/install.sh:26:for f in "$SRC"/schemas/*.json; do
+system/install.sh:27:  [ -f "$f" ] && cp "$f" "$PREFIX/schemas/"
+system/wenqu_core/scheduler.py:178:        self.validate()
+system/wenqu_core/scheduler.py:181:    def validate(self) -> None:
+system/wenqu_core/scheduler.py:213:        assert m is not None  # validate() 已保证
+system/wenqu_core/scheduler.py:1517:            "schema_version": "2.0",
+system/wenqu_core/station3_contract.py:5:- Codex 方案 W6C：站3 = 契约与数据（API 契约对账 / 权限矩阵 / schema 漂移，
+system/wenqu_core/station3_contract.py:10:- 输出严格遵循 schemas/station-result-v2.schema.json：复用
+system/wenqu_core/station3_contract.py:11:  bugscan_orchestrator.build_station_result / validate_station_result
+system/wenqu_core/station3_contract.py:12:  （内置结构校验 + jsonschema 双保险）；本模块不自造判定第二正源。
+system/wenqu_core/station3_contract.py:41:  监控面小于动态分母 → 整站 BLOCKED（分母缩水守卫，schema $comment）。
+system/wenqu_core/station3_contract.py:68:        validate_station_result,
+system/wenqu_core/station3_contract.py:85:        validate_station_result,
+system/wenqu_core/station3_contract.py:123:#: 站3 固定编号（schemas/station-result-v2.station_id ∈ [0,7]）。
+system/wenqu_core/station3_contract.py:224:    """构造 schema 合法（^fnd_[a-zA-Z0-9_]+$）的发现 id。"""
+system/wenqu_core/station3_contract.py:341:# DriftAllowlist——schema 漂移白名单（三绑定：对象 identity + hash + 到期）
+system/wenqu_core/station3_contract.py:398:    def validate_window(self, now: Optional[Any] = None) -> Any:
+system/wenqu_core/station3_contract.py:555:        """映射为站3 单件 station-result-v2（经 build/validate 双保险）。"""
+system/wenqu_core/station3_contract.py:559:            # 分母缩水守卫：整件 BLOCKED，绝不记 PASS（schema $comment + 铁律 2）。
+system/wenqu_core/station3_contract.py:1081:# DbDriftScanner——judge_drift.py schema 漂移（CLEAN=零变化；DROP=HIGH）
+system/wenqu_core/station3_contract.py:1266:            entry.validate_window(now)
+system/wenqu_core/station3_contract.py:1457:            validate_station_result(sub)
+system/wenqu_core/station3_contract.py:1578:        validate_station_result(result)
+system/wenqu_core/station3_contract.py:1637:    validate_station_result(st)
+system/wenqu_core/station3_contract.py:1679:    validate_station_result(st_og)
+system/wenqu_core/station3_contract.py:1713:    validate_station_result(st_pm)
+system/wenqu_core/station3_contract.py:1745:    validate_station_result(st_clean)
+system/wenqu_core/station3_contract.py:1803:    validate_station_result(final)
+system/wenqu_core/bugscan_orchestrator.py:7:- 每站输出严格遵循 schemas/station-result-v2.schema.json（本文件内置结构校验器，
+system/wenqu_core/bugscan_orchestrator.py:8:  jsonschema 可用时叠加真实 schema 复核——双保险，但绝不依赖第三方包）。
+system/wenqu_core/bugscan_orchestrator.py:28:- 所有产出 dict 严格按 schema 白名单键构造，additionalProperties:false 对齐。
+system/wenqu_core/bugscan_orchestrator.py:30:  执行状态强制 BLOCKED（schema $comment 与铁律 2）。
+system/wenqu_core/bugscan_orchestrator.py:63:    "validate_station_result",
+system/wenqu_core/bugscan_orchestrator.py:84:#: 注册表版本——站定义/判据/TTL 任何变更必须递增并同步 schemas/ 与规范文档。
+system/wenqu_core/bugscan_orchestrator.py:150:    "schema_version", "run_id", "station_id", "attempt_id",
+system/wenqu_core/bugscan_orchestrator.py:367:        entry="按栈选件：API 契约对账 / 权限矩阵 / schema 漂移",
+system/wenqu_core/bugscan_orchestrator.py:369:        tools=("API 契约对账", "权限矩阵", "schema 漂移检测"),
+system/wenqu_core/bugscan_orchestrator.py:453:    同步 schemas/station-result-v2.schema.json 与规范文档、并重新冻结
+system/wenqu_core/bugscan_orchestrator.py:471:        self.validate()
+system/wenqu_core/bugscan_orchestrator.py:502:    def validate(self) -> None:
+system/wenqu_core/bugscan_orchestrator.py:579:    def validate(self, now: Optional[datetime] = None) -> datetime:
+system/wenqu_core/bugscan_orchestrator.py:722:            acceptance.validate(now)
+system/wenqu_core/bugscan_orchestrator.py:823:            "schema_version": SCHEMA_VERSION,
+system/wenqu_core/bugscan_orchestrator.py:1108:        "schema_version": SCHEMA_VERSION,
+system/wenqu_core/bugscan_orchestrator.py:1178:    """按 schema 白名单构造 station-result-v2，并强制安全不变量：
+system/wenqu_core/bugscan_orchestrator.py:1181:       （铁律 2 与 schema $comment——该站绝不能记 PASS）。
+system/wenqu_core/bugscan_orchestrator.py:1201:        "schema_version": SCHEMA_VERSION,
+system/wenqu_core/bugscan_orchestrator.py:1221:    validate_station_result(result)
+system/wenqu_core/bugscan_orchestrator.py:1225:def validate_station_result(result: Any) -> None:
+system/wenqu_core/bugscan_orchestrator.py:1226:    """结构校验（schema 的可执行等价物）+ 不变量复核；失败聚合抛出。
+system/wenqu_core/bugscan_orchestrator.py:1228:    可用时额外用 jsonschema 对 schemas/station-result-v2.schema.json
+system/wenqu_core/bugscan_orchestrator.py:1229:    做全量复核（双保险）；jsonschema 不可用时以本内置校验器为准。
+system/wenqu_core/bugscan_orchestrator.py:1243:    for key in ("schema_version", "run_id", "station_id", "attempt_id",
+system/wenqu_core/bugscan_orchestrator.py:1248:    _check(result.get("schema_version") == SCHEMA_VERSION,
+system/wenqu_core/bugscan_orchestrator.py:1249:           f"schema_version must be {SCHEMA_VERSION!r}")
+system/wenqu_core/bugscan_orchestrator.py:1374:    # -- 不变量复核（schema $comment + 铁律 2）-------------------------------
+system/wenqu_core/bugscan_orchestrator.py:1392:    # -- 双保险：jsonschema 可用时对真实 schema 全量复核 ----------------------
+system/wenqu_core/bugscan_orchestrator.py:1393:    _cross_check_with_jsonschema(result)
+system/wenqu_core/bugscan_orchestrator.py:1396:def _cross_check_with_jsonschema(result: Mapping[str, Any]) -> None:
+system/wenqu_core/bugscan_orchestrator.py:1397:    schema_path = (
+system/wenqu_core/bugscan_orchestrator.py:1398:        Path(__file__).resolve().parent.parent / "schemas" / "station-result-v2.schema.json"
+system/wenqu_core/bugscan_orchestrator.py:1401:        import jsonschema  # type: ignore
+system/wenqu_core/bugscan_orchestrator.py:1405:        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+system/wenqu_core/bugscan_orchestrator.py:1406:        jsonschema.validate(result, schema)
+system/wenqu_core/bugscan_orchestrator.py:1408:        return  # schema 文件不存在（嵌入部署等）——内置校验器兜底
+system/wenqu_core/bugscan_orchestrator.py:1411:            f"jsonschema cross-check against {schema_path} failed: {exc}"
+system/wenqu_core/bugscan_orchestrator.py:1508:        """消费源闸结果 → 站1 station-result-v2（严格 schema 合规）。"""
+system/wenqu_core/bugscan_orchestrator.py:1544:            # 分母缩水守卫：整站 BLOCKED，绝不记 PASS（schema $comment）。
+system/wenqu_core/bugscan_orchestrator.py:1600:    registry.validate()
+system/wenqu_core/bugscan_orchestrator.py:1624:    validate_station_result(st0)
+system/wenqu_core/bugscan_orchestrator.py:1643:    validate_station_result(st1)
+system/wenqu_core/bugscan_orchestrator.py:1695:    print("[5] negative paths OK: cross-SHA refused / shrink→BLOCKED / "
+system/wenqu_core/source_gate.py:9:5. validate_exact_sha() 验证 check 的 commit SHA 等于目标 head SHA
+system/wenqu_core/source_gate.py:233:                self._validate_commands(commands, label=f"impact_graph[{pattern!r}]")
+system/wenqu_core/source_gate.py:235:            self._validate_commands(full_test_commands, label="full_test_commands")
+system/wenqu_core/source_gate.py:281:    def _validate_commands(commands: Sequence[Sequence[str]], *, label: str) -> None:
+system/wenqu_core/source_gate.py:603:    # 公开能力 5：validate_exact_sha
+system/wenqu_core/source_gate.py:605:    def validate_exact_sha(
+system/wenqu_core/source_gate.py:655:            "schema": "wenqu/source-gate-result/1",
+system/wenqu_core/source_gate.py:757:                    "this run is invalidated",
+system/wenqu_core/station2_static.py:11:- 每站输出严格遵循 schemas/station-result-v2.schema.json（复用 W6A 的
+system/wenqu_core/station2_static.py:12:  build_station_result/validate_station_result 构造与双重校验——不另造校验器）。
+system/wenqu_core/station2_static.py:38:   RawTrustedRunner 为其原始输出捕获扩展——安全构造不变（继承 _validate_argv：
+system/wenqu_core/station2_static.py:58:    report["station_result"]        # 站2 聚合 station-result-v2（schema 合规）
+system/wenqu_core/station2_static.py:83:        validate_station_result,
+system/wenqu_core/station2_static.py:90:        validate_station_result,
+system/wenqu_core/station2_static.py:247:def _validate_identity(identity: Mapping[str, Any]) -> Dict[str, Any]:
+system/wenqu_core/station2_static.py:273:def _validate_run_id(run_id: str) -> str:
+system/wenqu_core/station2_static.py:397:    - argv 校验复用 TrustedRunner._validate_argv（只接受 argv 列表、可执行必须在
+system/wenqu_core/station2_static.py:423:        self._validate_argv(argv)
+system/wenqu_core/station2_static.py:501:    """单个执行件的产物：schema 合规子结果 + finding 明细 + 审计备注。"""
+system/wenqu_core/station2_static.py:607:        validate_station_result(result)
+system/wenqu_core/station2_static.py:1500:      denominator → W6A 分母缩水守卫强制整站 BLOCKED/NOT_EVALUATED（schema
+system/wenqu_core/station2_static.py:1538:        _validate_run_id(run_id)
+system/wenqu_core/station2_static.py:1539:        _validate_identity(identity)
+system/wenqu_core/station2_static.py:1685:        validate_station_result(aggregate)
+system/wenqu_core/station2_static.py:1822:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1835:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1864:            validate_station_result(r.result)
+system/wenqu_core/station2_static.py:1876:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1885:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1903:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1910:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1931:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1957:        validate_station_result(rep.result)
+system/wenqu_core/station2_static.py:1976:        validate_station_result(agg)
+system/wenqu_core/station2_static.py:1983:            validate_station_result(sub)
+system/wenqu_core/station2_static.py:1985:              "all sub-results schema-valid")
+system/wenqu_core/station2_static.py:1998:        validate_station_result(agg)
+system/wenqu_core/station2_static.py:2017:        validate_station_result(agg)
+system/wenqu_core/station2_static.py:2043:        validate_station_result(agg)
+[exit_code]=0

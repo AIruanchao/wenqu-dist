@@ -1,0 +1,104 @@
+TIMESTAMP_START=2026-10-08T04:31:36Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/p0_3_contract_probe.py'
+--- OUTPUT BEGIN ---
+{
+  "station_v2_schema_valid": true,
+  "station_v2_keys": [
+    "artifacts",
+    "attempt_id",
+    "coverage",
+    "execution",
+    "execution_status",
+    "finding_ids",
+    "identity",
+    "policy_verdict",
+    "run_id",
+    "schema_version",
+    "station_id",
+    "tool"
+  ],
+  "aggregator_input_documented_keys": [
+    "station",
+    "outcome",
+    "sha",
+    "environment"
+  ],
+  "v2_to_aggregator": {
+    "aggregate_outcome": "BLOCKED",
+    "technical_eligible": false,
+    "reason": "malformed_station_result x1 [first=missing_field:station]",
+    "reasons": [
+      "malformed_station_result x1 [first=missing_field:station]",
+      "denominator_shrinkage: missing required stations [station0]"
+    ],
+    "counts": {
+      "required_total": 1,
+      "required_reported": 0,
+      "required_missing": 1,
+      "bypass_stations": 0,
+      "duplicates_ignored": 0,
+      "conflicts": 0,
+      "malformed": 1
+    },
+    "stations": {},
+    "target_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "environment": "test"
+  },
+  "old_shape_to_aggregator": {
+    "aggregate_outcome": "PASS",
+    "technical_eligible": true,
+    "reason": "all 1 required stations PASS",
+    "reasons": [],
+    "counts": {
+      "required_total": 1,
+      "required_reported": 1,
+      "required_missing": 0,
+      "bypass_stations": 0,
+      "duplicates_ignored": 0,
+      "conflicts": 0,
+      "malformed": 0
+    },
+    "stations": {
+      "station0": {
+        "outcome": "PASS",
+        "required": true,
+        "sha_bound": true,
+        "environment_ok": true
+      }
+    },
+    "target_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "environment": "test"
+  },
+  "aggregator_output_to_dashboard": {
+    "ok": false,
+    "code": "AGGREGATOR_MALFORMED",
+    "detail": "快照缺 generated_at/ts 时间戳字段"
+  },
+  "zero_denominator": {
+    "aggregate_outcome": "BLOCKED",
+    "technical_eligible": false,
+    "reason": "BLOCKED: no required stations configured — refusing vacuous PASS (P0-3 fix)",
+    "reasons": [],
+    "counts": {
+      "required_total": 0,
+      "required_reported": 0,
+      "required_missing": 0,
+      "bypass_stations": 0,
+      "duplicates_ignored": 0,
+      "conflicts": 0,
+      "malformed": 0
+    },
+    "stations": {},
+    "target_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "environment": "test"
+  },
+  "conclusions": [
+    "合法 station-result-v2 因无 station/outcome 顶层旧字段被 GateAggregator 记 malformed 并 BLOCKED",
+    "GateAggregator 对旧私有结构可 PASS，但输出缺 generated_at/ts 与 policy_verdict/overall/verdict，Dashboard 拒绝",
+    "零 required_stations 已改为 BLOCKED，但只修了真空 PASS，未打通正式契约链"
+  ]
+}
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:31:36Z

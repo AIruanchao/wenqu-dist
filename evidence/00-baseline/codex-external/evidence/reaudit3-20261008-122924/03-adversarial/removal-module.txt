@@ -1,0 +1,22 @@
+COMMAND: bash -lc set\ +e\;\ cd\ /private/tmp/reaudit3-removal.eiXTHw/module\;\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/tests/test_core_wiring.py\;\ a=\$\?\;\ echo\ TEST_CORE_WIRING_RC=\$a\;\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/tests/test_wenqu_pipeline.py\;\ b=\$\?\;\ echo\ TEST_WENQU_PIPELINE_RC=\$b\;\ test\ \$a\ -ne\ 0\ -a\ \$b\ -ne\ 0\;\ echo\ ASSERT_BOTH_NONZERO_RC=\$\?
+START: 2026-10-08T12:32:36+08:00
+  ✗ test_core_modules_importable: 核心模块 wenqu_pipeline 不可导入: No module named 'wenqu_core.wenqu_pipeline'
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+TEST_CORE_WIRING_RC=1
+Traceback (most recent call last):
+  File "/private/tmp/reaudit3-removal.eiXTHw/module/system/tests/test_wenqu_pipeline.py", line 18, in <module>
+    from wenqu_core.wenqu_pipeline import (
+ModuleNotFoundError: No module named 'wenqu_core.wenqu_pipeline'
+TEST_WENQU_PIPELINE_RC=1
+ASSERT_BOTH_NONZERO_RC=0
+
+EXIT_CODE: 0
+END: 2026-10-08T12:32:37+08:00

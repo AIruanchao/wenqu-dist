@@ -1,0 +1,8 @@
+TIMESTAMP_START=2026-10-08T04:31:24Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=python3 '/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-evidence/import_graph.py'
+--- OUTPUT BEGIN ---
+system/tests/test_core_wiring.py:85:from wenqu_core.gate_aggregator import GateAggregator
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:31:24Z

@@ -1,0 +1,14 @@
+COMMAND: python3 /private/tmp/codex-test/evidence/reaudit3-20261008-122924/03-adversarial/eventstore_residual_probe.py
+START: 2026-10-08T12:32:13+08:00
+INSERT_FLAGS True True False ROW_COUNT 2
+ORIGINAL_HASH ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b
+RETRY_RETURN_HASH c4b537c73ee96d98782f2d2fe803b2c43167c278f6e54d87c557f505bdfb4dba
+RETRY_HASH_EXISTS False
+HEAD_API ('ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b', 2) ACTUAL_LAST de54aa89e22205110cb35fe1bc16846bc6f4926771e286e42234d5cfff8b8204 COUNT 2
+CHAIN {'ok': True, 'length': 2, 'head': 'ca3db290e0f6e8f60b0c5fa33383f301aa47602c417a974c0be8b317bba3511b'}
+MIGRATE {'equation': 'lines_total == imported + duplicates + quarantined', 'lines_total': 1, 'imported': 0, 'duplicates': 0, 'quarantined': 1}
+TABLES ['events', 'migration_runs', 'pipeline_events', 'sqlite_sequence']
+EVENT_COUNTS 2 0
+
+EXIT_CODE: 0
+END: 2026-10-08T12:32:13+08:00

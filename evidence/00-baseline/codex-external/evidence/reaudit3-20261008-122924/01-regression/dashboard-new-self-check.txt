@@ -1,0 +1,40 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\ \&\&\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/dashboard/server.py\ --self-check
+START: 2026-10-08T12:33:54+08:00
+== wenqu dashboard W8 self-check ==
+  ✓ index.html/app.css/app.js 三件在位
+  ✓ CSP meta（default-src/script-src/style-src 'self'）
+  ✓ 安全 meta：nosniff / frame-ancestors 'none' / no-store / no-referrer
+  ✓ 引用 app.css 与 app.js（外链，无内联脚本）
+  ✓ 四页签容器 ov/pipe/deck/bugdeck + data-t 导航
+  ✓ index.html 无内联事件（onclick=）
+  ✓ index.html div 平衡
+  ✓ app.js 零 innerHTML/insertAdjacentHTML/document.write（T-05 XSS 面）
+  ✓ app.js textContent + showTab(data-t) + /api/v1/
+  ✓ app.css 非空且含核心类
+  ✓ server.py 关键控制存在（版本化/限速/405/Host/回环绑定）
+  ✓ GET / → 200 text/html
+  ✓ 响应头 CSP 含 default-src 'self' + frame-ancestors 'none'
+  ✓ 响应头 nosniff/DENY/no-store/no-referrer
+  ✓ 无 Access-Control-Allow-* 头（CORS 默认拒绝）
+  ✓ 页面含 CSP meta 与四容器
+  ✓ GET /app.css → 200 text/css
+  ✓ GET /app.js → 200 application/javascript
+  ✓ GET /api/v1/ping → 200 pong
+  ✓ GET /api/v1/components → 200 含 version
+  ✓ /api/v1/health 读 gate_aggregator（200 判定透传 或 503 结构化 ERROR，绝不 200+空集）
+  ✓ POST /api/decide → 405（第一阶段写接口关闭）
+  ✓ POST /api/v1/decide → 405
+  ✓ 未版本化 /api/* → 404 API_VERSION_REQUIRED
+  ✓ 伪 Host（DNS rebinding）→ 403
+  ✓ 跨源 Origin → 403
+  ✓ Sec-Fetch-Site: cross-site → 403
+  ✓ 超大请求体 → 413
+  ✓ Content-Type 非 application/json → 415
+  ✓ 路径穿越 /../server.py → 404
+  ✓ OPTIONS（CORS 预检）→ 405 且无 ACAO
+  ✓ 速率限制触发（连续请求超 150/30s 出现 429）
+  ⚠ 端口 7789 被占用（旧实例仍在跑），动态检查改用临时回环端口
+RESULT: PASS
+
+EXIT_CODE: 0
+END: 2026-10-08T12:33:54+08:00

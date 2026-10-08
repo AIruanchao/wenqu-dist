@@ -1,0 +1,7 @@
+{
+  "keys": {
+    "key_test_1": "9bb511d65c3f92b25162328b2a9a8e6d2f278df59701a5c5327754053397f5d5",
+    "key_test_2": "2ca2ed815b522a579414838ee19d8ffbed3d55be0d7108875105c46d84196291"
+  },
+  "_comment": "P0-2/P0-4 测试专用 HMAC 密钥——仅用于 system/tests/ 下自测签发审批；生产环境必须独立生成（python3 -c \"import secrets;print(secrets.token_hex(32))\"）并以 0600 权限与仓库/事件库物理隔离存放，严禁复用本文件密钥。key_test_2 用于模拟『签发方不同 key』的密钥轮换/未知 key 场景。"
+}

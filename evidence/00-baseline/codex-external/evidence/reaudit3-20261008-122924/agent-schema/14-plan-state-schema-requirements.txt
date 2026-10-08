@@ -1,0 +1,123 @@
+$ nl -ba /private/tmp/codex-test/方案.md | sed -n 310,430p
+   310	```
+   311	
+   312	整段不得用豁免伪造 PASSED。`COMPLETED_CONDITIONAL` 仅允许用于 S7，且永远不等于 PASSED。S1_REQUIREMENT、S7_GATE 和 required 安全检查永远不可整段豁免；N/A/风险接受只作用于 policy 明确允许的非关键子检查，并令整线进入 CONDITIONAL。
+   313	
+   314	### 6.2.1 九类停等与恢复充分条件
+   315	
+   316	统一前提：**九类 WAITING 的恢复都必须同时具备**（a）绑定当前 `stop_event_id/state_version/scope/SHA/environment` 的一次性人类授权，（b）下表客观前置。只有批准没有客观恢复，或只有客观恢复没有一次性批准，均不得 resume。
+   317	
+   318	| # | stop_type | 恢复的必要且充分条件 |
+   319	|---:|---|---|
+   320	| 0 | `ambiguity` | 一次性授权 + 新需求四要素与 scope hash 冻结；泛化“批准继续”不够 |
+   321	| 1 | `prod-write` | 一次性 exact-scope 授权 + 对应前置 Gate + 回滚级别 |
+   322	| 2 | `ddl` | 一次性 exact DDL/环境授权 + fresh/legacy/minimal/回滚验证 |
+   323	| 3 | `release` | 一次性 exact release/SHA/env 授权 + Gate/manifest/回滚预案 |
+   324	| 4 | `scope` | 一次性新 scope 授权 + 风险、required 集和证据重新冻结 |
+   325	| 5 | `fund-auth` | 一次性资金/权限授权 + 正负测试 + 守恒/审计 |
+   326	| 6 | `exm-fuse` | 一次性裁定授权 + 实际解除熔断或完成独立治理裁定；批准不能伪造健康 |
+   327	| 7 | `resource` | 一次性恢复授权 + 资源探针恢复并满足安全余量；批准不能替代容量/锁恢复 |
+   328	| 8 | `ext-unavail` | 一次性恢复授权 + 外部依赖健康探针恢复并重验证据新鲜度 |
+   329	
+   330	STOP-01～03 必须逐类型验证：九类全部覆盖“客观条件已恢复但无授权仍拒绝”“有授权但客观条件未恢复仍拒绝”“错误类型/旧版本/重放审批仍拒绝”。
+   331	
+   332	### 6.2.2 允许转换
+   333	
+   334	Run：
+   335	
+   336	```text
+   337	CREATED → RUNNING | CANCELLED
+   338	RUNNING → WAITING | FAILED | SUCCEEDED | COMPLETED_CONDITIONAL | CANCELLED | SUPERSEDED
+   339	WAITING → RUNNING | FAILED | CANCELLED | SUPERSEDED（恢复须满足 §6.2.1）
+   340	FAILED/SUCCEEDED/COMPLETED_CONDITIONAL/CANCELLED/SUPERSEDED 为 run 终态；需继续时必须新建 run_id
+   341	```
+   342	
+   343	Stage attempt：
+   344	
+   345	```text
+   346	PENDING → RUNNING | CANCELLED
+   347	RUNNING → PASSED | COMPLETED_CONDITIONAL | FAILED | WAITING | CANCELLED
+   348	PASSED/COMPLETED_CONDITIONAL/FAILED/WAITING/CANCELLED 均是该 attempt 的不可变终态
+   349	```
+   350	
+   351	重试或 WAITING 恢复时，不改变旧 attempt；先追加 `ATTEMPT_CREATED(parent_attempt_id=...)`，新 attempt 从 PENDING→RUNNING。stage projection 可由 WAITING/FAILED 投影为 RUNNING，但必须指向新 attempt_id。commit/SHA、scope、environment、policy 或 ruleset 变化强制新 run；任何恢复不得覆盖旧 attempt 或旧证据。
+   352	
+   353	### 6.2.3 七段结果与 run/aggregate 的唯一映射
+   354	
+   355	| 情形 | 当前 stage attempt | run projection/终态 | aggregate/technical | 是否可做外部动作 |
+   356	|---|---|---|---|---|
+   357	| S1～S6 前一段非 PASSED | 不得启动下一段 | 保持 WAITING/FAILED | BLOCKED / false | 否 |
+   358	| S1～S6 当前段 WAITING | WAITING（终止该 attempt） | WAITING | BLOCKED / false | 否 |
+   359	| S1～S6 当前段 FAILED，且不再重试 | FAILED | FAILED | BLOCKED / false | 否 |
+   360	| S1～S6 当前段 PASSED | PASSED | RUNNING，并创建下一段新 attempt | 尚未终判 | 否 |
+   361	| S7 聚合 PASS | PASSED | SUCCEEDED | PASS / true | 仍须 exact action authorization |
+   362	| S7 聚合 CONDITIONAL，risk authorization 缺失/失效 | FAILED | FAILED | CONDITIONAL / false | 否；后续风险接受必须创建新 run，不得伪造九类 WAITING |
+   363	| S7 聚合 CONDITIONAL，risk authorization 与 attestation 有效 | COMPLETED_CONDITIONAL | COMPLETED_CONDITIONAL | CONDITIONAL / true | 仍须独立 exact action authorization |
+   364	| S7 聚合 BLOCKED/ERROR/缺失/过期 | FAILED；仅明确可恢复 stop 可用 WAITING | FAILED 或 WAITING | BLOCKED / false | 否 |
+   365	
+   366	S7 内部只消费 S1～S6 和 Bugscan Gate，外部 `Wenqu Required Gate` 是其输出。`SUCCEEDED` 仅表示七段编排以 exact PASS 完成，不代表已合流、已发布或已部署；`COMPLETED_CONDITIONAL` 更不得投影成 SUCCEEDED。动作结果进入独立 action/deployment saga。
+   367	
+   368	### 6.2.4 部署状态机
+   369	
+   370	```text
+   371	BUILT → VERIFIED → STAGED → BACKUP_VERIFIED → EXPANDED → ACTIVATING → ACTIVE
+   372	ACTIVATING → ROLLBACK_PENDING（失败且存在匹配的预授权回滚）
+   373	ACTIVATING → FAILED_BLOCKED（失败且无匹配预授权；等待人类处置）
+   374	ACTIVE → ROLLBACK_PENDING（匹配预授权或新的精确回滚授权）
+   375	ROLLBACK_PENDING → ROLLED_BACK | ROLLBACK_FAILED
+   376	BUILT/VERIFIED/STAGED/BACKUP_VERIFIED/EXPANDED → FAILED_BLOCKED
+   377	```
+   378	
+   379	`BACKUP_VERIFIED` 表示一致性 checkpoint 已完成恢复抽验；`EXPANDED` 只允许已授权、幂等、前后兼容的 additive migration。`ROLLED_BACK` 为成功回切终态；`FAILED_BLOCKED`、`ROLLBACK_FAILED` 都是硬阻断终态，必须保留 current/现场、熔断 writer/合流/后续发布并停等用户，不得继续自动尝试。每次转换绑定 `deployment_id/release_id/previous_release_id/schema_version/writer_epoch/migration_lock_id/backup_id/authorization_id/state_version/evidence`。部署状态独立于任务 run 状态；destructive contract migration 使用独立状态机和独立后续授权，不得夹带在本次激活中。
+   380	
+   381	必须用 TLA+/TLC 穷举：
+   382	
+   383	```text
+   384	NoStageAdvanceWithoutPriorStagePass
+   385	NoResumeWithoutApproval
+   386	NoMergeOrReleaseUnlessActionEligible
+   387	ApprovalCannotBeReused
+   388	ApprovalCannotWidenScope
+   389	SingleActiveWriterEpoch
+   390	ReplayIsIdempotent
+   391	WaitCannotDisappearSilently
+   392	MergeUsesExactHeadSha
+   393	EvidenceCannotMutateUndetected
+   394	AuthorizedConditionalCannotBeReplayed
+   395	```
+   396	
+   397	## 6.3 Finding 状态机
+   398	
+   399	```text
+   400	OPEN → FIXING → FIXED_PENDING_VERIFY → VERIFIED → CLOSED
+   401	```
+   402	
+   403	风险接受分支：
+   404	
+   405	```text
+   406	OPEN/FIXING/FIXED_PENDING_VERIFY/VERIFIED → ACCEPTED_RISK
+   407	ACCEPTED_RISK → RISK_REVOKED | RISK_INVALIDATED
+   408	RISK_REVOKED/RISK_INVALIDATED → OPEN → FIXING → FIXED_PENDING_VERIFY → VERIFIED → CLOSED
+   409	CLOSED 再现 → OPEN
+   410	```
+   411	
+   412	- CLOSED 只能来自 VERIFIED；
+   413	- 现有 `FIXED` 迁移为 `FIXED_PENDING_VERIFY`，不能视为关闭；
+   414	- `OTHER`、自由文本和非法转换全部 quarantine 并阻断；
+   415	- ACCEPTED_RISK 必须含批准人、理由、精确范围、补偿控制和到期时间；
+   416	- 主动撤销，或 fingerprint、severity、policy/ruleset、scope、补偿控制、证据集合、环境任一变化，均追加 `RISK_REVOKED`/`RISK_INVALIDATED` 事件并立即重开；风险负责人可随时从重开后的 OPEN 进入正常修复链，历史接受事件不得覆盖或删除；
+   417	- P0/P1 不允许 ACCEPTED_RISK。
+   418	
+   419	## 6.4 SQLite 事件正源
+   420	
+   421	核心表：
+   422	
+   423	```text
+   424	runs
+   425	stage_attempts
+   426	station_attempts
+   427	events
+   428	approvals
+   429	artifacts
+   430	findings
+[exit_code]0

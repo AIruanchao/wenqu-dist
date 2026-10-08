@@ -236,7 +236,7 @@ else
 if [ "$ERC" = "2" ] && echo "$EOUT" | grep -q "日志写入失败"; then
   PASS_N=$((PASS_N+1)); echo "  ✅ rc≥2+只读 runs 降级分支触发"
 else
-  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级分支未按预期（rc=$ERC）"
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 降级分支未按预期（rc=${ERC}）"
 fi
 fi
 if [ "$(id -u)" != "0" ]; then
@@ -331,7 +331,7 @@ P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
 if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
   PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
 else
-  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=${P0_RC}）"
 fi
 
 echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
@@ -341,7 +341,7 @@ if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
   if [ $CORE_RC -eq 0 ]; then
     PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=${CORE_RC}）——wenqu_core/schemas/dashboard 缺失或不可导入"
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
@@ -354,20 +354,22 @@ if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
   if [ $PIPE_RC -eq 0 ]; then
     PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=${PIPE_RC}）——wenqu_pipeline 缺失或行为回归"
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
 fi
 
-echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红）=="
+echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
 if [ -f "$ROOT/tools/ac_traceability.py" ]; then
-  python3 "$ROOT/tools/ac_traceability.py" >/dev/null 2>&1
+  AC_TMP_JSON="$(mktemp -t wq_matrix).json"
+  python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
   AC_RC=$?
+  rm -f "$AC_TMP_JSON"
   if [ $AC_RC -eq 0 ]; then
-    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵生成 OK（evidence/traceability-matrix.json 刷新）"
+    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵生成失败（exit=$AC_RC）——evidence 目录或工具损坏"
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"

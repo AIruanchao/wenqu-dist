@@ -1,0 +1,31 @@
+$ git status --short --branch
+## main...origin/main
+[exit=0]
+$ git rev-parse HEAD
+ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+[exit=0]
+$ find evidence agent-core
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/00-inventory.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/01-tree.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/02-headings.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/03-code-outline.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/04-wenqu_pipeline-numbered.txt
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/05-test_wenqu_pipeline-numbered.txt
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/06-test_core_wiring-numbered.txt
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/07-approval-schema-numbered.txt
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/08-test-wenqu-pipeline.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/09-removal-temp-path.txt
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/09-removal-wenqu_pipeline.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/10-core-wiring-callsites.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/11-adversarial-pipeline.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/12-final-worktree.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/13-static-security-gaps.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/14-approval-schema-cross-type.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/15-contract-source-excerpts.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/16-removal-installer-still-green.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/17-nonresume-cas-bypass.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/18-final-integrity.log
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/__pycache__/adversarial_pipeline.cpython-313.pyc
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/adversarial_pipeline.py
+/private/tmp/codex-test/evidence/reaudit3-20261008-122924/agent-core/findings.md
+[exit=0]

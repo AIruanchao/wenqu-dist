@@ -1,0 +1,194 @@
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n 907,1098p
+   907	    # 绑定/TTL/CAS/前置条件校验（对给定 run 快照）
+   908	    # ------------------------------------------------------------------ #
+   909	    @staticmethod
+   910	    def _validate_resume_binding(ap: Mapping[str, Any], state: RunState,
+   911	                                 now_epoch: float) -> Dict[str, Any]:
+   912	        if state.terminal:
+   913	            raise ApprovalRejected(
+   914	                "run is terminal; approval cannot resume a finished run",
+   915	                {"run_state": state.state})
+   916	        if state.state != RUN_WAITING_S or state.waiting is None:
+   917	            raise ApprovalRejected(
+   918	                f"run is {state.state}, not WAITING——无可恢复停等",
+   919	                {"run_state": state.state})
+   920	        if ap["decision"] != "approve":
+   921	            raise ApprovalRejected(
+   922	                f"decision {ap['decision']!r} 不足以 resume（须 approve）")
+   923	        issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+   924	        expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+   925	        if not (issued <= now_epoch < expires):
+   926	            raise ApprovalRejected(
+   927	                "approval outside TTL window (issued_at <= now < expires_at)",
+   928	                {"now": now_epoch, "issued_at_epoch": issued,
+   929	                 "expires_at_epoch": expires},
+   930	            )
+   931	        if ap["run_id"] != state.run_id:
+   932	            raise ApprovalRejected(
+   933	                "run_id mismatch（审批不得跨 run 复用）",
+   934	                {"approval_run_id": ap["run_id"], "run_id": state.run_id})
+   935	        waiting = state.waiting
+   936	        if ap["stop_event_id"] != waiting.stop_event_id:
+   937	            raise ApprovalRejected(
+   938	                "stop_event_id mismatch——审批必须锚定当前停等事件",
+   939	                {"approval_stop_event_id": ap["stop_event_id"],
+   940	                 "waiting_stop_event_id": waiting.stop_event_id})
+   941	        if ap["stop_type"] != waiting.stop_type:
+   942	            raise ApprovalRejected(
+   943	                "stop_type mismatch",
+   944	                {"approval_stop_type": ap["stop_type"],
+   945	                 "waiting_stop_type": waiting.stop_type})
+   946	        if "stage" in ap and ap["stage"] != waiting.stage:
+   947	            raise ApprovalRejected(
+   948	                "stage mismatch",
+   949	                {"approval_stage": ap["stage"], "waiting_stage": waiting.stage})
+   950	        if "task_id" in ap and ap["task_id"] != state.task_id:
+   951	            raise ApprovalRejected("task_id mismatch")
+   952	        identity = state.identity
+   953	        if "environment" in ap and ap["environment"] != identity["environment"]:
+   954	            raise ApprovalRejected(
+   955	                "environment mismatch（审批不得跨环境）",
+   956	                {"approval_environment": ap["environment"],
+   957	                 "run_environment": identity["environment"]})
+   958	        if ("authorized_scope" in ap
+   959	                and ap["authorized_scope"] != identity["scope_hash"]):
+   960	            raise ApprovalRejected(
+   961	                "authorized_scope != run scope_hash（审批不得扩范围）",
+   962	                {"authorized_scope": ap["authorized_scope"],
+   963	                 "run_scope_hash": identity["scope_hash"]})
+   964	        if ("input_watermark" in ap
+   965	                and _is_sha1_hex(ap["input_watermark"])
+   966	                and ap["input_watermark"] != identity["commit_sha"]):
+   967	            raise ApprovalRejected(
+   968	                "input_watermark(sha) != run commit_sha（审批不得跨 SHA）",
+   969	                {"input_watermark": ap["input_watermark"],
+   970	                 "commit_sha": identity["commit_sha"]})
+   971	        if "expected_state_version" not in ap:
+   972	            raise ApprovalRejected(
+   973	                "resume 审批必须携带 expected_state_version（CAS）")
+   974	        if ap["expected_state_version"] != state.state_version:
+   975	            raise ApprovalRejected(
+   976	                "state_version CAS failure（审批不得跨状态版本）",
+   977	                {"expected": ap["expected_state_version"],
+   978	                 "actual": state.state_version})
+   979	        return dict(ap)
+   980	
+   981	    # ------------------------------------------------------------------ #
+   982	    # 原子消费（nonce + WAITING_RESUMED 同事务）
+   983	    # ------------------------------------------------------------------ #
+   984	    def consume(
+   985	        self,
+   986	        approval: Mapping[str, Any],
+   987	        *,
+   988	        run_loader: Callable[[sqlite3.Connection], RunState],
+   989	        resume_event_builder: Callable[[RunState, Dict[str, Any], str],
+   990	                                       Mapping[str, Any]],
+   991	        objective_preconditions: Optional[Mapping[str, Any]],
+   992	        now_epoch: Optional[float] = None,
+   993	    ) -> Dict[str, Any]:
+   994	        """校验并在单事务内一次性消费审批，返回消费记录。
+   995	
+   996	        参数：
+   997	            run_loader           —— 在事务连接内重放目标 run（保证 CAS 读的是
+   998	                                    事务内新鲜状态，杜绝校验-消费间隙竞态）；
+   999	            resume_event_builder —— (run_state, normalized_approval, nonce_digest)
+  1000	                                    → WAITING_RESUMED 事件（由 RunManager 构造）；
+  1001	            objective_preconditions —— 客观前置条件（将对其做规格校验+哈希比对）。
+  1002	        """
+  1003	        ap = self.validate_structure(approval)          # 1. 结构（纯函数）
+  1004	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1005	
+  1006	        def _body(conn: sqlite3.Connection) -> Dict[str, Any]:
+  1007	            state = run_loader(conn)                    # 事务内新鲜快照
+  1008	            # 重放检测优先：nonce 是防重放原语——已消费即复用，无论 run 现状；
+  1009	            # 并发首次消费的竞态仍由下方 INSERT 主键兜底。
+  1010	            if conn.execute("SELECT 1 FROM approval_consumptions WHERE nonce = ?",
+  1011	                            (ap["nonce"],)).fetchone() is not None:
+  1012	                raise ApprovalReuseError(
+  1013	                    f"nonce already consumed (approval {ap['approval_id']} "
+  1014	                    f"不可复用——不变量 #5)")
+  1015	            bound = self._validate_resume_binding(ap, state, now)  # 2-5 绑定/TTL/CAS
+  1016	            # 6. 客观前置条件：必要且充分规格 + 授权哈希精确绑定
+  1017	            supplied = SevenStageStateMachine.validate_preconditions(
+  1018	                bound["stop_type"], objective_preconditions)
+  1019	            precond_hash = SevenStageStateMachine.objective_precondition_hash(
+  1020	                supplied)
+  1021	            if precond_hash != bound["payload"]["objective_precondition_hash"]:
+  1022	                raise ApprovalPreconditionError(
+  1023	                    "objective_precondition_hash mismatch——授权绑定的前置条件"
+  1024	                    "与提交内容不一致",
+  1025	                    {"expected": bound["payload"]["objective_precondition_hash"],
+  1026	                     "actual": precond_hash},
+  1027	                )
+  1028	            nonce_digest = _sha256_hex(bound["nonce"])
+  1029	            event = resume_event_builder(state, bound, nonce_digest)
+  1030	            # —— 写半边：先占 nonce（主键冲突=复用），再链式插入事件；同事务 ——
+  1031	            try:
+  1032	                conn.execute(
+  1033	                    "INSERT INTO approval_consumptions "
+  1034	                    "(nonce, approval_id, approval_type, run_id, stop_type, "
+  1035	                    " decision, expires_at, consumed_at, preconditions_hash, "
+  1036	                    " resume_event_hash) "
+  1037	                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+  1038	                    (bound["nonce"], bound["approval_id"],
+  1039	                     bound["approval_type"], state.run_id, bound["stop_type"],
+  1040	                     bound["decision"], bound["expires_at"], time.time(),
+  1041	                     precond_hash),
+  1042	                )
+  1043	            except sqlite3.IntegrityError as exc:
+  1044	                raise ApprovalReuseError(
+  1045	                    f"nonce already consumed (approval {bound['approval_id']} "
+  1046	                    f"不可复用——不变量 #5): {exc}") from None
+  1047	            event_hash, _inserted = _PipelineDb.append_event(conn, event)
+  1048	            conn.execute(
+  1049	                "UPDATE approval_consumptions SET resume_event_hash = ? "
+  1050	                "WHERE nonce = ?",
+  1051	                (event_hash, bound["nonce"]),
+  1052	            )
+  1053	            return {
+  1054	                "approval_id": bound["approval_id"],
+  1055	                "approval_type": bound["approval_type"],
+  1056	                "nonce_digest": nonce_digest,
+  1057	                "run_id": state.run_id,
+  1058	                "stop_type": bound["stop_type"],
+  1059	                "stop_event_id": bound["stop_event_id"],
+  1060	                "preconditions_hash": precond_hash,
+  1061	                "state_version_before": state.state_version,
+  1062	                "resumed": True,
+  1063	                "event_hash": event_hash,
+  1064	            }
+  1065	
+  1066	        return self._db.transact(_body)
+  1067	
+  1068	    # ------------------------------------------------------------------ #
+  1069	    # 非停等类授权（risk 等）的一次性消费——供 COMPLETED_CONDITIONAL 前置核验
+  1070	    # ------------------------------------------------------------------ #
+  1071	    def consume_authorization(
+  1072	        self,
+  1073	        approval: Mapping[str, Any],
+  1074	        *,
+  1075	        run_loader: Callable[[sqlite3.Connection], RunState],
+  1076	        now_epoch: Optional[float] = None,
+  1077	    ) -> Dict[str, Any]:
+  1078	        """一次性消费非停等授权（approval_type != resume，如 risk）。
+  1079	
+  1080	        与 consume() 同样的 fail-closed 纪律：结构校验（含该类型的 payload
+  1081	        判别联合）→ decision=approve → TTL → run 绑定（run_id/environment/
+  1082	        scope/SHA/task_id，不要求 WAITING）→ 同事务原子占 nonce。
+  1083	        不产生管线事件——授权进入消费台账，供 complete_run 等终态判定核验。
+  1084	        """
+  1085	        ap = self.validate_structure(approval)
+  1086	        if ap["approval_type"] == "resume":
+  1087	            raise ApprovalRejected(
+  1088	                "resume 审批必须经 consume() 与停等事件绑定消费")
+  1089	        now = now_epoch if now_epoch is not None else _utc_now_epoch()
+  1090	
+  1091	        def _binding(ap: Mapping[str, Any], state: RunState) -> None:
+  1092	            if ap["decision"] != "approve":
+  1093	                raise ApprovalRejected(
+  1094	                    f"decision {ap['decision']!r} 不足以授权（须 approve）")
+  1095	            issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+  1096	            expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+  1097	            if not (issued <= now < expires):
+  1098	                raise ApprovalRejected(
+[exit_code]0

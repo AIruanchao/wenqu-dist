@@ -1,0 +1,8 @@
+TIMESTAMP_START=2026-10-08T04:33:37Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=gh api -H 'Accept: application/vnd.github+json' repos/AIruanchao/wenqu-dist/branches/main/protection
+--- OUTPUT BEGIN ---
+{"message":"Branch not protected","documentation_url":"https://docs.github.com/rest/branches/branch-protection#get-branch-protection","status":"404"}gh: Branch not protected (HTTP 404)
+--- OUTPUT END ---
+EXIT_CODE=1
+TIMESTAMP_END=2026-10-08T04:33:38Z

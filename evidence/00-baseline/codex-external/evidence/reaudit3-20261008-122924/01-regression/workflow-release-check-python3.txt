@@ -1,0 +1,7 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\;\ V=\$\(python3\ cli/wenqu\ --version\ \|\ awk\ \'\{print\ \$2\}\'\ \|\ sed\ \'s/\^0\\.3\\.0-//\;s/-maccc\$//\'\)\;\ DV=\$\(ls\ docs/\*v\*.md\ \|\ sed\ \'s/.\*v/v/\'\ \|\ sed\ \'s/\\.md//\'\ \|\ head\ -1\)\;\ echo\ \"Checking:\ v\$DV\ \$V\"\;\ bash\ tests/release-check.sh\ v\$DV\ \$V
+START: 2026-10-08T12:30:42+08:00
+Checking: vv1.0.18 fork24
+release-check PASS（零旧版本残留+VERSION 对齐）
+
+EXIT_CODE: 0
+END: 2026-10-08T12:30:43+08:00

@@ -1,0 +1,98 @@
+$ rg -n RunManager|SevenStageStateMachine|ApprovalBroker excluding module/test
+./tests/acceptance.sh:350:echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+./tests/acceptance.sh:351:if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+./tests/acceptance.sh:352:  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+./tests/acceptance.sh:357:    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+./tests/acceptance.sh:360:  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+./evidence/traceability-matrix.json:21:      "system/tests/test_wenqu_pipeline.py",
+./evidence/traceability-matrix.json:26:      "system/wenqu_core/wenqu_pipeline.py",
+./system/tests/test_core_wiring.py:34:        "wenqu_pipeline",
+./system/wenqu_core/__init__.py:6:- wenqu_pipeline.py：P0-2 七段状态机（S1..S7）+ 九类停等 +
+./system/wenqu_core/__init__.py:7:  approval-v2 一次性审批原子消费 + RunManager（事件正源重放推导）
+[exit=0]
+$ find system/docs
+system/docs/adr/ADR-001-event-store.md
+system/docs/adr/ADR-002-approval-security.md
+system/docs/adr/ADR-003-trusted-runner.md
+system/docs/constitution-template.md
+system/docs/security/threat-model.md
+system/docs/specs/wenqu-vNext-contract.md
+[exit=0]
+$ find requested control entrypoints
+[exit=0]
+$ grep workflow acceptance indirection
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
+        run: bash tests/acceptance.sh
+      - name: pytest 契约
+        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: selftest
+        run: python cli/wenqu selftest
+[exit=0]
+P0_OUT=$(bash "$P0_PREFIX/daemons/auto-merge.sh" 2>&1); P0_RC=$?
+if [ "$P0_RC" = "1" ] && [ "$P0_OUT" = "$P0_MSG" ] && cmp -s "$ROOT/system/daemons/auto-merge.sh" "$P0_PREFIX/daemons/auto-merge.sh"; then
+  PASS_N=$((PASS_N+1)); echo "  ✅ 升级安装覆盖旧 writer 为安全 stub"
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ 安装体 auto-merge 未安全收敛（rc=$P0_RC）"
+fi
+
+echo "== P1. 新核心接线（P0-1：移除 wenqu_core 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_core_wiring.py" ]; then
+  python3 "$ROOT/system/tests/test_core_wiring.py" >/dev/null 2>&1
+  CORE_RC=$?
+  if [ $CORE_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 新核心接线 8/8（wenqu_core+schemas+dashboard 存在且可导入）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 新核心接线测试失败（exit=$CORE_RC）——wenqu_core/schemas/dashboard 缺失或不可导入"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_core_wiring.py 不存在——P0-1 未接线"
+fi
+
+echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+  PIPE_RC=$?
+  if [ $PIPE_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ P0-2 行为自测 10/10（七段/九停等/审批 CAS/并发双消费/哈希链）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=$PIPE_RC）——wenqu_pipeline 缺失或行为回归"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+fi
+
+echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红）=="
+if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+  python3 "$ROOT/tools/ac_traceability.py" >/dev/null 2>&1
+  AC_RC=$?
+  if [ $AC_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵生成 OK（evidence/traceability-matrix.json 刷新）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵生成失败（exit=$AC_RC）——evidence 目录或工具损坏"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+fi
+
+echo "================================"
+echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+[ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+[exit=0]

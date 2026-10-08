@@ -1,0 +1,15 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\ \&\&\ PYTHONDONTWRITEBYTECODE=1\ python3\ system/tests/test_core_wiring.py
+START: 2026-10-08T12:30:27+08:00
+  ✓ test_core_modules_importable
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 8 PASS / 0 FAIL
+
+EXIT_CODE: 0
+END: 2026-10-08T12:30:27+08:00

@@ -1576,6 +1576,16 @@ class SourceGateAdapter:
             "assertion_verdict": assertion,
         }
 
+        # 站1 工件：gate 原始结果自身的内容寻址摘要（PASS 必须携带非空工件——
+        # station-result-v2 契约；非 PASS 附带同样合法且利于审计对账）
+        gate_payload = json.dumps(
+            dict(gate_result), separators=(",", ":"),
+            ensure_ascii=False, sort_keys=True).encode("utf-8")
+        artifact = [{
+            "cas_digest": f"sha256:{_sha256_hex(gate_payload)}",
+            "size": len(gate_payload),
+        }]
+
         return build_station_result(
             run_id=self._manifest.run_id,
             station_id=self.STATION_ID,
@@ -1587,6 +1597,7 @@ class SourceGateAdapter:
             execution=execution,
             coverage={"denominator": denominator, "scanned": scanned},
             finding_ids=[],
+            artifacts=artifact,
         )
 
 

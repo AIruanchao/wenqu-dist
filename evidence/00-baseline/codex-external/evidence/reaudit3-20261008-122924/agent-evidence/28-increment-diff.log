@@ -1,0 +1,269 @@
+TIMESTAMP_START=2026-10-08T04:33:47Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=git diff --stat 4aeb199..HEAD; git diff --name-status 4aeb199..HEAD; printf '%s\n' '=== commit graph ==='; git log --oneline --reverse 4aeb199..HEAD
+--- OUTPUT BEGIN ---
+ CHANGELOG.md                                       |    2 +
+ SHA256-v3.6.2.txt                                  |    2 +
+ SHA256-v3.6.3.txt                                  |    2 +
+ evidence/00-baseline/README.md                     |   31 +
+ .../acceptance-20261007-231333/MANIFEST.sha256     |   39 +
+ .../adversarial-probes.json                        |   52 +
+ .../adversarial-probes.rc                          |    1 +
+ .../adversarial-probes.stderr                      |    0
+ .../adversarial_probes.py                          |  123 ++
+ .../agent-default-ci-blindness.log                 |   13 +
+ .../artifact-inventory.txt                         |   55 +
+ .../acceptance-20261007-231333/baseline.txt        |    5 +
+ .../acceptance-20261007-231333/cli-version.txt     |    1 +
+ .../acceptance-20261007-231333/compile.log         |    2 +
+ .../dashboard-security-readonly.txt                |  113 ++
+ .../dod-evidence-presence.txt                      |   44 +
+ .../final-repo-status.txt                          |    5 +
+ .../http-api_health.body                           |    1 +
+ .../http-api_health.headers                        |    6 +
+ .../acceptance-20261007-231333/http-root.body      |  540 ++++++
+ .../acceptance-20261007-231333/http-root.headers   |    6 +
+ .../integration-markers.txt                        |  100 +
+ .../legacy-acceptance.log                          |   78 +
+ .../mid-acceptance-source-drift.txt                |  208 ++
+ .../observation-exact-self-match-probe.txt         |    3 +
+ .../observation-log-readonly.txt                   |    5 +
+ .../observation-self-match-probe.txt               |    3 +
+ .../release-artifacts.txt                          |   78 +
+ .../acceptance-20261007-231333/release-check.log   |    1 +
+ .../runner-cas-probes.json                         |   19 +
+ .../runner_cas_probes.py                           |   59 +
+ .../runtime-dashboard-identity.txt                 |    5 +
+ .../runtime-readonly.txt                           |  503 +++++
+ .../runtime-source-identity.txt                    |   35 +
+ .../runtime-targeted-readonly.txt                  |  Bin 0 -> 9588 bytes
+ .../selftest-bugscan_orchestrator.log              |    9 +
+ .../selftest-station2_static.log                   |   15 +
+ .../selftest-station3_contract.log                 |   10 +
+ .../selftest-station4_behavior.log                 |   15 +
+ .../selftest-station7_runtime.log                  |   14 +
+ .../source-drift-followup-1.txt                    |   10 +
+ .../store-migrator-probes.json                     |   13 +
+ .../store_migrator_probes.py                       |   32 +
+ .../workflow-release-check-reproduction.txt        |    5 +
+ .../reaudit-20261007/branch-required-checks.json   |    1 +
+ .../evidence/reaudit-20261007/bugscan-summary.json |   24 +
+ .../evidence/reaudit-20261007/captured_at.txt      |    1 +
+ .../reaudit-20261007/dashboard-health.json         |    1 +
+ .../reaudit-20261007/dashboard-runtime-diff.patch  |   26 +
+ .../evidence/reaudit-20261007/gatedoctor.log       |   32 +
+ .../evidence/reaudit-20261007/gatedoctor.rc        |    1 +
+ .../evidence/reaudit-20261007/git-identities.txt   |    6 +
+ .../reaudit-20261007/launchctl-selected.txt        |   28 +
+ .../evidence/reaudit-20261007/manifest.sha256      |   39 +
+ .../reaudit-20261007/plan-self-validation.json     |  155 ++
+ .../plan-self-validation.json.sha256               |    1 +
+ .../reaudit-20261007/plan-self-validation.txt      |   35 +
+ .../reaudit-20261007/red-probes/outside.txt        |    1 +
+ .../red-probes/state-arbitrary.out                 |    0
+ .../reaudit-20261007/red-probes/state-arbitrary.rc |    1 +
+ .../reaudit-20261007/red-probes/state-clear.out    |    0
+ .../reaudit-20261007/red-probes/state-clear.rc     |    1 +
+ .../red-probes/state-traversal.out                 |    0
+ .../reaudit-20261007/red-probes/state-traversal.rc |    1 +
+ .../reaudit-20261007/red-probes/state/escaped.json |    8 +
+ .../red-probes/state/pipeline-ledger.jsonl         |    1 +
+ .../reaudit-20261007/red-probes/summary.txt        |   50 +
+ .../reaudit-20261007/red-probes/v-exit/r1.txt      |    1 +
+ .../red-probes/v-exit/rounds.jsonl                 |    1 +
+ .../reaudit-20261007/red-probes/v-link/r1.txt      |    1 +
+ .../red-probes/v-link/rounds.jsonl                 |    1 +
+ .../reaudit-20261007/red-probes/v-neg/rounds.jsonl |    0
+ .../red-probes/verify-negative-n.json              |   13 +
+ .../red-probes/verify-negative-n.rc                |    1 +
+ .../red-probes/verify-nonzero-exit.json            |   15 +
+ .../red-probes/verify-nonzero-exit.rc              |    1 +
+ .../red-probes/verify-symlink.json                 |   15 +
+ .../reaudit-20261007/red-probes/verify-symlink.rc  |    1 +
+ .../red-probes/wenqu-acceptance.log                |   76 +
+ .../red-probes/wenqu-acceptance.rc                 |    1 +
+ .../reaudit-20261007/red-probes/wenqu-pytest.log   |    2 +
+ .../reaudit-20261007/red-probes/wenqu-pytest.rc    |    1 +
+ .../red-probes/wenqu-release-check.log             |    1 +
+ .../red-probes/wenqu-release-check.rc              |    1 +
+ .../reaudit-20261007/runtime-source-hashes.txt     |    5 +
+ .../evidence/reaudit-20261007/skill-hashes.txt     |    3 +
+ .../evidence/reaudit-20261007/validate_plan.py     |  174 ++
+ .../evidence/reaudit-20261007/waiting-states.json  |   24 +
+ .../codex-external/\346\226\271\346\241\210.md"    | 2003 +++++++++++++++++++
+ .../\346\226\271\346\241\210.md.sha256"            |    1 +
+ ...252\214\346\224\266\346\212\245\345\221\212.md" |  477 +++++
+ ...\346\224\266\346\212\245\345\221\212.md.sha256" |    1 +
+ evidence/01-threat-model-and-contracts/README.md   |   33 +
+ evidence/02-schemas-and-tla/README.md              |   37 +
+ evidence/03-red-probes-before/README.md            |   31 +
+ evidence/04-unit-property-mutation/README.md       |   34 +
+ evidence/05-concurrency-crash-chaos/README.md      |   34 +
+ evidence/06-scanner-goldens/README.md              |   39 +
+ evidence/07-migration-reconcile/README.md          |   36 +
+ evidence/08-ci-and-branch-rules/README.md          |   34 +
+ evidence/09-release-manifest-attestation/README.md |   33 +
+ evidence/10-ui-launchd-alert-backup/README.md      |   35 +
+ evidence/11-shadow-canary/README.md                |   25 +
+ evidence/12-rollback-drill/README.md               |   27 +
+ evidence/13-observation-window/README.md           |   27 +
+ evidence/README.md                                 |   40 +
+ evidence/evidence-index.json                       |  195 ++
+ evidence/traceability-matrix.json                  | 2037 ++++++++++++++++++++
+ system/VERSION                                     |    2 +-
+ system/bin/wenqu                                   |   26 +-
+ system/bin/wenqu-dashboard.py                      |  137 +-
+ system/daemons/auto-merge.sh                       |   80 +-
+ system/install.sh                                  |   41 +-
+ system/schemas/approval-v2.schema.json             |   75 +-
+ system/schemas/finding-event-v2.schema.json        |   25 +
+ system/tests/test_core_wiring.py                   |  132 ++
+ system/tests/test_wenqu_pipeline.py                |  524 +++++
+ system/wenqu_core/__init__.py                      |    2 +
+ system/wenqu_core/deploy_framework.py              |   37 +-
+ system/wenqu_core/gate_aggregator.py               |   10 +-
+ system/wenqu_core/runner.py                        |   79 +-
+ system/wenqu_core/store.py                         |   37 +-
+ system/wenqu_core/wenqu_pipeline.py                | 1792 +++++++++++++++++
+ tests/acceptance.sh                                |   71 +
+ tools/ac_traceability.py                           |  617 ++++++
+ 125 files changed, 11657 insertions(+), 223 deletions(-)
+M	CHANGELOG.md
+A	SHA256-v3.6.2.txt
+A	SHA256-v3.6.3.txt
+A	evidence/00-baseline/README.md
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/MANIFEST.sha256
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.json
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.rc
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial-probes.stderr
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/adversarial_probes.py
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/agent-default-ci-blindness.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/artifact-inventory.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/baseline.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/cli-version.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/compile.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dashboard-security-readonly.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/dod-evidence-presence.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/final-repo-status.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.body
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-api_health.headers
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.body
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/http-root.headers
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/integration-markers.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/legacy-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/mid-acceptance-source-drift.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-exact-self-match-probe.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-log-readonly.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-self-match-probe.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-artifacts.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/release-check.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner-cas-probes.json
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runner_cas_probes.py
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-dashboard-identity.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-readonly.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-source-identity.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/runtime-targeted-readonly.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-bugscan_orchestrator.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station3_contract.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station4_behavior.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station7_runtime.log
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/source-drift-followup-1.txt
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store-migrator-probes.json
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/store_migrator_probes.py
+A	evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/workflow-release-check-reproduction.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/branch-required-checks.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/bugscan-summary.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/captured_at.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-health.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/dashboard-runtime-diff.patch
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.log
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/gatedoctor.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/git-identities.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/launchctl-selected.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/manifest.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.json.sha256
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/outside.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.out
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-arbitrary.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.out
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-clear.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.out
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state-traversal.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/escaped.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/state/pipeline-ledger.jsonl
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/summary.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/r1.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-exit/rounds.jsonl
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/r1.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/rounds.jsonl
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-neg/rounds.jsonl
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-negative-n.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-nonzero-exit.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.json
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/verify-symlink.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.log
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-acceptance.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.log
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-pytest.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.log
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/wenqu-release-check.rc
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/runtime-source-hashes.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/skill-hashes.txt
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/validate_plan.py
+A	evidence/00-baseline/codex-external/evidence/reaudit-20261007/waiting-states.json
+A	"evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+A	"evidence/00-baseline/codex-external/\346\226\271\346\241\210.md.sha256"
+A	"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212.md"
+A	"evidence/00-baseline/codex-external/\351\252\214\346\224\266\346\212\245\345\221\212.md.sha256"
+A	evidence/01-threat-model-and-contracts/README.md
+A	evidence/02-schemas-and-tla/README.md
+A	evidence/03-red-probes-before/README.md
+A	evidence/04-unit-property-mutation/README.md
+A	evidence/05-concurrency-crash-chaos/README.md
+A	evidence/06-scanner-goldens/README.md
+A	evidence/07-migration-reconcile/README.md
+A	evidence/08-ci-and-branch-rules/README.md
+A	evidence/09-release-manifest-attestation/README.md
+A	evidence/10-ui-launchd-alert-backup/README.md
+A	evidence/11-shadow-canary/README.md
+A	evidence/12-rollback-drill/README.md
+A	evidence/13-observation-window/README.md
+A	evidence/README.md
+A	evidence/evidence-index.json
+A	evidence/traceability-matrix.json
+M	system/VERSION
+M	system/bin/wenqu
+M	system/bin/wenqu-dashboard.py
+M	system/daemons/auto-merge.sh
+M	system/install.sh
+M	system/schemas/approval-v2.schema.json
+M	system/schemas/finding-event-v2.schema.json
+A	system/tests/test_core_wiring.py
+A	system/tests/test_wenqu_pipeline.py
+M	system/wenqu_core/__init__.py
+M	system/wenqu_core/deploy_framework.py
+M	system/wenqu_core/gate_aggregator.py
+M	system/wenqu_core/runner.py
+M	system/wenqu_core/store.py
+A	system/wenqu_core/wenqu_pipeline.py
+M	tests/acceptance.sh
+A	tools/ac_traceability.py
+=== commit graph ===
+ccf584f release(system): v3.6.2——Codex 6 条代码发现全修：锁finally+XSS escD+七态钻取+FIXING趋势+SSE限流+sweep边界
+8eb4afe release(system): v3.6.3——Codex 三审 6 条全修：已拍XSS escD+SSE BoundedSemaphore+趋势复用安全入口+sweep 时区统一+日志pre修复+九节点去重
+38adb4e fix(p0-3+4+5): Schema 业务不变量硬化+Gate 零分母真空 PASS 根修+Runner 进程组杀树+CAS 防目录逃逸/损坏假成功（Codex 验收 P0 整改批 1）
+9637859 fix(p0-1+7): 新核心接线 install.sh+wenqu CLI+核心接线测试 8/8+doctor 区分新装/损坏
+fa72292 fix(p0-1): core wiring test into acceptance + install doctor tolerance
+05b93db fix(ci): core wiring test CI-safe (skip jsonschema/subprocess if unavailable)
+be50cb8 fix(p0-6+7): EventStore 幂等（内容哈希 event_id）+表名 pipeline_events 避冲突+部署 exec bit 保留+首败 current link 删除
+1858a75 fix(p0-9): dashboard /api/decide 安全加固（Origin/Host/Auth-Key/CSRF 四检查+默认拒）
+e00de14 fix(p0-4): Schema 全量加固——approval 顶层 if/then 判别+finding P0/P1 拒 ACCEPTED+state_from 必填+risk_acceptance 必填（8 正负例全过）
+ff050bb feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:33:47Z

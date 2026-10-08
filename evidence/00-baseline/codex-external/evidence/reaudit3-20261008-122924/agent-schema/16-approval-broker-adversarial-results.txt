@@ -1,0 +1,12 @@
+$ python3 approval_broker_adversarial.py (corrected stable approval_id)
+missing_all_exact_bindings: validate_structure=ACCEPT
+missing_all_exact_bindings: consume_authorization=ACCEPT {"approval_id": "apr_probe", "approval_type": "risk", "consumed": true, "nonce_digest": "871e8c196a8e1c1f481be33c6d937b0a5dee89a96bc59dbb531be8d70c350fee", "run_id": "run_20261008T123147Z_7432e640", "stop_type": "scope"}
+invalid_watermark_bypasses_sha_check: validate_structure=ACCEPT
+invalid_watermark_bypasses_sha_check: consume_authorization=ACCEPT {"approval_id": "apr_probe", "approval_type": "risk", "consumed": true, "nonce_digest": "3bb363aa64c17c8fcde89ee126faff254d34c340639fb4a29058b91c7be9f1e5", "run_id": "run_20261008T123147Z_71b35909", "stop_type": "scope"}
+mismatched_policy_ruleset_ignored: validate_structure=ACCEPT
+mismatched_policy_ruleset_ignored: consume_authorization=ACCEPT {"approval_id": "apr_probe", "approval_type": "risk", "consumed": true, "nonce_digest": "4504f6bcf4c0a4b6759cde37cafd2d496dd1449e57dfe8b120e7e330df60a878", "run_id": "run_20261008T123147Z_c07c5669", "stop_type": "scope"}
+cross_type_payload_extras: validate_structure=ACCEPT
+cross_type_payload_extras: consume_authorization=ACCEPT {"approval_id": "apr_probe", "approval_type": "risk", "consumed": true, "nonce_digest": "305a70ac8edcf842fcd85312e79bf96bc28106c5edb3212c97ef2909bfda328c", "run_id": "run_20261008T123147Z_70142775", "stop_type": "scope"}
+high_severity_risk_accepted: validate_structure=ACCEPT
+high_severity_risk_accepted: consume_authorization=ACCEPT {"approval_id": "apr_probe", "approval_type": "risk", "consumed": true, "nonce_digest": "77bfd22e813962cbd03e19126e99117d2eeb5888b502aeb1e686dd0178216715", "run_id": "run_20261008T123147Z_f4c6ec68", "stop_type": "scope"}
+[exit_code]=0

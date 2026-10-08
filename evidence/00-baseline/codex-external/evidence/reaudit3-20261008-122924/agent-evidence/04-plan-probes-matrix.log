@@ -1,0 +1,466 @@
+TIMESTAMP_START=2026-10-08T04:29:56Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=sed -n '1545,2003p' /private/tmp/codex-test/方案.md
+--- OUTPUT BEGIN ---
+# 20. 强制红探针与验收矩阵
+
+所有用例必须保存 before/after：旧实现先证明能产生假绿/漏拦，新实现证明正确阻断或正确通过。仅写测试、不执行红探针无效。旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；自动合流、生产写、DDL、真实外部告警和回滚类缺陷禁止在真实系统重放，已有生产日志/审计证据可直接作为 before。
+
+## 20.1 Gate、授权、合流
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| GATE-01 | base ref 不存在/fetch 失败 | ERROR/BLOCKED |
+| GATE-02 | 零测试、scope 未证明纯文档 | BLOCKED |
+| GATE-03 | test runner/依赖缺失 | ERROR |
+| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+| GATE-05 | artifact symlink/hardlink/根外 | BLOCKED |
+| GATE-06 | artifact hash 篡改 | BLOCKED |
+| GATE-07 | commit/env/scope/ruleset 不符 | BLOCKED |
+| GATE-08 | evidence 过 TTL | BLOCKED |
+| GATE-09 | `N=-1/0/超上限` | 参数错误 |
+| GATE-10 | 超过 N+1 | BLOCKED 等人工裁定 |
+| GATE-11 | 同命令换 S 标签 | 不计异源轮 |
+| GATE-12 | unsigned flip/adjudication | BLOCKED |
+| AUTH-01 | 无授权 resume | 拒绝 |
+| AUTH-02 | 过期/重放/扩范围/旧 state_version | 拒绝 |
+| AUTH-03 | AI/runner 尝试自行签发高风险批准 | 拒绝 |
+| ACT-01 | technical PASS，但无 exact merge/release action authorization | context 可表技术 PASS，controller 不动作 |
+| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+| ACT-03 | check 发布前/后 crash 或回执丢失 | outbox 幂等恢复；同一 check_run 更新，不产生伪双绿 |
+| ACT-04 | merge/release 调用前/后 crash 或回执丢失 | 先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试 |
+| ACT-05 | 外部陈旧绿、dispatcher/App 失联 | direct merge 被角色/ruleset 拒绝；动作保持 BLOCKED |
+| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+| MRG-01 | Fast 绿、Security 红 | 不合流 |
+| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+| MRG-03 | check 同名伪造/旧 SHA | 不合流 |
+| MRG-04 | pending/skipped/neutral/cancelled | 不合流 |
+| MRG-05 | head 在聚合后改变 | 旧结论失效 |
+| MRG-06 | GitHub 429/空 JSON/超时 | 断路，不合流 |
+
+## 20.2 状态、账本、迁移
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| STATE-01 | 任意 stage/status | schema 拒绝 |
+| STATE-02 | `../`、绝对路径、NUL、超长 ID | 拒绝 |
+| STATE-03 | 100×100 并发写 | 零丢失/重复 |
+| STATE-04 | 事务各点 kill -9 | 全有或全无 |
+| STATE-05 | 双 writer epoch | 所有写入拒绝 |
+| STATE-06 | WAITING 终态残留 | SUPERSEDED 事件，不静默删 |
+| MIG-01 | 坏 JSON/未知状态 | quarantine+BLOCKED |
+| MIG-02 | 缺审批信息的 ACCEPTED | invalid/reopen |
+| MIG-03 | 两次迁移 | 结果幂等一致 |
+| MIG-04 | 源行数不守恒 | 迁移失败 |
+| MIG-05 | project key 冲突 | 明确冲突，不拆成假项目 |
+
+## 20.3 Bug 扫描器
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| DB-01 | `[+]`/`[-]`/`[*]` | 全识别 |
+| DB-02 | 仅一条 DROP COLUMN/删 FK | FAIL，不因数量少放行 |
+| DB-03 | 未知格式/空输出/命令非零 | ERROR |
+| DB-04 | allowlist 到期/对象 hash 变化 | FAIL |
+| SC-01 | 有效 JSON+HIGH/CRITICAL | FAIL |
+| SC-02 | 空 JSON/registry 超时 | ERROR |
+| SC-03 | install script/resolved/integrity 变化 | FAIL/人工审 |
+| SC-04 | 标题含 `[skip-audit]` | 无绕过效果 |
+| ADV-01 | version parser 异常 | UNKNOWN，不写 seen |
+| ADV-02 | 多页/多 range | 全遍历 |
+| TEN-01 | Prisma alias/re-export/wrapper | 纳入分析 |
+| TEN-02 | 注释含 organizationId | 不能欺骗 |
+| TEN-03 | builder 超 300 字符 | 纳入分析 |
+| TEN-04 | `$queryRaw` 跨租户 | 阻断 |
+| TEN-05 | 路径不含 export/download 的下载 | 纳入扫描 |
+| TEN-06 | Org A 访问/导出 Org B | 动态拒绝 |
+| PERF-01 | HTTP 500 但很快 | FAIL |
+| PERF-02 | SSH/TCC/null 指标 | ERROR |
+| PERF-03 | 尾部极慢样本 | 正确进入 p95/p99 |
+| PERF-04 | 输入 1→100，query count 线性 | FAIL |
+
+## 20.4 调度、发布、UI
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| SCH-01 | launchd 无 Documents 权限 | ERROR+告警 |
+| SCH-02 | 脚本 FAIL 后 touch heartbeat | 测试抓获、last_success 不变 |
+| SCH-03 | 睡眠错过周期 | 唤醒补跑 |
+| ALT-01 | provider 500/超时 | outbox 重试/dead-letter |
+| BAK-01 | 磁盘满/tar/backup 失败 | 不更新 success |
+| REL-01 | manifest 缺件/多件/错 hash | 部署失败 |
+| REL-02 | 部署中 kill -9 | 保持旧 current 或完整新 current |
+| REL-03 | doctor 红 | 部署失败并回退 |
+| UI-01 | 少一个闭合标签 | 构建/启动门失败 |
+| UI-02 | XSS 日志/账本文本 | 不执行 |
+| UI-03 | CSRF/伪 Origin/text/plain 写入 | 拒绝 |
+| UI-04 | Gate 红、其他项高分 | 总体 BLOCKED |
+| UI-05 | ACCEPTED/OTHER/quarantine | 均可钻取 |
+
+## 20.5 补充契约、隔离与治理探针
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| STOP-01 | 九种 stop type 使用错误类型审批 | 全拒绝 |
+| STOP-02 | resource/ext-unavail 未恢复但已批准 | 仍不可 resume |
+| STOP-03 | 九种 stop type 的客观条件已满足但缺一次性授权 | 九类全部拒绝 resume |
+| STATE-07 | 普通事件把 PASSED 改回 RUNNING | 拒绝 |
+| STATE-08 | FAILED 重试 | 新 attempt，旧证据不覆盖 |
+| STATE-09 | SHA/scope/policy 变化 | 强制新 run |
+| STATE-10 | WAITING/FAILED attempt 直接改回 RUNNING | 拒绝；追加新 attempt 后由 stage projection 指向它 |
+| STATE-11 | S7 CONDITIONAL 缺 risk authorization | S7/run 终判 FAILED；后续批准只能创建新 run，不得写 WAITING |
+| AUTH-04 | canonical payload/Unicode/audience 任一字节改变 | 验签失败 |
+| AUTH-05 | 并发双消费 approval | 恰一成功 |
+| AUTH-06 | key revoked/clock rollback/无 user-presence | 拒绝 |
+| RUN-01 | 被测程序读取 Keychain/SSH agent/生产配置 | 隔离拒绝 |
+| RUN-02 | timeout 后子孙进程 | 全部终止，无孤儿写盘 |
+| RUN-03 | fork bomb/输出爆量/网络外连 | 配额/allowlist 阻断 |
+| CI-05 | fork、merge_group、check 不产生 | 明确 FAILURE/BLOCKED |
+| CI-06 | CODEOWNERS 文件存在但 ruleset 未强制 | doctor ERROR |
+| CI-07 | 未授权 App 发布同名 context/旧 details URL | 不可信、阻断 |
+| CI-08 | Wenqu Gate 缺失但 Bugscan 绿 | 不合流 |
+| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+| MRG-07 | 最后校验后 head 变化 | expected-SHA 原子拒绝 |
+| COND-01 | CONDITIONAL 无 risk authorization | technical eligibility=false，技术 context failure |
+| COND-02 | 授权跨 SHA/env/扩 finding 集/重放 | 拒绝 |
+| COND-03 | 合法低风险接受、其余全 PASS、risk 与 action 两类精确授权 | 内部仍 CONDITIONAL；技术 context=`success/AUTHORIZED_CONDITIONAL`；Action Gate 成功后动作恰一次 |
+| COND-04 | P0/P1 尝试风险接受或条件授权 | 拒绝并保持 BLOCKED |
+| COND-05 | 授权后新增 finding、TTL 到期、SHA/scope/policy/watermark 变化 | authorization、attestation、context 失效；动作前重验拒绝 |
+| COND-06 | 并发双消费或动作失败后重放 attestation | 最多一次消费；失败后须新授权 |
+| RISK-01 | 主动撤销或 fingerprint/severity/policy/control 改变 | 追加 REVOKED/INVALIDATED，立即重开并可进入修复链 |
+| DB-05 | 错 DB/role/`transaction_read_only=off` | BLOCKED |
+| DB-06 | catalog 顺序、默认表达式、extension 对象 | golden 规范化正确 |
+| SC-05 | 离线快照签名错误/过期/分页不全 | BLOCKED |
+| TEN-07 | target SHA 新增 tenant model | 分母自动增加 |
+| TEN-08 | 合法管理员跨租户正例/普通角色负例 | 前者通、后者拒 |
+| PERF-05 | 修改 baseline/阈值试图洗绿 | policy hash 阻断 |
+| PERF-06 | 样本/时长/endpoint 分母缩水 | 不得晋升 baseline |
+| STA-01 | 任一站 denominator 缩小 | 整线 BLOCKED |
+| STA-02 | 站2/3/4/7逐站故障 | 继续独立取证，aggregate BLOCKED |
+| SCH-04 | catch-up 与正常调度并发 | 只有一个 logical run |
+| SCH-05 | scheduler 整体故障 | 独立 watchdog 仍告警 |
+| SCH-06 | one-shot job | 只写 wenqu namespace |
+| SCH-07 | `COMPLETED+NOT_APPLICABLE` 或过期/异指纹 PASS | 不刷新任何实体的 `last_success` |
+| DEP-01 | 两个部署者争 lease | 最多一个成功 |
+| DEP-02 | smoke 访问生产 DB/state | 隔离拒绝 |
+| DEP-03 | 新事件后回滚兼容二进制 | 事件零丢失 |
+| DEP-04 | 自签/替换/revoked release key | 拒绝 |
+| DEP-05 | previous release 超 schema 范围 | 拒绝回滚 |
+| DEP-06 | 无迁移锁/未验证备份/expand 超授权 | 激活前 BLOCKED，旧 current 不变 |
+| DEP-07 | ACTIVATING 失败且无预授权 | `FAILED_BLOCKED`；不得自动回滚或继续发布 |
+| DEP-08 | ROLLBACK_FAILED | writer/merge/release 熔断并停等人工恢复 |
+| DEP-09 | 观察窗内夹带 contract/down migration | 拒绝；要求独立授权变更 |
+| RB-01 | 无预授权自动回滚/错误旧版本 | 拒绝 |
+| UI-06 | DNS rebinding/伪 Host/未认证日志读取 | 拒绝 |
+| UI-07 | 慢请求/高并发/超大日志 | 不耗尽资源 |
+| HLT-01 | 聚合期间输入 watermark 变化 | snapshot 作废重算 |
+| DOC-01 | one-shot 停等数量/枚举漂移 | CI 阻断 |
+| DOC-02 | bug skill 版本/清单/验收数量漂移 | CI 阻断 |
+| DOC-03 | policy/Skill 出现 L4、`--admin`、`force-with-lease` 或 skip 绕闸文本 | CI 阻断 |
+| DOC-04 | 文档宣称现役/PASS，但 registry 或 Gate 为 BLOCKED | CI 阻断 |
+| ALT-02 | waiting 到期但零 send attempt/receipt | ERROR+告警，不能以 watchdog exit0 记健康 |
+| CAP-01 | 峰值空间超过安全余量或磁盘满 | 切换 BLOCKED，旧证据和 current 均完整 |
+| DR-01 | 恢复演练 | 实测满足冻结 RPO/RTO |
+
+---
+
+# 21. 项目身份、策略来源与执行隔离
+
+## 21.1 Canonical repo_id
+
+冻结：
+
+```text
+repo_id = forge_host + normalized_owner/repo
+```
+
+无 remote 的仓使用持久 UUID。clone 路径、工作树目录和 remote URL 表达形式仅是 location，不参与业务身份。迁移必须为现有各 ledger 目录生成映射表、检测冲突，禁止继续用不同 URL/path 哈希拆账。
+
+## 21.2 Policy 与被扫代码隔离
+
+- station registry、command allowlist、adapter 和 policy 必须来自受保护 policy commit；
+- 未信任 PR 无权修改用于验证自己的规则；
+- 默认 argv 直执行，禁 `bash -c`；
+- 扫描未信任 PR 时隔离生产凭据、网络和写权限；
+- 签名/attestation 服务只签自己实际 spawn+waitpid 捕获的结果，不签调用者上传的 rc/artifact。
+
+## 21.3 人类授权可信边界
+
+同 UID 的 AI/runner 可能访问普通 Keychain 项，因此仅记录 actor 名或 HMAC 不足以证明真人批准。
+
+高风险 stop point 应使用具备 user-presence 的独立 approval broker：Touch ID/系统认证，或外部已认证渠道回执+nonce。签名必须绑定 scope、TTL、state_version、SHA 和环境；AI 只能消费，不能签发。
+
+在该能力落地前，保持手工受保护流程，并诚实标注“无法机器证明人类身份”；不得恢复 dashboard 一键批准。
+
+## 21.4 签名与 Attestation 可信根
+
+W1 必须分别冻结 approval signer、runner attestor、release signer：
+
+```text
+算法
+canonical serialization/Unicode 规范
+key_id
+signer 身份与 audience
+可信公钥钉扎位置
+私钥隔离边界
+轮换与吊销清单
+有效期和时钟异常策略
+构建 provenance
+```
+
+高风险 approval 由 user-presence broker 签发；release/runner attestation 优先由被测运行体不可访问的 CI 或独立 broker 签发，verifier 只信钉扎公钥。被测程序、普通同 UID 进程和 runner 子进程不得读取私钥。
+
+如果本期无法建立独立 signer，系统只能宣称 `hash drift detection / tamper-evident`，不得声称签名证明来源；对应 release eligibility 保持 BLOCKED 或人工边界明确的候选态。
+
+---
+
+# 22. 容量、留存与隐私
+
+迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+
+```text
+peak = legacy_snapshot + imported_db + WAL_peak + CAS_copy
+     + backup + current_release + next_release + rollback_release
+```
+
+设定最小安全余量；不足即 BLOCKED。禁止自动删除审计证据。留存、压缩、外移均是独立授权动作，操作后必须对账 hash 并做恢复抽验。
+
+证据默认脱敏：不保存 token、Cookie、个人信息、生产秘密或完整业务敏感数据；需要保存时使用加密、最小化和明确 retention policy。
+
+CAS 必须冻结 retention、RPO/RTO 和 GC 规则。GC 前证明目标 digest 没有 event/manifest/backup 引用，并完成恢复抽验；引用图未知或 checkpoint 未锚定时禁止回收。
+
+---
+
+# 23. 发布、回滚与授权边界
+
+## 23.1 必须停等用户授权的动作
+
+1. 停止/启动现役 auto-merge、dashboard、sentinel、LaunchAgent；
+2. 修改 GitHub branch protection/ruleset、App 权限和凭据；
+3. 合并、部署、restart、切换 current；
+4. 首次配置告警通道、合成测试实发或变更通知策略；完成授权后，在绑定 channel/scope/TTL 内的常规告警自动投递，不逐条停等；高风险处置动作仍逐项授权；
+5. 生产 DB、RLS、DDL、迁移；
+6. 生产真单/真实写入；
+7. offsite 备份；
+8. 生产回滚和数据恢复。
+
+ZCode 可在停等前完成代码、测试、dry-run、PR、候选制品、回滚脚本和证据包。
+
+## 23.2 回滚原则
+
+- 代码：current 原子切回上个**兼容 v2 schema**的 release；
+- 数据：expand/contract，观察期不做 destructive down migration；
+- 事件：切换后的新事件永不因回滚被覆盖；
+- CI：故障时保持 required checks，转人工受保护 PR；
+- 自动合流：故障后保持关闭；
+- Dashboard：故障后保持只读/不可用；`underlying_gate_outcome` 保持 aggregator 的真实判定、不被覆盖，`release_readiness` 因必需观测面不可用而 BLOCKED；
+- 分支保护：before JSON 只用于审计和安全恢复，不得恢复已知绕过。
+
+一次部署授权可以预授权“本次 ACTIVATING 失败时，在指定观察窗内切回精确 previous_release_id”；除此之外的独立生产回滚仍需新授权。
+
+---
+
+# 24. 完成定义与证据包
+
+## 24.1 硬完成门
+
+不得用总分作为放行门。只有以下硬条件全部达成才算最终闭环：
+
+- W0–W10 全部 DoD；
+- traceability 零孤儿；
+- 所有旧假绿红探针在新实现中均正确阻断；
+- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+- P0/P1=0；
+- 活跃 ACCEPTED_RISK=0；存在任何合法低风险接受时只能走 `AUTHORIZED_CONDITIONAL`，不得称清零或最终生产闭环；
+- 账本无非法状态、无未裁定 quarantine；
+- 清零范围内无 OPEN/FIXING/FIXED_PENDING_VERIFY；
+- 并发、kill、磁盘满、只读、时钟、网络、TCC 故障注入通过；
+- targeted mutation 和全量测试门达成；
+- 浏览器、launchd、备份恢复、原子部署、回滚均真实演练；
+- shadow/canary/14 天观察窗达标；
+- 独立 S5 与战训四查通过；
+- 未覆盖威胁和生产边界明确列出。
+
+## 24.2 证据包目录
+
+```text
+evidence/<program-run-id>/
+  00-baseline/
+  01-threat-model-and-contracts/
+  02-schemas-and-tla/
+  03-red-probes-before/
+  04-unit-property-mutation/
+  05-concurrency-crash-chaos/
+  06-scanner-goldens/
+  07-migration-reconcile/
+  08-ci-and-branch-rules/
+  09-release-manifest-attestation/
+  10-ui-launchd-alert-backup/
+  11-shadow-canary/
+  12-rollback-drill/
+  13-observation-window/
+  evidence-index.json
+```
+
+每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+
+---
+
+# 25. 本轮复审发现族→工作包→测试→证据追踪矩阵
+
+下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+
+| FND-ID | 复审发现族 | 工作包 | 精确测试 ID | 主要证据 |
+|---|---|---|---|---|
+| FND-001 | auto-merge 子串、UNSTABLE、`--admin` | W0/W3B | MRG-01～07 | containment、branch rules、merge dry-run |
+| FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+| FND-003 | base 不存在/零测试假绿 | W3A | GATE-01～03 | runner 原始日志 |
+| FND-004 | verifier 信任 rc/findings/symlink/N | W2/W3B | GATE-04～12 | red-probes before/after |
+| FND-005 | 任意状态、路径穿越、无授权 clear | W1/W2 | STATE-01～05、AUTH-01 | property/concurrency/crash 日志 |
+| FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+| FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+| FND-009 | 安装器原地覆盖、doctor 吞错 | W7A/W7B | REL-01～03、DEP-01～03 | deploy/rollback drill |
+| FND-010 | DB 至少 280 项仍 CLEAN | W6C | DB-01～06 | canonical diff/golden |
+| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+| FND-012 | advisory UNKNOWN 写 seen | W6B | ADV-01～02 | 分页/版本 fixtures |
+| FND-013 | 租户扫描固定分母、当前约漏 172 | W6C | TEN-01～08 | DMMF/AST/runtime probes |
+| FND-014 | 性能 null/500/错误 p95 | W6D | PERF-01～06 | load profile/raw metrics |
+| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+| FND-016 | 当前 43 ACCEPTED 缺要素 | W5 | MIG-02、RISK-01、COND-01/04/05 | risk acceptance events |
+| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+| FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+| FND-020 | Skill/版本/枚举/数量/状态说明漂移 | W1/W10 | DOC-01～04 | consistency report |
+| FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+
+脚本必须校验每个 `FND-*` 至少映射一个工作包、一个已定义测试 ID 和一个证据路径；每个高风险测试必须反向映射需求。481 条旧记录的逐项映射属于 W5 交付物，不在本方案验证阶段冒充已完成。
+
+## 25.1 全部验收 ID 的反向需求/AC 映射
+
+为避免用“非高风险”逃避追踪，§20 当前定义的 **全部测试均按高风险处理**。以下范围必须由机器展开到每一个 ID；任何新增测试若未进入本表即 governance check 失败。
+
+| 测试 ID 范围 | 冻结需求 / AC | 工作包 | 必需证据类 |
+|---|---|---|---|
+| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+| AUTH-01～06 | REQ-AUTH-001 / AC-AUTH-ONE-TIME | W1/W2 | signed payload、replay log |
+| ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+| MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+| STATE-01～11 | REQ-STATE-001 / AC-STATE-APPEND-ONLY | W1/W2 | event log、property/crash run |
+| MIG-01～05 | REQ-MIG-001 / AC-MIG-RECONCILE | W5 | row mapping、decision、quarantine |
+| DB-01～06 | REQ-DB-001 / AC-DB-FOUR-TRACK | W6C | catalog diff、DB identity |
+| SC-01～05 | REQ-SC-001 / AC-SC-FAIL-CLOSED | W6B | audit JSON、SBOM、signature |
+| ADV-01～02 | REQ-ADV-001 / AC-ADV-COMPLETE | W6B | pages/ranges fixture |
+| TEN-01～08 | REQ-TENANT-001 / AC-TENANT-DENOMINATOR | W6C | DMMF/AST/runtime probes |
+| PERF-01～06 | REQ-PERF-001 / AC-PERF-VALID | W6D | raw samples/profile/baseline auth |
+| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+| STOP-01～03 | REQ-STOP-001 / AC-STOP-AUTH-AND-FACT | W1/W2 | nine-type matrix/events |
+| RUN-01～03 | REQ-RUNNER-001 / AC-RUNNER-ISOLATED | W2 | sandbox/quota/process-tree logs |
+| CI-05～09 | REQ-CI-001 / AC-CI-TERMINAL | W3B | check runs/ruleset/DAG validation |
+| COND-01～06 | REQ-COND-001 / AC-COND-NOT-PASS | W1/W2/W3B | risk/action auth、attestation、context |
+| RISK-01 | REQ-RISK-001 / AC-RISK-INVALIDATE | W2/W5 | revoke/invalidate/reopen events |
+| STA-01～02 | REQ-STATION-001 / AC-STATION-COVERAGE | W6A～W6D/W3B | station results/aggregate |
+| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+| RB-01 | REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT | W7B | preauthorization/compatibility/drill |
+| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+| HLT-01 | REQ-HEALTH-001 / AC-HEALTH-ATOMIC | W8 | input watermark/snapshot retry |
+| DOC-01～04 | REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT | W1/W10 | generated consistency report |
+| CAP-01 | REQ-CAP-001 / AC-CAP-SAFE-MARGIN | W0/W7A | peak budget/disk-full injection |
+| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+
+机器校验的集合等式必须成立：`defined_test_ids(§20) == expanded_mapped_test_ids(§25.1)`；不得只比较数量，也不得允许重复 ID 掩盖缺失 ID。
+
+---
+
+# 26. ZCode 每个工作包的固定回报格式
+
+```text
+工作包：W?
+状态：候选完成 / 部分完成 / BLOCKED
+正源与 SHA：
+变更文件：
+需求/AC/测试映射：
+正向验证：命令、退出码、工件
+负向验证：注入、预期、实际、工件
+并发/崩溃/恢复验证：
+未覆盖与豁免：
+部署状态：未部署 / 候选 / 已授权部署
+回滚级别：R1记录 / R2演练 / R3执行
+用户停等动作：
+独立复核结论：
+```
+
+严禁只报“测试通过”“HTTP 200”“页面正常”“脚本存在”或一个总分。
+
+---
+
+# 27. 本方案自身验证要求
+
+在交付 ZCode 前必须完成：
+
+1. 当前路径、SHA、数值和运行状态复核；拟建路径明确标注为建议，不冒充已存在。
+2. 发现→工作包→测试→证据追踪矩阵零孤儿。
+3. 依赖 DAG 无环，所有高风险动作均能到达用户停等点。
+4. 全文扫描越界措辞；不得把方案、候选或未授权动作写成已整改/已生产/零盲区。
+5. Markdown UTF-8、标题、代码围栏、表格基本结构校验。
+6. 独立红队复核安全架构、迁移、回滚和完成定义。
+7. 输出文件 SHA256，确保交接后可验真。
+
+最终强调：**方案已验证，不等于整改已验证；当前生产准入结论仍为 BLOCKED。**
+
+---
+
+# 28. ZCode 首轮落刀靶点（快照锚点）
+
+下列行号已在本轮复核时确认存在，仅用于快速定位；ZCode 开工必须先按 W0 记录新 SHA/hash 并重新定位语义，禁止因行号漂移盲改。现役目录只读取证，修复落在对应版本化正源的干净 worktree；尚无远端的 `/Users/maccc/.zcode/quality-system` 先完成 W0 责任仓裁定。
+
+| 目标 | 本轮语义锚点 | 归属工作包 |
+|---|---|---|
+| `/Users/maccc/.wenqu/daemons/auto-merge.sh` | 34–46、68–75：Fast 子串/UNSTABLE/重试合流 | W0/W3B |
+| `/Users/maccc/.zcode/quality-system/bin/pipeline-state.sh` | 34–93：自由状态、路径拼接、直接 clear | W1/W2/W5 |
+| `/Users/maccc/.zcode/quality-system/bin/pending-watch.sh` | 51–68：文本协议、notify bump | W2/W4 |
+| `/Users/maccc/.zcode/quality-system/bin/verify-convergence.py` | 55、100–112、121–179、225–263：N/自报结果/证据/超轮 | W2/W3B |
+| `/Users/maccc/.wenqu/bin/iron-gate.sh` | 18–85：diff 错误传播和文本式检查 | W3A |
+| `/Users/maccc/.wenqu/bin/zero-rework.sh` | 29–65：affected test/无测试分支 | W3A |
+| `/Users/maccc/Documents/wenqu-dist/system/install.sh` | 13–25、49–52：原地复制并吞掉 doctor 失败 | W7A |
+| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+| `/Users/maccc/argus-assemble/scripts/bugscan/judge_drift.py` | 7–8：工具错误 exit 0/文本计数 | W6C |
+| `/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh` | 39–47、63–88：远端错误/空 diff/恒 exit 0 | W4/W6C |
+| `/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh` | 40–56、125–131：吞掉 npm audit 失败且恒 exit 0 | W4/W6B |
+| `/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh` | 37–62：分页/seen/无 verdict gate | W4/W6B |
+| `/Users/maccc/argus-assemble/scripts/bugscan/export-tenant-audit.mjs` | 18–85：固定模型/字符串启发式/心跳 | W6C |
+| `/Users/maccc/argus-assemble/scripts/bugscan/perf-baseline-runner.sh` | 32–127：HTTP/SSH/null/p95/恒 exit 0 | W6D |
+| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+
+首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+
+---
+
+# 29. 本方案实际验证结果
+
+已执行只读验证器：`/private/tmp/codex-test/evidence/reaudit-20261007/validate_plan.py`。验证对象为本文件，未执行任何合流、部署、服务启停、生产写、DDL、真实告警或回滚。
+
+| 验证面 | 实际结果 |
+|---|---|
+| UTF-8 / 控制字符 / front matter | PASS；严格 UTF-8，可解析 front matter，NUL=0 |
+| Markdown 结构 | PASS；代码围栏成对，全部表格列数一致，标题/章节编号唯一，全部 § 引用有本地目标 |
+| 占位符与越界措辞 | PASS；无未决占位标记；现态与方案边界固定为 BLOCKED/未整改 |
+| 工作包引用 | PASS；W0～W10 及 W3A/B、W6A～D、W7A/B 均在允许集合，无未定义引用 |
+| 依赖 DAG | PASS；机检拓扑无环，关键链为 W3A→W6A～D→W3B，W8→W7B→W9→W10 |
+| 测试追踪 | PASS；§20 定义 131 个唯一测试 ID，§25.1 展开映射 131 个，集合完全相等、零重复、零悬空 |
+| 复审发现族 | PASS；FND-001～FND-021 连续唯一，每行均有工作包、已定义测试和证据类 |
+| 旧账边界 | PASS；481 仅为时点投影，明确由 W5 逐项 reconciliation，不冒充已完成 |
+| 停等与授权不变量 | PASS；九类 stop 全部要求一次性授权+客观条件；technical/action eligibility、两类授权和 saga 关键不变量均存在 |
+| 快照靶点 | PASS；§28 的 15 个绝对路径在验证时均存在；行号仍须 W0 重定位 |
+| 本轮证据包 | PASS；`manifest.sha256` 所列工件逐项 SHA256 校验一致 |
+| 独立复核 | PASS；问渠域、Bug 八站域和对抗红队分轮复核，阻断项已逐项回写后再验 |
+
+机器验证结果：**29/29 PASS，exit 0**。最终正文冻结后，以外置 `/private/tmp/codex-test/方案.md.sha256` 作为交接校验；不把自身 hash 嵌入正文，避免自引用失真。验证记录位于同一 evidence 目录。
+
+再次强调：这里通过的是**方案文件的一致性、追踪性和可执行性检查**，不是代码整改验收，不改变当前生产准入 `BLOCKED` 结论。
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:29:56Z

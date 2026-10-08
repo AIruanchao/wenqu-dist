@@ -1,0 +1,52 @@
+TIMESTAMP_START=2026-10-08T04:33:00Z
+CWD=/Users/maccc/Documents/wenqu-dist
+COMMAND=cd '/private/tmp/reaudit3-agentC-plan251.mcDHFa/repo'; python3 tools/ac_traceability.py --json '/private/tmp/reaudit3-agentC-plan251.mcDHFa/out-check.json' --check
+--- OUTPUT BEGIN ---
+================================================================
+Codex 方案 §20 验收 ID 追踪矩阵（P0-10）
+生成时间: 2026-10-08T12:33:00+08:00  HEAD: ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+目录完整性: OK  (冻结 131 ID，期望 131)
+方案交叉校验(§25.1 集合等式): PASS  方案侧 131 vs 冻结 131
+----------------------------------------------------------------
+总计测试 ID        : 131
+专属已实现          : 0  (0.0%)
+代理部分覆盖(不计实现): 3
+缺失                : 128
+专属+代理覆盖参考   : 2.29%
+----------------------------------------------------------------
+前缀        总数    专属    代理
+GATE      12     0     1
+STATE     11     0     1
+DEP        9     0     0
+TEN        8     0     0
+MRG        7     0     0
+SCH        7     0     0
+UI         7     0     0
+ACT        6     0     0
+AUTH       6     0     0
+COND       6     0     1
+DB         6     0     0
+PERF       6     0     0
+CI         5     0     0
+MIG        5     0     0
+SC         5     0     0
+DOC        4     0     0
+REL        3     0     0
+RUN        3     0     0
+STOP       3     0     0
+ADV        2     0     0
+ALT        2     0     0
+STA        2     0     0
+BAK        1     0     0
+CAP        1     0     0
+DR         1     0     0
+HLT        1     0     0
+RB         1     0     0
+RISK       1     0     0
+----------------------------------------------------------------
+代理覆盖 ID: COND-04, GATE-02, STATE-03
+输出: ../out-check.json  (扫描 19 个测试文件)
+================================================================
+--- OUTPUT END ---
+EXIT_CODE=0
+TIMESTAMP_END=2026-10-08T04:33:00Z

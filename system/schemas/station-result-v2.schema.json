@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wenqu:schemas/station-result-v2.json",
   "title": "Bug 八站 Station Result Schema v2",
-  "description": "每站统一结果——Codex 方案 §7.2 契约",
+  "description": "每站统一结果——Codex 方案 §7.2 契约。P0-4 加固：PASS 必须带 coverage（分母>0）与非空 artifacts，且 execution rc=0 + assertion PASS；rc 非 0 不得 PASS",
   "type": "object",
   "required": ["schema_version", "run_id", "station_id", "attempt_id", "execution_status", "policy_verdict", "identity", "tool", "execution"],
   "properties": {
@@ -81,5 +81,32 @@
     }
   },
   "additionalProperties": false,
-  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）"
+  "allOf": [
+    {
+      "if": {"properties": {"policy_verdict": {"const": "PASS"}}, "required": ["policy_verdict"]},
+      "then": {
+        "required": ["coverage", "artifacts"],
+        "properties": {
+          "coverage": {
+            "type": "object",
+            "required": ["denominator", "scanned"],
+            "properties": {
+              "denominator": {"type": "integer", "minimum": 1},
+              "scanned": {"type": "integer", "minimum": 1}
+            }
+          },
+          "artifacts": {"type": "array", "minItems": 1},
+          "execution": {
+            "type": "object",
+            "required": ["actual_exit_code", "assertion_verdict"],
+            "properties": {
+              "actual_exit_code": {"const": 0},
+              "assertion_verdict": {"const": "PASS"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "coverage.scanned < coverage.denominator 时整线 BLOCKED（分母缩水守卫）；P0-4：PASS 必须带 coverage（分母>0、scanned≥1，coverage 比例语义上 ∈[0,1]——scanned≤denominator 由站内守卫与 BLOCKED 规则强制，draft-07 无法表达跨字段比较）与非空 artifacts；actual_exit_code 非 0 或 assertion 非 PASS 不得 PASS"
 }

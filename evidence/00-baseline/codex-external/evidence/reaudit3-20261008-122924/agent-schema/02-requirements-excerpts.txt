@@ -1,0 +1,509 @@
+$ nl -ba /private/tmp/codex-test/验收报告.md | sed -n 140,205p
+   140	- ACTION_AUTH_RESERVED / ACTION_STARTED / ACTION_COMMITTED / ACTION_FAILED_UNKNOWN；
+   141	- control outbox / external receipt / reconcile。
+   142	
+   143	system/wenqu_core/__init__.py 还宣称存在 evidence.py、approvals.py，与实际文件不符。
+   144	
+   145	### P0-3 station、正式 Schema、Aggregator、Dashboard 契约断链
+   146	
+   147	- gate_aggregator.py 消费旧结构 {station,outcome,sha,environment}。
+   148	- station-result-v2.schema.json 定义的是 {station_id,execution_status,policy_verdict,identity,...}。
+   149	- 合法 station v2 结果无法直接被 Aggregator 消费。
+   150	- Aggregator 输出 aggregate_outcome；新 Dashboard 又期待 generated_at/ts 加 policy_verdict/overall/verdict。
+   151	- 全仓不存在受保护的 gate-aggregate.json 生产者。
+   152	- required_stations 为空的离线负探针实测返回：
+   153	  - aggregate_outcome=PASS
+   154	  - technical_eligible=true
+   155	  - reason=vacuous pass: no required stations configured
+   156	
+   157	这是零分母真空 PASS，违反 fail-closed。
+   158	
+   159	### P0-4 五个 Schema 未编码关键业务不变量
+   160	
+   161	离线 jsonschema.Draft7Validator 实测以下坏样例全部被接受：
+   162	
+   163	1. approval_type=merge 且完全没有 payload；
+   164	2. 顶层 merge 携带 risk 型 payload；
+   165	3. evidence 没有 schema_version、verdict、artifact；
+   166	4. station 为 PASS，但没有 coverage、artifacts；
+   167	5. CRITICAL/P0 finding 直接 ACCEPTED_RISK；
+   168	6. finding 从 OPEN 直接 CLOSED。
+   169	
+   170	根因示例：
+   171	
+   172	- approval-v2.schema.json:7 未要求 payload；
+   173	- 同文件 :33-69 在 payload 内部判别 approval_type，没有与顶层 discriminator 绑定；
+   174	- finding 的“P0/P1 不允许 ACCEPTED_RISK”“CLOSED 只能来自 VERIFIED”只写在 $comment；
+   175	- station 的分母缩水规则只写在 $comment。
+   176	
+   177	Schema 合法不等于业务契约安全。
+   178	
+   179	### P0-5 Trusted Runner / CAS 可被突破
+   180	
+   181	离线负探针实测：
+   182	
+   183	- runner 超时返回 timed_out=true 后，孙进程仍存活并在 0.6 秒后成功写入 marker；
+   184	- CAS get 接受指向 root 外、内容哈希正确的符号链接；
+   185	- CAS shard 父目录为 symlink 时，put 可把内容写到 CAS root 外；
+   186	- 同 digest 路径预置损坏普通文件后，put 仍声称成功且不校验/修复内容。
+   187	
+   188	对应源码：
+   189	
+   190	- /Users/maccc/Documents/wenqu-dist/system/wenqu_core/runner.py:120-148 使用 subprocess.run(timeout=...)，没有进程组/杀树；
+   191	- :186-211 仅保护最终文件，不保护父目录，无临时文件原子替换与 fsync；
+   192	- :198-203 文件已存在时直接返回成功；
+   193	- :213-223 读取跟随 symlink。
+   194	
+   195	此外 runner 默认继承全环境、allowlist 可关闭，无不可变 commit snapshot、网络 deny-by-default、资源/输出上限、低权限隔离或原始输出 CAS。
+   196	
+   197	### P0-6 EventStore 幂等失败，且与迁移器 DB Schema 互斥
+   198	
+   199	离线负探针实测：
+   200	
+   201	- 对同一逻辑事件连续重试两次：
+   202	  - 第一次 inserted=true
+   203	  - 第二次仍 inserted=true
+   204	  - chain length = 2
+   205	- 先创建 EventStore 再运行 LedgerMigrator：
+[exit_code]0
+$ nl -ba /private/tmp/codex-test/验收报告.md | sed -n 245,275p
+   245	- 实际安装体 /Users/maccc/.wenqu/daemons/auto-merge.sh 仍存在；
+   246	- Dashboard 仍把该文件“在位”算作组件完整，并显示“无运行中守护（wenqu start）”。
+   247	
+   248	因此“观察期禁 wenqu start”只是人工纪律，不是机器不可违反的约束。必须删除 writer 或让启动路径机器拒绝，而不是依赖口头禁令。
+   249	
+   250	### P0-9 实际 7789 仍是旧控制面，保留未认证写入口
+   251	
+   252	运行身份对账：
+   253	
+   254	- launchd 实际启动 /Users/maccc/.wenqu/bin/wenqu-dashboard.py 7789；
+   255	- 其 SHA 与仓内旧 system/bin/wenqu-dashboard.py 一致；
+   256	- 新 system/dashboard 四文件未运行。
+   257	
+   258	旧控制面问题：
+   259	
+   260	- /Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py:850-888 的 /api/decide 没有认证、Origin、Host、CSRF、一次性授权或审计签名，直接重写决策 JSONL；
+   261	- :500-555 多处把账本、健康、决策等动态值拼入 innerHTML；
+   262	- read-only Host 负探针用 Host: attacker.example 请求仍返回 HTTP 200；
+   263	- 浏览器实看可见“采纳/驳回”按钮，故它不是只读汇总面。
+   264	
+   265	本轮没有点击这些按钮，也没有发送任何 POST。
+   266	
+   267	### P0-10 交付没有方案要求的证据包、红探针和最终制品
+   268	
+   269	- 仓内没有 evidence/W0...W10 证据目录。
+   270	- 没有 W0 writer inventory、containment manifest、runtime/source diff。
+   271	- 没有 W5 逐条 legacy reconciliation。
+   272	- 没有 W9 shadow/canary/cutover/runtime attestation。
+   273	- 没有 W10 14 天观察、周任务两轮、回滚演练、RPO/RTO 实测。
+   274	- 方案 §20 共 131 个唯一验收 ID；active workflow 中对应自动测试为 0。
+   275	- SHA256-v3.6.1.txt 指向 wenqu-v3.6.1.tar.gz，但该 tarball 不在仓内；其余多版 SHA 文件同样没有对应制品。
+[exit_code]0
+$ nl -ba /private/tmp/codex-test/方案.md | sed -n 155,285p
+   155	| 配置/秘密 | `~/.config/wenqu`、Keychain 或 0600 文件 | 不入 argv、日志、Git、证据正文 |
+   156	
+   157	`/Users/maccc/.zcode/quality-system` 目前把代码、账本、证据和实时状态混在一个长期脏工作树中，且尚未确认其正式 source repo。W0 必须冻结 quality-policy 的 `repo_id/default branch/owner/build入口/Skill源位置/安装位置/状态位置`；未确定前禁止在现役目录开发。拆分必须渐进进行，不能大爆炸搬迁。
+   158	
+   159	## 3.3 集成发布身份
+   160	
+   161	新增 `wenqu-release.lock.json`，至少绑定：
+   162	
+   163	```text
+   164	wenqu_dist_commit
+   165	quality_policy_commit
+   166	one_shot_skill_sha256
+   167	bugscan_skill_sha256
+   168	policy_sha256
+   169	schema_version
+   170	release_manifest_sha256
+   171	```
+   172	
+   173	任何一项未知、缺失或与运行体不一致时，release eligibility 必须是 `BLOCKED`。
+   174	
+   175	---
+   176	
+   177	# 4. 不可变安全不变量
+   178	
+   179	1. `UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT` 一律不是 PASS。
+   180	2. 任一 required probe 的执行或策略结果非 PASS，整线不得 PASS。
+   181	3. PASS 必须绑定：`run_id + commit_sha + environment + scope_hash + ruleset_hash + data_config_hash + artifact hashes + TTL`。
+   182	4. run 起跑后 commit、环境、规则集或范围变化，旧证据立即失效并新建 run。
+   183	5. 问渠七段必须顺序推进；Bug 八站中相互独立的站应继续/并行取证。任一 required 站非 PASS 时整线绝不为 PASS；仅 policy 允许且有效的低风险接受可形成 CONDITIONAL，其余非 PASS 一律 BLOCKED。禁止因早站失败而形成后续扫描盲区。
+   184	6. WAITING 只能由规定停等事件产生；无有效一次性授权不得 resume。
+   185	7. 审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本。
+   186	8. release/merge/prod-write 只能消费 exact-scope 的有效授权事件。
+   187	9. 所有控制事件只追加；不得删除历史，纠错使用 supersede/reopen 事件。
+   188	10. 相同 idempotency key 重放不得造成第二次副作用。
+   189	11. evidence 不得是 symlink、外部路径、空文件或无哈希文件。
+   190	12. findings 数量从解析后的 finding list 计算，不信任 `findings/content_findings` 自报数字。
+   191	13. 只有 trusted runner 实际捕获的退出码有效。
+   192	14. dashboard 只能等于或比权威聚合器更保守，绝不能更绿。
+   193	15. 自动合流不拥有 admin/bypass 能力；异常时退化为关闭和人工受保护 PR，而不是绕闸。
+   194	16. 只有同一实体身份、同一输入指纹、仍在 TTL 内的 `execution_status=COMPLETED && policy_verdict=PASS` 才能刷新该 probe/station/job 的 `last_success`；N/A、CONDITIONAL、FAIL、ERROR、BLOCKED、TIMEOUT、CANCELLED 均不得刷新。心跳必须包含结果和证据身份。
+   195	17. P0/P1 未清、有效 required evidence 过期或 runtime 漂移时禁止生产放行。
+   196	18. 历史迁移必须数量守恒：源非空行数 = 有效导入 + 重复说明 + quarantine。
+   197	
+   198	---
+   199	
+   200	# 5. 威胁模型与最小可信基
+   201	
+   202	## 5.1 保护资产
+   203	
+   204	- 合流与发布正确性；
+   205	- 人类授权不可伪造、不可重放、不可扩范围；
+   206	- 账本/证据完整性和断电耐久；
+   207	- 租户隔离、资金/权限业务不变量；
+   208	- 健康呈现真实性；
+   209	- source/runtime 身份一致；
+   210	- 告警端到端可达与可确认；
+   211	- 回滚不丢失切换后的新事件。
+   212	
+   213	## 5.2 故障与攻击源
+   214	
+   215	- 恶意 PR 内容、伪造 check 名、旧 SHA 绿灯、PR 自改 workflow；
+   216	- localhost 恶意网页、CSRF、日志/账本 XSS 注入；
+   217	- 同 UID 并发 agent、人工误操作、运行体热补；
+   218	- GitHub/npm/registry/SSH 返回空、部分数据、限流或超时；
+   219	- launchd 的 PATH、HOME、TCC 与交互 Shell 不一致；
+   220	- 磁盘满、只读目录、kill -9、断电、时钟跳变、PID 复用；
+   221	- parser 未识别新格式、扫描范围静默缩小；
+   222	- 迁移双写、两个 writer epoch、回滚覆盖新事件。
+   223	
+   224	不声称抵御 root/物理控制权丢失、GitHub 组织 owner 被完全攻陷或硬件级攻击；这些必须在最终风险边界中明示。
+   225	
+   226	## 5.3 最小可信基 TCB
+   227	
+   228	```text
+   229	scanner/plugin
+   230	  └─只产原始输出
+   231	trusted runner
+   232	  └─捕获 argv/cwd/真实 rc/timeout/stdout/stderr/hash
+   233	schema normalizer
+   234	  └─严格验证并生成 typed result
+   235	independent gate aggregator
+   236	  └─校验身份、TTL、required 集合、状态和证据哈希
+   237	merge/release controller
+   238	  └─动作前同时重验 technical_eligible 与 exact action authorization；两者缺一均不动作
+   239	dashboard
+   240	  └─只读展示，不写 Gate、不自算放行
+   241	```
+   242	
+   243	禁止“扫描脚本自己写 PASS/心跳，再由同目录脚本统计为健康”的循环自证。Gate aggregator 必须是小型、只读、依赖最少的独立组件，并接受变异测试。
+   244	
+   245	---
+   246	
+   247	# 6. 目标数据与状态模型
+   248	
+   249	## 6.1 统一结果双轴
+   250	
+   251	```text
+   252	execution_status = COMPLETED | ERROR | BLOCKED | TIMEOUT | CANCELLED
+   253	policy_verdict   = PASS | FAIL | CONDITIONAL | NOT_APPLICABLE | NOT_EVALUATED
+   254	aggregate_outcome = PASS | CONDITIONAL | BLOCKED
+   255	```
+   256	
+   257	- `COMPLETED+NOT_APPLICABLE` 只能由受保护 policy 的 applicability rule 生成；人工文字不能生成 N/A。
+   258	- FINDINGS 表示 `COMPLETED+FAIL`，不是 execution status。
+   259	- CONDITIONAL 不等于 PASS：无独立有效 risk authorization 时 technical eligibility=false；即使 risk authorization 有效，无 exact action authorization 也不得执行受保护动作。
+   260	- **站级语义：** required station 只有 `COMPLETED+PASS` 才是 station PASS；CONDITIONAL 不得改写成 PASS，也不得计入“全站 PASS”。
+   261	- **内部聚合语义：** 存在 policy 允许的低风险 `ACCEPTED_RISK` 时，aggregate 仍为 CONDITIONAL；未授权时 CLI 返回 exit 4，GitHub required context 发布 failure/blocked，自动合流不得消费。
+   262	- **机器谓词分层：** `technical_eligible := exact_sha_pass OR (aggregate=CONDITIONAL AND valid_risk_authorization AND valid_conditional_attestation)`；`action_eligible := technical_eligible AND valid_exact_action_authorization`。普通 PASS 只证明技术条件，不授予 merge/release/prod-write/DDL 权；所有受保护动作都必须额外具备 exact action authorization。
+   263	- **唯一条件放行路径：** 所有非接受项均 PASS，且 approval broker 签发绑定完整 finding 集合和失效域的 risk authorization 后，aggregator 可铸造 `AUTHORIZED_CONDITIONAL` attestation。内部 aggregate、详情页和 dashboard 仍保持琥珀色 CONDITIONAL，不得显示 PASS；P0/P1 永不适用。risk authorization 与 action authorization 是两个判别类型；可由同一个人类批准包同时签发，但必须分别校验、分别消费。
+   264	- **Check 映射：** PASS→`success/PASS`；未获 risk authorization 的 CONDITIONAL→`failure/CONDITIONAL_BLOCKED`；合法条件态→`success/AUTHORIZED_CONDITIONAL`；BLOCKED/ERROR/STALE→failure。任何绿色 context 只表达 technical eligibility，不等于动作授权；另一个 `Action Authorization Gate` 只在 exact action authorization 有效时对对应 SHA/action 成功。
+   265	- **控制器消费：** merge/release controller 在动作前重新计算 `action_eligible`。CONDITIONAL 时禁用 native auto-merge；PASS 路径也只能由已经审计的人类精确 enqueue 事件或专用最小权限 App 触发。仓库角色/ruleset 必须禁止其他人或 bot 仅凭绿色 context 直接合流；break-glass 另走一次性审计路径。
+   266	- 新 finding、finding 集合变化、证据/接受到期、SHA/scope/environment/policy/ruleset/input watermark/state_version 变化或签名密钥吊销，必须在本地立即将 authorization/attestation 判无效并写入失败更新 outbox。即使 GitHub 暂时失联而保留陈旧绿色 context，专用 App 仍会因动作前重验失败而拒绝，其他主体也无直接合流权限。
+   267	
+   268	跨 SQLite 与 GitHub/发布系统禁止宣称 ACID“同一事务”。必须实现 durable saga/outbox：
+   269	
+   270	1. 本地事务原子写入 `RISK_AUTH_CONSUMED + ATTESTATION_CREATED + CONTROL_OUTBOX`，dispatcher 用幂等键创建/更新 check，并回写外部 `check_run_id/revision`；
+   271	2. 动作事务原子写 `ACTION_AUTH_RESERVED + ACTION_STARTED + CONTROL_OUTBOX`，随后用 expected-SHA、merge-group SHA 或 deployment fencing token 调外部动作；
+   272	3. 收到可验证回执后写 `ACTION_COMMITTED`；超时、崩溃或回执丢失写 `ACTION_FAILED_UNKNOWN`，恢复器必须先查询 GitHub/部署事实再裁定，绝不盲重试；
+   273	4. 若已证明外部未发生，则旧授权作废，必须重新授权；若外部已发生，则补记 COMMITTED，不产生第二次副作用；
+   274	5. dispatcher 的 crash-before/after-publish、controller 的 crash-before/after-action 与回执丢失均须故障注入。
+   275	
+   276	统一退出码：
+   277	
+   278	| 退出码 | 含义 |
+   279	|---:|---|
+   280	| 0 | 执行完成且策略 PASS |
+   281	| 1 | 执行完成但有 FINDINGS/FAIL |
+   282	| 2 | 工具、输入、网络、格式或证据 ERROR |
+   283	| 3 | 权限、审批或依赖 BLOCKED |
+   284	| 4 | CONDITIONAL，必须存在合法限时风险接受 |
+   285	| 124 | TIMEOUT |
+[exit_code]0
+$ nl -ba /private/tmp/codex-test/方案.md | sed -n 430,505p
+   430	findings
+   431	finding_events
+   432	risk_acceptances
+   433	convergence_rounds
+   434	notification_outbox
+   435	control_outbox
+   436	action_attempts
+   437	alert_deliveries
+   438	sentinel_runs
+   439	release_deployments
+   440	legacy_quarantine
+   441	```
+   442	
+   443	强制设置：
+   444	
+   445	- WAL、`foreign_keys=ON`、`synchronous=FULL`；
+   446	- `BEGIN IMMEDIATE`；
+   447	- unique idempotency key；
+   448	- optimistic `state_version`/CAS；
+   449	- events 表 trigger 禁止 UPDATE/DELETE；
+   450	- 状态事件与通知 outbox 同事务提交；
+   451	- `prev_event_hash/event_hash` 形成链；
+   452	- JSONL 仅从 DB 生成只读兼容投影。
+   453	
+   454	## 6.5 审批事件
+   455	
+   456	审批采用 `action/stop_type` 判别联合，而不是让所有类型携带无意义的 PR 字段。公共 envelope 最少包含：
+   457	
+   458	```text
+   459	approval_id, approval_type, run_id, task_id, stop_event_id, stop_type, stage,
+   460	environment, authorized_scope, policy_hash, ruleset_hash, input_watermark,
+   461	actor, issued_at, expires_at, expected_state_version,
+   462	nonce, decision, signature
+   463	```
+   464	
+   465	判别 payload 至少为：
+   466	
+   467	```text
+   468	resume:     stop_event_id + stop_type + objective_precondition_hash
+   469	risk:       finding_fingerprints + severity + reason + compensating_controls + expiry
+   470	merge:      repo_id + base_sha + PR + head_sha/merge_group_sha + merge_method
+   471	release:    release_id + artifact_sha256 + manifest_sha256 + environment + previous_release_id
+   472	ddl:        database_identity + statement_digest + before/after_schema_hash + backup_id + rollback_plan_hash
+   473	prod_write: operation_digest + data_scope_digest + idempotency_key + conservation/compensation_hash
+   474	fund_auth:  subject/role/amount_scope_digest + positive_negative_test_hash + audit_target
+   475	rollback:   failed_deployment_id + exact_previous_release_id + trigger + schema_compatibility_hash
+   476	```
+   477	
+   478	resume 与本地审批消费必须同事务；外部动作按 §6.1 durable saga 处理。过期、重复、错误 actor、错误 scope、错误 SHA/环境、旧版本或 payload 与 discriminator 不符全部拒绝。第一阶段关闭 dashboard 写接口，仅允许受控 CLI/broker 写入。
+   479	
+   480	## 6.6 可信证据
+   481	
+   482	每份证据最少绑定：
+   483	
+   484	```text
+   485	evidence_id, run_id, task_id, stage/station, attempt_id,
+   486	repo_id, commit_sha, base_sha, environment, scope_hash,
+   487	ruleset_hash, data_config_hash, lockfile_hash,
+   488	runner_id/version, tool_name/version/digest,
+   489	argv_digest, cwd_digest, started_at, finished_at,
+   490	actual_exit_code, stdout_sha256, stderr_sha256,
+   491	artifact_sha256, artifact_size, verdict, fresh_until
+   492	```
+   493	
+   494	runner 必须以 argv 数组启动命令，实际 waitpid 捕获退出码；以 `O_NOFOLLOW/lstat/realpath` 拒绝 symlink、非普通文件和根外路径；原始输出复制进 CAS 后 fsync，再写 manifest。调用者不得填写实际退出码或总 findings。
+   495	
+   496	`fresh_until` 由受保护 policy 按 `trusted_finished_at + policy_ttl` 计算，调用者和工件不得自行声明。Aggregator 每次读取都必须动态判断 evidence、ACCEPTED_RISK、EXM 是否过期；reopen/expiry scheduler 仅用于修正投影和通知，不能成为过期失效的唯一防线。
+   497	
+   498	时间证据统一 UTC aware timestamp，并记录 boot ID/clock health。检测到时钟回拨、来源不可信或偏差超策略阈值时，Gate 为 UNKNOWN/BLOCKED。
+   499	
+   500	负向测试必须区分：
+   501	
+   502	```text
+   503	actual_exit_code     = 被测命令真实退出码
+   504	expected_exit_set    = 该测试允许的内层退出码集合
+   505	assertion_verdict    = 测试 harness 对行为是否符合预期的判断
+[exit_code]0
+$ nl -ba /private/tmp/codex-test/方案.md | sed -n 714,825p
+   714	# 10. 工作包 W1：契约、Schema、威胁模型、TLA 与红探针
+   715	
+   716	## 10.1 产物
+   717	
+   718	```text
+   719	docs/specs/wenqu-vNext-contract.md
+   720	docs/specs/bugscan-v2-contract.md
+   721	docs/security/threat-model.md
+   722	docs/adr/ADR-001-event-store.md
+   723	docs/adr/ADR-002-approval-security.md
+   724	docs/adr/ADR-003-trusted-runner.md
+   725	schemas/run-event-v2.schema.json
+   726	schemas/station-result-v2.schema.json
+   727	schemas/finding-event-v2.schema.json
+   728	schemas/evidence-v2.schema.json
+   729	schemas/approval-v2.schema.json
+   730	schemas/health-v2.schema.json
+   731	policies/default-policy.yaml
+   732	specs/WenquPipeline.tla
+   733	specs/WenquPipeline.cfg
+   734	docs/traceability/REQ-AC-IMP-TEST-EVID.md
+   735	tools/check-governance-consistency.py
+   736	tests/red_probes/
+   737	```
+   738	
+   739	治理文档必须由同一 machine registry/schema 生成或校验，修复当前漂移：
+   740	
+   741	- one-shot front matter 写“八类”但正文实际九类，以及“正式现役”与当前 BLOCKED 冲突；
+   742	- one-shot 的 L4 直推/force-with-lease 绕闸规则；
+   743	- bug skill front matter v1.6 与正文 v2.0 不一致；
+   744	- “7 项”实际 12 项；
+   745	- fork8/36 项验收与现役 fork24/53 不一致。
+   746	
+   747	`DOC-*` 红探针必须在 CI 阻断版本、枚举、数量、状态和实际 registry 不一致。
+   748	
+   749	## 10.2 必须冻结的契约
+   750	
+   751	- 七段、八站、九类停等的唯一枚举；
+   752	- 执行状态、策略结果、进程退出码；
+   753	- Finding 与 ACCEPTED_RISK 状态转换；
+   754	- required 证据字段和 TTL；
+   755	- 风险分级、不可豁免级别；
+   756	- exact-SHA 合流条件；
+   757	- 审批 actor、scope、nonce、有效期和消费规则；
+   758	- heartbeat、alert、backup、deployment 结果 envelope；
+   759	- 兼容版本和迁移策略。
+   760	- `severity` 与 `priority` 分离：默认 `CRITICAL→P0`、`HIGH→P1`；资金、权限、租户、数据损坏、合流绕闸可由版本化 policy 升级；自动流程不得降级；P0/P1 不得风险接受。
+   761	- CONDITIONAL 默认 technical eligibility=false。只有独立 risk authorization 精确绑定 finding 集、severity、理由、补偿控制、scope/environment/policy/ruleset/input watermark/state_version/TTL 后，才能铸造 `AUTHORIZED_CONDITIONAL` attestation；任何 merge/release/prod-write/DDL 仍需另一个对应判别 payload 的 exact action authorization。两类授权分别校验、分别消费；required context 必须显式标注条件放行，任一机制未完整落地时不得动作。
+   762	- 必需漏洞源、辅助源、离线快照签名者和 TTL，以及单源不可用时的状态。
+   763	- 性能 endpoint 分母、并发、预热、最小样本/时长、p95/p99/错误率/吞吐与相对退化阈值、baseline 晋升审批。
+   764	- check freshness、evidence TTL、scheduler due window 和 catch-up 规则的具体机器参数。
+   765	- RPO/RTO 数值：本机已提交事件与 outbox 默认目标 RPO=0，恢复 RTO 由项目冻结（建议不高于 30 分钟），offsite RPO 由数据敏感度和授权决定；未冻结、未实测不得进入 W9。
+   766	
+   767	## 10.3 验收
+   768	
+   769	- JSON Schema 对所有示例和反例给出确定结果；
+   770	- 无自由 status、无未定义转换、无“有字段即可 PASS”的弱约束；
+   771	- TLC 在约定状态空间内零 invariant violation；
+   772	- 威胁→控制→测试逐项映射，无孤立威胁；
+   773	- 需求→AC→实现点→测试→证据全部双向可追踪；
+   774	- 所有当前假绿先在旧实现下复现并留证，再锁为新实现回归门。
+   775	
+   776	## 10.4 回滚
+   777	
+   778	Schema 在观察期采用 expand/contract；新字段先 additive，旧 reader 保持兼容。禁止用回滚删除已写事件或缩小验证规则。
+   779	
+   780	---
+   781	
+   782	# 11. 工作包 W2：Trusted Runner、事件账本、授权与 CAS
+   783	
+   784	## 11.1 推荐实现边界
+   785	
+   786	以下路径均为**建议落在 `/Users/maccc/Documents/wenqu-dist` 仓内的相对路径**；W1 ADR 必须先冻结 owner repo、默认分支、owner、build 入口和安装目的地。若 W0 找到已有正式 quality-policy 正源，可将 policy/Skill 移入该仓，但 executable core 只能有一份，禁止两仓复制同名实现。
+   787	
+   788	```text
+   789	system/wenqu_core/models.py
+   790	system/wenqu_core/store.py
+   791	system/wenqu_core/state_machine.py
+   792	system/wenqu_core/approvals.py
+   793	system/wenqu_core/runner.py
+   794	system/wenqu_core/evidence.py
+   795	system/wenqu_core/outbox.py
+   796	system/bin/wenquctl
+   797	```
+   798	
+   799	Shell 只允许作为薄入口，不再承担状态、JSON 拼接、授权和聚合逻辑。
+   800	
+   801	## 11.2 实现要求
+   802	
+   803	1. 命令基于目标 commit 的不可变源快照执行；需要 npm install/build/test 写入时使用独立 ephemeral overlay/scratch 或一次性隔离 worktree，结束后验证源内容未变化，禁止复用共享脏仓。
+   804	2. argv 数组、cwd、env allowlist、timeout、资源限额均冻结并入证据。
+   805	3. runner 捕获真实退出码和原始 stdout/stderr；normalizer 只消费 runner 记录。
+   806	4. CAS 写入使用私有临时文件、fsync、原子 rename；拒绝链接和根外路径。
+   807	5. SQLite 写入使用事务、幂等键和 CAS；状态与 outbox 原子提交。
+   808	6. `wait-clear` 改为追加 `RESUMED/CLOSED/SUPERSEDED` 事件，永不删除历史。
+   809	7. 当前两条 stale WAITING 必须逐条读取最新任务状态，由用户裁定；不得脚本自动关闭。
+   810	8. hash chain 只宣称 tamper-evident，不宣称抵御同 UID/root 修改；checkpoint 应锚定到独立只读位置或远端受控存储。
+   811	9. SQLite 备份使用 backup API 或 `VACUUM INTO` 一致性快照，禁止直接拷贝 DB/WAL 后声称可恢复。
+   812	10. W1 必须冻结 runner 后端：优先专用低权限账号上的 ephemeral VM/container；默认无 Keychain、无 SSH agent、无生产凭据、网络 deny-by-default，repo/state/CAS 按最小权限挂载，并限制 CPU、内存、进程数、输出/文件大小。
+   813	11. timeout/cancel 必须终止完整 process group/cgroup，验证无子孙进程、后台写者或 fork bomb 残留。
+   814	
+   815	## 11.3 验收矩阵
+   816	
+   817	- 100 writer × 100 events：零丢失、零重复、唯一序列；
+   818	- 事务前/中/后 kill -9：恢复后要么全提交、要么全无；
+   819	- 任意非法转换、任意自由 status、路径字符、NUL、超长 ID 均拒绝；
+   820	- 无授权、过期授权、重复授权、错误 scope、旧 version、错误 SHA/env 均拒绝；
+   821	- approval 消费与 resume 原子一致；
+   822	- evidence 改字节、替换 symlink、hardlink、截断、空文件均阻断；
+   823	- 磁盘满、只读、时钟回拨、进程重放、outbox provider 失败均不丢事件；
+   824	- 从 events 全量重放得到的投影与在线投影完全相同；
+   825	- 一致性备份恢复演练通过并校验 hash chain。
+[exit_code]0
+$ nl -ba /private/tmp/codex-test/方案.md | sed -n 1330,1410p
+  1330	---
+  1331	
+  1332	# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+  1333	
+  1334	## 17.1 结构重构
+  1335	
+  1336	将单文件 HTML/JS/Python 拆为：
+  1337	
+  1338	```text
+  1339	system/dashboard/index.html
+  1340	system/dashboard/app.js
+  1341	system/dashboard/app.css
+  1342	system/dashboard/server.py
+  1343	```
+  1344	
+  1345	API 版本化 `/api/v1/*`。GET 只读，不得顺手写 health history。
+  1346	
+  1347	## 17.2 健康模型
+  1348	
+  1349	主状态：
+  1350	
+  1351	```text
+  1352	GREEN | DEGRADED | BLOCKED | UNKNOWN
+  1353	```
+  1354	
+  1355	总体状态取 required 项中的**最坏值**，不是加权平均。分数仅作趋势，不参与解除硬阻断；任一 P0 时即使展示分数也不得超过红色区间。
+  1356	
+  1357	以下任一出现必须 BLOCKED/UNKNOWN：
+  1358	
+  1359	- gatedoctor 非 PASS；
+  1360	- source/runtime manifest 漂移；
+  1361	- event store/evidence 校验失败；
+  1362	- required sentinel ERROR/stale；
+  1363	- 危险旧 auto-merge 存活；
+  1364	- WAITING 超 SLA 且通知未 delivered；
+  1365	- required Gate 缺失、错误 SHA 或过期；
+  1366	- EXM 超阈值；
+  1367	- P0/P1 未关闭；
+  1368	- 唯一正源或环境身份未知；
+  1369	- 磁盘达到资源停等阈值。
+  1370	
+  1371	每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+  1372	
+  1373	## 17.3 功能要求
+  1374	
+  1375	- 七段问渠、八站 Bug、九类停等分开展示；
+  1376	- 所有 finding 状态含 ACCEPTED_RISK、quarantine 均可钻取；
+  1377	- 日志正文可见并明确来源/时点；
+  1378	- 自动巡游如保留，必须标注“演示动画，不代表执行”；
+  1379	- 页面显示当前 build/release/source/runtime attestation；
+  1380	- 数据源缺失返回结构化 ERROR/503，不得 HTTP 200+空集缩小问题数量。
+  1381	
+  1382	## 17.4 安全
+  1383	
+  1384	- 服务继续仅绑定 `127.0.0.1` 或权限受控 UDS，禁止 wildcard；严格 Host 校验防 DNS rebinding，CORS 默认拒绝；
+  1385	- `/api/build` 等最小非敏感端点可匿名，日志、决策、finding 明细需要本地 session/read authorization；
+  1386	- 动态文本统一 `textContent`/安全模板；禁止未转义 `innerHTML`；
+  1387	- CSP、`nosniff`、`frame-ancestors 'none'`、`no-store`、`no-referrer`；
+  1388	- Host/Origin allowlist、body size limit、Content-Type 精确校验；
+  1389	- 第一阶段 `/api/decide` 返回 405；
+  1390	- 恢复写操作前必须有：UDS 0600 控制服务或等效隔离、本地 session bootstrap、HttpOnly/SameSite cookie、CSRF、真实 actor、idempotency key、CAS、append-only event；
+  1391	- 禁止硬编码“超哥点击”和整文件重写；
+  1392	- request audit 日志脱敏且可轮转；
+  1393	- 请求超时、最大并发、速率限制、日志响应行数/字节上限和 secret/PII 二次脱敏必须机器化。
+  1394	
+  1395	健康聚合由独立 aggregator 原子生成带 input watermark 的一致性快照；采集中任一输入版本变化则整份 snapshot 作废重算。Dashboard 不得串行拼接不同时间点 API 后自行得结论。
+  1396	
+  1397	## 17.5 Playwright/真实浏览器门
+  1398	
+  1399	- 总览在 fresh/cache/导航后均可见；
+  1400	- 七段、八站命名与节点正确；
+  1401	- ACCEPTED/OTHER/quarantine 均可钻取；
+  1402	- 六个日志正文实际出现；
+  1403	- XSS payload 不执行；
+  1404	- CSRF/伪 Origin/text/plain 写入被拒；
+  1405	- Cache-Control 生效，版本更新不保留坏页面；
+  1406	- 键盘/ARIA、reduced-motion、375px 无横溢；
+  1407	- 任一 required blocker 时页面不可能显示“良好”。
+  1408	
+  1409	## 17.6 回滚
+  1410	
+[exit_code]0

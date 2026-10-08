@@ -1,0 +1,294 @@
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n 250,315p
+   250	    },
+   251	    "ext-unavail": {
+   252	        "description": "一次性恢复授权 + 外部依赖健康探针恢复并重验证据新鲜度",
+   253	        "required": (("dependency_probe_ref", "probe_recovered",
+   254	                      "evidence_freshness_reverified"),),
+   255	        "any_of": (),
+   256	    },
+   257	}
+   258	
+   259	# ====================================================================== #
+   260	# approval-v2 结构规格（镜像 schemas/approval-v2.schema.json）
+   261	# ====================================================================== #
+   262	
+   263	_APPROVAL_SCHEMA_VERSION = "2.0"
+   264	_APPROVAL_REQUIRED_TOP = (
+   265	    "schema_version", "approval_id", "approval_type", "run_id", "stop_event_id",
+   266	    "stop_type", "actor", "issued_at", "expires_at", "nonce", "decision",
+   267	    "signature", "payload",
+   268	)
+   269	_APPROVAL_ALLOWED_TOP = frozenset(_APPROVAL_REQUIRED_TOP) | frozenset({
+   270	    "task_id", "stage", "environment", "authorized_scope", "policy_hash",
+   271	    "ruleset_hash", "input_watermark", "expected_state_version",
+   272	})
+   273	_APPROVAL_TYPES = frozenset({
+   274	    "resume", "risk", "merge", "release", "ddl", "prod_write",
+   275	    "fund_auth", "rollback",
+   276	})
+   277	_APPROVAL_DECISIONS = frozenset({"approve", "deny", "conditional"})
+   278	# payload 判别联合：按 approval_type 必须含的专属字段（schema oneOf）
+   279	_APPROVAL_PAYLOAD_DISCRIMINATOR: Dict[str, Tuple[str, ...]] = {
+   280	    "resume": ("stop_event_id", "stop_type", "objective_precondition_hash"),
+   281	    "risk": ("finding_fingerprints", "severity", "reason",
+   282	             "compensating_controls", "expiry"),
+   283	    "merge": ("repo_id", "base_sha", "head_sha", "merge_method"),
+   284	    "release": ("release_id", "artifact_sha256", "manifest_sha256",
+   285	                "environment", "previous_release_id"),
+   286	    "ddl": ("database_identity", "statement_digest", "before_schema_hash",
+   287	            "after_schema_hash", "backup_id", "rollback_plan_hash"),
+   288	    "prod_write": ("operation_digest", "data_scope_digest",
+   289	                   "idempotency_key", "conservation_hash"),
+   290	    "fund_auth": ("subject_role", "amount_scope_digest",
+   291	                  "positive_negative_test_hash", "audit_target"),
+   292	    "rollback": ("failed_deployment_id", "exact_previous_release_id",
+   293	                 "trigger", "schema_compatibility_hash"),
+   294	}
+   295	
+   296	# ====================================================================== #
+   297	# 异常
+   298	# ====================================================================== #
+   299	
+   300	
+   301	class PipelineError(RuntimeError):
+   302	    """管线基础错误。"""
+   303	
+   304	
+   305	class InvalidTransitionError(PipelineError):
+   306	    """违反契约 §5 允许转换表的状态跳变。"""
+   307	
+   308	    def __init__(self, kind: str, current: str, new: str) -> None:
+   309	        super().__init__(
+   310	            f"illegal {kind} transition: {current} -> {new} "
+   311	            f"(allowed table: contract §5)"
+   312	        )
+   313	        self.kind, self.current, self.new = kind, current, new
+   314	
+   315	
+[exit_code]0
+$ nl -ba system/wenqu_core/wenqu_pipeline.py | sed -n 760,910p
+   760	
+   761	# ====================================================================== #
+   762	# ApprovalBroker——approval-v2 审批消费
+   763	# ====================================================================== #
+   764	
+   765	
+   766	class ApprovalBroker:
+   767	    """消费 approval-v2 审批事件：fail-closed 校验 + 一次性原子消费。
+   768	
+   769	    校验链（任一失败即抛 ApprovalRejected/ApprovalPreconditionError，
+   770	    且不消费 nonce、不写任何事件）：
+   771	        1. 结构（镜像 schema：required/enum/pattern/minLength/判别联合/
+   772	           additionalProperties=false）；
+   773	        2. decision 必须为 approve（deny/conditional 不足以 resume）；
+   774	        3. TTL：issued_at <= now < expires_at；
+   775	        4. run 绑定：run_id / stop_event_id / stop_type / stage /
+   776	           environment / authorized_scope(=scope_hash) / input_watermark(=commit_sha)；
+   777	        5. state_version CAS：expected_state_version == run 当前版本；
+   778	        6. 客观前置条件：满足该 stop_type 的必要且充分规格，且其内容哈希
+   779	           == payload.objective_precondition_hash（授权精确绑定条件内容）。
+   780	
+   781	    原子消费：第 4-6 步的 run 状态读取、nonce 占用（PRIMARY KEY 冲突即
+   782	    ApprovalReuseError）与 WAITING_RESUMED 事件链式插入全部发生在同一个
+   783	    BEGIN IMMEDIATE 事务内——并发双消费第二个必然撞 nonce 主键失败。
+   784	    """
+   785	
+   786	    _CONSUMPTION_SCHEMA = """
+   787	    CREATE TABLE IF NOT EXISTS approval_consumptions (
+   788	        nonce             TEXT PRIMARY KEY,
+   789	        approval_id       TEXT NOT NULL,
+   790	        approval_type     TEXT NOT NULL,
+   791	        run_id            TEXT NOT NULL,
+   792	        stop_type         TEXT NOT NULL,
+   793	        decision          TEXT NOT NULL,
+   794	        expires_at        TEXT NOT NULL,
+   795	        consumed_at       REAL NOT NULL,
+   796	        preconditions_hash TEXT,
+   797	        resume_event_hash TEXT
+   798	    );
+   799	    CREATE INDEX IF NOT EXISTS idx_approval_consumptions_run
+   800	        ON approval_consumptions(run_id);
+   801	    """
+   802	
+   803	    def __init__(self, store: EventStore,
+   804	                 db: Optional[_PipelineDb] = None) -> None:
+   805	        self._store = store
+   806	        self._db = db if db is not None else _PipelineDb.from_store(store)
+   807	        self._db._conn.executescript(self._CONSUMPTION_SCHEMA)  # noqa: SLF001
+   808	
+   809	    # ------------------------------------------------------------------ #
+   810	    # 结构校验（镜像 approval-v2.schema.json，无外部依赖）
+   811	    # ------------------------------------------------------------------ #
+   812	    @staticmethod
+   813	    def validate_structure(approval: Mapping[str, Any]) -> Dict[str, Any]:
+   814	        if not isinstance(approval, Mapping):
+   815	            raise ApprovalRejected("approval is not a JSON object")
+   816	        ap = dict(approval)
+   817	        for key in _APPROVAL_REQUIRED_TOP:
+   818	            if key not in ap:
+   819	                raise ApprovalRejected(f"missing required field: {key}")
+   820	        unknown = sorted(set(ap) - _APPROVAL_ALLOWED_TOP)
+   821	        if unknown:
+   822	            raise ApprovalRejected(
+   823	                "additional properties forbidden by schema",
+   824	                {"unknown_fields": unknown},
+   825	            )
+   826	        if ap["schema_version"] != _APPROVAL_SCHEMA_VERSION:
+   827	            raise ApprovalRejected(
+   828	                f"schema_version must be {_APPROVAL_SCHEMA_VERSION!r}, "
+   829	                f"got {ap['schema_version']!r}")
+   830	        if not (isinstance(ap["approval_id"], str)
+   831	                and ap["approval_id"].startswith("apr_")
+   832	                and len(ap["approval_id"]) > 4
+   833	                and all(c.isalnum() or c == "_" for c in ap["approval_id"][4:])):
+   834	            raise ApprovalRejected(
+   835	                "approval_id must match ^apr_[a-zA-Z0-9_]+$")
+   836	        if ap["approval_type"] not in _APPROVAL_TYPES:
+   837	            raise ApprovalRejected(
+   838	                f"invalid approval_type {ap['approval_type']!r}; "
+   839	                f"valid: {sorted(_APPROVAL_TYPES)}")
+   840	        if ap["stop_type"] not in STOP_PRECONDITION_SPECS:
+   841	            raise ApprovalRejected(
+   842	                f"invalid stop_type {ap['stop_type']!r}; "
+   843	                f"valid: {SevenStageStateMachine.stop_types()}")
+   844	        if ap["decision"] not in _APPROVAL_DECISIONS:
+   845	            raise ApprovalRejected(
+   846	                f"invalid decision {ap['decision']!r}; "
+   847	                f"valid: {sorted(_APPROVAL_DECISIONS)}")
+   848	        if not (isinstance(ap["run_id"], str) and ap["run_id"]):
+   849	            raise ApprovalRejected("run_id must be a non-empty string")
+   850	        if not (isinstance(ap["stop_event_id"], str) and ap["stop_event_id"]):
+   851	            raise ApprovalRejected("stop_event_id must be a non-empty string")
+   852	        if not (isinstance(ap["actor"], str) and ap["actor"].strip()):
+   853	            raise ApprovalRejected("actor must be a non-empty string")
+   854	        if not (isinstance(ap["nonce"], str) and len(ap["nonce"]) >= 16):
+   855	            raise ApprovalRejected("nonce must be a string of >= 16 chars")
+   856	        if not (isinstance(ap["signature"], str) and len(ap["signature"]) >= 32):
+   857	            raise ApprovalRejected("signature must be a string of >= 32 chars")
+   858	        for ts_field in ("issued_at", "expires_at"):
+   859	            try:
+   860	                _parse_iso_ts(ap[ts_field])
+   861	            except ValueError as exc:
+   862	                raise ApprovalRejected(
+   863	                    f"invalid date-time in {ts_field}: {exc}") from None
+   864	        if _parse_iso_ts(ap["expires_at"]) <= _parse_iso_ts(ap["issued_at"]):
+   865	            raise ApprovalRejected("expires_at must be after issued_at")
+   866	        # payload 判别联合（schema oneOf：按 approval_type 必须含专属字段）
+   867	        payload = ap["payload"]
+   868	        if not isinstance(payload, Mapping):
+   869	            raise ApprovalRejected("payload must be a JSON object")
+   870	        required_payload = _APPROVAL_PAYLOAD_DISCRIMINATOR[ap["approval_type"]]
+   871	        missing = [k for k in required_payload if k not in payload]
+   872	        if missing:
+   873	            raise ApprovalRejected(
+   874	                f"payload discriminator mismatch for "
+   875	                f"approval_type={ap['approval_type']!r}: missing {missing}")
+   876	        empty = [k for k in required_payload if not _truthy(payload.get(k))]
+   877	        if empty:
+   878	            raise ApprovalRejected(
+   879	                "payload discriminator fields must be non-empty",
+   880	                {"empty_fields": empty},
+   881	            )
+   882	        if (ap["approval_type"] == "resume"
+   883	                and not _is_sha256_hex(payload.get("objective_precondition_hash"))):
+   884	            raise ApprovalRejected(
+   885	                "payload.objective_precondition_hash must be sha256 hex (64)")
+   886	        if (ap["approval_type"] == "resume"
+   887	                and payload.get("stop_type") != ap["stop_type"]):
+   888	            raise ApprovalRejected(
+   889	                "payload.stop_type conflicts with top-level stop_type")
+   890	        if (ap["approval_type"] == "resume"
+   891	                and payload.get("stop_event_id") != ap["stop_event_id"]):
+   892	            raise ApprovalRejected(
+   893	                "payload.stop_event_id conflicts with top-level stop_event_id")
+   894	        if "environment" in ap and ap["environment"] not in ENVIRONMENTS:
+   895	            raise ApprovalRejected(
+   896	                f"invalid environment {ap['environment']!r}; "
+   897	                f"valid: {sorted(ENVIRONMENTS)}")
+   898	        if "expected_state_version" in ap and not (
+   899	            isinstance(ap["expected_state_version"], int)
+   900	            and not isinstance(ap["expected_state_version"], bool)
+   901	            and ap["expected_state_version"] >= 1
+   902	        ):
+   903	            raise ApprovalRejected("expected_state_version must be integer >= 1")
+   904	        return ap
+   905	
+   906	    # ------------------------------------------------------------------ #
+   907	    # 绑定/TTL/CAS/前置条件校验（对给定 run 快照）
+   908	    # ------------------------------------------------------------------ #
+   909	    @staticmethod
+   910	    def _validate_resume_binding(ap: Mapping[str, Any], state: RunState,
+[exit_code]0
+$ nl -ba system/tests/test_wenqu_pipeline.py | sed -n 450,520p
+   450	    store, mgr = fresh()
+   451	    run_id = mgr.create_run("task_mix", IDENT)["run_id"]
+   452	    mgr.advance_stage(run_id)
+   453	    store.append({"external": "probe", "n": 1})      # EventStore 直写
+   454	    mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
+   455	    store.append({"external": "probe", "n": 2})
+   456	    w = mgr.raise_waiting(run_id, "resource", "mix")
+   457	    v = mgr.get_run(run_id).state_version
+   458	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "resource", v,
+   459	                                   preconditions={"resource_probe_ref": "p",
+   460	                                                  "probe_recovered": "yes",
+   461	                                                  "safety_margin_met": "yes"},
+   462	                                   nonce="nonce-mix-00011122233344",
+   463	                                   approval_id="apr_mix_1")
+   464	    ap["payload"]["objective_precondition_hash"] = SM.objective_precondition_hash(pre)
+   465	    assert mgr.resume_waiting(run_id, ap, pre)["resumed"]
+   466	    store.append({"external": "probe", "n": 3})
+   467	    assert store.verify_chain()["ok"]
+   468	    assert mgr.get_run(run_id).state == "RUNNING"
+   469	
+   470	# ------------------------------------------------------------------ #
+   471	def t_schema_crosscheck():
+   472	    """结构校验器与 approval-v2.schema.json 交叉验证（jsonschema 可用时）。"""
+   473	    try:
+   474	        import jsonschema
+   475	    except ImportError:
+   476	        print("  (skip) jsonschema 未安装，跳过交叉验证")
+   477	        return
+   478	    schema = json.load(open(os.path.join(REPO, "schemas", "approval-v2.schema.json")))
+   479	    store, mgr = fresh()
+   480	    run_id = mgr.create_run("task_x", IDENT)["run_id"]
+   481	    mgr.advance_stage(run_id)
+   482	    w = mgr.raise_waiting(run_id, "prod-write", "x")
+   483	    v = mgr.get_run(run_id).state_version
+   484	    ap, pre = make_resume_approval(run_id, w["stop_event_id"], "prod-write", v)
+   485	    # 合法样例：schema 与内置校验器都放行
+   486	    jsonschema.validate(ap, schema)
+   487	    ApprovalBroker.validate_structure(ap)
+   488	    # 篡改样例：两者都拒绝
+   489	    for mut in (lambda a: a.update({"schema_version": "1.9"}),
+   490	                lambda a: a.update({"decision": "maybe"}),
+   491	                lambda a: a.update({"nonce": "short"}),
+   492	                lambda a: a.pop("actor"),
+   493	                lambda a: a["payload"].pop("objective_precondition_hash")):
+   494	        bad = json.loads(json.dumps(ap))
+   495	        mut(bad)
+   496	        try:
+   497	            jsonschema.validate(bad, schema)
+   498	            schema_rejects = False
+   499	        except jsonschema.ValidationError:
+   500	            schema_rejects = True
+   501	        try:
+   502	            ApprovalBroker.validate_structure(bad)
+   503	            mine_rejects = False
+   504	        except ApprovalRejected:
+   505	            mine_rejects = True
+   506	        assert schema_rejects and mine_rejects, f"分歧: schema={schema_rejects} mine={mine_rejects} on {bad}"
+   507	
+   508	TESTS = [
+   509	    ("规则引擎（七段/转换/双轴/九类前置）", t_rule_engine),
+   510	    ("全流程七段 PASS → SUCCEEDED + 重放一致", t_happy_path),
+   511	    ("FAIL 重试 → 新 attempt_id，旧 attempt 不可变", t_retry_new_attempt),
+   512	    ("九类停等 raise→resume（必要且充分）", t_waiting_resume_happy),
+   513	    ("审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希）", t_approval_rejections),
+   514	    ("并发双消费：恰好一个成功", t_concurrent_double_consume),
+   515	    ("COMPLETED_CONDITIONAL 终态 + risk 授权", t_conditional_terminal),
+   516	    ("cancel/supersede/not_found/FAILED", t_cancel_supersede_notfound),
+   517	    ("与 EventStore.append 交错链完整性", t_eventstore_interop),
+   518	    ("与 approval-v2 schema 交叉验证", t_schema_crosscheck),
+   519	]
+   520	if __name__ == "__main__":
+[exit_code]0

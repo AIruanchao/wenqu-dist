@@ -1,0 +1,23 @@
+COMMAND: bash -lc cd\ /Users/maccc/Documents/wenqu-dist\;\ echo\ GIT_REMOTE\;\ git\ remote\ -v\;\ echo\ STATUS\;\ git\ status\ --porcelain=v2\;\ echo\ BRANCH\;\ git\ branch\ -vv\;\ echo\ DISK\;\ df\ -h\ /\ /Users/maccc/Documents/wenqu-dist\ /private/tmp\;\ echo\ INODES\;\ df\ -i\ /Users/maccc/Documents/wenqu-dist\;\ echo\ LARGE_EVIDENCE\;\ du\ -sh\ .\ evidence\ /private/tmp/codex-test/evidence/reaudit3-\*\ 2\>/dev/null
+START: 2026-10-08T12:33:57+08:00
+GIT_REMOTE
+origin	git@github.com:AIruanchao/wenqu-dist.git (fetch)
+origin	git@github.com:AIruanchao/wenqu-dist.git (push)
+STATUS
+BRANCH
+* main ff050bb [origin/main] feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+DISK
+Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s1s1   460Gi    12Gi    32Gi    27%    459k  337M    0%   /
+/dev/disk3s5     460Gi   356Gi    32Gi    92%    3.9M  337M    1%   /System/Volumes/Data
+/dev/disk3s5     460Gi   356Gi    32Gi    92%    3.9M  337M    1%   /System/Volumes/Data
+INODES
+Filesystem   512-blocks      Used Available Capacity iused     ifree %iused  Mounted on
+/dev/disk3s5  965595304 746609392  67368696    92% 3903745 336843480    1%   /System/Volumes/Data
+LARGE_EVIDENCE
+ 11M	.
+724K	evidence
+1.9M	/private/tmp/codex-test/evidence/reaudit3-20261008-122924
+
+EXIT_CODE: 0
+END: 2026-10-08T12:33:57+08:00
