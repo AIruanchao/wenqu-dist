@@ -112,6 +112,76 @@ _NOT_IMPLEMENTABLE = [
         "mitigation": "dashboard 正源侧真服务探针：watermark 过期/畸形->快照作废 503，"
                        "重算产物重写快照后新判定即刻生效、旧结论不缓存",
     },
+    # ---- F6-COVERAGE-AUTH-001 补录（2026-10-08）：以下 10 ID 产品语义缺失，
+    # ---- 仓内无被测产品面可注入，按模块级登记（不新增断言/函数，不冒充覆盖）。
+    {
+        "id": "BAK-01",
+        "gap": "磁盘满/tar/backup 失败 -> 不更新 success（§20.4）",
+        "reason": "产品语义缺失：备份恢复演练——仓内尚无备份制品与 checkpoint/restore "
+                  "drill 产品面，无备份链可注入失败",
+        "mitigation": "待 W4/W7A 备份/恢复演练产品面落地后转专属测试；本登记不冒充覆盖",
+    },
+    {
+        "id": "CAP-01",
+        "gap": "峰值空间超过安全余量或磁盘满 -> 切换 BLOCKED 且旧证据/current 完整（§20.5）",
+        "reason": "产品语义缺失：容量安全边际（REQ-CAP-001/AC-CAP-SAFE-MARGIN）未入产品，"
+                  "磁盘水位目前仅为观察项（93.2% 记录在案，未触发任何产品判定链）",
+        "mitigation": "容量阈值/安全余量语义入产品后建测；观察窗继续逐日记录磁盘水位",
+    },
+    {
+        "id": "DR-01",
+        "gap": "恢复演练 -> 实测满足冻结 RPO/RTO（§20.5）",
+        "reason": "产品语义缺失：DR 演练——单机发行版无容灾拓扑与恢复演练机制，"
+                  "冻结 RPO/RTO 无从度量",
+        "mitigation": "W4/W7B/W10 DR 演练产品面建立后另行建测",
+    },
+    {
+        "id": "UI-01",
+        "gap": "HTML 少一个闭合标签 -> 构建/启动门失败（§20.4）",
+        "reason": "UI 真实浏览器证据缺失：dashboard 构建门/启动门语义未入产品，"
+                  "无 Playwright/DOM 证据链可建",
+        "mitigation": "待 W8 UI 产品面（构建启动门+Playwright trace）落地后转真",
+    },
+    {
+        "id": "UI-02",
+        "gap": "XSS 日志/账本文本 -> 不执行（§20.4）",
+        "reason": "UI 真实浏览器证据缺失：浏览器端 XSS 不执行语义需真实渲染执行环境，"
+                  "产品 UI 面未承接",
+        "mitigation": "W8 安全 E2E（Playwright+安全 trace）落地后建测",
+    },
+    {
+        "id": "UI-03",
+        "gap": "CSRF/伪 Origin/text/plain 写入 -> 拒绝（§20.4）",
+        "reason": "UI 真实浏览器证据缺失：CSRF/Origin 拒绝属真实浏览器请求链语义；"
+                  "现有仅 7789 无鉴权 POST 拒绝加固（EV-DEP-001），非完整 UI 面",
+        "mitigation": "W8 dashboard 安全链产品化后以真实浏览器请求注入复测",
+    },
+    {
+        "id": "UI-04",
+        "gap": "Gate 红、其他项高分 -> 总体 BLOCKED（§20.4）",
+        "reason": "UI 真实浏览器证据缺失：总览页 Gate/UI 同水位对照需真实浏览器读 UI "
+                  "真值；服务侧同水位语义另由本件 HLT-01 覆盖，UI 面未承接",
+        "mitigation": "W8 aggregator/UI 同水位对照（FND-007）UI 面落地后转真",
+    },
+    {
+        "id": "UI-05",
+        "gap": "ACCEPTED/OTHER/quarantine 状态 -> 均可钻取（§20.4）",
+        "reason": "UI 真实浏览器证据缺失：状态钻取交互需真实浏览器 UI，产品无该界面",
+        "mitigation": "W7B/W8 UI 钻取面落地后以 Playwright trace 建测",
+    },
+    {
+        "id": "UI-06",
+        "gap": "DNS rebinding/伪 Host/未认证日志读取 -> 拒绝（§20.5）",
+        "reason": "UI 真实浏览器证据缺失：Host 校验/DNS rebinding 拒绝需真实网络栈与"
+                  "浏览器宿主，产品 UI 面未承接",
+        "mitigation": "dashboard 网络面安全语义产品化后建测",
+    },
+    {
+        "id": "UI-07",
+        "gap": "慢请求/高并发/超大日志 -> 不耗尽资源（§20.5）",
+        "reason": "UI 真实浏览器证据缺失：UI 资源耗尽防护语义未入产品面",
+        "mitigation": "W8 UI 资源防护语义落地后建测",
+    },
 ]
 
 

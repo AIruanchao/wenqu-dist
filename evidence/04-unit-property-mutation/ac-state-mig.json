@@ -2,23 +2,26 @@
   "artifact": "ac-state-mig",
   "description": "§20.2/§20.5 STATE-01~11、MIG-01~05 验收 ID 专属测试逐 ID 结果（被测体：wenqu_core/store.py + wenqu_core/ledger_migrator.py；不依赖 wenqu_pipeline）",
   "exit_code": 0,
-  "finished_at": "2026-10-08T07:36:49.757783+00:00",
+  "finished_at": "2026-10-08T08:48:45.263354+00:00",
   "fixture_note": "MIG 族旧账均为本测试内构造的小型合成旧账（临时目录），非生产账本；STATE-04 崩溃注入为真实 SIGKILL 子进程。",
-  "generated_at": "2026-10-08T07:36:49.757863+00:00",
-  "git_head": "b08fa7afd492ceb413419518b066bb456ad5f70c",
+  "generated_at": "2026-10-08T08:48:45.263399+00:00",
+  "git_head": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
   "results": {
     "MIG-01": {
       "coverage_boundary": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
       "detail": {
-        "bad_lines_in_events_table": 0,
+        "bad_lines_in_pipeline_events": 0,
         "boundary": "run 级 BLOCKED 聚合在编排层（不在被测体）",
+        "chain_verified_len": 5,
         "imported": 5,
         "imported_status_counts": {
           "BLOCKED": 2,
           "FIXED_PENDING_VERIFY": 1,
           "PASS": 2
         },
-        "quarantined": 7
+        "quarantined": 7,
+        "single_event_table": "pipeline_events",
+        "write_api": "EventStore.append"
       },
       "name": "坏 JSON/未知状态 → quarantine+BLOCKED",
       "verdict": "PASS"
@@ -26,9 +29,11 @@
     "MIG-02": {
       "coverage_boundary": "测迁移器已实现面：ACCEPTED 是未知状态——无论缺不缺审批信息一律 quarantine（不猜映射为 PASS），进 quarantine=待人工 reopen 的账，sidecar 全程留痕。『invalid 后写 reopen 事件』属 risk acceptance 子系统（FND-016，不在被测体）",
       "detail": {
+        "accepted_imported": 0,
+        "accepted_in_pipeline_events": 0,
         "accepted_lines": 4,
         "boundary": "risk acceptance/reopen 事件子系统（FND-016）不在被测体",
-        "imported": 0,
+        "imported_total": 1,
         "quarantined": 4,
         "reopen_channel": "quarantine + sidecar 预览（人工再录）"
       },
@@ -37,7 +42,8 @@
     },
     "MIG-03": {
       "detail": {
-        "events_table_identical": true,
+        "head_hash_stable": true,
+        "pipeline_events_rows_identical": true,
         "run1": {
           "duplicates": 1,
           "imported": 3,
@@ -55,24 +61,29 @@
       "verdict": "PASS"
     },
     "MIG-04": {
-      "coverage_boundary": "ConservationError 是防御性守卫：tally 与处理循环遍历同一 list，经公共 API 构造不出账目不平（已实证 + 代码通读）。本用例测同秩语义的运行时面：逐行独立对账零失联 + 删行后重迁移精确补账 + 审计侧不可写则迁移整体失败、零部分导入、零假守恒记账",
+      "coverage_boundary": "ConservationError 是防御性守卫：tally 与处理循环遍历同一 list，经公共 API 构造不出账目不平（已实证 + 代码通读）。本用例测同秩语义的运行时面：逐行独立对账零失联 + 统一 append-only 事件表上删行攻击被触发器直接拒绝（旧版独立 events 表删后补账的少账向量就此关闭）+ 重迁移幂等零变化 + 审计侧不可写则迁移整体失败、零部分导入、零假守恒记账",
       "detail": {
-        "boundary": "ConservationError 为防御性守卫（公共 API 构造不出不平，已实证）；此处验证同秩运行时语义",
-        "deleted_rows_reimported": 3,
+        "boundary": "ConservationError 为防御性守卫（公共 API 构造不出不平，已实证）；此处验证同秩运行时语义；旧版删后补账子场景由 append-only「删不掉」不变量承接",
+        "delete_attacks": "rejected (append-only trigger，定向+全表)",
         "independent_recount": {
           "db_rows": 9,
           "quarantined": 2,
           "source_nonblank": 11
         },
+        "remigration_after_delete_attempt": {
+          "duplicates": 9,
+          "imported": 0,
+          "rows_unchanged": true
+        },
         "unopenable_db": "迁移失败（异常）",
-        "unwritable_sidecar": "迁移失败，events=0、migration_runs=0"
+        "unwritable_sidecar": "迁移失败，pipeline_events=0、migration_runs=0"
       },
       "name": "源行数不守恒 → 迁移失败",
       "verdict": "PASS"
     },
     "MIG-05": {
       "name": "project key 冲突 → 明确冲突，不拆成假项目",
-      "reason": "ledger_migrator.py 全文无 project 概念（grep 'project' 零命中）：迁移按行 SHA256 判重导入 events 表，不存在 project key 的映射/冲突检测/报错路径。该语义未实现，无法真实注入",
+      "reason": "ledger_migrator.py 全文无 project 概念（grep 'project' 零命中）：迁移按行内容寻址判重（event_id=canonical payload SHA256，P0-6 第六轮经 EventStore.append 导入统一 pipeline_events 表），不存在 project key 的映射/冲突检测/报错路径。该语义未实现，无法真实注入",
       "verdict": "NOT_IMPLEMENTABLE_IN_SCOPE"
     },
     "STATE-01": {
@@ -253,7 +264,7 @@
     }
   },
   "run_command": "python3 system/tests/test_ac_state_mig.py",
-  "started_at": "2026-10-08T07:36:46.081495+00:00",
+  "started_at": "2026-10-08T08:48:41.744750+00:00",
   "summary": {
     "failed": 0,
     "ids_total": 16,
