@@ -1,0 +1,134 @@
+{
+  "schema": "wenqu-dashboard-immutable-evidence/1",
+  "task": "第八波终装三步：install-release cf6d10e + launchctl 重启 com.wenqu.dashboard + 三探针 + hash 三方对账",
+  "recorded_at_local": "2026-10-09T04:26+08:00",
+  "release": {
+    "commit": "cf6d10e6f10e5369ea04c3d9f85b797d39279458",
+    "commit_subject": "Merge pull request #13 from AIruanchao/wave8/semantics",
+    "version": "3.8.4",
+    "build_id": "rel-cf6d10e-20261008T202539Z",
+    "tar_gz": "dist/wenqu-dist-cf6d10e.tar.gz",
+    "tar_sha256": "04a8f7dc6da7f71d6444dc7af2eb4e7203b3546e2b6a7e99ee8a78e1cb25ba29",
+    "tar_size": 44635114,
+    "file_count": 2936,
+    "signature_key_id": "key_release_w6p1f",
+    "signature_algorithm": "HMAC-SHA256",
+    "sbom_verification_code": "a3f84f2dda661ffb54d46b0bf9e3105ae4b7af06",
+    "plan_pin": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "contents_verified": [
+      "E5: system/dashboard/server.py 零 SHA 占位→identity_missing 拒 PASS（_is_zero_placeholder_sha + 保守降级）",
+      "F2: tools/observation_daily.py shadow v2（lsof→PID→ps argv 解析现役脚本路径+结构化逐字段比对）"
+    ]
+  },
+  "install": {
+    "command": "bash system/install-release.sh cf6d10e",
+    "repo": "/Users/maccc/Documents/wenqu-dist",
+    "exit_code": 0,
+    "dist_verify_report": "dist/wenqu-dist-cf6d10e.verify-report.json",
+    "deploy_verify_report": "~/.wenqu/releases/cf6d10e6f10e5369ea04c3d9f85b797d39279458/verify-report.json",
+    "verify_tool_version": "release_attest.py@1.2.0",
+    "verify_checks_dist": [
+      {"check": "manifest-schema", "ok": true},
+      {"check": "artifact-hash", "ok": true},
+      {"check": "files-reconcile", "ok": true, "detail": "2936/2936 path+type+mode+size+sha256 全符"},
+      {"check": "plan-hash", "ok": true},
+      {"check": "plan-pin", "ok": true, "detail": "外部受保护根 1/2：plan.pin 冻结值=manifest+tar 双等值 96b8646f6f08fd5f…"},
+      {"check": "source-commit", "ok": true, "detail": "外部受保护根 2/2：commit cf6d10e 在对象库+树内方案 sha256 实算等值"},
+      {"check": "signature", "ok": true},
+      {"check": "sbom-reconcile", "ok": true},
+      {"check": "build-identity", "ok": true}
+    ],
+    "verify_result": "PASS（dist 位与部署位双报告均 9/9 全绿；7 项基线 + wave8 新增 plan-pin/source-commit 双根）",
+    "deploy_tree_reconcile": "解出树与 manifest 逐文件 sha256 全符（2936 files）",
+    "immutable_position": "~/.wenqu/releases/cf6d10e6f10e5369ea04c3d9f85b797d39279458（chmod a-w，dr-xr-xr-x；tree/plan.pin 0400）",
+    "current_symlink": "~/.wenqu/current -> ~/.wenqu/releases/cf6d10e6f10e5369ea04c3d9f85b797d39279458/tree（rename(2) 原子切换）",
+    "last_current_rollback_target": "~/.wenqu/releases/2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551/tree",
+    "import_smoke": "PYTHONPATH=~/.wenqu/current/system import wenqu_core.scheduler OK",
+    "script_fix_note": "system/install-release.sh 首跑在 R8 pin 抽取两处 python3 -c 多行续行（行首缩进）触发 IndentationError；最小修复为单行化（FROZEN_PLAN_SHA 与 MANI_PLAN_SHA 两处），语义零变更后重跑全绿。此为工作树未提交修改，需入仓收编。"
+  },
+  "launchctl": {
+    "label": "com.wenqu.dashboard",
+    "plist": "/Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist",
+    "plist_program": "/opt/homebrew/bin/python3 /Users/maccc/.wenqu/current/system/dashboard/server.py --port 7789",
+    "restart_sequence": "bootout(exit 0) -> bootstrap(exit 0)",
+    "state_after": "running",
+    "pid": 72968,
+    "pid_lstart": "Fri Oct 9 04:26:08 2026",
+    "last_exit_code": "(never exited since bootstrap)",
+    "stdout_log": "~/.wenqu/logs/dashboard-modular.out.log",
+    "stderr_log": "~/.wenqu/logs/dashboard-modular.err.log",
+    "other_runtimes_touched": false,
+    "scheduler_note": "com.wenqu.scheduler 未重载未触碰（not running=间隔调度空闲态）"
+  },
+  "probes": {
+    "base": "http://127.0.0.1:7789（--noproxy '*'）",
+    "p1_health": {
+      "request": "GET /api/v1/health",
+      "http_status": 200,
+      "expected": 200,
+      "ok": true,
+      "mode": "self_declared_diagnostic",
+      "policy_verdict": "BLOCKED",
+      "aggregate_outcome": "BLOCKED",
+      "technical_eligible": true,
+      "target_sha": "0000000000000000000000000000000000000000",
+      "dashboard_downgrade": {
+        "raw_policy_verdict": "PASS",
+        "policy_verdict": "BLOCKED",
+        "flags": ["identity_missing", "self_declared"],
+        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation"
+      },
+      "reasons_head": "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+      "interpretation": "业务态如实 BLOCKED：上游站自报 PASS 但携带零 SHA 身份，E5 新 server.py 拒绝透传该 PASS——identity 语义在现役进程生效的直接证据（旧 2bd59ab server 无此语义）"
+    },
+    "p2_decide_post": {
+      "request": "POST /api/decide",
+      "http_status": 405,
+      "expected": 405,
+      "ok": true,
+      "body_head": "{\"error\": {\"code\": \"WRITE_DISABLED\", \"detail\": \"第一阶段关闭写接口（decide POST 已禁用）——只读仪表盘\"}}"
+    },
+    "p3_root_page": {
+      "request": "GET /",
+      "http_status": 200,
+      "expected": 200,
+      "ok": true,
+      "body_bytes": 11922,
+      "body_head": "<!DOCTYPE html><html lang=\"zh\"><head>…<title>问渠 wenqu · 仪表盘</title>…<!-- W8 安全加固：CSP"
+    }
+  },
+  "hash_reconciliation": {
+    "sha256": "82a0b54b736361ef80df0f2327354674b197e06100d6e99bf5dea8569b77264e",
+    "method": "shasum -a 256 四方对账",
+    "sides": {
+      "active_running_script": {
+        "path": "~/.wenqu/current/system/dashboard/server.py（argv 经 lsof→PID 72968→ps 解析；realpath=～/.wenqu/releases/cf6d10e…/tree/system/dashboard/server.py）",
+        "match": true
+      },
+      "current_tree": {
+        "path": "~/.wenqu/current/system/dashboard/server.py（symlink→cf6d10e tree）",
+        "match": true
+      },
+      "git_cf6d10e_tree": {
+        "path": "git show cf6d10e:system/dashboard/server.py",
+        "match": true
+      },
+      "signed_manifest_record": {
+        "path": "wenqu-dist-cf6d10e.manifest.json files[system/dashboard/server.py]",
+        "match": true
+      }
+    },
+    "verdict": "四方全等：现役进程执行脚本 == current 激活树 == cf6d10e git 树 == 签名 manifest 清单记录"
+  },
+  "old_release_retention": {
+    "policy": "旧 dist/wenqu-dist-2bd59ab.{tar.gz,manifest.json,release.sig,sbom.spdx.json}(+verify-report) 保留——evidence-index.json 仍引用 14 处 2bd59ab",
+    "dist_kept": true,
+    "releases_kept": "~/.wenqu/releases/2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551/ 四件套+tree 完整保留（不可变，未触碰）",
+    "current_now_points_to": "cf6d10e release（2bd59ab 经 .last-current 可一键回滚）"
+  },
+  "boundaries": {
+    "verified": "安装链验签/部署树对账/launchctl 重启/三探针/hash 四方对账（本机 local + verified）",
+    "not_verified": "上游站零 SHA 身份的根因（scheduler 侧 evidence 绑定流程）不在本任务范围；install-release.sh 修复未提交入仓",
+    "rollback": "bash system/install-release.sh --rollback（回 ~/.wenqu/releases/2bd59ab…/tree）"
+  }
+}
