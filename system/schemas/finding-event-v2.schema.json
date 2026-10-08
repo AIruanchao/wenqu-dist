@@ -65,11 +65,26 @@
   "allOf": [
     {
       "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
-      "then": {"properties": {"severity": {"enum": ["MEDIUM", "LOW"]}}}
+      "then": {
+        "properties": {"severity": {"enum": ["MEDIUM", "LOW"]}},
+        "required": ["risk_acceptance"]
+      }
     },
     {
       "if": {"properties": {"event_type": {"const": "CLOSED"}}},
-      "then": {"properties": {"state_from": {"enum": ["VERIFIED"]}}}
+      "then": {
+        "properties": {"state_from": {"enum": ["VERIFIED"]}},
+        "required": ["state_from"]
+      }
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "ACCEPTED_RISK"}}},
+      "then": {
+        "properties": {
+          "severity": {"enum": ["MEDIUM", "LOW"]},
+          "priority": {"enum": ["P2", "P3"]}
+        }
+      }
     }
   ],
   "$comment": "P0/P1 不允许 ACCEPTED_RISK（不变量）；CLOSED 只能来自 VERIFIED；revoke 后立即重开"
