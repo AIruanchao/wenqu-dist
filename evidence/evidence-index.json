@@ -1,5 +1,5 @@
 {
-  "index_version": "1.0.0",
+  "index_version": "1.1.0",
   "created_at": "2026-10-08T00:00:00+08:00",
   "created_by": "P0-10 证据包基础设施建档",
   "plan_source": {
@@ -9,11 +9,13 @@
     "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
   },
   "repo_head_at_filing": {
-    "commit": "07a9494",
-    "commit_full": "07a94945ba8defe65d3f9ce5a3b7118a38e40328",
-    "subject": "Merge pull request #6 from AIruanchao/release/v3.7.1",
-    "ci_conclusion": "未查（F6 残余整改建档时未复核远端 CI；前值：f2b8fc3 run 37744948480 success）",
-    "note": "第六波残余整改（F6-EVID-001/COVERAGE-AUTH-001/OBS-001）建档刷新；前值 f2b8fc3（wave5 PR#4）"
+    "commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+    "commit_full": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+    "subject": "Merge pull request #10 from AIruanchao/wave6/p1f-gate",
+    "ci_conclusion": "success（双平台 matrix：macos-latest+ubuntu-latest 均 success，gh run view 实查 completed；建档时点曾 in_progress，2026-10-08T14:4xZ 复查转终态）",
+    "ci_run_id": "37792468258",
+    "ci_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37792468258",
+    "note": "第七波终局建档：终 SHA 2bd59ab 制品四件套+索引 20/20 严格重建（PR#10 合流后；前值 07a9494）"
   },
   "entries": [
     {
@@ -115,7 +117,7 @@
         "python3 -m wenqu_core.<mod> (selftest 入口)"
       ],
       "real_rc": "0 ×5",
-      "artifact_sha256": null,
+      "artifact_sha256": "f119f47ca98eb86d05b7f511301b6f2fa5aa66b67f591d3c093c6a297e41549d",
       "evidence_path": "evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/selftest-station2_static.log",
       "fresh_until": "2026-10-14",
       "verified_by": "Codex 独立复核（验收报告 §3.2）；已快照入仓",
@@ -140,7 +142,8 @@
       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit-20261007/plan-self-validation.txt",
       "fresh_until": "2026-10-14",
       "verified_by": "Codex 方案 §29 记录；已快照入仓",
-      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：plan-self-validation.json.sha256 在快照目录）"
+      "caveat": "只证明方案文件质量，不改变生产准入 BLOCKED 结论；F6-EVID-001：artifact_sha256 换绑为 evidence_path 文件实算（原登记值为另一工件：plan-self-validation.json.sha256 在快照目录）",
+      "commit_note": "方案文件自身一致性验证（validate_plan.py 对 方案.md），不依赖代码仓状态，不绑定单一代码提交；方案快照已入仓（sha256=96b8646f…）"
     },
     {
       "entry_id": "EV-ACCEPT-002",
@@ -148,7 +151,7 @@
       "title": "Codex 整改产物验收总判定：BLOCKED（29/100）——负面结论存档",
       "what": "2026-10-07 Codex 验收结论：候选实现/CI 准入/受控部署/发布后闭环全部不通过；W0-W10 加权 29 分；八项硬缺口（七段状态机闭环/八站统一入口/双授权/完整链/事件正源/原子安装/红探针矩阵/shadow-canary-观察-回滚证据）在册",
       "run_id": "acceptance-20261007-231333",
-      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25 (验收基线 main@4aeb199884af20f956b704e04dd61df8b39fa16e 起算)",
+      "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
       "environment": "local (只读复核)",
       "scope": "wenqu-dist 全仓 W0-W10",
       "ruleset": "方案 §24.1 硬完成门",
@@ -159,7 +162,8 @@
       "evidence_path": "evidence/00-baseline/codex-external/验收报告.md",
       "fresh_until": "长期（作为整改基线判定，非时效性证据）",
       "verified_by": "Codex 独立复核；已快照入仓",
-      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）"
+      "caveat": "负面结论按证据同等归档，防止「建档即完成」的话术漂移；F6-EVID-001：artifact_sha256 归一为 evidence_path 文件实算裸哈希（原描述串内哈希与实算一致，仅剥壳）",
+      "commit_note": "验收基线 main@4aeb199884af20f956b704e04dd61df8b39fa16e 起算（原注记自 commit 字段剥离至此）"
     },
     {
       "entry_id": "EV-REL-001",
@@ -167,7 +171,7 @@
       "title": "发行版哈希清单链 v1.0.6～v3.6.3（25 份 SHA256-v*.txt）",
       "what": "仓根连续 25 份发布哈希清单文件（v1.0.6/07/08/18、v2.0、v3.0.0～v3.6.3），最近一份 v3.6.3（2026-10-08 00:28）",
       "run_id": null,
-      "commit": "随各版本提交",
+      "commit": null,
       "environment": "repo artifact",
       "scope": "发行打包完整性清单（弱版本：无 manifest 结构/签名/build identity）",
       "ruleset": "tests/release-check.sh 校验版本号一致性",
@@ -178,7 +182,8 @@
       "evidence_path": "SHA256-v3.6.3.txt",
       "fresh_until": "长期",
       "verified_by": "ZCode P0-10 建档（文件存在性+哈希实算）",
-      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）；F6-EVID-001：evidence_path 由目录改指仓根 v3.6.3 清单（建档时点链上最近一份；建档后仓根已续出 v3.7.0/v3.7.1），artifact=该文件实算"
+      "caveat": "不满足 §16.2 release manifest 要求（缺逐项构建身份绑定与签名）；F6-EVID-001：evidence_path 由目录改指仓根 v3.6.3 清单（建档时点链上最近一份；建档后仓根已续出 v3.7.0/v3.7.1），artifact=该文件实算",
+      "commit_note": "25 份历史哈希清单（v1.0.6～v3.6.3）随各版本分散提交，不绑定单一提交；evidence_path 取链上最近一份 v3.6.3 清单为代表"
     },
     {
       "entry_id": "EV-TRACE-001",
@@ -186,7 +191,7 @@
       "title": "131 个 §20 验收 ID 初始追踪矩阵（P0-10 生成）",
       "what": "tools/ac_traceability.py 首次运行产物：131 个测试 ID 的 implemented/test_file/evidence_path 矩阵与覆盖率统计（作为整改前基线）",
       "run_id": "p0-10-initial",
-      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658 (工作树新增文件)",
+      "commit": "e00de1449b30bc5f7f7137155fd864c323cbd658",
       "environment": "local",
       "scope": "§20 全部 131 ID × 仓内测试资产扫描",
       "ruleset": "工具冻结目录=方案 §20/§25.1 转录；方案 sha256 96b8646f…",
@@ -195,11 +200,12 @@
         "python3 tools/ac_traceability.py"
       ],
       "real_rc": "见运行输出",
-      "artifact_sha256": null,
+      "artifact_sha256": "fc882807d18c1b9ccb784fe1e417547fa494fbc13bbd28b57cc9d0004247f5da",
       "evidence_path": "evidence/traceability-matrix.json",
       "fresh_until": "随下次全量测试资产变更即须重跑",
       "verified_by": "P0-10 建档运行",
-      "caveat": "矩阵为静态扫描（测试文件/函数引用检查），不执行测试"
+      "caveat": "矩阵为静态扫描（测试文件/函数引用检查），不执行测试",
+      "commit_note": "P0-10 建档时点 HEAD（矩阵为工作树新增文件），随后随 ff050bbb9c95c04ecb975900f5440f9bfcd1a447 入库（原注记剥离至此）"
     },
     {
       "entry_id": "EV-CI-003",
@@ -216,7 +222,7 @@
         "gh run view 37727549548 --json status,conclusion,displayTitle (repo AIruanchao/wenqu-dist)"
       ],
       "real_rc": "conclusion=success",
-      "artifact_sha256": null,
+      "artifact_sha256": "21238f672b944a8ff115776608eae151d23dfe3ab864e65a6b94bc946bd7dc1b",
       "evidence_path": "evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/05-ci/gh-run-view.json.txt",
       "fresh_until": "2026-10-22",
       "verified_by": "ZCode 第四波整改建档（gh run view 实查）+ Codex 第三轮验收独立复核（报告 §7）",
@@ -228,7 +234,7 @@
       "title": "Codex 第三轮验收总判定：BLOCKED（38/100）——负面结论存档",
       "what": "2026-10-08 Codex 第三轮独立复审：38/100（二轮 29→+9）；P0-8 关闭，P0-1~7/9/10 未关闭；12 项对抗探针 FAIL 在册（伪签名/跨类型 payload/false 字符串/非 resume CAS/TIMEOUT 洗白/事件直写/旁表正源/契约链断/CAS TOCTOU/setsid 逃逸/升级回滚/追踪假绿）；复验准入条件八条在册",
       "run_id": "reaudit3-20261008-122924",
-      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447 (验收基线)",
+      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
       "environment": "local (只读独立复审)",
       "scope": "wenqu-dist 全仓 W0-W10 + P0 十项逐项",
       "ruleset": "方案 §24.1 硬完成门",
@@ -268,7 +274,7 @@
       "title": "追踪 Gate 反假绿加固：§20/§25.1 双篡改负例必红（第四波）",
       "what": "Codex 三轮实锤两处假绿已根治：①ac_traceability 新增真 §25.1 解析器（范围展开成 ID 集合+逐前缀四列元数据对账，全半角～归一）；②acceptance.sh P1c 改用 --check+临时输出（不再改受控矩阵文件弄脏工作树）。负例实证：篡改 §20（GATE-12→GATE-99）exit=2；篡改 §25.1（REQ-EVID-001→REQ-EVIL-999）exit=2；正常方案 exit=0（131=131 四列全对）",
       "run_id": "wave4-p1c-hardening",
-      "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447 之后工作树（本波提交）",
+      "commit": "14600f829b6049775c6381cd1e7e7f52ec9fb460",
       "environment": "local (macOS)",
       "scope": "tools/ac_traceability.py + tests/acceptance.sh P1c",
       "ruleset": "方案 §25.1 机器校验集合等式要求",
@@ -277,11 +283,12 @@
         "python3 tools/ac_traceability.py --check --json /tmp/m{1,2,3}.json --plan {pristine,t20,t251}"
       ],
       "real_rc": "0 / 2 / 2（正常/篡改§20/篡改§25.1）",
-      "artifact_sha256": null,
+      "artifact_sha256": "637a48fc99c21a009db4b0e2c23fc34df19528157fc3628b987c14f9ce133d69",
       "evidence_path": "tools/ac_traceability.py",
       "fresh_until": "随工具或方案变更须重验",
       "verified_by": "ZCode 第四波亲验（三命令实跑退出码在案）",
-      "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0"
+      "caveat": "矩阵本身仍为静态扫描不执行测试；131 ID 专属覆盖仍为 0",
+      "commit_note": "建档时为 ff050bb 后工作树态（wave4 本波提交），P1c 加固已随本提交（fix(wave4) 授权/Schema/基建三簇）入库——git show --stat 实证同提交改 tools/ac_traceability.py(+72) 与 tests/acceptance.sh(+18)"
     },
     {
       "entry_id": "EV-DEP-001",
@@ -289,7 +296,7 @@
       "title": "P0-9 收口：7789 加固 dashboard 运行时部署（active hash=候选）",
       "what": "launchctl 重启后 active ~/.wenqu/bin/wenqu-dashboard.py sha256 前缀 72ba1db7 与仓内候选完全一致（旧 52aba1b5 已备份）；GET /api/health=200、无鉴权 POST /api/decide=403 forbidden（四检查默认拒生效）",
       "run_id": "wave4-p09-deploy",
-      "commit": "54032208b5486d4cbfa4e6bb480714b456588620 (部署基线)",
+      "commit": "54032208b5486d4cbfa4e6bb480714b456588620",
       "environment": "local (macOS launchd com.wenqu.dashboard)",
       "scope": "运行时替换+重启+双探针验证",
       "ruleset": "Codex 三轮 §3.9 复验准入条件 5（active runtime hash 与候选一致）",
@@ -300,11 +307,12 @@
         "curl POST /api/decide"
       ],
       "real_rc": "health=200 / decide=403",
-      "artifact_sha256": null,
+      "artifact_sha256": "0f4ab9411ebac2a44852cadd3a9e7355273f539a93df5f9c2d0ba9d45cbdb23a",
       "evidence_path": "evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json",
       "fresh_until": "随下次 dashboard 变更须重验",
       "verified_by": "ZCode 亲验（hash 双侧实算+探针实跑）",
-      "caveat": "回滚备份在 ~/.wenqu/bin/wenqu-dashboard.py.bak-20261008"
+      "caveat": "回滚备份在 ~/.wenqu/bin/wenqu-dashboard.py.bak-20261008",
+      "commit_note": "部署基线提交（原注记自 commit 字段剥离至此）"
     },
     {
       "entry_id": "EV-W5-001",
@@ -343,7 +351,7 @@
         "gh run list --branch main --limit 1"
       ],
       "real_rc": "conclusion=success",
-      "artifact_sha256": null,
+      "artifact_sha256": "7b075c8b6e19acce51ca45fbd68cf7611a85b7b434378e7fde86e7d96ed4aab6",
       "evidence_path": "evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json",
       "fresh_until": "2026-10-22",
       "verified_by": "ZCode 亲验",
@@ -385,7 +393,7 @@
         "python3 tools/ac_traceability.py --check --json /tmp/final-matrix.json"
       ],
       "real_rc": "0",
-      "artifact_sha256": null,
+      "artifact_sha256": "fc882807d18c1b9ccb784fe1e417547fa494fbc13bbd28b57cc9d0004247f5da",
       "evidence_path": "evidence/traceability-matrix.json",
       "fresh_until": "随测试资产变更重跑",
       "verified_by": "ZCode 终归亲验",
@@ -406,7 +414,7 @@
         "codex exec (gpt-5.6-sol ultra)"
       ],
       "real_rc": "判定=BLOCKED 49/100",
-      "artifact_sha256": null,
+      "artifact_sha256": "5d86b3f0b86d17635377eeaff2827ffb5fa63805935ccfb042a5e28fb814e8a3",
       "evidence_path": "evidence/00-baseline/codex-external/验收报告-第四轮.md",
       "fresh_until": "长期",
       "verified_by": "Codex 独立复核（sha256 快照验证 OK）",
@@ -427,18 +435,122 @@
         "launchctl kickstart gui/$(id -u)/com.wenqu.observation"
       ],
       "real_rc": "首跑 exit 0，样本+shadow 双落盘",
-      "artifact_sha256": null,
+      "artifact_sha256": "28b3d68926eec1aafc4a56ad09c1291dff5f1e559cb5a2b23d18856b47401737",
       "evidence_path": "tools/observation_daily.py",
       "fresh_until": "2026-10-22（观察窗届满）",
       "verified_by": "挂钟 agent+ZCode 复验",
       "caveat": "shadow 首日为结构化空态（等 gate-aggregate 状态文件产生自动转真）；样本在仓外需定期快照"
+    },
+    {
+      "run_id": "reaudit7-20261008-204822",
+      "commit": "d32c859f9043798d9e8a4984e8f57aa64567e33c",
+      "environment": "local (只读独立复审)",
+      "scope": "wenqu-dist 全仓 W0-W10（冻结 /tmp 副本上执行全部对抗探针）",
+      "ruleset": "方案 §24.1 硬完成门（方案 sha256=96b8646f…）",
+      "time": "2026-10-08 20:48–21:0x (+08:00)",
+      "argv": [
+        "codex exec (gpt-5.6-sol ultra) 第七轮验收指令"
+      ],
+      "real_rc": "判定=BLOCKED 64/100",
+      "artifact_sha256": "9c920685ef578c9aea1783d8f181514d5b4bd7a14980d7effc7f7dc1d16e4b73",
+      "evidence_path": "evidence/00-baseline/codex-external/验收报告-第七轮.md",
+      "fresh_until": "长期（整改基线判定）",
+      "verified_by": "Codex 独立复核；本轮重建实算哈希=sidecar .sha256 登记值（9c920685ef578c9aea1783d8f181514d5b4bd7a14980d7effc7f7dc1d16e4b73）一致",
+      "caveat": "负面结论按证据同等归档；本条为第七波工单输入依据；共享工作树并行漂移按运行环境事实记录不归责冻结对象",
+      "entry_id": "EV-R7-001",
+      "category": "00-baseline",
+      "title": "Codex 第七轮验收总判定：BLOCKED（64/100）——负面结论存档+第七波工单正源",
+      "what": "七轮独立复审（冻结树 d32c859）：远端 main/双平台 CI、TLC、W4/W5、模块化只读 7789、release 签名机制获正证；但 9 项硬旁路在册（Gate manifest 无信任根/同站重复件漂移/联签消费侧不校验/旧 events 表可写/P1f 计数可空壳绕过/制品绑旧 1620c7c/证据索引 11+5 于 20/日志匿名可读/W9W10 无 clean Day-1 样本）；六轮基线正源纠正为 52/100（本轮 +12）",
+      "commit_note": "冻结验收对象；报告+reaudit7 证据包（1922 条 MANIFEST.sha256=1311ac12d4f538208ddeea80913cc7f09889adc92efa9b1b263fe8da162b416b）随 bac7148eb54c45506ce68ec8f7edd2aadcb61a68 入仓"
+    },
+    {
+      "run_id": "PR#10 / CI run 37792468258",
+      "commit": "bac7148eb54c45506ce68ec8f7edd2aadcb61a68",
+      "environment": "candidate (GitHub PR #10 正门合流)",
+      "scope": "七轮 P0×7+P1×6 全清单",
+      "ruleset": ".github/workflows/acceptance.yml + main branch protection required checks",
+      "time": "2026-10-08T14:25:56Z（merge）",
+      "argv": [
+        "gh pr view 10 --json state,mergedAt,mergeCommit (实查)",
+        "gh run view 37792468258 (实查)"
+      ],
+      "real_rc": "PR state=MERGED；CI run 37792468258 结论=success（双平台 macos+ubuntu 均 success，终态实查）",
+      "artifact_sha256": "a8edffafac59eb741419525f7cf6ddc6f691dc8fa8f7108b53d30fdfbdf3556e",
+      "evidence_path": "tests/p1f-assert-baseline.txt",
+      "fresh_until": "2026-10-22",
+      "verified_by": "ZCode 第七波终局建档（gh pr view/run view 实查合流与 CI 状态；测试全绿与棘轮通过引自 bac7148 提交记录，本轮未独立复跑测试套件）",
+      "caveat": "evidence_path 取 P1f2 棘轮冻结基线（第七波工单代表性产物，断言计数 1205）；全量实现清单见 bac7148 提交体",
+      "entry_id": "EV-W7-001",
+      "category": "08-ci-and-branch-rules",
+      "title": "第七波工单执行+PR#10 正门合流（七轮 7 P0+6 P1 全清）",
+      "what": "工单=EV-R7-001 九缺口（7 P0+6 P1）；实现=bac7148（fix(wave7)：Gate manifest HMAC 信任根/重复件七维等价键/联签消费硬加固（对抗 14/14+独立探针 8/8+变异杀灭 4/4）/keyring 0600 fail-closed/旧 events 表触发器冻结+迟到写双通道拒/制品终态 plan-hash 根修+install-release.sh 不可变链/日志鉴权+1MiB 上限/P1f2 断言语义棘轮（八文件基线 1205 断言）等）；提交记录验证=21 测试套件全绿+6 模块自测 rc0+acceptance 67/67+P1f2 棘轮过+追踪 --check rc0；合流=PR#10 branch protection 正门 → merge commit 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551（MERGED 2026-10-08T14:25:56Z，gh pr view 实查）",
+      "commit_note": "工单实现提交（由 wave6/p1f-gate 分支承载）；经 PR#10 合流为 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551"
+    },
+    {
+      "run_id": "rel-2bd59ab-20261008T142740Z",
+      "commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+      "environment": "local (macOS, 生产安装位 ~/.wenqu)",
+      "scope": "dist/ 四件套 + ~/.wenqu/releases/ 部署位 + current 激活链",
+      "ruleset": "system/install-release.sh + tools/release_attest.py@1.1.0",
+      "time": "2026-10-08T14:27:40Z（built_at）～ 22:28+08（激活）",
+      "argv": [
+        "bash system/install-release.sh 2bd59ab"
+      ],
+      "real_rc": "0（INSTALL-RELEASE OK，五段全过；部署位复验 verify 7 PASS）",
+      "artifact_sha256": "cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7",
+      "evidence_path": "dist/wenqu-dist-2bd59ab.manifest.json",
+      "fresh_until": "长期（绑定 2bd59ab）",
+      "verified_by": "ZCode 第七波终局亲验（脚本全程输出在案；本索引 artifact_sha256=manifest 实算，四件套哈希另经 shasum -a 256 复算与 SHA256-vNext-candidate-2bd59ab.txt 一致）",
+      "caveat": "旧制品 wenqu-dist-1620c7c.*（七轮 P0-6 指证对象）与 wenqu-dist-1495913.*（D4 HEAD 证明跑非终态）已从 dist/ 删除；回滚=bash system/install-release.sh --rollback（.last-current 在案）",
+      "entry_id": "EV-REL-003",
+      "category": "09-release-manifest-attestation",
+      "title": "终 SHA 2bd59ab 制品四件套+不可变激活链（R7-REL-STALE-012 终局）",
+      "what": "bash system/install-release.sh 2bd59ab（git archive 取树，不受工作树分支影响）：build（2886 files，version 3.8.4，build_id=rel-2bd59ab-20261008T142740Z）→sign（key_id=key_release_w6p1f，HMAC-SHA256）→sbom（SPDX-2.3，verificationCode=cf0dceb862cfebf06e246f67f57b48844cbe8f8d）→verify 7 PASS（manifest-schema/artifact-hash/files-reconcile 2886/2886/plan-hash 96b8646f… 64hex 实算等值/signature/sbom-reconcile/build-identity）；部署 ~/.wenqu/releases/2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551（部署位复验+解出树 2886 文件逐文件对账+chmod a-w 不可变）；current 原子切换（rename(2)）+激活位 wenqu_core.scheduler 导入冒烟 OK；launchctl print gui/502/com.wenqu.scheduler 正常（WorkingDirectory=~/.wenqu/current，tick 间 not running 属正常）；四件套 sha256：tar=b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236 manifest=cb6125fdeccd38b1c07189becf33259f3d40d38067f217cdad7801cbb51fffe7 sig=f47d8469c506f96828ac66a7f5895c481997acdc381fe2f9abc77bce2eb96205 sbom=398c015ff13d716933812922768e4019f04c47b454cc524e3194a674453544b5（清单=dist/SHA256-vNext-candidate-2bd59ab.txt）",
+      "commit_note": "制品自该树构建；四件套+SHA256 清单入仓于 wave7/final-artifacts 分支（PR 待主会话合流）"
     }
   ],
   "known_gaps": [
-    "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属第六波候选",
-    "W5 旧账 reconciliation 未执行（迁移器仍独立 events 表）；W9 48h shadow 投影+canary、W10 14 天观察窗时序证据未到期（时钟 2026-10-08 已启动，届满 10-22）",
-    "release 制品无签名/SBOM/attestation；7789 仍为 legacy 写版（模块化 405 只读版未切）",
-    "审批签发端（人工 UI+密钥轮换）未建；Runner 容器级隔离/Linux /proc 通路未实测",
-    "root 磁盘 93.2%（采样器发现，接近阈值需关注）"
-  ]
+    {
+      "gap_id": "GAP-01",
+      "status": "open",
+      "gap": "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属后续波候选"
+    },
+    {
+      "gap_id": "GAP-02",
+      "status": "open（外部时序，未到期）",
+      "gap": "W9 48h shadow 投影+canary、W10 14 天观察窗时序证据未到期（时钟 2026-10-08 启动，届满 2026-10-22）；七轮另指 Day-1 clean 样本缺口——采样器 identity/样本覆盖缺陷已随 bac7148 修复，起算日后样本链可保全，届满前不得称完成"
+    },
+    {
+      "gap_id": "GAP-03",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "P1f 棘轮（七轮 P0-5：文件/函数名计数可空壳化绕过）——bac7148 P1f2 断言语义棘轮：八文件有效断言计数冻结基线 1205，空壳化/恒真化必红（提交记录 acceptance 67/67+棘轮过；本轮未独立复跑，验证引实现提交记录）"
+    },
+    {
+      "gap_id": "GAP-04",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "证据索引严格合同（R7-EVID-CONTRACT-004：11/20 可实算、严格仅 5/20）——本轮逐条重建 23/23：commit 全 40 位或显式 null+说明、evidence_path 全具体文件、artifact_sha256 全实算 64hex、自检断言全过后写盘"
+    },
+    {
+      "gap_id": "GAP-05",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "release 制品签名/SBOM/终态绑定（七轮 P0-6：四件套绑旧 1620c7c）——本轮 install-release.sh 2bd59ab 重产+verify 7 PASS+不可变部署+current 原子切换（EV-REL-003）；7789 模块化只读版七轮 §2.2 已实证在役（写路由 405 WRITE_DISABLED，旧「legacy 写版」表述随之过时）"
+    },
+    {
+      "gap_id": "GAP-06",
+      "status": "open（范围缩减）",
+      "gap": "Runner 容器级隔离/Linux /proc 通路未实测（原「审批签发端未建」已过时：wave6 95dff5e 已含签发端，七轮未列缺口）"
+    },
+    {
+      "gap_id": "GAP-07",
+      "status": "open（新知，需关注）",
+      "gap": "磁盘水位上行：观察采样器 2026-10-08 读数 90.3%→95.8%→96.7%（21:33 样本 avail≈16.2GB，采样器口径 used/(used+avail)，/Users/maccc 挂载）；主会话派工时点引用 96.9%；df 口径 /System/Volumes/Data 89%+45Gi avail（两口径差异未定界）。本轮制品产出净增约 50MB（dist 33MB+releases 解出树），需持续关注并清理"
+    }
+  ],
+  "rebuilt_at": "2026-10-08T22:30+08:00",
+  "rebuilt_by": "第七波终局（wave7/final-artifacts）：R7-EVID-CONTRACT-004 严格达标重建（一次性脚本，跑完即删）",
+  "strict_contract": {
+    "rule": "每条目：commit=全 40 位 hex 或显式 null+commit_note；evidence_path=具体文件；artifact_sha256=evidence_path 实算 64hex",
+    "entries_total": 23,
+    "self_check": "assert_all（文件存在/哈希等值/40hex 或 null+说明/无短 SHA/新目在册）——全过后写盘"
+  }
 }
