@@ -96,3 +96,10 @@
 - hypothetical_scenario_A__conserved: PASS
 - hypothetical_scenario_B__conserved: PASS
 - all_passed: PASS
+
+## 终态裁定（2026-10-09，G9-10）
+
+- 产物：`adjudication-final.json`（sha256=a6420343…；1950 行逐行映射，全部 `KEEP_QUARANTINE`，`PENDING=0`）
+- 保守原则：不扩冻结别名表、不引入猜测映射、**零 RECLASSIFY=零生产写**（后续人工升级 DONE 簇→FIXED_PENDING_VERIFY 须另行授权，M3 先例在案）
+- 人工 5 簇（79 行）保守裁定理由逐簇记录于 `conservative_note`
+- 抽查：13 簇×3 样本=39 行全过（row_id 存在性+preview 语义一致性）
