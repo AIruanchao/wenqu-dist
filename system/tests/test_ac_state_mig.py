@@ -46,7 +46,8 @@ build_*_ledger 系列函数在临时目录生成），不是生产账本；
 文件名/时间戳/字段名均为合成值。
 
 独立运行：python3 system/tests/test_ac_state_mig.py  → exit 0 全绿；
-运行后把逐 ID 结果写入 evidence/04-unit-property-mutation/ac-state-mig.json。
+逐 ID 结果默认写临时目录（G9-07 测试零污染）；设 WENQU_EVIDENCE_OUT_DIR
+可显式指定输出目录（有意更新 tracked evidence 快照时的正门）。
 """
 import hashlib
 import json
@@ -83,8 +84,22 @@ from wenqu_core.wenqu_pipeline import (                 # noqa: E402
 from wenqu_core.approval_keys import (                  # noqa: E402
     ApprovalKeyring, sign_envelope)
 
-ARTIFACT_PATH = os.path.join(
-    REPO_ROOT, "evidence", "04-unit-property-mutation", "ac-state-mig.json")
+def _artifact_out_dir() -> str:
+    """证据工件输出目录（G9-07 测试零污染，R8-PYTEST-HISTORICAL-COLLECT-014）：
+
+    - 显式设 ``WENQU_EVIDENCE_OUT_DIR`` → 写该目录（需有意更新 tracked
+      evidence 快照时的正门——人工跑、复核后另行入册）；
+    - 缺省 → 独立临时目录（mkdtemp）——测试输出零污染，绝不改写仓内
+      tracked evidence（git_head/时间戳不再被每次运行覆写）。
+    """
+    env_dir = os.environ.get("WENQU_EVIDENCE_OUT_DIR")
+    if env_dir:
+        os.makedirs(env_dir, exist_ok=True)
+        return env_dir
+    return tempfile.mkdtemp(prefix="wenqu-artifact-ac-state-mig-")
+
+
+ARTIFACT_PATH = os.path.join(_artifact_out_dir(), "ac-state-mig.json")
 
 # ---------------------------------------------------------------------- #
 # 不可实现登记表（模块级；语义在被测体中不存在，非测试跳过）

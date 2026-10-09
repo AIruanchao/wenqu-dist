@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ops-families",
-    "generated_at": "2026-10-09T04:16:13+00:00",
-    "repo_head": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+    "generated_at": "2026-10-09T06:54:48+00:00",
+    "repo_head": "657d19738bb7e6ae2c9175dd86daec2ef82abd15",
     "test_file": "system/tests/test_ac_ops_families.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
     "scope": "SCH-01~07, ALT-01~02, BAK-01, HLT-01, DOC-01~04, CAP-01, DR-01（17 ID）",
@@ -21,7 +21,7 @@
     },
     "BAK-01": {
       "pass": true,
-      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）五步真实演练：快照 sha 与源逐文件一致→归档腿（tar 真通道+清单回读+G9-09 实存验证[非空普通文件非 symlink]+python tarfile 独立解包逐字节对账[archive sha/extract sha/逐文件 sha 全记录]）→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→从归档恢复 5 文件（restore.source=archive，非旁路 backup 复制）→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；作业身份（drill/scheduler 源 SHA）入成功报告；生产语料前后字节不变（只读）；报告 20261009T041551Z 含时间/文件/结果三要素+jsonl 事件日志32 事件（ts 单调、每文件四相+归档实存/解包事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
+      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）五步真实演练：快照 sha 与源逐文件一致→归档腿（tar 真通道+清单回读+G9-09 实存验证[非空普通文件非 symlink]+python tarfile 独立解包逐字节对账[archive sha/extract sha/逐文件 sha 全记录]）→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→从归档恢复 5 文件（restore.source=archive，非旁路 backup 复制）→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；作业身份（drill/scheduler 源 SHA）入成功报告；生产语料前后字节不变（只读）；报告 20261009T065427Z 含时间/文件/结果三要素+jsonl 事件日志32 事件（ts 单调、每文件四相+归档实存/解包事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
     },
     "BAK-02": {
       "pass": true,
@@ -29,7 +29,7 @@
     },
     "CAP-01": {
       "pass": true,
-      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_fw76sm9u 所在卷，当日水位 95.67%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
+      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_8yb_cmzh 所在卷，当日水位 94.04%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
     },
     "DOC-01": {
       "pass": true,
@@ -37,7 +37,7 @@
     },
     "DOC-02": {
       "pass": true,
-      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 66 vs 实测 70 漂移（观察项，已如实上报）"
+      "detail": "版本对账绿（0.3.0-fork24-maccc 三处一致）；三件基础探测器清单对账绿（注册表 9 站）；版本/清单/数量三注入漂移全判 blocked；真实数量对账: 宣称 66 vs 实测 74 漂移（观察项，已如实上报）"
     },
     "DOC-03": {
       "pass": true,
@@ -49,11 +49,11 @@
     },
     "DR-01": {
       "pass": true,
-      "detail": "DR 模式真实演练 PASS：RPO 实测 1.548487s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.609731s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
+      "detail": "DR 模式真实演练 PASS：RPO 实测 1.540848s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.59562s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
     },
     "HLT-01": {
       "pass": true,
-      "detail": "watermark 过期->503 STALE 作废；半写/缺字段->503 MALFORMED；重算新快照（BLOCKED+新 watermark）即刻生效；高频换 watermark 40 连读全部命中完整 (verdict, watermark) 对或结构化 503（观测 3 对）"
+      "detail": "watermark 过期->503 STALE 作废；半写/缺字段->503 MALFORMED；重算新快照（BLOCKED+新 watermark）即刻生效；高频换 watermark 40 连读全部命中完整 (verdict, watermark) 对或结构化 503（观测 1 对）"
     },
     "SCH-01": {
       "pass": true,

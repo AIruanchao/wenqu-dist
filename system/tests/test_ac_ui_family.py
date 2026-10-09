@@ -29,7 +29,8 @@ playwright" ModuleNotFoundError）→ 全族降级为 **L2：HTTP+DOM 解析级*
 not_implementable（见证据 JSON 与模块 docstring 诚实边界）。
 
 运行：python3 system/tests/test_ac_ui_family.py   （独立 exit 0 = 全绿）
-证据：evidence/04-unit-property-mutation/ac-ui-family.json（每次运行覆写）。
+证据：逐 ID 结果默认写临时目录（G9-07 测试零污染，不改写 tracked
+evidence）；设 WENQU_EVIDENCE_OUT_DIR 可显式指定输出目录（有意更新快照的正门）。
 
 诚实边界（不以假绿硬凑）：
   1. UI-02「不执行」的终极证明是真实浏览器渲染执行环境；本件以传输契约
@@ -86,7 +87,23 @@ from wenqu_core.ui_probe import (                     # noqa: E402
     static_dom_contract,
 )
 
-EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ui-family.json"
+def _artifact_out_dir() -> Path:
+    """证据工件输出目录（G9-07 测试零污染，R8-PYTEST-HISTORICAL-COLLECT-014）：
+
+    - 显式设 ``WENQU_EVIDENCE_OUT_DIR`` → 写该目录（需有意更新 tracked
+      evidence 快照时的正门——人工跑、复核后另行入册）；
+    - 缺省 → 独立临时目录（mkdtemp）——测试输出零污染，绝不改写仓内
+      tracked evidence（git_head/时间戳不再被每次运行覆写）。
+    """
+    env_dir = os.environ.get("WENQU_EVIDENCE_OUT_DIR")
+    if env_dir:
+        out = Path(env_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+    return Path(tempfile.mkdtemp(prefix="wenqu-artifact-ac-ui-family-"))
+
+
+EVIDENCE_PATH = _artifact_out_dir() / "ac-ui-family.json"
 DASH = SYSTEM / "dashboard"
 # R7-UI-LOG-AUTH-009：/api/v1/logs 已加鉴权（fail-closed）——沙箱服务统一注入
 # key，日志读取请求统一携带 X-Auth-Key（无 key/错 key 的对抗腿逐条独立注入）。
@@ -1150,7 +1167,7 @@ def main() -> int:
         }
         EVIDENCE_PATH.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"证据工件: {EVIDENCE_PATH.relative_to(REPO)}")
+        print(f"证据工件: {EVIDENCE_PATH}")
     except OSError as exc:
         print(f"证据工件写入失败（不影响判定）: {exc}")
     return 1 if failed else 0

@@ -1,0 +1,17 @@
+{
+  "artifact": "test-zero-pollution-adoption",
+  "run": {
+    "argv": [
+      "bash",
+      "-c",
+      "for f in <八专属文件>; do python3 system/tests/$f.py; done（前后 git status --porcelain 快照比对）"
+    ],
+    "cwd": "/tmp/wq-g9-07-measure",
+    "porcelain_before_equals_after": true,
+    "proof": "PORCELAIN-IDENTICAL",
+    "real_rc": 0,
+    "red_phase_note": "修复前同一循环令 3 个 tracked evidence 文件变 M（git_head/finished_at/generated_at 漂移）——见工单交付物 red-00-pristine-acceptance.log 尾部"
+  },
+  "schema_note": "G9-07 / R8-PYTEST-HISTORICAL-COLLECT-014 根治腿：测试不得改写 tracked evidence",
+  "what": "test_ac_state_mig / test_ac_ops_families / test_ac_ui_family 原无条件覆写 evidence/04-unit-property-mutation/*.json（git_head+时间戳每次漂移）；现默认写独立临时目录，仅 WENQU_EVIDENCE_OUT_DIR 显式指定时落指定目录。"
+}

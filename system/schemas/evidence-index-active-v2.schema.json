@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/evidence-index-active-v2.json",
+  "title": "Evidence Index Active Table v2（严格合同）",
+  "description": "G9-07（R8-EVID-FIELDS-013 根修）：active 证据索引条目禁止 null+note 冒充严格字段。每条必须携带完整可复核执行事实：exact 40hex commit、run_id、argv、cwd、real_rc（整数退出码）、ISO 时间戳、仓内普通（非 symlink）文件、实算 sha256、合法 TTL。不满足的历史条目一律迁 evidence-index-legacy-v1 分表（不进 active 分母）。tools/evidence_validator.py 是本 schema 的可执行等价物（CI/acceptance 接线）。",
+  "type": "object",
+  "required": ["entry_id", "category", "title", "what", "commit", "run_id", "environment", "argv", "cwd", "real_rc", "time", "artifact_sha256", "evidence_path", "fresh_until", "verified_by"],
+  "properties": {
+    "entry_id": {"type": "string", "pattern": "^EV-[A-Z0-9][A-Z0-9-]*$"},
+    "category": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "what": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "精确 40 位小写 hex——短 SHA/null/note 替代一律非法"},
+    "run_id": {"type": "string", "minLength": 1, "description": "非空运行标识（CI run id / 本地 run 标识）"},
+    "environment": {"type": "string", "minLength": 1},
+    "scope": {"type": "string"},
+    "ruleset": {"type": "string"},
+    "argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "description": "真实调用命令（非空字符串数组）"},
+    "cwd": {"type": "string", "minLength": 1, "description": "执行时工作目录（非空）"},
+    "real_rc": {"type": "integer", "description": "真实整数退出码（bool 冒充非法；允许非 0——诚实优先于漂亮）"},
+    "time": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})$", "description": "ISO 8601 带时区精确时刻（区间/口语化时间非法）"},
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "evidence_path 文件内容实算 sha256（validator 逐条复算）"},
+    "evidence_path": {"type": "string", "pattern": "^(?!/)(?!\\.\\./)[^?#]*$", "description": "仓内相对路径；必须存在、普通文件、非 symlink、非空（validator 以 lstat 实查）"},
+    "fresh_until": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2}))?$", "description": "TTL——非空且为合法 ISO 日期/时刻（『长期』等口语化替代非法；长效证据也应给出显式复审日期）"},
+    "verified_by": {"type": "string", "minLength": 1},
+    "caveat": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$comment": "禁止字段：commit_note/run_id_note/real_rc_note 等 *_note——null+note 冒充严格字段正是 R8-EVID-FIELDS-013 的缺陷形态，active 表由 validator 直接拒绝（含任何 *_note 键即 rc1）。real_rc 记录的是 argv 命令的真实退出码；CI 结论等语义信息写入 caveat，不得顶替 rc。"
+}
