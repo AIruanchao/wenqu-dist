@@ -58,6 +58,14 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 不可变部署位（~/.wenqu/current）无 .git：git 探针按候选回退到真实仓
+# （env 优先，其次脚本位置，最后开发仓默认路径）
+if not os.path.isdir(os.path.join(REPO, ".git")):
+    for _cand in (os.environ.get("WENQU_GIT_REPO"),
+                  "/Users/maccc/Documents/wenqu-dist"):
+        if _cand and os.path.isdir(os.path.join(_cand, ".git")):
+            REPO = _cand
+            break
 OBS_ROOT = os.path.expanduser("~/.wenqu/observation")
 SAMPLES_DIR = os.path.join(OBS_ROOT, "samples")
 SHADOW_DIR = os.path.join(OBS_ROOT, "shadow")
