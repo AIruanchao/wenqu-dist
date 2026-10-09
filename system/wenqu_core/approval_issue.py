@@ -60,7 +60,9 @@ from .approval_keys import (  # noqa: F401 —— re-export 供 CLI/测试消费
     KEY_STATUS_REVOKED,
     KEY_STATUS_ROTATED,
     KEYRING_EVENTS_FILENAME,
+    ISSUE_RECEIPTS_FILENAME,
     ApprovalKeyring,
+    IssueReceiptLedger,
     KeyExpiredError,
     KeyNotFoundError,
     KeyRevokedError,
@@ -385,6 +387,9 @@ class ApprovalIssuer:
         self._keyring = keyring
         self._audit = IssuanceAudit(audit_path)
         self._source = source if source is not None else LocalApprovalSource()
+        # R8-AUTH-RETIRED-KEY-005：受管（目录型）keyring 的签发 receipt 审计根
+        # （文件型/内存 keyring 无受控审计根——不产 receipt，消费侧不执法）
+        self._receipts = keyring.receipts_ledger()
 
     # ------------------------------------------------------------------ #
     @property
@@ -463,8 +468,8 @@ class ApprovalIssuer:
                     "高危类型必须 --second-actor（第二签发人标识）")
 
     def _check_principal(self, key_id: str, actor: str) -> None:
-        """R8-SIGNER-PRINCIPAL-004 签发端预检：actor ∈ key 的 actors 登记
-        面（登记面 opt-in——未登记 actors 的存量 key 不受限；消费端
+        """R8-SIGNER-PRINCIPAL-004 签发端预检：actor ∈ key 的 actors 登记面
+        （登记面 opt-in——未登记 actors 的存量 key 不受限；消费端
         ``ApprovalBroker._verify_signature`` 为权威门，此处早失败只为止
         「签出来消费端一定不收」的浪费签发）。"""
         actors = self._keyring.key_actors(key_id)
@@ -473,6 +478,25 @@ class ApprovalIssuer:
                 f"actor {actor!r} 不在 key {key_id!r} 的 actors 登记面 "
                 f"{list(actors)}（R8-SIGNER-PRINCIPAL-004：actor 冒用他人 "
                 "key 签发——消费端同样会拒，签发端先拒止浪费）")
+
+    def _require_two_person_principal(self, key_id: str, actor: str,
+                                      role: str) -> None:
+        """G9-04/C：高危双人联签的 principal **强制登记**门。
+
+        两把 key 自报不同人名但都无登记 principal 不再放行——联签 key
+        必须有 actors 登记面且 actor 在面内（消费端 ``_verify_cosignatures``
+        同一硬门，此处早失败止浪费签发；单人签发面保持 opt-in 兼容）。"""
+        actors = self._keyring.key_actors(key_id)
+        if actors is None:
+            raise TwoPersonRuleError(
+                f"{role} key {key_id!r} 无 owner/actors principal 登记面"
+                "——高危联签的每把 key 都必须登记 principal（G9-04：两把"
+                "无登记 key 自报不同人名不构成真双人）")
+        if actor not in actors:
+            raise TwoPersonRuleError(
+                f"{role} actor {actor!r} 不在 key {key_id!r} 的 actors "
+                f"登记面 {list(actors)}（冒用他人 key 联签——真双人要求"
+                "各自登记面内签名）")
 
     # ------------------------------------------------------------------ #
     def issue(self,  # noqa: C901 —— 校验链显式展开（可读性优先）
@@ -576,11 +600,17 @@ class ApprovalIssuer:
                     f"第二签发人 key 资格不满足: {exc}") from None
             # R8-SIGNER-PRINCIPAL-004：second_actor ∈ 第二 key 的 actors（预检）
             self._check_principal(second_key_id, second_actor)
+            # G9-04/C：双人联签 principal 强制登记（两 key 都必须有登记面）
+            self._require_two_person_principal(chosen_key_id, actor, "主签")
+            self._require_two_person_principal(second_key_id, second_actor,
+                                               "第二签发人")
 
-        # 6. 信封构造 + 主签名 +（高危）联签
+        # 6. 信封构造 + 受控 receipt（R8-AUTH-RETIRED-KEY-005）+ 主签名
+        #    +（高危）联签
         issued_at = issued_at or _utc_now_iso(now_epoch)
         expires_at = _utc_now_iso(
             _parse_iso_epoch(issued_at) + ttl_seconds)
+        nonce = secrets.token_hex(16)
         envelope: Dict[str, Any] = {
             "schema_version": _APPROVAL_SCHEMA_VERSION,
             "approval_id": f"apr_{uuid.uuid4().hex}",
@@ -600,12 +630,25 @@ class ApprovalIssuer:
             "actor": actor,
             "issued_at": issued_at,
             "expires_at": expires_at,
-            "nonce": secrets.token_hex(16),
+            "nonce": nonce,
             "decision": decision,
             "signature": "",
             "payload": payload,
         }
         envelope.pop("signature", None)
+        # R8-AUTH-RETIRED-KEY-005：受控 keyring（目录型）签发前先在 append-only
+        # 审计根上落单调序号 receipt，并把 seq 嵌入信封（计入签名体）——
+        # 消费侧据以证明「签发真实发生在链上时刻」，离线持旧 secret 回填
+        # issued_at 的信封无法携带合法 receipt。文件型/内存 keyring 无
+        # 受控审计根（receipts_ledger()=None）——不产 receipt，消费侧不执法。
+        if self._receipts is not None:
+            receipt = self._receipts.append(
+                key_id=chosen_key_id,
+                approval_id=envelope["approval_id"],
+                nonce_digest=hashlib.sha256(
+                    nonce.encode("utf-8")).hexdigest(),
+                issued_at=issued_at)
+            envelope["issue_receipt"] = {"seq": receipt["seq"]}
         envelope["signature"] = sign_envelope(secret, envelope)
 
         # R7-AUTH-DUAL-CONSUME-005：高危联签嵌入信封（消费端契约要求
@@ -667,6 +710,8 @@ class ApprovalIssuer:
             "key_id": chosen_key_id,
             "nonce_digest": hashlib.sha256(
                 envelope["nonce"].encode("utf-8")).hexdigest(),
+            "issue_receipt_seq": (envelope.get("issue_receipt") or {}).get(
+                "seq"),
             "issued_at": issued_at,
             "expires_at": expires_at,
             "ttl_seconds": ttl_seconds,

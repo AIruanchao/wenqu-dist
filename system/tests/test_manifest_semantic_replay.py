@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""R8 第八轮 P0-3 残余对抗复验正本——签名 manifest 的 lane/TTL/scope/registry 语义重放。
+"""R8 第八轮 P0-3 残余对抗复验正本 + G9-06 同钥双改/unsigned 边界——
+签名 manifest 的 lane/TTL/scope/registry 语义重放。
 
-洞 -> 测试映射（正源：Codex 第八轮验收 findings §8/§10.1；本文件是对抗复验正本，
-与七轮 test_gate_manifest_trust.py 不同变体族——本轮攻击者**持有合法 release key**，
-全部变体先做「内部完全自洽 + 真密钥重签」，只攻击语义面）：
+洞 -> 测试映射（正源：Codex 第八轮验收 findings §8/§10.1 + 第九轮预检
+1.1/1.4-1；本文件是对抗复验正本，与七轮 test_gate_manifest_trust.py 不同
+变体族——本轮攻击者**持有合法 release key**，全部变体先做「内部完全
+自洽 + 真密钥重签」，只攻击语义面）：
   R8-GATE-LANE-REQ-001（P0）  持钥重签可把 FAST required 合法外观地缩到 [0]；
     降档记录缺要素/越底线/出允许集同样洗白
     -> test_r8_lane001_honest_front_door_and_required_shrink   （对照 PASS + 缩站 BLOCKED）
@@ -19,9 +21,18 @@
   语义域单元面
     -> test_r8_replay_api_units                                （收敛轮数域/畸形输入不崩/幂等重放）
 
-边界（诚实声明）：release key 持有者对 --registry 快照本身重签属于「根持有者=
-策略持有者」——快照验签链保证的是外部 pin 件未被篡改，不提供对根自身的对抗；
-该语义边界在 test_r8_scope003 中显式断言并留痕。
+G9-06（第九轮预检 1.4-1：registry 快照与 manifest 同一密钥签发，仍不是
+独立语义根；R8-GATE-ALLOW-UNSIGNED-METADATA-004 残余：有签 artifact 可被
+--allow-unsigned 跳过验签）：
+  -> test_g906_same_key_double_sign_four_variants  （同钥双改四类变体全拒 rc3）
+  -> test_g906_key_domain_purposes_enforced        （key 用途分域登记面执法）
+  -> test_g906_scope_floor_registry_anchored       （scope 底线锚定 registry）
+  -> test_g906_allow_unsigned_boundary             （已签必验签/诊断永不 PASS）
+
+边界（诚实声明）：registry 快照签发 key 与 manifest 签名 key **相异但同
+ custody**（同一持钥者两把 key）仍是「根持有者=策略持有者」——同钥双签
+拒绝与用途分域能关闭的是「单 key 同步弱化 registry+manifest」的自由旁路，
+key 保管分权是部署责任；该语义边界在 test_g906_* 中显式断言并留痕。
 
 纯标准库；`python3 system/tests/test_manifest_semantic_replay.py`（exit 0=全绿），兼容 pytest。
 """
@@ -42,11 +53,12 @@ from wenqu_core.approval_keys import (  # noqa: E402
     ApprovalKeyring, KeyStateError, sign_envelope,
 )
 from wenqu_core.bugscan_orchestrator import (  # noqa: E402
-    BugscanPlanner, RegistryTrustError, default_registry,
-    live_registry_view, load_trusted_registry_snapshot,
-    replay_manifest_semantics, signed_registry_snapshot,
-    validate_manifest_consistency,
+    BugscanPlanner, ManifestFreezeError, RegistryTrustError,
+    default_registry, live_registry_view, load_trusted_registry_snapshot,
+    registry_snapshot_core, replay_manifest_semantics,
+    signed_registry_snapshot, validate_manifest_consistency,
 )
+from wenqu_core.bugscan_orchestrator import RunManifest  # noqa: E402
 from wenqu_core.gate_aggregator import (  # noqa: E402
     BLOCKED, GateAggregator, check_result_freshness,
 )
@@ -636,16 +648,24 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
             in "".join(vout.get("reasons", [])),
             f"rc={vrc} {_tail(vout.get('reason'))}")
 
-        # 诚实受保护快照：release key 签发 → --registry 正门 PASS
-        snap = signed_registry_snapshot(signing_keyring=keyring,
-                                        signing_key_id=KEY_ID)
+        # 诚实受保护快照（G9-06：快照 key 必须与 manifest key 相异）：
+        # 建 registry 专用 key + 双 key 验签 keyring → --registry 正门 PASS
+        reg_key = ApprovalKeyring.generate("key_r8_registry")
+        dual = ApprovalKeyring({
+            KEY_ID: keyring.get_for_signing(KEY_ID),
+            "key_r8_registry": reg_key.get_for_signing("key_r8_registry"),
+        })
+        kdual = os.path.join(td, "keys-dual.json")
+        dual.save_json(kdual)
+        snap = signed_registry_snapshot(signing_keyring=reg_key,
+                                        signing_key_id="key_r8_registry")
         spath = os.path.join(td, "registry-snapshot.json")
         with open(spath, "w", encoding="utf-8") as fh:
             json.dump(snap, fh, ensure_ascii=False)
         src_, sout = _gate(["--results", *results, "--manifest", mpath,
-                            "--verify-key", kpath, "--registry", spath])
+                            "--verify-key", kdual, "--registry", spath])
         sreplay = sout.get("manifest", {}).get("semantic_replay", {})
-        _ck("R8-SCOPE-003 --registry 验签快照正门 rc=0 PASS（source 落账）",
+        _ck("R8-SCOPE-003 --registry 验签快照正门（异钥）rc=0 PASS（source 落账）",
             src_ == 0 and sout.get("policy_verdict") == "PASS"
             and sreplay.get("source") == "signed_snapshot",
             f"rc={src_} {_tail(json.dumps(sreplay))}")
@@ -657,7 +677,7 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
         with open(tpath, "w", encoding="utf-8") as fh:
             json.dump(tampered, fh, ensure_ascii=False)
         trc, tout = _gate(["--results", *results, "--manifest", mpath,
-                           "--verify-key", kpath, "--registry", tpath])
+                           "--verify-key", kdual, "--registry", tpath])
         _ck("R8-SCOPE-003 篡改快照（弱化 lane 表不重签）rc=3 ERROR"
             "（mode=registry_trust_invalid）",
             trc == 3 and tout.get("mode") == "registry_trust_invalid",
@@ -669,7 +689,7 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
         with open(upath, "w", encoding="utf-8") as fh:
             json.dump(unsigned, fh, ensure_ascii=False)
         urc, uout = _gate(["--results", *results, "--manifest", mpath,
-                           "--verify-key", kpath, "--registry", upath])
+                           "--verify-key", kdual, "--registry", upath])
         _ck("R8-SCOPE-003 无签名快照 rc=3 ERROR",
             urc == 3 and uout.get("mode") == "registry_trust_invalid",
             f"rc={urc} {_tail(uout.get('reason'))}")
@@ -681,7 +701,7 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
         with open(opath, "w", encoding="utf-8") as fh:
             json.dump(other_snap, fh, ensure_ascii=False)
         orc, oout = _gate(["--results", *results, "--manifest", mpath,
-                           "--verify-key", kpath, "--registry", opath])
+                           "--verify-key", kdual, "--registry", opath])
         _ck("R8-SCOPE-003 他钥快照（key 不在验签 keyring）rc=3 ERROR",
             orc == 3 and oout.get("mode") == "registry_trust_invalid",
             f"rc={orc} {_tail(oout.get('reason'))}")
@@ -697,7 +717,7 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
         with open(dpath2, "w", encoding="utf-8") as fh:
             json.dump(digest_lie, fh, ensure_ascii=False)
         drc2, dout2 = _gate(["--results", *results, "--manifest", mpath,
-                             "--verify-key", kpath, "--registry", dpath2])
+                             "--verify-key", kdual, "--registry", dpath2])
         _ck("R8-SCOPE-003 快照 digest 同步重算但未重签 rc=3 ERROR",
             drc2 == 3 and dout2.get("mode") == "registry_trust_invalid",
             f"rc={drc2} {_tail(dout2.get('reason'))}")
@@ -729,15 +749,19 @@ def test_r8_scope003_registry_digest_and_signed_snapshot():
         except (RegistryTrustError, KeyStateError):
             _ck("R8-SCOPE-003 rotated key 不得签快照", True)
 
-        # 诚实边界留痕：根持有者对快照本身重签=策略持有者（keyholder=root，
-        # 非洞）——外部 pin 件的防篡改由验签链保证，对根自身无对抗
-        root_signed = signed_registry_snapshot(signing_keyring=keyring,
-                                               signing_key_id=KEY_ID)
+        # G9-06：同钥重签（manifest key 签快照）已从「诚实边界」升级为拒绝
+        # ——同钥双签=registry 非独立语义根（见 test_g906_same_key_*）。
+        # 新诚实边界留痕：根持有者持**相异 key**（同 custody）仍可重签快照
+        # （keyholder=root=策略持有者，非洞）；key 保管分权是部署责任。
+        root_signed = signed_registry_snapshot(signing_keyring=reg_key,
+                                               signing_key_id="key_r8_registry")
         rpath2 = os.path.join(td, "snapshot-root-resigned.json")
         with open(rpath2, "w", encoding="utf-8") as fh:
             json.dump(root_signed, fh, ensure_ascii=False)
-        view = load_trusted_registry_snapshot(rpath2, keyring=keyring)
-        _ck("R8-SCOPE-003 keyholder=root 语义边界（验签链只保 pin 件完整性）",
+        view = load_trusted_registry_snapshot(rpath2, keyring=dual,
+                                              manifest_key_id=KEY_ID)
+        _ck("R8-SCOPE-003 keyholder=root 语义边界（异钥同 custody 仍可重签——"
+            "验签链只保 pin 件完整性，同钥双签已被 G9-06 拒绝）",
             view.source == "signed_snapshot"
             and view.registry_digest == default_registry().registry_digest())
 
@@ -790,6 +814,389 @@ def test_r8_replay_api_units():
                 broken, registry=default_registry()) != [])
 
 
+# ══════════════════════════════════════════════════════════════════════
+# G9-06：同钥双改拒绝 + key 用途分域 + scope 底线锚定 + unsigned 边界
+# （第九轮预检 1.4-1 / R8-GATE-ALLOW-UNSIGNED-METADATA-004 残余）
+# ══════════════════════════════════════════════════════════════════════
+REG_KEY_ID = "key_r9_registry"
+
+
+def _weaken_resign_snapshot(secret, key_id, *, lane=None, floor=None,
+                            ttl_class=None, rounds=None, scope_floor=None):
+    """G9-06 攻击者快照弱化+重签（内容完全自洽：digest 重算+真密钥 HMAC）。
+
+    与 signed_registry_snapshot 签名面逐字节同构（signature 覆盖含 key_id
+    的快照全体）——弱化件在 load_trusted_registry_snapshot 验签链上完全
+    合法，只能被同钥双签/用途分域拦下。
+    """
+    snap = registry_snapshot_core()
+    if lane is not None:
+        for lane_name, req in lane.items():
+            snap["lane_required_stations"][lane_name] = list(req)
+    if floor is not None:
+        snap["downgrade_floor_stations"] = list(floor)
+    if ttl_class is not None:
+        for sid, (ev_class, ttl) in ttl_class.items():
+            # 进程内 stations 键为 int（与既有 digest-lie 测试同口径）
+            snap["stations"][sid]["evidence_class"] = ev_class
+            snap["stations"][sid]["ttl_days"] = ttl
+    if rounds is not None:
+        snap["lane_convergence_rounds"].update(rounds)
+    if scope_floor is not None:
+        snap["required_scope_globs"] = list(scope_floor)
+    snap["registry_digest"] = _h(
+        {"registry_version": snap["registry_version"],
+         "stations": snap["stations"]})
+    snap["key_id"] = key_id
+    snap["signature"] = sign_envelope(secret, snap)
+    return snap
+
+
+def _g906_case(td, name, snap, doc, stations, kpath, expect_reason="同钥"):
+    """同钥双改变体执行器：弱化快照+弱化 manifest（同 key 重签）→ 必须
+    rc3 registry_trust_invalid 且理由点名同钥双签。"""
+    spath = os.path.join(td, f"g9-snap-{name}.json")
+    with open(spath, "w", encoding="utf-8") as fh:
+        json.dump(snap, fh, ensure_ascii=False)
+    mpath = os.path.join(td, f"g9-m-{name}.json")
+    with open(mpath, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False)
+    results = _results_dir(td, doc, list(stations), prefix=f"g9{name}")
+    rc, out = _gate(["--results", *results, "--manifest", mpath,
+                     "--verify-key", kpath, "--registry", spath])
+    reason = out.get("reason") or ""
+    _ck(f"G9-06 同钥双改[{name}] rc=3 registry_trust_invalid（{expect_reason}拒绝）",
+        rc == 3 and out.get("mode") == "registry_trust_invalid"
+        and ("同一 key" in reason or "同钥双签" in reason),
+        f"rc={rc} mode={out.get('mode')} {_tail(reason)}")
+
+
+def test_g906_same_key_double_sign_four_variants():
+    """G9-06 任务A（先红后绿的绿侧正本；红侧=独立探针 probe-red-run2.txt）：
+    registry 快照与 manifest **同一 key** 同步弱化（各自内容完全自洽+真
+    密钥重签——持钥者可同钥双改）时必须拒绝：
+      lane 缩到 [0] / TTL 7→30（evidence class 同步改）/ scope 重签缩水 /
+      降档五要素拆底线（+收敛轮数弱化）全部 rc3，绝不 rc0/PASS；
+    对照：诚实异钥（manifest key≠registry key）双签正门 rc0 PASS。
+    """
+    with tempfile.TemporaryDirectory(prefix="wq_g906a_") as td:
+        manifest, keyring, mpath, kpath, doc = _setup(td)
+        secret = keyring.get_for_signing(KEY_ID)
+        results = _results_dir(td, doc, [0, 1])
+
+        # 变体1：lane required 缩到 [0]（快照 lane 表+底线同步拆）
+        snap1 = _weaken_resign_snapshot(
+            secret, KEY_ID, lane={"FAST": [0]}, floor=[])
+        doc1 = copy.deepcopy(doc)
+        doc1["required_stations"] = [0]
+        doc1["planner"]["required_stations"] = [0]
+        doc1["station_ttls"] = {"0": doc["station_ttls"]["0"]}
+        doc1 = _resign(doc1, secret)
+        _g906_case(td, "lane-shrink", snap1, doc1, [0], kpath, "lane 缩[0]")
+
+        # 变体2：TTL 7→30（站2/3 evidence_class 同步改 general 过铁律4 上限）
+        manifest_s, keyring_s, mpath_s, kpath_s, doc_s = _setup(
+            td, "STANDARD", run_id="run-g9-ttl",
+            mname="run-manifest-ttl.json", kname="keys-ttl.json")
+        secret_s = keyring_s.get_for_signing(KEY_ID)
+        snap2 = _weaken_resign_snapshot(
+            secret_s, KEY_ID,
+            ttl_class={2: ("general", 30), 3: ("general", 30), 6: ("general", 30)})
+        doc2 = copy.deepcopy(doc_s)
+        doc2["station_ttls"] = {k: 30 for k in doc2["station_ttls"]}
+        doc2["registry_digest"] = snap2["registry_digest"]
+        doc2 = _resign(doc2, secret_s)
+        _g906_case(td, "ttl-7-to-30", snap2, doc2, [0, 1, 2, 3, 4], kpath_s,
+                   "TTL 7→30")
+
+        # 变体3：scope 重签缩水（快照 scope 底线同步拆到 ["src/**"]）
+        snap3 = _weaken_resign_snapshot(secret, KEY_ID,
+                                        scope_floor=["src/**"])
+        doc3 = copy.deepcopy(doc)
+        doc3["scope"]["paths"] = ["src/**"]
+        doc3["scope"]["denominator"] = 1
+        doc3["identity"]["scope_hash"] = _h(
+            {"paths": ["src/**"], "exclusions": []})
+        doc3 = _resign(doc3, secret)
+        _g906_case(td, "scope-resign", snap3, doc3, [0, 1], kpath, "scope 缩水")
+
+        # 变体4：降档五要素拆底线（快照底线同步拆空→dropped=[1] 合法外观）
+        snap4 = _weaken_resign_snapshot(secret, KEY_ID, floor=[])
+        doc4 = copy.deepcopy(doc)
+        doc4["planner"]["downgrade"] = _valid_downgrade()
+        doc4["planner"]["dropped_stations"] = [1]
+        doc4["required_stations"] = [0]
+        doc4["planner"]["required_stations"] = [0]
+        doc4["station_ttls"] = {"0": doc["station_ttls"]["0"]}
+        doc4 = _resign(doc4, secret)
+        _g906_case(td, "downgrade-floor", snap4, doc4, [0], kpath, "降档拆底线")
+
+        # 变体5（语义域第五要素）：收敛轮数弱化（STANDARD 2→1 同步双改）
+        snap5 = _weaken_resign_snapshot(secret_s, KEY_ID,
+                                        rounds={"STANDARD": 1})
+        doc5 = copy.deepcopy(doc_s)
+        doc5["planner"]["convergence_rounds"] = 1
+        doc5["registry_digest"] = snap5["registry_digest"]
+        doc5 = _resign(doc5, secret_s)
+        _g906_case(td, "convergence-1", snap5, doc5, [0, 1, 2, 3, 4], kpath_s,
+                   "收敛轮数弱化")
+
+        # 对照：诚实异钥双签正门（G9-06 后的诚实 --registry 形态）
+        reg_key = ApprovalKeyring.generate(REG_KEY_ID)
+        dual = ApprovalKeyring({
+            KEY_ID: secret,
+            REG_KEY_ID: reg_key.get_for_signing(REG_KEY_ID)})
+        kdual = os.path.join(td, "keys-dual.json")
+        dual.save_json(kdual)
+        honest_snap = signed_registry_snapshot(signing_keyring=reg_key,
+                                               signing_key_id=REG_KEY_ID)
+        hspath = os.path.join(td, "snap-honest.json")
+        with open(hspath, "w", encoding="utf-8") as fh:
+            json.dump(honest_snap, fh, ensure_ascii=False)
+        hrc, hout = _gate(["--results", *results, "--manifest", mpath,
+                           "--verify-key", kdual, "--registry", hspath])
+        _ck("G9-06 诚实 signed 正门（异钥快照）rc=0 PASS",
+            hrc == 0 and hout.get("policy_verdict") == "PASS",
+            f"rc={hrc} {_tail(hout.get('reason'))}")
+
+
+def test_g906_key_domain_purposes_enforced():
+    """G9-06 分域登记面（keyring meta ``purposes``，opt-in）：
+    manifest 域 key 不得签 registry 快照（签发面+消费面）；registry 域
+    key 不得签 manifest（冻结面+读回面）；未登记 purposes 的存量 key
+    不受限（向后兼容）。"""
+    with tempfile.TemporaryDirectory(prefix="wq_g906b_") as td:
+        mk = ApprovalKeyring(
+            {"key_dm": "d" * 32},
+            metadata={"key_dm": {"purposes": ["manifest"]}})
+        rk = ApprovalKeyring(
+            {"key_dr": "e" * 32},
+            metadata={"key_dr": {"purposes": ["registry"]}})
+        # 签发面：manifest 域 key 签快照 → RegistryTrustError
+        try:
+            signed_registry_snapshot(signing_keyring=mk, signing_key_id="key_dm")
+            _ck("G9-06 manifest 域 key 签快照（签发面）拒", False, "no raise")
+        except RegistryTrustError as exc:
+            _ck("G9-06 manifest 域 key 签快照（签发面）拒（用途域不符）",
+                "用途域" in str(exc), _tail(str(exc)))
+        # 消费面：攻击者持 secret 手签快照（绕过签发面）→ load 拒
+        forged = _weaken_resign_snapshot("d" * 32, "key_dm", lane={"FAST": [0]},
+                                         floor=[])
+        fpath = os.path.join(td, "forged-snap.json")
+        with open(fpath, "w", encoding="utf-8") as fh:
+            json.dump(forged, fh, ensure_ascii=False)
+        try:
+            load_trusted_registry_snapshot(fpath, keyring=mk,
+                                           manifest_key_id="key_other")
+            _ck("G9-06 manifest 域 key 手签快照（消费面）拒", False, "no raise")
+        except RegistryTrustError as exc:
+            _ck("G9-06 manifest 域 key 手签快照（消费面）拒（分域混用）",
+                "用途域混用" in str(exc) or "不含" in str(exc),
+                _tail(str(exc)))
+        # 冻结面：registry 域 key 签 manifest → ManifestFreezeError
+        planner = BugscanPlanner(default_registry())
+        plan = planner.plan("FAST")
+        try:
+            planner.freeze_run_manifest(
+                plan, run_id="run-g9-dom", project_id="g9/erp", commit_sha=SHA,
+                environment="staging", scope=["src/**", "tests/**", "tools/**"],
+                ruleset={"v": 1}, data_config={"p": "d"},
+                signing_keyring=rk, signing_key_id="key_dr")
+            _ck("G9-06 registry 域 key 签 manifest（冻结面）拒", False,
+                "no raise")
+        except ManifestFreezeError as exc:
+            _ck("G9-06 registry 域 key 签 manifest（冻结面）拒（用途域不符）",
+                "用途域" in str(exc), _tail(str(exc)))
+        # 读回面：已签 manifest 换用 registry 域口径 keyring 验 → 拒
+        m = planner.freeze_run_manifest(
+            plan, run_id="run-g9-dom2", project_id="g9/erp", commit_sha=SHA,
+            environment="staging", scope=["src/**", "tests/**", "tools/**"],
+            ruleset={"v": 1}, data_config={"p": "d"},
+            signing_keyring=mk, signing_key_id="key_dm")
+        mpath = os.path.join(td, "dm.json")
+        m.save(mpath)
+        reparse = ApprovalKeyring(
+            {"key_dm": "d" * 32},
+            metadata={"key_dm": {"purposes": ["registry"]}})
+        try:
+            RunManifest.load(mpath, keyring=reparse)
+            _ck("G9-06 registry 域口径验已签 manifest（读回面）拒", False,
+                "no raise")
+        except ManifestFreezeError as exc:
+            _ck("G9-06 registry 域口径验已签 manifest（读回面）拒",
+                "用途域混用" in str(exc) or "不含" in str(exc),
+                _tail(str(exc)))
+        # 向后兼容：未登记 purposes 的存量 key 双域皆可（opt-in 登记面）
+        legacy = ApprovalKeyring.generate("key_legacy")
+        legacy_snap = signed_registry_snapshot(signing_keyring=legacy,
+                                               signing_key_id="key_legacy")
+        lpath = os.path.join(td, "legacy-snap.json")
+        with open(lpath, "w", encoding="utf-8") as fh:
+            json.dump(legacy_snap, fh, ensure_ascii=False)
+        view = load_trusted_registry_snapshot(lpath, keyring=legacy)
+        _ck("G9-06 未登记 purposes 的存量 key 不受限（opt-in）",
+            view.source == "signed_snapshot"
+            and legacy.key_purposes("key_legacy") is None)
+
+
+def test_g906_scope_floor_registry_anchored():
+    """G9-06 scope 语义域锚定：registry 快照/代码锚定视图都携带
+    required_scope_globs 底线——manifest scope 缩水（重算 hash+重绑结果+
+    真密钥重签，对 code_anchored 正源）→ scope_floor_violation BLOCKED；
+    超集 scope 合法 rc0；快照缺底线/空底线不得作为重放正源。"""
+    with tempfile.TemporaryDirectory(prefix="wq_g906c_") as td:
+        manifest, keyring, mpath, kpath, doc = _setup(td)
+        secret = keyring.get_for_signing(KEY_ID)
+        results = _results_dir(td, doc, [0, 1])
+
+        shrink = copy.deepcopy(doc)
+        shrink["scope"]["paths"] = ["src/**"]      # 缩到底线之下
+        shrink["scope"]["denominator"] = 1
+        shrink["identity"]["scope_hash"] = _h(
+            {"paths": ["src/**"], "exclusions": []})
+        shrink = _resign(shrink, secret)
+        spath = os.path.join(td, "scope-shrink.json")
+        with open(spath, "w", encoding="utf-8") as fh:
+            json.dump(shrink, fh, ensure_ascii=False)
+        sres = _results_dir(td, shrink, [0, 1], prefix="shrink")
+        src_, sout = _gate(["--results", *sres, "--manifest", spath,
+                            "--verify-key", kpath])
+        sreasons = "".join(sout.get("reasons", []))
+        _ck("G9-06 scope 缩水（code_anchored 底线）rc=2 BLOCKED + "
+            "scope_floor_violation",
+            src_ == 2 and sout.get("policy_verdict") != "PASS"
+            and "scope_floor_violation" in sreasons
+            and "manifest_semantic_replay_violation" in sreasons,
+            f"rc={src_} {_tail(sreasons)}")
+
+        # 超集 scope（底线之上追加 docs/**）→ 合法 rc0
+        wide, wkey = _freeze(scope=("docs/**", "src/**", "tests/**",
+                                    "tools/**"))
+        wpath = os.path.join(td, "scope-wide.json")
+        wide.save(wpath)
+        wkpath = os.path.join(td, "keys-wide.json")
+        wkey.save_json(wkpath)
+        wres = _results_dir(td, json.loads(wide.to_json()), [0, 1],
+                            prefix="wide")
+        wrc, wout = _gate(["--results", *wres, "--manifest", wpath,
+                           "--verify-key", wkpath])
+        _ck("G9-06 超集 scope（覆盖底线之上）rc=0 PASS",
+            wrc == 0 and wout.get("policy_verdict") == "PASS",
+            f"rc={wrc} {_tail(wout.get('reason'))}")
+
+        # api 面：缩水 scope 记违例；诚实三 glob 零违例
+        issues = replay_manifest_semantics(shrink,
+                                           registry=default_registry())
+        _ck("G9-06 replay api：缩水 scope 记 scope_floor_violation",
+            any("scope_floor_violation" in i for i in issues),
+            _tail("; ".join(issues)))
+        issues2 = replay_manifest_semantics(
+            json.loads(wide.to_json()), registry=default_registry())
+        _ck("G9-06 replay api：超集 scope 零违例", issues2 == [],
+            _tail("; ".join(issues2)))
+
+        # 快照面：缺底线/空底线 → RegistryTrustError（不得作重放正源）
+        reg_key = ApprovalKeyring.generate(REG_KEY_ID)
+        for label, mutate in (
+                ("缺 required_scope_globs",
+                 lambda s: s.pop("required_scope_globs")),
+                ("空 required_scope_globs",
+                 lambda s: s.update(required_scope_globs=[]))):
+            bad = signed_registry_snapshot(signing_keyring=reg_key,
+                                           signing_key_id=REG_KEY_ID)
+            mutate(bad)
+            bad["signature"] = sign_envelope(
+                reg_key.get_for_signing(REG_KEY_ID), bad)
+            bpath = os.path.join(td, f"snap-bad-{label[:2]}.json")
+            with open(bpath, "w", encoding="utf-8") as fh:
+                json.dump(bad, fh, ensure_ascii=False)
+            try:
+                load_trusted_registry_snapshot(
+                    bpath, keyring=reg_key, manifest_key_id=KEY_ID)
+                _ck(f"G9-06 快照[{label}]拒绝作为重放正源", False, "no raise")
+            except RegistryTrustError as exc:
+                _ck(f"G9-06 快照[{label}]拒绝作为重放正源（scope 必须锚定）",
+                    "required_scope_globs" in str(exc), _tail(str(exc)))
+
+
+def test_g906_allow_unsigned_boundary():
+    """G9-06 任务B（R8-GATE-ALLOW-UNSIGNED-METADATA-004 残余）：
+    已签 artifact 永远必须验签——检测到 signature 却缺 verify key 时
+    rc3（--allow-unsigned 不得跳过验签）；--allow-unsigned 仅对真正
+    unsigned 诊断件可用且结论只能是 BLOCKED/NOT_EVALUATED，永不 PASS。"""
+    with tempfile.TemporaryDirectory(prefix="wq_g906d_") as td:
+        manifest, keyring, mpath, kpath, doc = _setup(td)
+        results = _results_dir(td, doc, [0, 1])
+
+        # B1：已签 manifest 只传 --allow-unsigned（无 verify key）→ rc3
+        b1rc, b1out = _gate(["--results", *results, "--manifest", mpath,
+                             "--allow-unsigned"])
+        b1reason = b1out.get("reason") or ""
+        _ck("G9-06 已签 manifest + --allow-unsigned（无 key）rc=3 不跳验签",
+            b1rc == 3 and b1out.get("mode") == "manifest_invalid"
+            and b1out.get("policy_verdict") != "PASS"
+            and ("签名字段" in b1reason or "永远必须验签" in b1reason),
+            f"rc={b1rc} {_tail(b1reason)}")
+        # B1'：同件 --verify-key + --allow-unsigned → 正常验签 rc0（不误伤）
+        b1prc, b1pout = _gate(["--results", *results, "--manifest", mpath,
+                               "--verify-key", kpath, "--allow-unsigned"])
+        _ck("G9-06 已签 manifest + --verify-key（allow-unsigned 不误伤）rc=0",
+            b1prc == 0 and b1pout.get("policy_verdict") == "PASS",
+            f"rc={b1prc} {_tail(b1pout.get('reason'))}")
+
+        # B2：真 unsigned 诊断件 → BLOCKED/NOT_EVALUATED，永不 PASS
+        unsigned = copy.deepcopy(doc)
+        unsigned.pop("signature")
+        unsigned.pop("key_id")
+        unsigned.pop("manifest_hash")
+        unsigned["manifest_hash"] = _h(
+            {k: v for k, v in unsigned.items() if k != "manifest_hash"})
+        upath = os.path.join(td, "unsigned.json")
+        with open(upath, "w", encoding="utf-8") as fh:
+            json.dump(unsigned, fh, ensure_ascii=False)
+        ures = _results_dir(td, unsigned, [0, 1], prefix="uns")
+        b2rc, b2out = _gate(["--results", *ures, "--manifest", upath,
+                             "--allow-unsigned"])
+        sig = b2out.get("manifest", {}).get("signature", {})
+        _ck("G9-06 真 unsigned + --allow-unsigned rc=2 永不 PASS",
+            b2rc == 2 and b2out.get("policy_verdict") in ("BLOCKED",
+                                                          "NOT_EVALUATED")
+            and b2out.get("aggregate_outcome") == BLOCKED
+            and "unsigned_manifest_never_pass" in "".join(
+                b2out.get("reasons", [])),
+            f"rc={b2rc} {_tail(b2out.get('reason'))}")
+        _ck("G9-06 unsigned 诊断件元数据如实（signed=false/"
+            "allow_unsigned_downgrade=true）",
+            sig.get("signed") is False
+            and sig.get("verified") is False
+            and sig.get("allow_unsigned_downgrade") is True,
+            _tail(json.dumps(sig)))
+        # B2'：真 unsigned + --verify-key 无 --allow-unsigned → 默认拒 rc3
+        b2prc, b2pout = _gate(["--results", *ures, "--manifest", upath,
+                               "--verify-key", kpath])
+        _ck("G9-06 真 unsigned + --verify-key（无 allow-unsigned）rc=3 默认拒",
+            b2prc == 3 and b2pout.get("mode") == "manifest_invalid",
+            f"rc={b2prc} {_tail(b2pout.get('reason'))}")
+
+        # API 面（RunManifest.load）：
+        try:
+            RunManifest.load(mpath)
+            _ck("G9-06 load 已签件无 keyring 拒", False, "no raise")
+        except ManifestFreezeError as exc:
+            _ck("G9-06 load 已签件无 keyring 拒（已签 artifact 必须验签）",
+                "永远必须验签" in str(exc) or "签名字段" in str(exc),
+                _tail(str(exc)))
+        try:
+            RunManifest.load(mpath, allow_unsigned=True)
+            _ck("G9-06 load 已签件 allow_unsigned 也不得跳验签", False,
+                "no raise")
+        except ManifestFreezeError:
+            _ck("G9-06 load 已签件 allow_unsigned 也不得跳验签", True)
+        legacy = RunManifest.load(upath)
+        _ck("G9-06 load 真 unsigned 无 keyring 保持 legacy 口径可读",
+            legacy.manifest_hash == unsigned["manifest_hash"])
+
+
 def _raises(fn):
     try:
         fn()
@@ -803,8 +1210,8 @@ def _raises(fn):
 # ══════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items())
-             if k.startswith("test_r8") and callable(v)]
-    print(f"== R8 第八轮 manifest 语义重放对抗复验（{len(tests)} 组）==")
+             if k.startswith(("test_r8", "test_g906")) and callable(v)]
+    print(f"== R8+G9-06 manifest 语义重放对抗复验（{len(tests)} 组）==")
     for t in tests:
         print(f"-- {t.__name__}")
         try:

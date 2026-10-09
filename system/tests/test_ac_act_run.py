@@ -304,6 +304,37 @@ def _descriptor(ap: Dict[str, Any]) -> Dict[str, Any]:
     return dict(ap["payload"])
 
 
+def _release_payload_with_files(td: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """release payload：artifact/manifest sha256 来自真实文件实算（G9-04/B：
+    消费端 *_sha256 字段必须经 artifact_paths 对真实文件现场 sha256——
+    payload 里的哈希值必须与文件内容一致才可消费）。"""
+    art = td / "rel-artifact.bin"
+    man = td / "rel-manifest.json"
+    art.write_bytes(b"act-run-release-artifact-v1")
+    man.write_bytes(b'{"release": "act-run"}')
+    return {
+        "release_id": "rel-2026-10-08.1",
+        "artifact_sha256": hashlib.sha256(art.read_bytes()).hexdigest(),
+        "manifest_sha256": hashlib.sha256(man.read_bytes()).hexdigest(),
+        "environment": IDENT["environment"],
+        "previous_release_id": "rel-2026-10-07.9",
+    }, {"artifact_sha256": str(art), "manifest_sha256": str(man)}
+
+
+def _runtime_ev(ap: Dict[str, Any], target: str,
+                artifact_paths: Optional[Dict[str, str]] = None
+                ) -> Dict[str, Any]:
+    """R8-AUTH-TARGET-UNBOUND-006：reserve_action 必填的 runtime evidence
+    （全字段运行时观测 + action_target 实际执行目标；*_sha256 字段经
+    artifact_paths 实算——由调用方给出 {字段: 真实文件路径}）。"""
+    ev = {k: v for k, v in ap["payload"].items()
+          if not k.endswith("_sha256")}
+    ev["action_target"] = target
+    if artifact_paths:
+        ev["artifact_paths"] = dict(artifact_paths)
+    return ev
+
+
 def _make_approval(
     run_id: str, task: str, state_version: int, approval_type: str, *,
     stage: str = "S1_REQUIREMENT", nonce: Optional[str] = None,
@@ -427,11 +458,16 @@ def test_ACT_01_technical_pass_without_exact_authorization_controller_holds(
         _assert_zero_action_side(mgr, run_c, "活 run 无授权预留后")
 
         # exact authorization 到位后 controller 才动作（精确授权半边，非全面禁止）
-        # R7：release 高危——补嵌入双联签 + exact descriptor（新消费契约）
+        # R7：release 高危——补嵌入双联签 + exact descriptor（新消费契约）；
+        # G9-04/B：release 的 *_sha256 走真实文件实算 + runtime evidence 必填
+        rel_payload, rel_paths = _release_payload_with_files(td)
         rel_ap = _cosign_ap(_make_approval(run_c, "task_act01_live2", v_c,
-                                           "release"))
+                                           "release", payload=rel_payload))
         r = mgr.reserve_action(run_c, "release", "prod://erp/rel-77", rel_ap,
-                               action_descriptor=_descriptor(rel_ap))
+                               action_descriptor=_descriptor(rel_ap),
+                               runtime_evidence=_runtime_ev(rel_ap,
+                                                            "prod://erp/rel-77",
+                                                            rel_paths))
         _ok(r["action_state"] == "RESERVED", "exact 授权预留应成功")
         _ok(_count_events(mgr, "APPROVAL_CONSUMED", run_c) == 1,
             "预留成功应恰消费一次授权")
@@ -519,9 +555,13 @@ def test_ACT_03_outbox_idempotent_recovery_no_double_green(
     with _tmp(root) as td:
         store, mgr = _fresh(td)
         run_id, v = _s1_running_run(mgr, "task_act03")
-        ap = _cosign_ap(_make_approval(run_id, "task_act03", v, "release"))
+        rel_payload, rel_paths = _release_payload_with_files(td)
+        ap = _cosign_ap(_make_approval(run_id, "task_act03", v, "release",
+                                       payload=rel_payload))
         reserved = mgr.reserve_action(run_id, "release", "prod://erp/rel-77",
-                                      ap, action_descriptor=_descriptor(ap))
+                                      ap, action_descriptor=_descriptor(ap),
+                                      runtime_evidence=_runtime_ev(
+                                          ap, "prod://erp/rel-77", rel_paths))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="publish attempt 1")
 
@@ -606,9 +646,14 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
 
         # -- 动作 1（release）：调用发出后回执丢失 → 先查询外部事实（对账不了）
         #    → FAILED_UNKNOWN 终态；绝不盲重试（nonce 已消费、终态封死）
-        ap1 = _cosign_ap(_make_approval(run_id, "task_act04", v, "release"))
+        #    G9-04/B：release 的 *_sha256 哈希来自真实文件实算
+        rel_payload, rel_paths = _release_payload_with_files(td)
+        ap1 = _cosign_ap(_make_approval(run_id, "task_act04", v, "release",
+                                        payload=rel_payload))
         a1 = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap1,
-                                action_descriptor=_descriptor(ap1))
+                                action_descriptor=_descriptor(ap1),
+                                runtime_evidence=_runtime_ev(
+                                    ap1, "prod://erp/rel-77", rel_paths))
         mgr.start_action(run_id, a1["action_id"],
                          receipt="call issued; receipt lost in crash")
         lost = _make_receipt(a1, run_id)          # 从未到达的回执形态
@@ -634,7 +679,9 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
         v_now = mgr.get_run(run_id).state_version
         ap2 = _make_approval(run_id, "task_act04", v_now, "merge")
         a2 = mgr.reserve_action(run_id, "merge", "repo://erp-main/pr-42", ap2,
-                                action_descriptor=_descriptor(ap2))
+                                action_descriptor=_descriptor(ap2),
+                                runtime_evidence=_runtime_ev(
+                                    ap2, "repo://erp-main/pr-42"))
         mgr.start_action(run_id, a2["action_id"], receipt="merge issued")
         fact2 = _make_receipt(a2, run_id, outcome="COMMITTED",
                               external_ref="gh-merge-42")
@@ -651,7 +698,9 @@ def test_ACT_04_query_external_fact_committed_or_failed_unknown(
         v_now = mgr.get_run(run_id).state_version
         ap3 = _cosign_ap(_make_approval(run_id, "task_act04", v_now, "ddl"))
         a3 = mgr.reserve_action(run_id, "ddl", "db://staging/erp", ap3,
-                                action_descriptor=_descriptor(ap3))
+                                action_descriptor=_descriptor(ap3),
+                                runtime_evidence=_runtime_ev(
+                                    ap3, "db://staging/erp"))
         mgr.start_action(run_id, a3["action_id"])
         fact3 = _make_receipt(a3, run_id, outcome="FAILED",
                               external_ref="ddl-exec-9")
@@ -686,7 +735,9 @@ def test_ACT_05_stale_green_or_dispatcher_loss_keeps_action_blocked(
         ap = _make_approval(run_id, "task_act05", v, "merge")
         reserved = mgr.reserve_action(run_id, "merge",
                                       "repo://erp-main/pr-42", ap,
-                                      action_descriptor=_descriptor(ap))
+                                      action_descriptor=_descriptor(ap),
+                                      runtime_evidence=_runtime_ev(
+                                          ap, "repo://erp-main/pr-42"))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="merge started; awaiting receipt")
 

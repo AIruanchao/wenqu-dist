@@ -70,6 +70,29 @@ R8-SIGNER-PRINCIPAL-004（Codex 第八轮 P0-2 残余③）：key 元数据新�
 登记面供消费端执法：envelope.actor 必须 ∈ 签名 key 的 actors（同一 actor
 不能冒用两把不属于他的 key 凑联签）；未登记 actors 的存量 key 不受限
 （诚实边界：登记面是 opt-in，CLI ``keys create`` 未接线属后续工作项）。
+
+G9-06（第九轮预检 1.4-1：同钥双签非独立语义根）：key 元数据新增
+``purposes`` 用途分域登记字段（如 ``["manifest"]``/``["registry"]``）——
+``ApprovalKeyring.key_purposes`` 暴露登记面，供 registry 快照/manifest
+验签端执法「签名 key 分域、不得混用」；未登记的存量 key 不受用途限制
+（opt-in，与 actors 同型；同钥双签拒绝在消费端无条件执法、不依赖登记面）。
+R8-AUTH-RETIRED-KEY-005（G9-04 根修，2026-10-09）：退休 key 不可回填——
+受控 issuer 签发时生成**单调序号签发 receipt**（``IssueReceiptLedger``，
+锚定 keyring 目录内 append-only 审计文件 ``issue-receipts.jsonl``：seq
+单调递增 + 逐行 chain_prev 哈希链 + 逐行 receipt_hmac）：
+- 消费侧（``ApprovalKeyring.issue_receipt_rejection``）：受管（目录型）
+  keyring 的信封消费必须验证 receipt 在链上真实存在、seq/envelope 绑定
+  一致、签发时刻在退休窗口内——无 receipt 的信封一律拒绝（fail-closed）；
+  持旧 secret 离线手签可回填 ``issued_at``，但无法在 append-only 链上追加
+  合法 receipt，退休回填面关闭；
+- 轮换/吊销盘点（``save_key_meta``）：meta 落 rotated/revoked 时把链上
+  当前最大 seq 记为 ``retired_receipt_seq``（退休后再出现的更大 seq 一律
+  非退休前签发）；
+- 诚实边界：receipt regime 只对**目录型受管 keyring**（wenquctl keys 正门）
+  生效——文件型/内存 keyring（测试夹具、dev 联调）无受控审计根，不执法
+  （与 keyring 权限豁免面同构）；审计文件自身的不可篡改性（0600 + 追加
+  写 + 哈希链检出篡改）是部署责任，防持有旧 secret 但无文件写权限的
+  攻击者（威胁模型正源），不防能改写 keyring 目录的 root 级攻击者。
 """
 
 from __future__ import annotations
@@ -91,6 +114,8 @@ __all__ = [
     "KeyRotatedError",
     "KeyExpiredError",
     "KeyringPermissionError",
+    "IssueReceiptLedger",
+    "ISSUE_RECEIPTS_FILENAME",
     "KEY_STATUS_ACTIVE",
     "KEY_STATUS_ROTATED",
     "KEY_STATUS_REVOKED",
@@ -130,6 +155,10 @@ KEY_STATUSES = frozenset({KEY_STATUS_ACTIVE, KEY_STATUS_ROTATED,
 #: 目录型 keyring 的生命周期事件账本文件名（append-only，0600）
 KEYRING_EVENTS_FILENAME = "keyring-events.jsonl"
 
+#: 目录型 keyring 的**签发 receipt 审计根**文件名（R8-AUTH-RETIRED-KEY-005：
+#: 单调 seq + 哈希链 + 逐行 HMAC——退休回填的不可伪造锚点）
+ISSUE_RECEIPTS_FILENAME = "issue-receipts.jsonl"
+
 #: secret/meta 文件与目录的权限（owner-only；目录需 x 位故为 0700）
 _SECRET_FILE_MODE = 0o600
 _KEYRING_DIR_MODE = 0o700
@@ -160,6 +189,175 @@ class KeyringPermissionError(ValueError):
     同样 fail-closed）。豁免通道见 ``DEV_FIXTURE_EXEMPT_ROOTS`` 与
     ``KEYRING_DEV_FIXTURES_ENV``。
     """
+
+
+# ====================================================================== #
+# R8-AUTH-RETIRED-KEY-005（G9-04）：签发 receipt 审计根
+# ——受控 issuer 侧追加、消费侧（broker→keyring）重放校验的单一正源。
+# ====================================================================== #
+
+#: receipt 行键集封闭（additionalProperties 语义）
+_ISSUE_RECEIPT_FIELDS = frozenset({
+    "record_type", "key_id", "seq", "approval_id", "nonce_digest",
+    "issued_at", "ts", "chain_prev", "receipt_hmac",
+})
+
+
+class IssueReceiptLedger:
+    """签发 receipt 账本（append-only jsonl，0600，逐行哈希链+HMAC）。
+
+    R8-AUTH-RETIRED-KEY-005 根修的锚点：受控 issuer 每签发一份审批前追加
+    一条 receipt（seq 单调递增、``chain_prev``=前一行 canonical JSON 的
+    sha256、``receipt_hmac``=签名 key secret 对本行除 hmac 外全字段的
+    HMAC-SHA256）。持旧 secret 的攻击者可以手签任意信封与回填时间，但
+    无法在受保护目录内追加合法 receipt——消费侧只认链上真实存在的签发。
+
+    - ``append``（issuer 侧）：分配 seq=max+1、算链与 HMAC、单次 write 追加；
+    - ``verify_chain``（消费侧）：重放全链——坏行/键集不闭/seq 非严格
+      递增/链断/未知 key/receipt_hmac 不符即断（fail-closed）；
+    - ``by_seq``：seq → receipt 行（消费侧按信封 ``issue_receipt.seq``
+      查找并做 envelope 等值绑定）。
+
+    纯标准库；与 ``IssuanceAudit``（签发审计账本）职责分离：审计账本记
+    「批了什么」（对账面），receipt 链锚定「何时真实签发过」（时间执法面）。
+    """
+
+    def __init__(self, path: str, *,
+                 secret_of: Optional[Mapping[str, str]] = None) -> None:
+        """``secret_of``：key_id → secret（receipt_hmac 重算用；消费侧传
+        keyring 视图，issuer 侧传 ``{key_id: secret}`` 单键映射即可）。"""
+        if not path or not path.strip():
+            raise ValueError("receipts ledger path must be non-empty")
+        self.path = path
+        self._secret_of = dict(secret_of or {})
+
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _canonical(obj: Any) -> str:
+        return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                          ensure_ascii=False)
+
+    @classmethod
+    def _line_digest(cls, record: Mapping[str, Any]) -> str:
+        return hashlib.sha256(
+            cls._canonical(record).encode("utf-8")).hexdigest()
+
+    def _receipt_hmac(self, record: Mapping[str, Any]) -> str:
+        secret = self._secret_of.get(str(record.get("key_id")))
+        if secret is None:
+            raise KeyNotFoundError(
+                f"receipt key_id {record.get('key_id')!r} 不在 secret 视图")
+        body = {k: v for k, v in dict(record).items() if k != "receipt_hmac"}
+        return hmac.new(secret.encode("utf-8"),
+                        self._canonical(body).encode("utf-8"),
+                        hashlib.sha256).hexdigest()
+
+    # ------------------------------------------------------------------ #
+    def max_seq(self) -> int:
+        """链上当前最大 seq（空账本/文件不存在=0）。坏行抛 ValueError。"""
+        return max((int(r.get("seq", 0)) for r in self.records()),
+                   default=0)
+
+    def records(self) -> List[Dict[str, Any]]:
+        """读取全部 receipt 行（不做链校验；坏 JSON/非对象行抛 ValueError）。"""
+        if not os.path.exists(self.path):
+            return []
+        out: List[Dict[str, Any]] = []
+        with open(self.path, "r", encoding="utf-8") as fh:
+            for lineno, line in enumerate(fh, 1):
+                if not line.strip():
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"receipt line {lineno} is not JSON: {exc}") from None
+                if not isinstance(rec, dict):
+                    raise ValueError(
+                        f"receipt line {lineno} is not an object")
+                out.append(rec)
+        return out
+
+    # ------------------------------------------------------------------ #
+    def append(self, *, key_id: str, approval_id: str, nonce_digest: str,
+               issued_at: str) -> Dict[str, Any]:
+        """追加一条签发 receipt（seq=max+1，链式+HMAC，0600 单次 write）。"""
+        record: Dict[str, Any] = {
+            "record_type": "ISSUE_RECEIPT",
+            "key_id": key_id,
+            "seq": self.max_seq() + 1,
+            "approval_id": approval_id,
+            "nonce_digest": nonce_digest,
+            "issued_at": issued_at,
+            "ts": _utc_now_iso(),
+        }
+        prev = self.records()[-1] if os.path.exists(self.path) else None
+        record["chain_prev"] = (self._line_digest(prev)
+                                if prev is not None else "0" * 64)
+        record["receipt_hmac"] = self._receipt_hmac(record)
+        line = self._canonical(record)
+        fd = os.open(self.path,
+                     os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+                     _SECRET_FILE_MODE)
+        try:
+            os.write(fd, (line + "\n").encode("utf-8"))
+        finally:
+            os.close(fd)
+        os.chmod(self.path, _SECRET_FILE_MODE)
+        return record
+
+    # ------------------------------------------------------------------ #
+    def verify_chain(self) -> Dict[str, Any]:
+        """重放校验全链；返回 {ok, length, break_at, reason}。
+
+        校验项（任一失败即断）：键集封闭、record_type 固定、seq 严格递增、
+        chain_prev 逐行衔接、receipt_hmac 与 secret 视图重算一致。
+        """
+        try:
+            records = self.records()
+        except ValueError as exc:
+            return {"ok": False, "length": None, "break_at": None,
+                    "reason": f"unreadable: {exc}"}
+        expected_prev = "0" * 64
+        last_seq = 0
+        for idx, rec in enumerate(records, 1):
+            stray = sorted(set(rec) - _ISSUE_RECEIPT_FIELDS)
+            if stray or "receipt_hmac" not in rec:
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: fields not closed: "
+                                  f"{stray or 'missing receipt_hmac'}"}
+            if rec.get("record_type") != "ISSUE_RECEIPT":
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: bad record_type"}
+            seq = rec.get("seq")
+            if not (isinstance(seq, int) and not isinstance(seq, bool)
+                    and seq == last_seq + 1):
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: seq {seq!r} 不是严格递增"
+                                  f"（期望 {last_seq + 1}）"}
+            last_seq = seq
+            if rec.get("chain_prev") != expected_prev:
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: chain_prev mismatch"}
+            try:
+                expected_hmac = self._receipt_hmac(rec)
+            except KeyNotFoundError as exc:
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: {exc}"}
+            if not hmac.compare_digest(str(rec["receipt_hmac"]),
+                                       expected_hmac):
+                return {"ok": False, "length": len(records), "break_at": idx,
+                        "reason": f"record {idx}: receipt_hmac mismatch"}
+            expected_prev = self._line_digest(rec)
+        return {"ok": True, "length": len(records), "break_at": None,
+                "reason": None}
+
+    def by_seq(self, seq: int) -> Optional[Dict[str, Any]]:
+        """按 seq 查 receipt 行（不校验链——调用方须先 ``verify_chain``）。"""
+        for rec in self.records():
+            if rec.get("seq") == seq:
+                return rec
+        return None
 
 
 #: 显式豁免清单：本仓测试夹具目录（内含公开测试密钥，权限宽不构成泄密面；
@@ -319,11 +517,15 @@ class ApprovalKeyring:
 
     def __init__(self, keys: Optional[Mapping[str, str]] = None,
                  metadata: Optional[Mapping[str, Mapping[str, Any]]] = None,
-                 event_log_path: Optional[str] = None) -> None:
+                 event_log_path: Optional[str] = None,
+                 receipts_path: Optional[str] = None) -> None:
         self._keys: Dict[str, str] = {}
         self._meta: Dict[str, Dict[str, Any]] = {}
         # 目录型 keyring 的生命周期/吊销拒绝事件账本（append-only jsonl）
         self._event_log_path = event_log_path
+        # 目录型 keyring 的签发 receipt 审计根（R8-AUTH-RETIRED-KEY-005）：
+        # 文件型/内存 keyring 无受控审计根（None——receipt regime 不适用）
+        self._receipts_path = receipts_path
         for key_id, secret in dict(keys or {}).items():
             self._register(key_id, secret)
         for key_id, meta in dict(metadata or {}).items():
@@ -362,7 +564,8 @@ class ApprovalKeyring:
         if not isinstance(meta, Mapping):
             raise ValueError(f"key meta for {key_id!r} must be an object")
         allowed = {"status", "created_at", "rotated_at", "rotated_to",
-                   "revoked_at", "expiry", "description", "owner", "actors"}
+                   "revoked_at", "expiry", "description", "owner", "actors",
+                   "purposes", "retired_receipt_seq"}
         stray = sorted(set(meta) - allowed)
         if stray:
             raise ValueError(
@@ -410,6 +613,34 @@ class ApprovalKeyring:
             raise ValueError(
                 f"key meta owner for {key_id!r} ({normalized['owner']!r}) "
                 "must appear in actors（登记面自洽）")
+        # G9-06（R8-GATE 预检 1.4-1：同钥双签非独立语义根）：key 用途分域
+        # 登记面——签发时登记该 key 可用于哪些用途域（如 manifest/registry），
+        # 消费端据以执法「registry 快照 key 与 manifest key 不得同钥/混用」。
+        # 未登记 purposes 的存量 key 不受限（opt-in——与 actors 登记面同型）。
+        if "purposes" in meta:
+            purposes = meta["purposes"]
+            purpose_re = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+            if (not isinstance(purposes, (list, tuple)) or not purposes
+                    or not all(isinstance(p, str) and purpose_re.fullmatch(p)
+                               for p in purposes)):
+                raise ValueError(
+                    f"key meta purposes for {key_id!r} must be a non-empty "
+                    "list of purpose tokens（^[a-z][a-z0-9_-]{0,31}$，"
+                    "如 [\"manifest\"]/[\"registry\"]——用途分域登记面）")
+            if len(set(purposes)) != len(list(purposes)):
+                raise ValueError(
+                    f"key meta purposes for {key_id!r} must be unique")
+            normalized["purposes"] = list(purposes)
+        # R8-AUTH-RETIRED-KEY-005：退休 receipt 盘点（轮换/吊销时刻链上
+        # 最大 seq——退休后更大 seq 的信封一律非退休前签发）
+        if "retired_receipt_seq" in meta:
+            rrs = meta["retired_receipt_seq"]
+            if not (isinstance(rrs, int) and not isinstance(rrs, bool)
+                    and rrs >= 1):
+                raise ValueError(
+                    f"key meta retired_receipt_seq for {key_id!r} must be "
+                    f"integer >= 1, got {rrs!r}")
+            normalized["retired_receipt_seq"] = rrs
         if normalized["status"] == KEY_STATUS_ROTATED and \
                 not normalized.get("rotated_at"):
             raise ValueError(
@@ -456,7 +687,9 @@ class ApprovalKeyring:
                             meta[key_id] = json.load(fh)
             return cls(keys, metadata=meta,
                        event_log_path=os.path.join(
-                           path, KEYRING_EVENTS_FILENAME))
+                           path, KEYRING_EVENTS_FILENAME),
+                       receipts_path=os.path.join(
+                           path, ISSUE_RECEIPTS_FILENAME))
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         if not isinstance(data, dict):
@@ -576,6 +809,105 @@ class ApprovalKeyring:
         if actors is None:
             return None
         return tuple(actors)
+
+    def key_purposes(self, key_id: str) -> Optional[Tuple[str, ...]]:
+        """key 的用途分域登记面（meta.purposes）；未登记返回 ``None``。
+
+        G9-06（同钥双签非独立语义根）：登记面供消费端执法
+        「registry 快照签名 key 与 manifest 签名 key 分域」——例如
+        manifest 域 key 不得签 registry 快照、registry 域 key 不得签
+        manifest。未登记 purposes 的存量 key 不受用途限制（opt-in——
+        与 actors 登记面同型；同钥双签拒绝不依赖登记面，无条件执法）。
+        """
+        if key_id not in self._keys:
+            raise KeyNotFoundError(
+                f"key_id {key_id!r} not registered in keyring "
+                f"(known: {sorted(self._keys)})") from None
+        purposes = self._meta.get(key_id, {}).get("purposes")
+        if purposes is None:
+            return None
+        return tuple(purposes)
+    # ------------------------------------------------------------------ #
+    # R8-AUTH-RETIRED-KEY-005：签发 receipt regime（受管目录型 keyring 专属）
+    # ------------------------------------------------------------------ #
+    def receipts_ledger_path(self) -> Optional[str]:
+        """签发 receipt 审计根路径（目录型受管 keyring 才有；其他 None）。"""
+        return self._receipts_path
+
+    def receipts_ledger(self) -> Optional[IssueReceiptLedger]:
+        """以本 keyring 的 secret 视图构造 receipt 账本（消费/签发共用）。"""
+        if self._receipts_path is None:
+            return None
+        return IssueReceiptLedger(self._receipts_path,
+                                  secret_of=dict(self._keys))
+
+    def issue_receipt_rejection(self,
+                                approval: Mapping[str, Any]) -> Optional[str]:
+        """信封的签发 receipt 执法判定（返回拒绝原因或 None=通过/不适用）。
+
+        R8-AUTH-RETIRED-KEY-005：受管（目录型）keyring 且 receipt 审计根
+        已存在（受控 issuer 至少签发过一次——regime 激活）时，消费侧要求：
+
+        1. 信封必须携带 ``issue_receipt={"seq": int}``（无 receipt 一律拒
+           ——fail-closed，回填 ``issued_at`` 手签的信封无法伪造链上锚点）；
+        2. receipt 链完整（哈希链 + 逐行 HMAC + seq 严格递增重放通过）；
+        3. 链上该 seq 的 receipt 与信封等值绑定（key_id/approval_id/
+           nonce 摘要/issued_at 四项全等——防挪用他人 receipt）；
+        4. key 元数据带 ``retired_receipt_seq`` 时 receipt.seq 不得超过
+           （退休盘点后的更大 seq 一律非退休前签发）。
+
+        文件型/内存 keyring 或审计根尚未建立的目录型 keyring：返回 None
+        （regime 未激活——诚实边界，见模块 docstring）。
+        """
+        if self._receipts_path is None:
+            return None
+        if not os.path.exists(self._receipts_path):
+            return None  # 受控 issuer 从未签发——regime 未激活（legacy 存量）
+        ledger = self.receipts_ledger()
+        assert ledger is not None  # _receipts_path 已判空
+        receipt = approval.get("issue_receipt") if isinstance(
+            approval, Mapping) else None
+        key_id = approval.get("key_id") if isinstance(
+            approval, Mapping) else None
+        approval_id = approval.get("approval_id") if isinstance(
+            approval, Mapping) else None
+        if not (isinstance(receipt, Mapping)
+                and isinstance(receipt.get("seq"), int)
+                and not isinstance(receipt.get("seq"), bool)
+                and receipt.get("seq") >= 1
+                and set(receipt) == {"seq"}):
+            return (f"信封缺少合法 issue_receipt（{{seq:int}}）——受管 "
+                    "keyring 的审批必须由受控 issuer 签发并携带单调序号 "
+                    "receipt（R8-AUTH-RETIRED-KEY-005 fail-closed）")
+        chain = ledger.verify_chain()
+        if not chain["ok"]:
+            return (f"签发 receipt 审计链校验失败（{chain['reason']}）——"
+                    "无法证明任何签发时刻（fail-closed）")
+        line = ledger.by_seq(receipt["seq"])
+        if line is None:
+            return (f"issue_receipt.seq={receipt['seq']} 不在受控审计链上"
+                    "（离线伪造/挪用不存在的签发——fail-closed）")
+        import hashlib as _hl
+        expected = {
+            "key_id": key_id,
+            "approval_id": approval_id,
+            "nonce_digest": (_hl.sha256(str(
+                approval.get("nonce", "")).encode("utf-8")).hexdigest()
+                if isinstance(approval, Mapping) else None),
+            "issued_at": approval.get("issued_at"),
+        }
+        for field, want in expected.items():
+            if line.get(field) != want:
+                return (f"receipt 与信封绑定不一致（{field}: receipt="
+                        f"{line.get(field)!r} != envelope={want!r}）——"
+                        "receipt 不得跨信封挪用（fail-closed）")
+        meta = self._meta.get(str(key_id), {})
+        retired = meta.get("retired_receipt_seq")
+        if isinstance(retired, int) and receipt["seq"] > retired:
+            return (f"receipt.seq={receipt['seq']} 晚于退休盘点 "
+                    f"retired_receipt_seq={retired}——退休后签的批不能消费"
+                    "（R8-AUTH-RETIRED-KEY-005）")
+        return None
 
     def _record_principal_rejection(self, key_id: str,
                                     approval: Mapping[str, Any],
@@ -713,11 +1045,16 @@ class ApprovalKeyring:
         if reason is not None:
             self._record_lifecycle_rejection(key_id, approval, reason)
             return False
+        # 先密码学后 principal（G9-04 排序裁定）：HMAC 失败优先报「验签
+        # 失败」——篡改 actor 的信封在 HMAC 层就死（消息不被 principal
+        # 拒绝掩蔽）；HMAC 有效而 actor 冒用在 membership 层拒。
+        if not verify_envelope(self._keys[key_id], approval, signature):
+            return False
         # R8-SIGNER-PRINCIPAL-004：key 登记 actors 且信封携带 actor 时，
-        # membership 在验签层同执法（bugscan/deploy 等直用 keyring.verify
+        # membership 在验签通过后执法（bugscan/deploy 等直用 keyring.verify
         # 的消费面自动继承；信封不携带 actor 的体——manifest/registry/
         # 外部回执——无从执法，跳过）。消费端 Broker 另有带明确消息的
-        # 先行显式门（消息语义不因本兜底而劣化）。
+        # 显式门（消息语义不因本兜底而劣化）。
         actors = self._meta.get(key_id, {}).get("actors")
         envelope_actor = approval.get("actor")
         if actors and isinstance(envelope_actor, str) \
@@ -725,7 +1062,23 @@ class ApprovalKeyring:
             self._record_principal_rejection(key_id, approval,
                                               envelope_actor)
             return False
-        return verify_envelope(self._keys[key_id], approval, signature)
+        return True
+
+    def verify_signature_only(self, approval: Mapping[str, Any]) -> bool:
+        """纯密码学验签（HMAC 重算比对；不含 revoked/生命周期/principal 执法）。
+
+        G9-04 失败归因用：消费端 ``verify`` 失败时区分「密码学失败」与
+        「principal membership 拒绝」——两者都返回 False，消息归因由调用
+        方以本方法复核（crypto 过而 verify 败=membership 因；crypto 败=
+        伪签名/篡改，无论 actor 是否同时冒用一律报验签失败）。
+        """
+        if not isinstance(approval, Mapping):
+            return False
+        key_id = approval.get("key_id")
+        if not isinstance(key_id, str) or key_id not in self._keys:
+            return False
+        return verify_envelope(self._keys[key_id], approval,
+                               approval.get("signature"))
 
     def verify_detached(self, key_id: str, body: Mapping[str, Any],
                         signature: str) -> bool:
@@ -815,8 +1168,26 @@ def write_key_to_dir(keyring_dir: str, key_id: str, secret: str,
 
 def save_key_meta(keyring_dir: str, key_id: str,
                   meta: Mapping[str, Any]) -> None:
-    """（覆盖）写单 key 元数据边车 ``<key_id>.meta.json``（0600）。"""
+    """（覆盖）写单 key 元数据边车 ``<key_id>.meta.json``（0600）。
+
+    R8-AUTH-RETIRED-KEY-005：写入 rotated/revoked 终态且 keyring 目录内
+    存在签发 receipt 审计根时，自动盘点 ``retired_receipt_seq``（=链上
+    当前最大 seq；已盘点不覆盖——首次退休时刻为准）。
+    """
     normalized = ApprovalKeyring._normalize_meta(key_id, dict(meta))  # noqa: SLF001
+    if normalized.get("status") in (KEY_STATUS_ROTATED, KEY_STATUS_REVOKED) \
+            and "retired_receipt_seq" not in normalized:
+        ledger_path = os.path.join(keyring_dir, ISSUE_RECEIPTS_FILENAME)
+        if os.path.exists(ledger_path):
+            ledger = IssueReceiptLedger(ledger_path)
+            try:
+                max_seq = ledger.max_seq()
+            except ValueError:
+                max_seq = 0  # 坏链不阻断轮换——消费侧链校验会 fail-closed
+            if max_seq >= 1:
+                normalized["retired_receipt_seq"] = max_seq
+                normalized = ApprovalKeyring._normalize_meta(  # noqa: SLF001
+                    key_id, normalized)
     payload = json.dumps(normalized, indent=2, ensure_ascii=False,
                          sort_keys=True)
     _write_private_file(os.path.join(keyring_dir, f"{key_id}.meta.json"),

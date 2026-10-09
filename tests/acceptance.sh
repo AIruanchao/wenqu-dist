@@ -496,6 +496,121 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
 fi
 
+echo "== BAK. G9-09 备份演练归档真实性（R8-BAK-FAKE-TAR-SUCCESS-019：五负例全 rc1+正例全绿+success 不更新）=="
+# 对 tar 的 rc 与自报清单零信任：伪 tar 五变体（双 rc0 谎报不产归档/旧归档
+# 复用/symlink 归档/截断归档/伪清单内容缺失）必须全部 exit1+FAIL 且不改写
+# 既有 PASS 工件（= 不更新 last-success）；正例（backup+dr）必须 PASS 且
+# 报告记录作业身份 SHA、archive sha、独立解包 sha、实测 RPO/RTO。
+python3 - "$ROOT" >/dev/null 2>&1 <<'BAKEOF'; ck "BAK 五负例 fail-closed+正例(backup/dr)PASS+身份/归档/RPO-RTO 合同" 0 $?
+import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+drill = repo / "system" / "sentinels" / "backup-restore-drill.sh"
+real_tar = shutil.which("tar")
+assert real_tar
+sha_re = re.compile(r"[0-9a-f]{64}")
+RELS = ["state/scheduler.db", "state/gate-aggregate.json",
+        "observation/heartbeat.json", "observation/samples/2026-10-08.json"]
+
+def build_corpus(root: Path, tag: str) -> None:
+    (root / "state").mkdir(parents=True, exist_ok=True)
+    (root / "observation" / "samples").mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(root / RELS[0]))
+    conn.execute("CREATE TABLE jobs (id TEXT PRIMARY KEY, next_due REAL)")
+    conn.execute("INSERT INTO jobs VALUES (?,?)", (f"job-{tag}", 1.0))
+    conn.commit(); conn.close()
+    (root / RELS[1]).write_text(json.dumps({"policy_verdict": "PASS", "tag": tag}))
+    (root / RELS[2]).write_text(json.dumps({"station": 1, "tag": tag}))
+    (root / RELS[3]).write_text(json.dumps({"cpu": 7.5, "tag": tag}))
+
+def run(root: Path, rdir: Path, path_prepend=None, mode="backup"):
+    env = dict(os.environ)
+    if path_prepend:
+        env["PATH"] = f"{path_prepend}:{os.environ['PATH']}"
+    p = subprocess.run(
+        ["bash", str(drill), "--wenqu-root", str(root), "--report-dir", str(rdir),
+         "--mode", mode], capture_output=True, text=True, timeout=180, env=env)
+    reps = sorted(Path(rdir).glob("drill-*.json"))
+    rep = json.loads(reps[-1].read_text(encoding="utf-8")) if reps else {}
+    return p.returncode, rep, (reps[-1] if reps else None)
+
+def fake_tar(d: Path, variant: str, canned: Path):
+    s = f"""#!/bin/sh
+d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+names="$d/.names"; real="{real_tar}"; canned="{canned}"
+case "$1" in
+  -czf)
+    out="$2"; shift 2
+    : > "$names"; dir=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -C) dir="$2"; shift 2 ;;
+        *) printf '%s\\n' "$1" >> "$names"; shift ;;
+      esac
+    done
+"""
+    body = {"lie": "    exit 0\n",
+            "stale": '    cp "$canned" "$out"\n    exit 0\n',
+            "symlink": '    ln -sf "$canned" "$out"\n    exit 0\n',
+            "truncate": ('    "$real" -czf "$out" -C "$dir" $(cat "$names") || exit 1\n'
+                         '    sz=$(wc -c < "$out"); keep=$(( sz * 40 / 100 ))\n'
+                         '    head -c "$keep" "$out" > "$out.tr" && mv "$out.tr" "$out"\n'
+                         '    exit 0\n'),
+            "short": ('    first=$(head -1 "$names")\n'
+                      '    "$real" -czf "$out" -C "$dir" "$first" || exit 1\n'
+                      '    exit 0\n')}
+    s += body[variant]
+    s += """    exit 0 ;;
+  -tzf)
+    cat "$names" 2>/dev/null
+    exit 0 ;;
+esac
+exit 0
+"""
+    (d / "tar").write_text(s); (d / "tar").chmod(0o755)
+
+markers = {"lie": "not materialized", "stale": "extract reconcile mismatch/missing",
+           "symlink": "not materialized", "truncate": "independent archive extraction failed",
+           "short": "extract reconcile mismatch/missing"}
+with tempfile.TemporaryDirectory(prefix="wq_acc_bak_") as td:
+    box = Path(td)
+    good = box / "good"; build_corpus(good, "good")
+    rc, rep, rpath = run(good, box / "good-rep")
+    assert rc == 0 and rep["result"] == "PASS", (rc, rep.get("reason"))
+    pass_bytes = rpath.read_bytes()
+    arc = rep["archive"]
+    assert arc["materialized"] and arc["size"] > 0 \
+        and sha_re.fullmatch(arc["sha256"]) and sha_re.fullmatch(arc["extract_sha256"]) \
+        and {f["rel"] for f in arc["files"]} == set(RELS), arc
+    assert sha_re.fullmatch(rep["identity"]["drill_script_sha256"]) \
+        and sha_re.fullmatch(rep["identity"]["scheduler_sha256"]), rep["identity"]
+    assert rep["steps"]["restore"]["source"] == "archive"
+    # DR 正例：RPO/RTO 实测数值入报告且在冻结目标内
+    rc_dr, rep_dr, _ = run(good, box / "dr-rep", mode="dr")
+    assert rc_dr == 0 and rep_dr["result"] == "PASS", rep_dr.get("reason")
+    dr = rep_dr["dr"]
+    assert 1.0 <= dr["rpo_seconds"] <= 300 and 0 < dr["rto_seconds"] <= 60 \
+        and dr["rpo_ok"] is True and dr["rto_ok"] is True, dr
+    # 五负例：全 rc1 + FAIL + reason 点名 + 不改写既有 PASS 工件
+    old = box / "old"
+    for rel in RELS:
+        dst = old / rel; dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(f"STALE:{rel}".encode())
+    canned_old = box / "old.tar.gz"
+    subprocess.run([real_tar, "-czf", str(canned_old), "-C", str(old)] + RELS, check=True)
+    for variant in ("lie", "stale", "symlink", "truncate", "short"):
+        fd = box / f"fake-{variant}"; fd.mkdir()
+        fake_tar(fd, variant, canned_old)
+        leg_root = box / f"home-{variant}"; build_corpus(leg_root, variant)
+        lrc, lrep, _ = run(leg_root, box / f"rep-{variant}", path_prepend=fd)
+        assert lrc == 1 and lrep["result"] == "FAIL", (variant, lrc, lrep.get("reason"))
+        assert markers[variant] in lrep["reason"], (variant, lrep["reason"])
+        assert rpath.read_bytes() == pass_bytes, f"{variant} 改写了既有 PASS 工件"
+    print("BAK matrix ok")
+sys.exit(0)
+BAKEOF
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1

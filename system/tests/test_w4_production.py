@@ -341,13 +341,36 @@ def test_backup_restore_drill_reconciliation():
         _ck("面3 演练报告落盘", len(reports) == 1, str(reports))
         rep = json.load(open(os.path.join(report_dir, reports[0]),
                              encoding="utf-8"))
-        _ck("面3 四步齐：快照/篡改/恢复/对账",
+        # G9-09 强化：四步 + 归档腿（实存验证+独立解包对账）五步齐
+        _ck("面3 五步齐：快照/归档/篡改/恢复/对账",
             set(rep["steps"].keys())
-            == {"snapshot", "tamper", "restore", "reconcile"}
+            == {"snapshot", "archive", "tamper", "restore", "reconcile"}
             and rep["result"] == "PASS", str(rep.get("steps", {}).keys()))
         _ck("面3 语料≥3 且快照 sha 清单齐",
             rep["corpus_count"] >= 3
             and all("sha256" in f for f in rep["steps"]["snapshot"]["files"]))
+        # G9-09：归档实存合同（非空普通文件 sha + 独立解包 hash + 逐文件清单）
+        sha_re = __import__("re").compile(r"^[0-9a-f]{64}$")
+        arc = rep.get("archive", {})
+        _ck("面3 归档实存：size>0/64hex sha/独立解包 extract_sha/逐文件清单",
+            arc.get("materialized") is True
+            and arc.get("size", 0) > 0
+            and sha_re.match(str(arc.get("sha256", "")))
+            and sha_re.match(str(arc.get("extract_sha256", "")))
+            and {f["rel"] for f in arc.get("files", [])}
+            == {f["rel"] for f in rep["steps"]["snapshot"]["files"]}
+            and all(sha_re.match(f["sha256"]) for f in arc.get("files", [])),
+            str(arc.get("sha256")))
+        # G9-09：作业身份（drill 脚本/scheduler 源 SHA）记录入成功报告
+        ident = rep.get("identity", {})
+        _ck("面3 作业身份：drill/scheduler 源 SHA 记录",
+            sha_re.match(str(ident.get("drill_script_sha256", "")))
+            and sha_re.match(str(ident.get("scheduler_sha256", ""))),
+            str(ident))
+        # G9-09：恢复真实走归档（不是从旁边 backup 目录复制）
+        _ck("面3 恢复源=archive",
+            rep["steps"]["restore"].get("source") == "archive",
+            str(rep["steps"]["restore"]))
         _ck("面3 篡改实测生效（防伪造演练）",
             rep["steps"]["tamper"]["ok"] is True
             and len(rep["steps"]["tamper"]["actions"]) >= 3)
