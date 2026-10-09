@@ -231,7 +231,13 @@ def _http_get(port: int, path: str, timeout: float = 5.0):
 
 def _write_gate_snapshot(path: Path, verdict: str | None, *, age_seconds: float = 0.0,
                          raw: str | None = None) -> str:
-    """按 read_gate_aggregate 契约写一份聚合器快照；返回 generated_at。"""
+    """按 read_gate_aggregate 契约写一份聚合器快照；返回 generated_at。
+
+    正常快照走原子写（同目录 tmp + os.replace）——合法聚合器的契约行为
+    （HLT-01 注入 3 的高频换 watermark 依赖它：慢机器上非原子直写在读写
+    交错时会大量产生半写 JSON，把「读到完整快照」错杀成 MALFORMED——
+    ubuntu CI 实证）。注入半写（raw）仍走直写，那是注入 2 的专属场景。
+    """
     ts = datetime.now(timezone.utc).timestamp() - age_seconds
     gen = datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if raw is not None:
@@ -242,7 +248,9 @@ def _write_gate_snapshot(path: Path, verdict: str | None, *, age_seconds: float 
         "aggregate_outcome": verdict, "reason": "ac-ops-families probe",
         "counts": {}, "stations": {},
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    tmp = path.with_name(path.name + f".tmp.{os.getpid()}.{threading.get_ident()}")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
     return gen
 
 
