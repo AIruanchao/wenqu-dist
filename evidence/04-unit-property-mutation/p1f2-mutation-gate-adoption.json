@@ -1,0 +1,260 @@
+{
+  "artifact": "p1f2-mutation-gate-adoption",
+  "five_variant_contract": "字面恒真/非字面恒真/无产品调用/无失败路径/等量假测试替换五类变体在隔离树必须令 mutation gate 与 acceptance 均 rc1（变体矩阵见工单交付物 /tmp/g9-07-evidence/）",
+  "mutation_set": "tests/p1f-mutations.json（18 条，覆盖 8 专属文件 × 12 产品函数，frozen_min_mutations=18 棘轮）",
+  "run": {
+    "argv": [
+      "python3",
+      "system/tests/p1f_mutation_gate.py",
+      "--root",
+      ".",
+      "--mutations",
+      "tests/p1f-mutations.json"
+    ],
+    "commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+    "cwd": "/tmp/wq-g9-07-measure",
+    "full_log": "  [1/18] ✅ KILLED MUT-01 wenqu_core/source_gate.py#validate_exact_sha op=flip_compare killer=test_ac_gate_family(exit=1)\n  [2/18] ✅ KILLED MUT-02 wenqu_core/source_gate.py#_is_non_behavioral op=negate_return killer=test_ac_gate_family(exit=1)\n  [3/18] ✅ KILLED MUT-03 wenqu_core/bugscan_orchestrator.py#validate_station_result op=flip_compare killer=test_ac_gate_family(exit=1)\n  [4/18] ✅ KILLED MUT-04 wenqu_core/store.py#verify_chain op=flip_compare killer=test_ac_state_mig(exit=1)\n  [5/18] ✅ KILLED MUT-05 wenqu_core/ledger_migrator.py#classify op=flip_compare killer=test_ac_state_mig(exit=1)\n  [6/18] ✅ KILLED MUT-06 wenqu_core/wenqu_pipeline.py#_verify_seal op=negate_return killer=test_ac_state_mig(exit=1)\n  [7/18] ✅ KILLED MUT-07 wenqu_core/deploy_framework.py#verify op=flip_compare killer=test_ac_deploy_release(exit=1)\n  [8/18] ✅ KILLED MUT-08 wenqu_core/deploy_framework.py#valid op=negate_return killer=test_ac_deploy_release(exit=1)\n  [9/18] ✅ KILLED MUT-09 wenqu_core/station2_static.py#_validate_identity op=flip_compare killer=test_ac_station_families(exit=1)\n  [10/18] ✅ KILLED MUT-10 wenqu_core/station3_contract.py#derive_dynamic_denominator op=flip_compare killer=test_ac_station_families(exit=1)\n  [11/18] ✅ KILLED MUT-11 wenqu_core/scheduler.py#first_due_after op=flip_compare killer=test_ac_ops_families(exit=1)\n  [12/18] ✅ KILLED MUT-12 wenqu_core/capacity_monitor.py#peak_budget_bytes op=flip_compare killer=test_ac_ops_families(exit=1)\n  [13/18] ✅ KILLED MUT-13 wenqu_core/approval_keys.py#verify_envelope op=negate_return killer=test_ac_auth_cond(exit=1)\n  [14/18] ✅ KILLED MUT-14 wenqu_core/wenqu_pipeline.py#has_unexpired_risk_authorization op=negate_return killer=test_ac_auth_cond(exit=1)\n  [15/18] ✅ KILLED MUT-15 wenqu_core/wenqu_pipeline.py#_verify_signature op=flip_compare killer=test_ac_auth_cond(exit=1)\n  [16/18] ✅ KILLED MUT-16 wenqu_core/runner.py#_build_env op=flip_compare killer=test_ac_act_run(exit=1)\n  [17/18] ✅ KILLED MUT-17 wenqu_core/wenqu_pipeline.py#reserve_action op=flip_compare killer=test_ac_act_run(exit=1)\n  [18/18] ✅ KILLED MUT-18 wenqu_core/ui_probe.py#html_structural_gate op=negate_return killer=test_ac_ui_family(exit=1)\n------------------------------------------------------------------------\nmutation score: 18/18 = 100.0%（173.4s，沙箱全临时）\n报告已写: /tmp/g9-07-evidence/mutation-gate-final-run.json\n✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）",
+    "killed": 18,
+    "real_rc": 0,
+    "rows": [
+      {
+        "function": "validate_exact_sha",
+        "id": "MUT-01",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_gate_family",
+        "module": "wenqu_core/source_gate.py",
+        "op": "flip_compare",
+        "points": 2,
+        "test_files": [
+          "test_ac_gate_family"
+        ]
+      },
+      {
+        "function": "_is_non_behavioral",
+        "id": "MUT-02",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_gate_family",
+        "module": "wenqu_core/source_gate.py",
+        "op": "negate_return",
+        "points": 1,
+        "test_files": [
+          "test_ac_gate_family"
+        ]
+      },
+      {
+        "function": "validate_station_result",
+        "id": "MUT-03",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_gate_family",
+        "module": "wenqu_core/bugscan_orchestrator.py",
+        "op": "flip_compare",
+        "points": 28,
+        "test_files": [
+          "test_ac_gate_family"
+        ]
+      },
+      {
+        "function": "verify_chain",
+        "id": "MUT-04",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_state_mig",
+        "module": "wenqu_core/store.py",
+        "op": "flip_compare",
+        "points": 5,
+        "test_files": [
+          "test_ac_state_mig"
+        ]
+      },
+      {
+        "function": "classify",
+        "id": "MUT-05",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_state_mig",
+        "module": "wenqu_core/ledger_migrator.py",
+        "op": "flip_compare",
+        "points": 4,
+        "test_files": [
+          "test_ac_state_mig"
+        ]
+      },
+      {
+        "function": "_verify_seal",
+        "id": "MUT-06",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_state_mig",
+        "module": "wenqu_core/wenqu_pipeline.py",
+        "op": "negate_return",
+        "points": 3,
+        "test_files": [
+          "test_ac_state_mig"
+        ]
+      },
+      {
+        "function": "verify",
+        "id": "MUT-07",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_deploy_release",
+        "module": "wenqu_core/deploy_framework.py",
+        "op": "flip_compare",
+        "points": 14,
+        "test_files": [
+          "test_ac_deploy_release"
+        ]
+      },
+      {
+        "function": "valid",
+        "id": "MUT-08",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_deploy_release",
+        "module": "wenqu_core/deploy_framework.py",
+        "op": "negate_return",
+        "points": 2,
+        "test_files": [
+          "test_ac_deploy_release"
+        ]
+      },
+      {
+        "function": "_validate_identity",
+        "id": "MUT-09",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_station_families",
+        "module": "wenqu_core/station2_static.py",
+        "op": "flip_compare",
+        "points": 1,
+        "test_files": [
+          "test_ac_station_families"
+        ]
+      },
+      {
+        "function": "derive_dynamic_denominator",
+        "id": "MUT-10",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_station_families",
+        "module": "wenqu_core/station3_contract.py",
+        "op": "flip_compare",
+        "points": 2,
+        "test_files": [
+          "test_ac_station_families"
+        ]
+      },
+      {
+        "function": "first_due_after",
+        "id": "MUT-11",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_ops_families",
+        "module": "wenqu_core/scheduler.py",
+        "op": "flip_compare",
+        "points": 2,
+        "test_files": [
+          "test_ac_ops_families"
+        ]
+      },
+      {
+        "function": "peak_budget_bytes",
+        "id": "MUT-12",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_ops_families",
+        "module": "wenqu_core/capacity_monitor.py",
+        "op": "flip_compare",
+        "points": 1,
+        "test_files": [
+          "test_ac_ops_families"
+        ]
+      },
+      {
+        "function": "verify_envelope",
+        "id": "MUT-13",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_auth_cond",
+        "module": "wenqu_core/approval_keys.py",
+        "op": "negate_return",
+        "points": 3,
+        "test_files": [
+          "test_ac_auth_cond"
+        ]
+      },
+      {
+        "function": "has_unexpired_risk_authorization",
+        "id": "MUT-14",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_auth_cond",
+        "module": "wenqu_core/wenqu_pipeline.py",
+        "op": "negate_return",
+        "points": 2,
+        "test_files": [
+          "test_ac_auth_cond"
+        ]
+      },
+      {
+        "function": "_verify_signature",
+        "id": "MUT-15",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_auth_cond",
+        "module": "wenqu_core/wenqu_pipeline.py",
+        "op": "flip_compare",
+        "points": 3,
+        "test_files": [
+          "test_ac_auth_cond"
+        ]
+      },
+      {
+        "function": "_build_env",
+        "id": "MUT-16",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_act_run",
+        "module": "wenqu_core/runner.py",
+        "op": "flip_compare",
+        "points": 1,
+        "test_files": [
+          "test_ac_act_run"
+        ]
+      },
+      {
+        "function": "reserve_action",
+        "id": "MUT-17",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_act_run",
+        "module": "wenqu_core/wenqu_pipeline.py",
+        "op": "flip_compare",
+        "points": 3,
+        "test_files": [
+          "test_ac_act_run"
+        ]
+      },
+      {
+        "function": "html_structural_gate",
+        "id": "MUT-18",
+        "kill_rc": 1,
+        "killed": true,
+        "killer": "test_ac_ui_family",
+        "module": "wenqu_core/ui_probe.py",
+        "op": "negate_return",
+        "points": 2,
+        "test_files": [
+          "test_ac_ui_family"
+        ]
+      }
+    ],
+    "score": 100.0,
+    "total": 18
+  },
+  "schema_note": "G9-07 / R8-TRC-TRUTHY-ASSERT-012 根修：P1f2 完成标准从 AST 形态计数升级为真 mutation gate",
+  "what": "对 system/wenqu_core 产品函数做机械变异（negate_return/flip_compare/drop_raise），逐 mutation 沙箱运行映射的八专属测试文件；mutation score 必须 100%（18/18 全杀）。"
+}

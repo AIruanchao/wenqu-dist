@@ -1,0 +1,29 @@
+{
+  "artifact": "evidence-strict-validator-adoption",
+  "red_phase": {
+    "argv": [
+      "python3",
+      "tools/evidence_validator.py",
+      "--root",
+      "."
+    ],
+    "cwd": "/tmp/wq-g9-07-measure",
+    "log_excerpt": [
+      "⚠ 检测到 v1 单表索引——全部条目按 active 严格合同校验（G9-07 迁移前状态必须红）",
+      "❌ evidence validator 失败——103 处违规（v1 宽松条目不满足严格合同）:",
+      "   - active[0] EV-CI-001: 必填字段 cwd 缺失/为 null（null+note 冒充严格字段被禁止）",
+      "   - active[0] EV-CI-001: real_rc 须为整数退出码（bool/字符串冒充非法）: 'conclusion=success (27s)'",
+      "   - active[1] EV-CI-002: 必填字段 cwd 缺失/为 null（null+note 冒充严格字段被禁止）",
+      "   - active[1] EV-CI-002: real_rc 须为整数退出码（bool/字符串冒充非法）: 'conclusion=success (27s)'"
+    ],
+    "real_rc": 1,
+    "violations": 103,
+    "what": "迁移前旧 v1 索引按严格合同整表校验"
+  },
+  "schema_note": "G9-07 / R8-EVID-FIELDS-013 根修：active evidence 索引禁止 null+note 冒充严格字段；分 schema 分表（active-v2 严格 / legacy-v1 不计分）",
+  "schemas": [
+    "system/schemas/evidence-index-active-v2.schema.json",
+    "system/schemas/evidence-index-legacy-v1.schema.json"
+  ],
+  "what": "tools/evidence_validator.py 对 active 表逐条强制 exact 40hex commit、run_id、argv、cwd、整数 real_rc、ISO 时间、仓内普通非 symlink 文件、实算 sha256、合法 TTL；live 负例腿接入 tests/acceptance.sh（任删字段/改 hash 必须 rc1）。"
+}

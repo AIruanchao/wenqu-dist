@@ -406,20 +406,59 @@ else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
 fi
 
-echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；八轮升级=AST 行为主门）=="
-# 八轮 Codex P1f2 残余修复：文本 grep 计数可被三类手法绕过——常量真值断言
-# （assert (True)）、删被测调用留断言壳、删失败路径。主门换 system/tests/
-# p1f_ast_gate.py（纯 ast 静态分析：逐 test 函数 trivial_asserts/被测调用/
-# 失败路径三指标，合格函数数对比冻结基线 tests/p1f-behavior-baseline.txt，
-# 缩水即红）；文本计数棘轮保留为第二道旧闸（防总断言面缩水）。
+echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；G9-07 升级=mutation 真主门）=="
+# 演进史：文本 grep 计数（R7）→ AST 形态门（八轮：常量真值/被测调用/失败
+# 路径三指标）→ G9-07 真 mutation 门（R8-TRC-TRUTHY-ASSERT-012 根修：
+# AST 形态抓不住非字面恒真 assert len(str(product_call())) >= 0 与等量
+# 假测试替换——只有「产品变异必杀测试」能证明断言对行为敏感）。
+# 三道闸并存，棘轮只增不减：
+#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
+#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
+#   二闸  p1f_ast_gate.py AST 形态基线（tests/p1f-behavior-baseline.txt）；
+#   三闸  文本计数旧棘轮（tests/p1f-assert-baseline.txt）。
 P1F2_FAIL=0
+if [ -f "$ROOT/system/tests/p1f_mutation_gate.py" ] && [ -f "$ROOT/tests/p1f-mutations.json" ]; then
+  MUTJSON="$TD/p1f-mutation-report.json"
+  MUT_OUT=$(python3 "$ROOT/system/tests/p1f_mutation_gate.py" --root "$ROOT" --mutations "$ROOT/tests/p1f-mutations.json" --json "$MUTJSON" 2>&1)
+  MUT_RC=$?
+  if [ "$MUT_RC" -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 主门通过：$(echo "$MUT_OUT" | grep 'mutation score' | tail -1)"
+  else
+    P1F2_FAIL=1; echo "  ❌ mutation 主门失败（exit=${MUT_RC}——空壳化/恒真化/假测试替换令变异存活）"
+    echo "$MUT_OUT" | tail -30 | sed 's/^/      | /'
+  fi
+  # 棘轮：mutation 集只增不减（≥18 条且覆盖全部八专属文件）
+  MUT_GUARD=$(python3 - "$ROOT/tests/p1f-mutations.json" <<'MUTP'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    ms = d["mutations"]
+    files = {tf for m in ms for tf in m["test_files"]}
+    need = {"test_ac_gate_family","test_ac_state_mig","test_ac_deploy_release",
+            "test_ac_station_families","test_ac_ops_families",
+            "test_ac_auth_cond","test_ac_act_run","test_ac_ui_family"}
+    ok = (len(ms) >= 18 and files == need and "frozen_min_mutations" in d
+          and d["frozen_min_mutations"] >= 18)
+    print("1" if ok else "0")
+except Exception:
+    print("0")
+MUTP
+)
+  if [ "$MUT_GUARD" = "1" ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 集棘轮（≥18 条且八文件全覆盖，只增不减）"
+  else
+    P1F2_FAIL=1; echo "  ❌ mutation 集棘轮失败——集缩水/覆盖门破（须≥18 条且八专属文件全被锚定）"
+  fi
+else
+  P1F2_FAIL=1; echo "  ❌ p1f_mutation_gate.py 或 tests/p1f-mutations.json 缺失——mutation 主门被拆"
+fi
 if [ -f "$ROOT/system/tests/p1f_ast_gate.py" ] && [ -f "$ROOT/tests/p1f-behavior-baseline.txt" ]; then
   AST_OUT=$(python3 "$ROOT/system/tests/p1f_ast_gate.py" --root "$ROOT" --baseline "$ROOT/tests/p1f-behavior-baseline.txt" 2>&1)
   AST_RC=$?
   if [ "$AST_RC" -eq 0 ]; then
-    echo "  ✅ AST 行为主门通过：$(echo "$AST_OUT" | tail -1 | sed 's/^✅ //')"
+    echo "  ✅ AST 行为二闸通过：$(echo "$AST_OUT" | tail -1 | sed 's/^✅ //')"
   else
-    P1F2_FAIL=1; echo "  ❌ AST 行为主门失败（exit=${AST_RC}——空壳化/恒真化/删被测调用/删失败路径/基线缩水）"
+    P1F2_FAIL=1; echo "  ❌ AST 行为二闸失败（exit=${AST_RC}——空壳化/恒真化/删被测调用/删失败路径/基线缩水）"
     echo "$AST_OUT" | tail -30 | sed 's/^/      | /'
   fi
 else
@@ -442,7 +481,10 @@ print(n)
 PYP
 )
       if [ "${an:-0}" -lt "$bn" ]; then
-        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 $bn（空壳化/恒真化）"
+        # R8-TRC-DIAG-SHELL-017 残余根治（G9-07 变体验证触发）：$bn 后紧跟全角
+        # （ 会被 bash 并入变量名 → unbound variable 崩溃（无结构化 RESULT）。
+        # 必须 ${bn} 显式定界——红也要红得有结构。
+        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 ${bn}（空壳化/恒真化）"
       fi
     else
       P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
@@ -452,7 +494,7 @@ else
   P1F2_FAIL=1; echo "  ❌ tests/p1f-assert-baseline.txt 不存在——旧文本棘轮被拆"
 fi
 if [ $P1F2_FAIL -eq 0 ]; then
-  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（AST 行为主门+文本旧棘轮 ≥ 冻结基线）"
+  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（mutation 主门+集棘轮+AST 二闸+文本旧棘轮 ≥ 冻结基线）"
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
 fi
@@ -468,6 +510,37 @@ if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_relea
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
+fi
+
+echo "== P1h. Evidence 索引严格 validator（G9-07/R8-EVID-FIELDS-013：active 禁止 null+note 冒充严格字段）=="
+# active 表逐条强制 exact 40hex commit、run_id、argv、cwd、整数 real_rc、
+# ISO 时间、仓内普通非 symlink 文件、实算 artifact_sha256、合法 TTL；
+# 历史不满足条目迁 legacy/non_scoring 分表（不进 active 分母）。
+# 负例腿（live）：篡改 hash 的索引副本必须 rc1——validator 有牙。
+if [ -f "$ROOT/tools/evidence_validator.py" ] && [ -f "$ROOT/evidence/evidence-index.json" ]; then
+  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" >/dev/null 2>&1
+  EV_RC=$?
+  if [ $EV_RC -eq 0 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ evidence 索引严格合同通过（active 全字段+实算 hash+普通文件+合法 TTL）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ evidence validator 失败（exit=${EV_RC}——active 条目字段/hash/TTL 违规或索引损坏）"
+  fi
+  EV_TMP="$TD/evid-tamper.json"
+  python3 - "$ROOT" "$EV_TMP" <<'EVP'
+import json, sys
+doc = json.load(open(sys.argv[1] + "/evidence/evidence-index.json", encoding="utf-8"))
+doc["active"]["entries"][0]["artifact_sha256"] = "0" * 64  # 篡改哈希
+json.dump(doc, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+EVP
+  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" --index "$EV_TMP" >/dev/null 2>&1
+  EVT_RC=$?
+  if [ "$EVT_RC" -eq 1 ]; then
+    PASS_N=$((PASS_N+1)); echo "  ✅ 负例腿：篡改 hash 的索引副本被拒（rc1）"
+  else
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 负例腿失效（rc=${EVT_RC}——validator 无牙，删字段/改 hash 未红）"
+  fi
+else
+  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/evidence_validator.py 或 evidence/evidence-index.json 缺失——严格 evidence 合同被拆"
 fi
 
 echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="

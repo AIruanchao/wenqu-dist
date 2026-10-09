@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/evidence-index-legacy-v1.json",
+  "title": "Evidence Index Legacy/Non-Scoring Table v1（历史分表）",
+  "description": "G9-07：不满足 active-v2 严格合同的历史证据条目迁入本分表（分 schema 分表治理）。legacy 条目不进 active 分母、不参与计分；保留原始字段（允许 null/口语化 TTL/描述型 real_rc）以不篡改历史，但必须逐条携带 migrated_reason 说明未达严格合同的具体缺口。active 表的 null+note 冒充在 legacy 表是显式登记的降级，不再是隐姓埋名的合格面。",
+  "type": "object",
+  "required": ["entry_id", "category", "title", "migrated_reason"],
+  "properties": {
+    "entry_id": {"type": "string", "pattern": "^EV-[A-Z0-9][A-Z0-9-]*$"},
+    "category": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "migrated_reason": {"type": "string", "minLength": 1, "description": "未达 active 严格合同的具体缺口（如：无 cwd 记录/real_rc 非整数/commit 为 null+note/TTL 非法格式）——逐条登记，不得空泛"},
+    "what": {"type": "string"},
+    "run_id": {"type": ["string", "null"]},
+    "commit": {"type": ["string", "null"]},
+    "environment": {"type": "string"},
+    "scope": {"type": "string"},
+    "ruleset": {"type": "string"},
+    "time": {"type": "string"},
+    "argv": {"type": "array"},
+    "real_rc": {"type": ["string", "integer", "null"]},
+    "artifact_sha256": {"type": "string"},
+    "evidence_path": {"type": "string"},
+    "fresh_until": {"type": "string"},
+    "verified_by": {"type": "string"},
+    "caveat": {"type": "string"},
+    "commit_note": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$comment": "legacy 表允许宽松字段，但 entry_id 全索引唯一、migrated_reason 必填非空；hash 与文件存在性仍由 validator 复核（历史文件损坏也要红）。"
+}
