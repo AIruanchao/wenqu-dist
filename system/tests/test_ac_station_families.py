@@ -1089,6 +1089,14 @@ def test_SC_05_snapshot_signature_freshness_fail_closed():
          {"page": 1, "pages_total": 2, "complete": False, "next_page": 2}),
         ("pages-coverage-incomplete", {"page": 1, "pages_total": 3}),
         ("pagination-malformed", "not-an-object"),
+        # 八轮 R8-SC-PAGINATION-TYPE-018 新负例：形态/自洽矛盾全拒
+        ("page-string", {"page": "1", "pages_total": "1", "complete": True}),
+        ("page-bool", {"page": True, "pages_total": 1, "complete": True}),
+        ("page-zero", {"page": 0, "pages_total": 0, "complete": True}),
+        ("pages-total-negative", {"page": 1, "pages_total": -1, "complete": True}),
+        ("page-out-of-range", {"page": 2, "pages_total": 1, "complete": True}),
+        ("complete-with-next-page",
+         {"page": 1, "pages_total": 1, "complete": True, "next_page": 2}),
     )
     for name, pagination in paged_cases:
         rep = _scan(_env_with_pagination(pagination))
