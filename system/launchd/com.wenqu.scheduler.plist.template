@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- G9-01/G9-02：受版本管理的 launchd 模板——观察采样唯一调度入口。
+     装配（install/scheduler）时替换 {{占位符}} 后安装；观察采样面
+     只允许此一个作业，禁止注册 com.wenqu.observation /
+     com.wenqu.observation-window（见同目录 README.md 注册表）。
+     审计命令：python3 tools/window_harvest.py 的 audit-writers 模式
+     （指定 root 与 LaunchAgents 目录）。 -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wenqu.scheduler</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>-m</string>
+        <string>wenqu_core.scheduler</string>
+        <string>tick</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{{WENQU_CURRENT_TREE}}</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{WENQU_CURRENT_TREE}}/system</string>
+        <key>WENQU_HOME</key>
+        <string>{{WENQU_HOME}}</string>
+        <key>WENQU_GIT_REPO</key>
+        <string>{{WENQU_GIT_REPO}}</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{WENQU_HOME}}/observation/logs/scheduler-launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{WENQU_HOME}}/observation/logs/scheduler-launchd.err.log</string>
+</dict>
+</plist>

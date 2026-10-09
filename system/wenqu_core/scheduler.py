@@ -1717,6 +1717,88 @@ def capacity_preflight(paths: "ProductionPaths", *,
 
 
 # ---------------------------------------------------------------------------
+# G9-01/G9-02 唯一 writer 审计（观察采样只有一个调度入口=com.wenqu.scheduler）
+# ---------------------------------------------------------------------------
+
+#: 已退役的观察独立作业 label——install/scheduler 装配不得注册；
+#: 运行面一经发现即第二 writer（audit rc1）。
+FORBIDDEN_OBSERVATION_LABELS = (
+    "com.wenqu.observation",
+    "com.wenqu.observation-window",
+)
+
+
+def audit_launchd_observation_writers(
+    launch_agents_dir: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """扫描 LaunchAgents plist，找出 com.wenqu.scheduler 之外任何触及
+    观察采样面的作业（旧独立观察作业/第二 writer）。只读，不猜。
+
+    判据（Program 或 ProgramArguments 文本）：引用 observation_daily.py、
+    ~/.wenqu/observation 路径或观察窗日志（legacy 作业特征）。
+    唯一合法入口 PROD_LABEL 豁免。返回 findings（空=收敛）。"""
+    import plistlib
+
+    lad = launch_agents_dir or _os.path.expanduser(
+        "~/Library/LaunchAgents")
+    findings: List[Dict[str, Any]] = []
+    try:
+        names = sorted(_os.listdir(lad))
+    except OSError:
+        return findings
+    for n in names:
+        if not n.endswith(".plist"):
+            continue
+        p = _os.path.join(lad, n)
+        try:
+            with open(p, "rb") as fh:
+                pl = plistlib.load(fh)
+        except Exception:  # noqa: BLE001——plistlib/expat 对畸形 plist 抛多种异常
+            # 无法解析 = 无法证明它不是观察 writer → fail-visible 记 finding
+            # （launchd 自身若也拒载则该作业不会运行，但审计不猜）
+            findings.append({"kind": "unparsable_plist", "label": n,
+                             "plist": p})
+            continue
+        if not isinstance(pl, dict):
+            continue
+        label = str(pl.get("Label", "") or "")
+        prog = str(pl.get("Program", "") or "")
+        argv = " ".join(str(a) for a in (pl.get("ProgramArguments") or []))
+        text = prog + " " + argv
+        touches_observation = (
+            "observation_daily.py" in text
+            or "/.wenqu/observation" in text
+            or "观察窗" in text
+        )
+        if not touches_observation:
+            continue
+        if label == PROD_LABEL:
+            continue  # 唯一合法调度入口
+        kind = ("forbidden_label" if label in FORBIDDEN_OBSERVATION_LABELS
+                else "second_observation_writer")
+        findings.append({"kind": kind, "label": label, "plist": p})
+    return findings
+
+
+def find_observation_writers(store: "SchedulerStore") -> List[str]:
+    """scheduler 注册表内任何 argv/cwd 触及观察采样面的 enabled 作业。
+
+    唯一合法 = PROD_JOB_ID（w4.observation-sample）；>1 或出现其它 job_id
+    即第二 writer（G9-01/G9-02：发现第二 writer 时 rc1）。"""
+    rows = store.query(
+        "SELECT job_id, argv_json, cwd FROM scheduler_jobs WHERE enabled = 1"
+    )
+    out: List[str] = []
+    for job_id, argv_json, cwd in rows:
+        blob = str(argv_json) + " " + str(cwd or "")
+        if ("observation_daily" in blob
+                or "/observation/samples" in blob
+                or "/observation/shadow" in blob):
+            out.append(str(job_id))
+    return sorted(out)
+
+
+# ---------------------------------------------------------------------------
 # 通知通道（W4 双通道）
 # ---------------------------------------------------------------------------
 
@@ -2108,6 +2190,26 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                 )
 
         due = registry.due_jobs(now=now)
+        # ---- G9-02/D 唯一 writer 收敛审计：注册表内观察采样作业必须唯一
+        # （PROD_JOB_ID）；发现第二 writer → CRITICAL 告警（fail-visible，
+        # 不静默）。launchd 面审计由 tools/window_harvest.py --audit-writers
+        # 承担（装配/巡检入口，tick 不扫真实 LaunchAgents 保持可测性）。----
+        obs_writers = find_observation_writers(store)
+        if len(obs_writers) > 1:
+            try:
+                outbox.notify(
+                    "CRITICAL",
+                    "[wenqu] 观察采样出现多 writer（注册表）",
+                    "scheduler 注册表内出现 %d 个观察采样作业：%s——"
+                    "观察样本面必须唯一 writer（%s）。"
+                    % (len(obs_writers), obs_writers, PROD_JOB_ID),
+                    meta={"kind": "unique_writer", "job_ids": obs_writers},
+                    dedup_key="uniquewriter:%s:%d"
+                              % (",".join(obs_writers), int(now // 3600)),
+                    now=now,
+                )
+            except Exception:
+                log.exception("unique-writer CRITICAL notify failed")
         runs: List[Dict[str, Any]] = []
         bootstrapped = False
         ever_ran = store.query(
@@ -2184,6 +2286,9 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             "health": [{"job_id": h.job_id, "state": h.state,
                         "healthy": h.healthy, "severity": h.severity}
                        for h in health],
+            "observation_writers": {"count": len(obs_writers),
+                                    "job_ids": obs_writers,
+                                    "unique": len(obs_writers) <= 1},
             "notifications": {"dispatch": dispatch, "outbox_stats": stats},
             "paths": {"scheduler_db": paths.scheduler_db,
                       "gate_aggregate": paths.gate_aggregate,
