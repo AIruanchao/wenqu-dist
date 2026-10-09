@@ -1,8 +1,8 @@
 {
   "meta": {
     "artifact": "ac-ui-family",
-    "generated_at": "2026-10-08T19:41:45+00:00",
-    "repo_head": "12cb222ee1765dda5e917b3a2f300a53c1d4ef1d",
+    "generated_at": "2026-10-09T02:25:07+00:00",
+    "repo_head": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
     "test_file": "system/tests/test_ac_ui_family.py",
     "probe_module": "system/wenqu_core/ui_probe.py",
     "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
@@ -53,7 +53,7 @@
     },
     "UI-07": {
       "pass": true,
-      "detail": "超大日志（4429KB 源→84KB 响应，tail 行数界、16ms、首行截出末行保留）；R7 对抗腿：6MiB 病态单行→响应 1048560B ≤1MiB 上限+truncated 标记+前缀保留（字节界硬约束）；慢速半开请求期间并发 3×200、15.0s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；限速真实触发（第 None 发 429）；压力后存活。负例无限速假服务被探针必报",
+      "detail": "超大日志（4429KB 源→84KB 响应，tail 行数界、12ms、首行截出末行保留）；R7 对抗腿：6MiB 病态单行→响应 1048560B ≤1MiB 上限+truncated 标记+前缀保留（字节界硬约束）；慢速半开请求期间并发 3×200、15.0s 被读超时收割（15s 档）；超大声明体 413 快拒；60 并发全 200；限速真实触发（第 None 发 429）；压力后存活。负例无限速假服务被探针必报",
       "method": "L2-HTTP-DOM"
     },
     "UI-04b": {
