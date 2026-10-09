@@ -14,10 +14,16 @@
  * ensure_prior_stages_passed 守卫在 STAGE_STARTED 上逐字对应（见下）。
  *
  * 诚实边界（抽象决策，逐条可核）：
- *   A1. 小模型界：TLC 检查 StageIds={1,2}×每段 attempt 历史 ≤ MaxHistLen
- *       （=2 段×2 attempt 界）；正典常量表（StageOrder 七段、RunTrans、
- *       AttemptTrans、双轴集合）按代码全文收录，结构由
- *       system/tests/test_tla_spec.py 与 Python 正源逐项比对防漂移。
+ *   A1. 双配置界（G9-03）：TLC 检查两个有界实例，须各自达到完成级——
+ *       配置 A wenqu_pipeline_A.cfg：StageIds={1..7}×MaxHistLen=2
+ *       （七段全序 × 每段 1 attempt：覆盖完整段序、S1..S7 全部启动/
+ *       终态化与五类 run 终态；resume 在此配置下被 MaxHistLen 界封死，
+ *       由配置 B 承接）；配置 B wenqu_pipeline_B.cfg：StageIds={1,2}×
+ *       MaxHistLen=4（2 段 × 2 attempt：覆盖 retry 新 attempt、
+ *       state_version CAS 命中/失配、nonce 重放拒绝路径）。
+ *       正典常量表（StageOrder 七段、RunTrans、AttemptTrans、双轴集合）
+ *       按代码全文收录，结构由 system/tests/test_tla_spec.py 与 Python
+ *       正源逐项比对防漂移。
  *   A2. attempt 历史 = 状态序列（RUNNING, 终态, RUNNING, 终态, …），
  *       不含 attempt_id/时间戳/证据——不可变语义以序列形状不变量表达。
  *   A3. 审批的结构/签名/TTL/绑定校验（ApprovalBroker.validate_structure /
@@ -39,10 +45,13 @@
 EXTENDS Naturals, Sequences
 
 CONSTANTS
-    StageIds,     \* 参与模型的段序号全集（TLC 小模型 {1,2}；正典 1..7）
+    StageIds,     \* 参与模型的段序号全集（cfg-A {1..7} 七段全序；cfg-B {1,2}）
     r1, r2,       \* resume 类审批原子（cfg 中以 model value 赋值）
     k1, k2,       \* risk 类审批原子（同上）
-    MaxHistLen    \* 每段 attempt 历史长度上限（2 attempt 界 = 4 元素）
+    MaxHistLen,   \* 每段 attempt 历史长度上限（1 attempt 界 = 2；2 attempt 界 = 4）
+    MaxVer        \* ver 计数封顶（记忆战训：无界计数撞 TLC 65535 深度限；
+                  \*   cfg-A=16：7 段×(启动+终态化)=14 事件 + 至多 1 个
+                  \*   run 终态事件，ver ≤ 1+15=16；cfg-B=14）
 
 \* API 路由判别集（consume 只收 resume / consume_authorization 只收 risk）
 ResumeApprovals == {r1, r2}
@@ -370,10 +379,11 @@ Spec == Init /\ [][Next]_vars
 
 (***************************************************************************
  * §6 有界约束（TLC CONSTRAINT：终止状态空间枚举）
+ *   ver 封顶按配置注入（cfg-A=16 / cfg-B=14）；历史长度封顶 MaxHistLen。
  ***************************************************************************)
 
 Bounded ==
-    /\ ver <= 14
+    /\ ver <= MaxVer
     /\ \A s \in StageIds : Len(ahist[s]) <= MaxHistLen
 
 (***************************************************************************

@@ -35,7 +35,9 @@ from wenqu_core.wenqu_pipeline import (                    # noqa: E402
 )
 
 TLA_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline.tla")
-CFG_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline.cfg")
+CFG_A_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline_A.cfg")
+CFG_B_PATH = os.path.join(REPO, os.pardir, "specs", "tla", "wenqu_pipeline_B.cfg")
+MUTATION_SCRIPT = os.path.join(REPO, os.pardir, "specs", "tla", "mutation_probes.sh")
 
 
 def _tla_text() -> str:
@@ -173,17 +175,63 @@ def test_invariants_and_actions_defined():
 
 
 def test_cfg_checks_all_invariants_and_bounds():
-    if not os.path.isfile(CFG_PATH):
-        pytest.fail(f"TLC 配置缺失：{os.path.normpath(CFG_PATH)}")
-    with open(CFG_PATH, encoding="utf-8") as fh:
-        cfg = fh.read()
-    for inv in REQUIRED_INVARIANTS:
-        assert re.search(rf"^\s+{inv}\s*$", cfg, re.M), f"cfg 未检查 {inv}"
-    assert re.search(r"SPECIFICATION\s+Spec", cfg)
-    assert re.search(r"CONSTRAINT\s+Bounded", cfg)
-    # 小模型口径：2 段 × 2 attempt 界（MaxHistLen=4：RUNNING+终态 ×2）
-    assert re.search(r"StageIds\s*=\s*\{\s*1,\s*2\s*\}", cfg)
-    assert re.search(r"MaxHistLen\s*=\s*4", cfg)
+    """G9-03 双配置口径：cfg-A 七段全序×1 attempt；cfg-B 2 段×2 attempts。
+    两配置都必须全列 7 不变量、SPECIFICATION Spec、CONSTRAINT Bounded。"""
+    expected = {
+        CFG_A_PATH: {  # 配置 A：七段全序 × 1 attempt（完整段序+五类终态）
+            "stage_ids": r"StageIds\s*=\s*\{\s*1,\s*2,\s*3,\s*4,\s*5,\s*6,\s*7\s*\}",
+            "hist": r"MaxHistLen\s*=\s*2",
+            "ver": r"MaxVer\s*=\s*16",
+        },
+        CFG_B_PATH: {  # 配置 B：2 段 × 2 attempts（retry/CAS/nonce 重放）
+            "stage_ids": r"StageIds\s*=\s*\{\s*1,\s*2\s*\}",
+            "hist": r"MaxHistLen\s*=\s*4",
+            "ver": r"MaxVer\s*=\s*14",
+        },
+    }
+    for path, patterns in expected.items():
+        if not os.path.isfile(path):
+            pytest.fail(f"TLC 配置缺失：{os.path.normpath(path)}")
+        with open(path, encoding="utf-8") as fh:
+            cfg = fh.read()
+        for inv in REQUIRED_INVARIANTS:
+            assert re.search(rf"^\s+{inv}\s*$", cfg, re.M), (
+                f"{os.path.basename(path)} 未检查 {inv}")
+        assert re.search(r"SPECIFICATION\s+Spec", cfg), path
+        assert re.search(r"CONSTRAINT\s+Bounded", cfg), path
+        for label, pat in patterns.items():
+            assert re.search(pat, cfg), (
+                f"{os.path.basename(path)} 规模旋钮漂移（{label}）")
+
+
+def test_bounded_uses_maxver_constant():
+    """ver 封顶必须走 MaxVer 常量（cfg-A=16 才放得下 7 段×1 attempt+终态；
+    硬编码小值会静默截断七段覆盖——正是 G9-03 要闭环的缺口形态）。"""
+    text = _tla_text()
+    assert re.search(r"^\s+MaxVer,?", text, re.M), "规约缺 MaxVer 常量声明"
+    block = _definition_block(text, "Bounded")
+    assert "ver <= MaxVer" in block, (
+        "Bounded 漂移：ver 封顶必须引用 MaxVer（cfg 按配置注入）")
+
+
+REQUIRED_MUTATION_PROBES = (
+    "mut-A1_skip_stage", "mut-A2_relax_terminal", "mut-A3_nonce_replay",
+    "mut-A4_pass_gate", "mut-B1_nonce_replay",
+)
+
+
+def test_mutation_probe_script_wired():
+    """可证伪性接线：变异探针脚本存在且五个变异全部在列（跳段/放宽终态/
+    nonce 重放×2 配置/PASS-需-COMPLETED 门）——缺一件即 G9-03 验收面回退。"""
+    if not os.path.isfile(MUTATION_SCRIPT):
+        pytest.fail(f"变异探针脚本缺失：{os.path.normpath(MUTATION_SCRIPT)}")
+    with open(MUTATION_SCRIPT, encoding="utf-8") as fh:
+        script = fh.read()
+    for probe in REQUIRED_MUTATION_PROBES:
+        assert probe in script, f"变异探针脚本缺 {probe}"
+    for expect in ("NoSkipStages", "TerminalFinal", "NonceOnceConsumed",
+                   "AttemptImmutable"):
+        assert expect in script, f"变异探针脚本缺期望不变量 {expect}"
 
 
 if __name__ == "__main__":  # pragma: no cover
