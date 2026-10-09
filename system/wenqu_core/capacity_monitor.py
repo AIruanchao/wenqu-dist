@@ -692,7 +692,9 @@ def _self_test() -> int:
         monitor = CapacityMonitor(spec=CapacitySpec(used_ratio_threshold=0.9999),
                                   sample_log=log)
         real = monitor.sample(path=tmp)
-        assert real.basis == "real" and real.total_bytes == real.used_bytes + real.free_bytes
+        # Linux 保留块：ext4 的 total 含 root 保留，statvfs 的 total > used+free
+        # 是合法形态（跨平台铁律：total==used+free 只在 APFS 等成立，用 >=）。
+        assert real.basis == "real" and real.total_bytes >= real.used_bytes + real.free_bytes
         assert log.samples()[-1] == real and log.peak_used_bytes() == real.used_bytes
         green = monitor.judge(real)
         assert green["severity"] == "OK" and green["code"] == CAP_WITHIN_MARGIN

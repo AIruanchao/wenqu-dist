@@ -10,6 +10,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
       - name: release-check（版本号残留机械闸·动态版本）
         run: |
           V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
@@ -28,3 +30,29 @@ jobs:
         run: python -m pytest system/tests/test_linux_proc_path.py -v
       - name: selftest
         run: python cli/wenqu selftest
+      # ---- G9-08（八轮 1.4-10）：required CI 全量检查面 ------------------
+      - name: 仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）
+        run: pip install pytest && python -m pytest -q
+      - name: 严格 evidence validator（active 全字段+实算 hash+TTL）
+        run: python tools/evidence_validator.py --root .
+      - name: 全模块自测（bugscan/station2-7/capacity 八模块 SELF-TEST）
+        run: |
+          for m in bugscan_orchestrator station2_static station3_contract \
+                   station4_behavior station5_live_fire station6_adversarial \
+                   station7_runtime capacity_monitor; do
+            PYTHONPATH=system python3 -m "wenqu_core.$m"
+          done
+      - name: 追踪矩阵（§20/§25.1 目录+方案 hash 一致性）
+        run: PYTHONPATH=system python tools/ac_traceability.py --check
+      - name: TLA 双配置 TLC 完成级（G9-03：七段全序 A + retry/CAS/nonce B）
+        # 完成级判据：输出含 "Model checking completed"；非零违例/截断=红。
+        run: |
+          pushd specs/tla >/dev/null
+          for cfg in wenqu_pipeline_A wenqu_pipeline_B; do
+            java -cp ../../system/bin/tla2tools.jar tlc2.TLC -config "$cfg.cfg" wenqu_pipeline 2>&1 | tee "/tmp/tlc-$cfg.log"
+            grep -q "Model checking completed. No error has been found." "/tmp/tlc-$cfg.log"
+          done
+          popd >/dev/null
+      # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
+      # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
+      # 不再独立重跑，避免 macOS 时长翻倍。
