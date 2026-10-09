@@ -316,6 +316,9 @@ class TrustedRunner:
         # （double-fork 后被 PID 1 收养的 daemon 逃不出）。
         run_token = secrets.token_hex(24)
         token_pair = f"{RUN_TOKEN_ENV}={run_token}"
+        # P0-5/P0-8：超时事实先于击杀记录——kill/收尸阶段任何异常
+        # 不得把已发生的超时证据抹回 False（证据不丢语义）。
+        timed_out = False
         try:
             # P0-5：独立进程组（start_new_session=True）——超时 killpg 整组
             proc = subprocess.Popen(
@@ -329,41 +332,42 @@ class TrustedRunner:
             )
             try:
                 stdout_bytes, stderr_bytes = proc.communicate(timeout=self._timeout)
-                timed_out = False
                 actual_exit = proc.returncode
             except subprocess.TimeoutExpired:
+                # 超时已发生：先锁定证据再击杀（kill_tree 及收尸的任何
+                # 异常只能降级 stdout/stderr，不得翻转 timed_out）。
+                timed_out = True
                 # P0-5/P0-8：killpg + 进程树扫荡 + token 全系统扫杀——
                 # setsid 逃逸的子孙、reparent 后的 daemon 都必须死
                 self._kill_tree(proc, token_pair)
                 try:
                     stdout_bytes, stderr_bytes = proc.communicate(timeout=5)
-                except subprocess.TimeoutExpired:
+                except Exception:
                     stdout_bytes, stderr_bytes = b"", b""
-                timed_out = True
-                actual_exit = 124
+            if timed_out:
+                return Evidence(
+                    argv=tuple(argv),
+                    cwd=workdir,
+                    actual_exit_code=None,
+                    stdout_sha256=_sha256_hex(stdout_bytes or b""),
+                    stderr_sha256=_sha256_hex(stderr_bytes or b""),
+                    argv_digest=argv_digest,
+                    timestamp=timestamp,
+                    fresh_until=fresh_until,
+                    timed_out=True,
+                )
         except Exception as exc:
+            # 环境错误兜底：超时若已发生，证据仍按超时语义返回。
             return Evidence(
                 argv=tuple(argv),
                 cwd=workdir,
-                actual_exit_code=2,
+                actual_exit_code=None if timed_out else 2,
                 stdout_sha256=_sha256_hex(b""),
                 stderr_sha256=_sha256_hex(str(exc).encode()),
                 argv_digest=argv_digest,
                 timestamp=timestamp,
                 fresh_until=fresh_until,
-                timed_out=False,
-            )
-        if timed_out:
-            return Evidence(
-                argv=tuple(argv),
-                cwd=workdir,
-                actual_exit_code=None,
-                stdout_sha256=_sha256_hex(stdout_bytes or b""),
-                stderr_sha256=_sha256_hex(stderr_bytes or b""),
-                argv_digest=argv_digest,
-                timestamp=timestamp,
-                fresh_until=fresh_until,
-                timed_out=True,
+                timed_out=timed_out,
             )
         return Evidence(
             argv=tuple(argv),
