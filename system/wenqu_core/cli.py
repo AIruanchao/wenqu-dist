@@ -457,6 +457,9 @@ def cmd_keys(args: argparse.Namespace) -> int:
                 "rotated_to": meta.get("rotated_to"),
                 "revoked_at": meta.get("revoked_at"),
                 "expiry": meta.get("expiry"),
+                "owner": meta.get("owner"),
+                "actors": meta.get("actors"),
+                "retired_receipt_seq": meta.get("retired_receipt_seq"),
                 "description": meta.get("description"),
             })
         print(json.dumps({"keyring": path, "count": len(keys),
@@ -475,6 +478,15 @@ def cmd_keys(args: argparse.Namespace) -> int:
                   "轮换用 keys rotate）", file=sys.stderr)
             return 1
         meta: Dict[str, Any] = {"status": "active"}
+        # G9-04/C：principal 强制登记（owner=首个 principal，actors=全集）
+        principals = [p.strip() for p in (args.principal or []) if p.strip()]
+        if not principals:
+            print("wenquctl: keys create 必须 --principal NAME（G9-04/C："
+                  "生产 key 必须登记 owner/actors——无登记 principal 的 "
+                  "key 不得参与高危联签）", file=sys.stderr)
+            return 2
+        meta["owner"] = principals[0]
+        meta["actors"] = principals
         if args.expiry:
             meta["expiry"] = args.expiry
             try:
@@ -513,9 +525,14 @@ def cmd_keys(args: argparse.Namespace) -> int:
         # 顺序（失败安全向）：先立新 key（active）→ 再把旧 key 标 rotated。
         # 中断只会留下「双 active」（签发面稍宽，可重跑收敛），
         # 绝不出现「无 active key」或「用已轮换 key 签发」。
-        write_key_to_dir(keyring_dir, new_id, generate_secret(),
-                         {"status": "active",
-                          "description": f"rotated from {old_id}"})
+        # G9-04/C：新 key 继承旧 key 的 principal 登记面（轮换换的是密钥
+        # 材料不是人——owner/actors 原样带过去，登记面不因轮换丢失）
+        new_meta: Dict[str, Any] = {"status": "active",
+                                    "description": f"rotated from {old_id}"}
+        for carry in ("owner", "actors"):
+            if old_meta.get(carry):
+                new_meta[carry] = old_meta[carry]
+        write_key_to_dir(keyring_dir, new_id, generate_secret(), new_meta)
         save_key_meta(keyring_dir, old_id, {
             **old_meta, "status": "rotated", "rotated_at": now_iso,
             "rotated_to": new_id})
@@ -1279,6 +1296,11 @@ def build_parser() -> argparse.ArgumentParser:
     pk.add_argument("--expiry", default=None, metavar="ISO8601",
                     help="key 过期时间（过期后不得签发；存量验证以信封 TTL 为准）")
     pk.add_argument("--description", default=None)
+    pk.add_argument("--principal", action="append", required=True,
+                    metavar="NAME",
+                    help="principal 登记面（G9-04/C：至少一名 owner/actor，"
+                         "可重复传入多名；无登记 principal 的 key 不得参与"
+                         "高危联签——首个即 owner）")
     pk.add_argument("--actor", default="cli", help="操作者标识")
     pk.set_defaults(func=cmd_keys)
 

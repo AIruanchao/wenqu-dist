@@ -24,6 +24,7 @@
 
 另含：K 项 CLI 端到端链（wenquctl create→…→complete）。
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -131,7 +132,7 @@ def make_resume(run_id, stop_event_id, stop_type, state_version, task_id,
         "policy_hash": IDENT["policy_hash"],
         "ruleset_hash": IDENT["ruleset_hash"],
         "input_watermark": IDENT["commit_sha"],
-        "actor": "attacker", "issued_at": "2026-10-08T00:00:00Z",
+        "actor": "chaoge", "issued_at": "2026-10-08T00:00:00Z",
         "expires_at": "2099-01-01T00:00:00Z",
         "expected_state_version": state_version,
         "nonce": "nonce-adv-000011112222", "decision": "approve",
@@ -157,7 +158,7 @@ def make_risk(run_id, task_id, state_version, *, fingerprints=None,
         "policy_hash": IDENT["policy_hash"],
         "ruleset_hash": IDENT["ruleset_hash"],
         "input_watermark": IDENT["commit_sha"],
-        "actor": "attacker", "issued_at": "2026-10-08T00:00:00Z",
+        "actor": "chaoge", "issued_at": "2026-10-08T00:00:00Z",
         "expires_at": "2099-01-01T00:00:00Z",
         "expected_state_version": state_version,
         "nonce": "nonce-adv-risk-0001", "decision": "approve",
@@ -231,6 +232,32 @@ def make_action_approval(run_id, task_id, state_version, action_type, *,
     ap.pop("signature", None)
     ap["signature"] = sign_envelope(SECRET, ap)
     return ap
+
+def runtime_ev(ap, target, artifact_paths=None):
+    """G9-04/B：reserve_action 必填 runtime evidence（全字段观测 +
+    action_target；*_sha256 字段由调用点经 artifact_paths 指真实文件）。"""
+    ev = {k: v for k, v in ap["payload"].items()
+          if not k.endswith("_sha256")}
+    ev["action_target"] = target
+    if artifact_paths:
+        ev["artifact_paths"] = dict(artifact_paths)
+    return ev
+
+
+def release_payload_with_files(prefix="wenqu-adv-rel-"):
+    """release payload：双 *_sha256 来自真实文件实算（返回 payload+paths）。"""
+    d = tempfile.mkdtemp(prefix=prefix)
+    art, man = os.path.join(d, "artifact.bin"), os.path.join(d, "manifest.json")
+    with open(art, "wb") as fh:
+        fh.write(b"adv-release-artifact")
+    with open(man, "wb") as fh:
+        fh.write(b'{"release": "adv"}')
+    return dict(
+        ACTION_PAYLOADS["release"],
+        artifact_sha256=hashlib.sha256(open(art, "rb").read()).hexdigest(),
+        manifest_sha256=hashlib.sha256(open(man, "rb").read()).hexdigest()
+    ), {"artifact_sha256": art, "manifest_sha256": man}
+
 
 def make_external_receipt(action, run_id, watermark, *, outcome="COMMITTED",
                           external_ref="ext-deploy-77", **over):
@@ -598,10 +625,14 @@ def adv9_schema_roundtrip():
     # F4-AUTH-001（诚实更新）：action 预留必传审批——原 "deploy" 无审批类型
     # 映射，改用 release 动作 + 签发的 release 审批（锚定 S1 RUNNING/版本 2）。
     # R7 诚实更新：release 高危——补双联签 + exact descriptor（原断言保留）
-    rel_ap = cosign(make_action_approval(run_id, "task_adv9", 2, "release"))
+    rel_p, rel_paths = release_payload_with_files("wenqu-adv9-rel-")
+    rel_ap = cosign(make_action_approval(run_id, "task_adv9", 2, "release",
+                                         payload=rel_p))
     mgr.reserve_action(run_id, "release", "db://prod/erp", rel_ap,
-                       actor="adv9",
-                       action_descriptor=descriptor_of(rel_ap))
+                       actor="chaoge",
+                       action_descriptor=descriptor_of(rel_ap),
+                       runtime_evidence=runtime_ev(rel_ap, "db://prod/erp",
+                                                   rel_paths))
     mgr.advance_stage(run_id, execution_status="COMPLETED", policy_verdict="PASS")
     w = mgr.raise_waiting(run_id, "prod-write", "adv9")
     v = mgr.get_run(run_id).state_version
@@ -675,7 +706,8 @@ def adv10_action_saga():
     # 生命周期（授权链版）：签发 prod-write 审批（R7：高危补双联签）→ RESERVED
     ap = cosign(make_action_approval(run_id, "task_adv10", v, "prod-write"))
     r = mgr.reserve_action(run_id, "prod-write", target, ap,
-                           action_descriptor=descriptor_of(ap))
+                           action_descriptor=descriptor_of(ap),
+                           runtime_evidence=runtime_ev(ap, target))
     aid = r["action_id"]
     assert r["action_state"] == "RESERVED"
     assert r["approval_id"].startswith("apr_") and len(r["nonce_digest"]) == 64
@@ -727,7 +759,9 @@ def adv10_action_saga():
                                       mgr.get_run(run_id).state_version,
                                       "ddl"))
     r2 = mgr.reserve_action(run_id, "ddl", "db://staging/schema", ap2,
-                            action_descriptor=descriptor_of(ap2))
+                            action_descriptor=descriptor_of(ap2),
+                            runtime_evidence=runtime_ev(ap2,
+                                                        "db://staging/schema"))
     aid2 = r2["action_id"]
     mgr.start_action(run_id, aid2)
     f = mgr.fail_action(run_id, aid2, "runner crash; outcome unknown")
@@ -743,7 +777,9 @@ def adv10_action_saga():
     ap3 = make_action_approval(run_id, "task_adv10",
                                mgr.get_run(run_id).state_version, "merge")
     r3 = mgr.reserve_action(run_id, "merge", "repo://qisemi-erp/pr-9", ap3,
-                            action_descriptor=descriptor_of(ap3))
+                            action_descriptor=descriptor_of(ap3),
+                            runtime_evidence=runtime_ev(ap3,
+                                                        "repo://qisemi-erp/pr-9"))
     aid3 = r3["action_id"]
     mgr.start_action(run_id, aid3, receipt="merge attempt started")
     tampered = make_external_receipt(r3, run_id, IDENT["commit_sha"])
@@ -805,9 +841,13 @@ def adv11_action_auth_gate():
     mgr.advance_stage(run_id)
     v = mgr.get_run(run_id).state_version
     # R7 诚实更新：release 高危补双联签 + descriptor
-    ap = cosign(make_action_approval(run_id, "task_adv11b", v, "release"))
+    rel11, rel11_paths = release_payload_with_files("wenqu-adv11-rel-")
+    ap = cosign(make_action_approval(run_id, "task_adv11b", v, "release",
+                                     payload=rel11))
     r = mgr.reserve_action(run_id, "release", "prod://erp/rel-77", ap,
-                           action_descriptor=descriptor_of(ap))
+                           action_descriptor=descriptor_of(ap),
+                           runtime_evidence=runtime_ev(ap, "prod://erp/rel-77",
+                                                       rel11_paths))
     aid = r["action_id"]
     assert r["action_state"] == "RESERVED"
     assert len(mgr.broker.consumed_approvals(run_id=run_id)) == 1  # 授权已消费
@@ -908,9 +948,12 @@ def adv12_r7_dual_consume_gates():
     from wenqu_core.approval_keys import KEY_STATUS_REVOKED
     kr_rev = ApprovalKeyring(
         {"key_test_1": SECRET, "key_test_2": SECRET2},
-        metadata={"key_test_2": {
-            "status": KEY_STATUS_REVOKED,
-            "revoked_at": "2026-10-08T00:00:00Z"}})
+        metadata={"key_test_1": {"status": "active",
+                                 "owner": "chaoge", "actors": ["chaoge"]},
+                  "key_test_2": {
+                      "status": KEY_STATUS_REVOKED,
+                      "revoked_at": "2026-10-08T00:00:00Z",
+                      "owner": "erge", "actors": ["erge"]}})
     mgr_rev2 = RunManager(store_rev, keyring=kr_rev)
     ap_rev = cosign(make_action_approval(rid_rev, "task_r7rev", v_rev,
                                          "prod-write"))
@@ -972,14 +1015,17 @@ def adv12_r7_dual_consume_gates():
                      ("rollback", make_action_approval(
                          run_id, "task_r7dual", v, "rollback"))):
         rec = mgr.reserve_action(run_id, act, f"plan://{act}/r7", apv,
-                                 action_descriptor=descriptor_of(apv))
+                                 action_descriptor=descriptor_of(apv),
+                                 runtime_evidence=runtime_ev(apv,
+                                                             f"plan://{act}/r7"))
         assert rec["action_state"] == "RESERVED", act
     # (7) 正例：高危双联签 + descriptor 匹配 → 消费成功，事件带对账面
     v_now = mgr.get_run(run_id).state_version
     good = cosign(make_action_approval(run_id, "task_r7dual", v_now,
                                        "prod-write"))
     r = mgr.reserve_action(run_id, "prod-write", target, good,
-                           action_descriptor=descriptor_of(good))
+                           action_descriptor=descriptor_of(good),
+                           runtime_evidence=runtime_ev(good, target))
     assert r["action_state"] == "RESERVED"
     import hashlib as _hl
     assert r["payload_digest"] == _hl.sha256(json.dumps(
@@ -1266,29 +1312,42 @@ def adv14_r8_lifecycle_principal_actual_target():
     v3b = mgr3.get_run(run3).state_version
     ap_m = make_action_approval(run3, "task_r8_tgt", v3b, "merge")
     expect(ApprovalRejected,
-           lambda: mgr3.reserve_action(run3, "merge",
-                                       "repo://qisemi-erp/pr-9", ap_m,
-                                       action_descriptor=descriptor_of(ap_m),
-                                       runtime_evidence={"head_sha": "RUN_HEAD"}),
+           lambda: mgr3.reserve_action(
+               run3, "merge", "repo://qisemi-erp/pr-9", ap_m,
+               action_descriptor=descriptor_of(ap_m),
+               runtime_evidence={**ap_m["payload"], "head_sha": "RUN_HEAD",
+                                 "action_target": "repo://qisemi-erp/pr-9"}),
            contains="actual-target")
     # 3c：artifact 路径实算 hash 与 payload 声明不符（真实文件、真实哈希）
-    art = os.path.join(tempfile.mkdtemp(prefix="wenqu-adv14-art-"),
-                       "artifact-r8.bin")
+    _art_dir = tempfile.mkdtemp(prefix="wenqu-adv14-art-")
+    art = os.path.join(_art_dir, "artifact-r8.bin")
+    art2 = os.path.join(_art_dir, "artifact-r8-TAMPERED.bin")
+    man = os.path.join(_art_dir, "manifest-r8.json")
     with open(art, "wb") as fh:
         fh.write(b"r8-real-artifact-bytes")
+    with open(art2, "wb") as fh:
+        fh.write(b"r8-real-artifact-bytes-TAMPERED")
+    with open(man, "wb") as fh:
+        fh.write(b'{"release": "r8"}')
     real_hash = _hl.sha256(open(art, "rb").read()).hexdigest()
-    assert real_hash != "d" * 64
+    rel_real = dict(
+        ACTION_PAYLOADS["release"],
+        artifact_sha256=real_hash,
+        manifest_sha256=_hl.sha256(open(man, "rb").read()).hexdigest())
     v3c = mgr3.get_run(run3).state_version
     rel_bad = cosign(make_action_approval(
-        run3, "task_r8_tgt", v3c, "release",
-        payload=dict(ACTION_PAYLOADS["release"])))
+        run3, "task_r8_tgt", v3c, "release", payload=rel_real))
     expect(ApprovalRejected,
-           lambda: mgr3.reserve_action(run3, "release", "prod://erp/rel-77",
-                                       rel_bad,
-                                       action_descriptor=descriptor_of(rel_bad),
-                                       runtime_evidence={
-                                           "artifact_paths": {
-                                               "artifact_sha256": art}}),
+           lambda: mgr3.reserve_action(
+               run3, "release", "prod://erp/rel-77", rel_bad,
+               action_descriptor=descriptor_of(rel_bad),
+               runtime_evidence={
+                   "release_id": rel_real["release_id"],
+                   "environment": rel_real["environment"],
+                   "previous_release_id": rel_real["previous_release_id"],
+                   "action_target": "prod://erp/rel-77",
+                   "artifact_paths": {"artifact_sha256": art2,
+                                      "manifest_sha256": man}}),
            contains="actual-target")
     # 3d：runtime_evidence 混入非本类型字段 → 拒（键集封闭）
     v3d = mgr3.get_run(run3).state_version
@@ -1378,11 +1437,15 @@ def adv14_r8_lifecycle_principal_actual_target():
         "chaoge", "key_r8_b", "erge")
     r6 = mgr6.reserve_action(run6, "prod-write", "db://prod/erp#r8ok", ap6,
                              actor="runner",
-                             action_descriptor=descriptor_of(ap6))
+                             action_descriptor=descriptor_of(ap6),
+                             runtime_evidence=runtime_ev(
+                                 ap6, "db://prod/erp#r8ok"))
     assert r6["action_state"] == "RESERVED"
     # 6b：release——artifact 路径实算 hash 相符 + env 实况相符 + 观测等值
     v6b = mgr6.get_run(run6).state_version
-    rel_payload = dict(ACTION_PAYLOADS["release"], artifact_sha256=real_hash)
+    rel_payload = dict(
+        ACTION_PAYLOADS["release"], artifact_sha256=real_hash,
+        manifest_sha256=_hl.sha256(open(man, "rb").read()).hexdigest())
     rel6 = cosign_with(kr_legit, sign_with(SEC_A, make_action_approval(
         run6, "task_r8_ok", v6b, "release", key_id="key_r8_a",
         payload=rel_payload)), "chaoge", "key_r8_b", "erge")
@@ -1390,9 +1453,12 @@ def adv14_r8_lifecycle_principal_actual_target():
         run6, "release", "prod://erp/rel-r8", rel6,
         actor="runner", action_descriptor=descriptor_of(rel6),
         runtime_evidence={
-            "artifact_paths": {"artifact_sha256": art},
-            "environment": IDENT["environment"],
-            "release_id": rel_payload["release_id"]})
+            "release_id": rel_payload["release_id"],
+            "environment": rel_payload["environment"],
+            "previous_release_id": rel_payload["previous_release_id"],
+            "action_target": "prod://erp/rel-r8",
+            "artifact_paths": {"artifact_sha256": art,
+                               "manifest_sha256": man}})
     assert r6b["action_state"] == "RESERVED"
     # 6c：merge——RUN_HEAD 哨兵实查=run commit_sha，payload head_sha 与之一致
     v6c = mgr6.get_run(run6).state_version
@@ -1402,7 +1468,8 @@ def adv14_r8_lifecycle_principal_actual_target():
     r6c = mgr6.reserve_action(
         run6, "merge", "repo://qisemi-erp/pr-9", m6, actor="runner",
         action_descriptor=descriptor_of(m6),
-        runtime_evidence={"head_sha": "RUN_HEAD"})
+        runtime_evidence={**m6["payload"], "head_sha": "RUN_HEAD",
+                          "action_target": "repo://qisemi-erp/pr-9"})
     assert r6c["action_state"] == "RESERVED"
     # 6d：resume 消费路径——actors 登记面 + 生命周期窗内全过
     w6 = mgr6.raise_waiting(run6, "prod-write", "r8-ok-wait")

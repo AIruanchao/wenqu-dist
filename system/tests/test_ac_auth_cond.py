@@ -308,6 +308,14 @@ def _descriptor(ap: Dict[str, Any]) -> Dict[str, Any]:
     return dict(ap["payload"])
 
 
+def _runtime_ev(ap: Dict[str, Any], target: str) -> Dict[str, Any]:
+    """G9-04/B：reserve_action 必填 runtime evidence（全字段运行时观测 +
+    action_target 实际执行目标；prod_write 无 *_sha256 字段）。"""
+    ev = dict(ap["payload"])
+    ev["action_target"] = target
+    return ev
+
+
 def _external_receipt(reserved: Dict[str, Any], run_id: str,
                       *, watermark: str = ID_STAGING["commit_sha"],
                       outcome: str = "COMMITTED",
@@ -486,9 +494,12 @@ def test_AUTH_03_ai_self_issued_high_risk_approval_rejected(root: Path) -> None:
         mgr2.register_finding(run2, "fnd_auth03_2", "fp-high-2", "HIGH", "P1")
         v2 = mgr2.get_run(run2).state_version
         for sev in ("HIGH", "CRITICAL"):
+            # G9-04/C：fixture 登记 principal 后，拿到密钥的冒签者须顶用
+            # 登记面内 actor 才能到达内容裁决——本腿验证的是「内容机器拒绝」
+            # 而非 principal 拒绝（principal 面另见 G9-04 专项测试）
             ap = _risk_approval(run2, "task_auth03b", version=v2,
                                 fingerprints=["fp-high-2"], severity=sev,
-                                actor="ai-runner-with-leaked-key")
+                                actor="ac-auth-cond-signer")
             _raises(ApprovalRejected, lambda a=ap: mgr2.authorize_risk(run2, a),
                     contains="不可风险接受")
         _ok(mgr2.broker.consumed_approvals(run_id=run2) == [], "高风险内容零消费")
@@ -1005,7 +1016,9 @@ def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> 
                                                 version=v, stage="S7_GATE"))
         reserved = mgr.reserve_action(run_id, "prod-write",
                                       "db://staging/erp#cond03", action_ap,
-                                      action_descriptor=_descriptor(action_ap))
+                                      action_descriptor=_descriptor(action_ap),
+                                      runtime_evidence=_runtime_ev(
+                                          action_ap, "db://staging/erp#cond03"))
         _ok(reserved["action_state"] == "RESERVED", "action 授权预留成功")
         mgr.start_action(run_id, reserved["action_id"], receipt="cond03 caller self-report")
         receipt = _external_receipt(reserved, run_id)
@@ -1026,7 +1039,9 @@ def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> 
                                                version=v, stage="S7_GATE"))
         second = mgr.reserve_action(run_id, "prod-write",
                                     "db://staging/erp#cond03-2", fresh_ap,
-                                    action_descriptor=_descriptor(fresh_ap))
+                                    action_descriptor=_descriptor(fresh_ap),
+                                    runtime_evidence=_runtime_ev(
+                                        fresh_ap, "db://staging/erp#cond03-2"))
         mgr.start_action(run_id, second["action_id"])
         # 旧动作的 attestation 移植到新动作（action_id 不一致）→ Action Gate 拒
         _raises(ActionError, lambda: mgr.commit_action(
@@ -1158,8 +1173,10 @@ def test_COND_05_post_auth_new_finding_ttl_identity_change_invalidated(root: Pat
                                                    stage="S1_REQUIREMENT"))
         _ok(mgr.reserve_action(run4, "prod-write", "db://staging/erp#cond05",
                                fresh_action,
-                               action_descriptor=_descriptor(
-                                   fresh_action))["action_state"] == "RESERVED",
+                               action_descriptor=_descriptor(fresh_action),
+                               runtime_evidence=_runtime_ev(
+                                   fresh_action,
+                                   "db://staging/erp#cond05"))["action_state"] == "RESERVED",
             "对照组：重验通过的新授权可预留")
         _ok(store.verify_chain()["ok"], "事件链完整性保持")
         store.close()
@@ -1208,7 +1225,9 @@ def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(roo
         ap2 = _cosign_ap(_action_approval(run_id, "task_cond06", version=v,
                                           stage="S7_GATE"))
         reserved = mgr.reserve_action(run_id, "prod-write", "db://staging/erp#cond06",
-                                      ap2, action_descriptor=_descriptor(ap2))
+                                      ap2, action_descriptor=_descriptor(ap2),
+                                      runtime_evidence=_runtime_ev(
+                                          ap2, "db://staging/erp#cond06"))
         aid = reserved["action_id"]
         mgr.start_action(run_id, aid, receipt="cond06 started")
         failed = mgr.fail_action(run_id, aid, "runner crash; outcome unknown")
@@ -1226,7 +1245,9 @@ def test_COND_06_concurrent_consume_or_replay_attestation_after_failure_once(roo
                                           stage="S7_GATE"))
         renewed = mgr.reserve_action(run_id, "prod-write",
                                      "db://staging/erp#cond06-2", ap3,
-                                     action_descriptor=_descriptor(ap3))
+                                     action_descriptor=_descriptor(ap3),
+                                     runtime_evidence=_runtime_ev(
+                                         ap3, "db://staging/erp#cond06-2"))
         _ok(renewed["action_state"] == "RESERVED", "失败后凭新授权可再动作（修复路径）")
         mgr.start_action(run_id, renewed["action_id"])
         committed = mgr.commit_action(

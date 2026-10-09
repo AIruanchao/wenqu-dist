@@ -20,3 +20,6 @@ issuance-audit.jsonl
 keyring-events.jsonl
 # 测试密钥仅允许存在于 system/tests/fixtures/（显式放行，防误伤测试夹具）
 !system/tests/fixtures/**
+
+# G9-04：签发 receipt 审计根（受控 keyring 目录内，绝不入库）
+issue-receipts.jsonl

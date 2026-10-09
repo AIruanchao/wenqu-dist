@@ -42,10 +42,11 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
 sys.path.insert(0, REPO)
 
 from wenqu_core.approval_keys import (  # noqa: E402
-    KEYRING_EVENTS_FILENAME, ApprovalKeyring, KeyExpiredError,
-    KeyNotFoundError, KeyRevokedError, KeyRotatedError, KeyStateError,
-    append_keyring_event, ensure_keyring_dir, generate_secret,
-    save_key_meta, sign_envelope, verify_envelope, write_key_to_dir,
+    ISSUE_RECEIPTS_FILENAME, KEYRING_EVENTS_FILENAME, ApprovalKeyring,
+    IssueReceiptLedger, KeyExpiredError, KeyNotFoundError, KeyRevokedError,
+    KeyRotatedError, KeyStateError, append_keyring_event, ensure_keyring_dir,
+    generate_secret, save_key_meta, sign_envelope, verify_envelope,
+    write_key_to_dir,
 )
 from wenqu_core.approval_issue import (  # noqa: E402
     HIGH_RISK_APPROVAL_TYPES, PAYLOAD_FIELDS_FOR_TYPE, ApprovalIssuer,
@@ -602,10 +603,15 @@ def test_high_risk_cosigned_reserve_action():
     assert r["co_signature"]["second_key_id"] == "key_test_2"  # 外置面兼容
     assert r["audit_record"]["payload_digest"] and \
         len(r["audit_record"]["payload_digest"]) == 64
-    # 消费必须凭 exact action descriptor（payload 与实参逐字段等值）
+    # 消费必须凭 exact action descriptor（payload 与实参逐字段等值）+
+    # R8-AUTH-TARGET-UNBOUND-006：runtime evidence 必填（全字段运行时观测
+    # + action_target 实际执行目标）
     rec = mgr.reserve_action(run_id, "prod-write", "erp://prod/batch-77",
                              r["approval"], actor="system",
-                             action_descriptor=dict(PROD_WRITE_PAYLOAD))
+                             action_descriptor=dict(PROD_WRITE_PAYLOAD),
+                             runtime_evidence={**PROD_WRITE_PAYLOAD,
+                                               "action_target":
+                                                   "erp://prod/batch-77"})
     assert rec["action_state"] == "RESERVED" \
         and rec["approval_id"] == r["approval"]["approval_id"]
     assert rec["payload_digest"] == r["audit_record"]["payload_digest"]
@@ -679,7 +685,9 @@ def test_audit_reconciliation():
         "policy_hash": IDENT["policy_hash"],
         "ruleset_hash": IDENT["ruleset_hash"],
         "input_watermark": IDENT["commit_sha"], "expected_state_version": v4,
-        "actor": "attacker",
+        # actor 取登记面内字符串（G9-04/C 后 fixture 登记 principal——
+        # 旁路场景的要点是「不经签发端手搓信封」而非冒名 actor）
+        "actor": "chaoge",
         "issued_at": "2026-10-08T00:00:00Z",
         "expires_at": "2099-01-01T00:00:00Z",
         "nonce": "nonce-bypass-0000000001", "decision": "approve",
@@ -785,6 +793,310 @@ def test_r8_principal_registration_and_issuance_gates():
 
 
 # ====================================================================== #
+# 11b2. G9-04（第九轮 W2）：退休 key receipt 不可回填 + actual-target
+#       强制绑定 + principal 强制登记——A/B/C 三门红绿面
+# ====================================================================== #
+RELEASE_TARGET = "prod://erp/rel-g904"
+
+
+def _g9_release_payload(tmp):
+    """release payload（artifact/manifest sha256 来自真实文件的实算）。"""
+    art = os.path.join(tmp, "rel-artifact.bin")
+    man = os.path.join(tmp, "rel-manifest.json")
+    with open(art, "wb") as fh:
+        fh.write(b"artifact-bytes-g9-04")
+    with open(man, "wb") as fh:
+        fh.write(b'{"manifest": "g9-04"}')
+    import hashlib as _hl
+    return {
+        "release_id": "rel-g904-1",
+        "artifact_sha256": _hl.sha256(open(art, "rb").read()).hexdigest(),
+        "manifest_sha256": _hl.sha256(open(man, "rb").read()).hexdigest(),
+        "environment": IDENT["environment"],
+        "previous_release_id": "rel-g904-0",
+    }, {"artifact_sha256": art, "manifest_sha256": man}
+
+
+def _g9_issue_high_risk(issuer, mgr, run_id, task, payload, *, atype="prod_write"):
+    run_state = mgr.get_run(run_id)
+    return issuer.issue(
+        actor="alice", approval_type=atype, run_id=run_id, task_id=task,
+        stage=run_state.current_stage or "S1_REQUIREMENT",
+        environment=IDENT["environment"], authorized_scope=IDENT["scope_hash"],
+        policy_hash=IDENT["policy_hash"], ruleset_hash=IDENT["ruleset_hash"],
+        input_watermark=IDENT["commit_sha"],
+        expected_state_version=run_state.state_version,
+        payload=dict(payload), key_id="key_g9_a",
+        confirm_two_persons=True, second_key_id="key_g9_b",
+        second_actor="bob")
+
+
+def test_r9_g9_04_receipts_target_principal():
+    tmp = tempfile.mkdtemp(prefix="wenqu-g904-")
+    kdir = os.path.join(tmp, "keyring")
+    # created_at 取旧时刻：回填窗口（created_at, rotated_at) 内的 issued_at
+    # 才构成退休回填攻击而非时间穿越
+    write_key_to_dir(kdir, "key_g9_a", generate_secret(),
+                     {"status": "active", "created_at": "2026-01-01T00:00:00Z",
+                      "owner": "alice", "actors": ["alice"]})
+    write_key_to_dir(kdir, "key_g9_b", generate_secret(),
+                     {"status": "active", "owner": "bob", "actors": ["bob"]})
+    kr = ApprovalKeyring.from_path(kdir)
+    store = EventStore(os.path.join(tmp, "events.db"))
+    mgr = RunManager(store, keyring=kr)
+    issuer = ApprovalIssuer(kr, os.path.join(kdir, "issuance-audit.jsonl"))
+
+    # ---- A 正例：受控 issuer 签发 → 信封携带 receipt seq → 链完整可消费 ----
+    run_id = mgr.create_run("task_g904_a", IDENT)["run_id"]
+    mgr.advance_stage(run_id)
+    r1 = _g9_issue_high_risk(issuer, mgr, run_id, "task_g904_a",
+                             PROD_WRITE_PAYLOAD)
+    ap1 = r1["approval"]
+    assert isinstance(ap1.get("issue_receipt"), dict) \
+        and ap1["issue_receipt"]["seq"] >= 1
+    assert r1["audit_record"]["issue_receipt_seq"] == \
+        ap1["issue_receipt"]["seq"]
+    ledger = IssueReceiptLedger(os.path.join(kdir, ISSUE_RECEIPTS_FILENAME),
+                                secret_of={k: kr.get(k)
+                                           for k in kr.key_ids()})
+    chain = ledger.verify_chain()
+    assert chain["ok"] is True and chain["length"] >= 1
+    line = ledger.by_seq(ap1["issue_receipt"]["seq"])
+    assert line and line["approval_id"] == ap1["approval_id"] \
+        and line["key_id"] == "key_g9_a"
+    rec = mgr.reserve_action(run_id, "prod-write", "erp://prod/batch-g9",
+                             ap1, actor="probe",
+                             action_descriptor=dict(PROD_WRITE_PAYLOAD),
+                             runtime_evidence={**PROD_WRITE_PAYLOAD,
+                                               "action_target":
+                                                   "erp://prod/batch-g9"})
+    assert rec["action_state"] == "RESERVED"
+
+    # ---- A 负例：rotate 后持旧 secret 新签 + issued_at 回填退休前 → 拒
+    #      （带全套 runtime evidence——隔离出 receipt 门本身）----
+    r2 = _g9_issue_high_risk(issuer, mgr, run_id, "task_g904_a",
+                             {**PROD_WRITE_PAYLOAD, "idempotency_key": "idem-2"})
+    ap2 = r2["approval"]  # 退休前存量（rotation 后仍应可消费）
+    rotated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    # 与 CLI rotate 同款合并写（principal 登记面随轮换保留——换密钥不换人）
+    save_key_meta(kdir, "key_g9_a", {
+        **kr.meta("key_g9_a"), "status": "rotated",
+        "rotated_at": rotated_at, "rotated_to": "key_g9_b"})
+    kr2 = ApprovalKeyring.from_path(kdir)
+    assert kr2.meta("key_g9_a")["retired_receipt_seq"] >= \
+        ap2["issue_receipt"]["seq"]  # 轮换盘点已落 meta
+    mgr2 = RunManager(store, keyring=kr2)
+    # 存量（receipt.seq <= retired_receipt_seq 且 issued_at 在窗内）→ 可消费
+    rec2 = mgr2.reserve_action(run_id, "prod-write", "erp://prod/batch-g9b",
+                               ap2, actor="probe",
+                               action_descriptor=dict(ap2["payload"]),
+                               runtime_evidence={**ap2["payload"],
+                                                 "action_target":
+                                                     "erp://prod/batch-g9b"})
+    assert rec2["action_state"] == "RESERVED"
+    # 攻击信封：旧 secret 直签 + 新 nonce + issued_at 回填（< rotated_at）
+    secret_a = kr2.get("key_g9_a")
+    backdated = {
+        "schema_version": "2.0", "approval_id": "apr_g904_backdate",
+        "approval_type": "prod_write", "key_id": "key_g9_a",
+        "run_id": run_id, "task_id": "task_g904_a",
+        "stop_event_id": "n/a-prod-write", "stop_type": "prod-write",
+        "stage": "S1_REQUIREMENT", "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "expected_state_version": mgr2.get_run(run_id).state_version,
+        "actor": "alice",
+        "issued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                   time.gmtime(time.time() - 3600)),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "nonce": "nonce-g904-backdate-0001", "decision": "approve",
+        "payload": dict(PROD_WRITE_PAYLOAD),
+    }
+    backdated["signature"] = sign_envelope(secret_a, backdated)
+    body = {k: v for k, v in backdated.items()
+            if k not in ("signature", "cosignatures")}
+    backdated["cosignatures"] = [
+        {"key_id": "key_g9_a", "actor": "alice",
+         "signature": backdated["signature"]},
+        {"key_id": "key_g9_b", "actor": "bob",
+         "signature": sign_envelope(kr2.get("key_g9_b"), body)}]
+    before_events = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+    exc = None
+    try:
+        mgr2.reserve_action(run_id, "prod-write", "erp://prod/batch-g9",
+                            backdated, actor="probe",
+                            action_descriptor=dict(PROD_WRITE_PAYLOAD),
+                            runtime_evidence={**PROD_WRITE_PAYLOAD,
+                                              "action_target":
+                                                  "erp://prod/batch-g9"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "receipt" in str(exc), \
+        f"退休回填必须被 receipt 门拒绝: {exc}"
+    after_events = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+    assert after_events == before_events  # 零副作用（无消费事件/无预留）
+    # receipt 结构负例：畸形 seq 结构层拒
+    bad_receipt = json.loads(json.dumps(ap1))
+    bad_receipt["issue_receipt"] = {"seq": 0}
+    expect(ApprovalRejected, lambda: mgr2.reserve_action(
+        run_id, "prod-write", "erp://prod/batch-g9x", bad_receipt,
+        action_descriptor=dict(PROD_WRITE_PAYLOAD),
+        runtime_evidence={**PROD_WRITE_PAYLOAD,
+                          "action_target": "erp://prod/batch-g9x"}))
+
+    # ---- B：actual-target 强制绑定（release 类型：artifact 实算哈希）----
+    rel_payload, art_paths = _g9_release_payload(tmp)
+    run_b = mgr2.create_run("task_g904_b", IDENT)["run_id"]
+    mgr2.advance_stage(run_b)
+    # 双人签发用 key_g9_a（已 rotated——不可签）→ 换 key_g9_b 当主签 +
+    # 无第二 key……改用 prod_write 已覆盖 A 门；release 主签用新 active key：
+    # key_g9_a 已退休，直接补一把新 active key 当 release 主签
+    write_key_to_dir(kdir, "key_g9_c", generate_secret(),
+                     {"status": "active", "owner": "carol",
+                      "actors": ["carol"]})
+    kr3 = ApprovalKeyring.from_path(kdir)
+    mgr3 = RunManager(store, keyring=kr3)
+    issuer3 = ApprovalIssuer(kr3, os.path.join(kdir, "issuance-audit.jsonl"))
+    st_b = mgr3.get_run(run_b)
+    r_rel = issuer3.issue(
+        actor="carol", approval_type="release", run_id=run_b,
+        task_id="task_g904_b", stage=st_b.current_stage or "S1_REQUIREMENT",
+        environment=IDENT["environment"], authorized_scope=IDENT["scope_hash"],
+        policy_hash=IDENT["policy_hash"], ruleset_hash=IDENT["ruleset_hash"],
+        input_watermark=IDENT["commit_sha"],
+        expected_state_version=st_b.state_version,
+        payload=rel_payload, key_id="key_g9_c",
+        confirm_two_persons=True, second_key_id="key_g9_b",
+        second_actor="bob")
+    ap_rel = r_rel["approval"]
+    ev_ok = {"release_id": rel_payload["release_id"],
+             "environment": rel_payload["environment"],
+             "previous_release_id": rel_payload["previous_release_id"],
+             "action_target": RELEASE_TARGET,
+             "artifact_paths": dict(art_paths)}
+    # B-1 省略 runtime evidence → ApprovalRejected（零副作用）
+    before_b = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+    exc = None
+    try:
+        mgr3.reserve_action(run_b, "release", RELEASE_TARGET, ap_rel,
+                            actor="probe", action_descriptor=dict(rel_payload))
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "runtime evidence 缺失" in str(exc)
+    assert store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0] == before_b
+    # B-2 evidence 的 action_target 与实际执行 target 不符 → 拒（A 目标
+    #     evidence 不得挪用到 B 执行）
+    exc = None
+    try:
+        mgr3.reserve_action(
+            run_b, "release", "prod://erp/rel-OTHER", ap_rel, actor="probe",
+            action_descriptor=dict(rel_payload),
+            runtime_evidence={**ev_ok, "action_target": RELEASE_TARGET})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "action_target" in str(exc)
+    # B-3 *_sha256 字段自报哈希（不经 artifact_paths 实算）→ 拒
+    self_reported = {k: v for k, v in ev_ok.items() if k != "artifact_paths"}
+    self_reported["artifact_sha256"] = rel_payload["artifact_sha256"]
+    self_reported["manifest_sha256"] = rel_payload["manifest_sha256"]
+    exc = None
+    try:
+        mgr3.reserve_action(run_b, "release", RELEASE_TARGET, ap_rel,
+                            actor="probe", action_descriptor=dict(rel_payload),
+                            runtime_evidence=self_reported)
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "artifact_paths" in str(exc)
+    # B-4 全字段覆盖缺失（少 previous_release_id）→ 拒
+    partial = {k: v for k, v in ev_ok.items()
+               if k not in ("artifact_paths", "previous_release_id")}
+    partial["artifact_paths"] = dict(art_paths)
+    expect(ApprovalRejected, lambda: mgr3.reserve_action(
+        run_b, "release", RELEASE_TARGET, ap_rel, actor="probe",
+        action_descriptor=dict(rel_payload), runtime_evidence=partial))
+    # B-5 正例：全量 evidence + artifact 实算 → RESERVED
+    rec_rel = mgr3.reserve_action(run_b, "release", RELEASE_TARGET, ap_rel,
+                                  actor="probe",
+                                  action_descriptor=dict(rel_payload),
+                                  runtime_evidence=ev_ok)
+    assert rec_rel["action_state"] == "RESERVED"
+
+    # ---- C：principal 强制登记（联签面）----
+    s1, s2 = generate_secret(), generate_secret()
+    kr_unreg = ApprovalKeyring({"key_g9_u1": s1, "key_g9_u2": s2})
+    mgr_u = RunManager(store, keyring=kr_unreg)
+    run_c = mgr_u.create_run("task_g904_c", IDENT)["run_id"]
+    mgr_u.advance_stage(run_c)
+    v_c = mgr_u.get_run(run_c).state_version
+    # 两把无登记 key 自报不同人名（alice/bob）联签 → 拒（同 actor 双 key
+    # 已拒保持；本腿为 G9-04 新增面）
+    env_c = {
+        "schema_version": "2.0", "approval_id": "apr_g904_unreg",
+        "approval_type": "prod_write", "key_id": "key_g9_u1",
+        "run_id": run_c, "task_id": "task_g904_c",
+        "stop_event_id": "n/a-prod-write", "stop_type": "prod-write",
+        "stage": "S1_REQUIREMENT", "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "expected_state_version": v_c, "actor": "alice",
+        "issued_at": "2026-10-09T00:00:00Z",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "nonce": "nonce-g904-unreg-0001", "decision": "approve",
+        "payload": dict(PROD_WRITE_PAYLOAD),
+    }
+    env_c["signature"] = sign_envelope(s1, env_c)
+    cbody = {k: v for k, v in env_c.items()
+             if k not in ("signature", "cosignatures")}
+    env_c["cosignatures"] = [
+        {"key_id": "key_g9_u1", "actor": "alice",
+         "signature": env_c["signature"]},
+        {"key_id": "key_g9_u2", "actor": "bob",
+         "signature": sign_envelope(s2, cbody)}]
+    before_c = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+    exc = None
+    try:
+        mgr_u.reserve_action(run_c, "prod-write", "erp://prod/batch-g9c",
+                             env_c, actor="probe",
+                             action_descriptor=dict(PROD_WRITE_PAYLOAD),
+                             runtime_evidence={**PROD_WRITE_PAYLOAD,
+                                               "action_target":
+                                                   "erp://prod/batch-g9c"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "principal" in str(exc), \
+        f"无登记 principal 联签必须拒绝: {exc}"
+    assert store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0] == before_c
+    # 签发端对称：无登记 key 的双人签发也拒（早失败）
+    issuer_u = ApprovalIssuer(kr_unreg, os.path.join(tmp, "unreg-audit.jsonl"))
+    base_u = dict(actor="alice", approval_type="prod_write", run_id=run_c,
+                  task_id="task_g904_c", stage="S1_REQUIREMENT",
+                  environment=IDENT["environment"],
+                  authorized_scope=IDENT["scope_hash"],
+                  policy_hash=IDENT["policy_hash"],
+                  ruleset_hash=IDENT["ruleset_hash"],
+                  input_watermark=IDENT["commit_sha"],
+                  expected_state_version=v_c, key_id="key_g9_u1",
+                  payload=dict(PROD_WRITE_PAYLOAD))
+    expect(TwoPersonRuleError, lambda: issuer_u.issue(
+        confirm_two_persons=True, second_key_id="key_g9_u2",
+        second_actor="bob", **base_u))
+    # 两名已登记不同 principal 的正例已在 A/B 腿全链通过（alice/bob、
+    # carol/bob 双人签发+联签消费 RESERVED）
+    assert store.verify_chain()["ok"]
+    store.close()
+
+
+# ====================================================================== #
 # 11. CLI 端到端：keys/approve/消费/对账/来源占位（子进程 bash wenquctl）
 # ====================================================================== #
 CTL = os.path.join(REPO, "bin", "wenquctl")
@@ -805,12 +1117,13 @@ def test_cli_end_to_end():
     db = os.path.join(tmp, "events.db")
     env_sha = "a" * 40
 
-    # keys create x2（主签发 key + 第二签发人 key）
+    # keys create x2（主签发 key + 第二签发人 key；G9-04/C：--principal
+    # 强制登记 owner/actors——无登记 principal 的 key 不得参与高危联签）
     out = _cli("keys", "--keyring", kdir, "create", "--key-id", "key_cli_a",
-               "--actor", "boss")
+               "--principal", "chaoge", "--actor", "boss")
     assert json.loads(out.stdout)["created"] is True
     _cli("keys", "--keyring", kdir, "create", "--key-id", "key_cli_b",
-         "--actor", "boss")
+         "--principal", "erge", "--actor", "boss")
     listing = _cli("keys", "--keyring", kdir, "list")
     listed = json.loads(listing.stdout)
     assert {k["key_id"] for k in listed["keys"]} == {
@@ -965,6 +1278,7 @@ TESTS = [
     ("吊销：验签即拒+拒绝事件记录+不得再签发", test_revocation_semantics),
     ("高危联签审批：reserve_action 消费→重放拒", test_high_risk_cosigned_reserve_action),
     ("R8：principal 登记面（owner/actors）+同 actor 假双人+生命周期过期边界", test_r8_principal_registration_and_issuance_gates),
+    ("G9-04：退休key receipt不可回填+actual-target强制绑定+principal强制登记", test_r9_g9_04_receipts_target_principal),
     ("审计对账：批了/用了/未用过期/旁路签发/篡改断链", test_audit_reconciliation),
     ("CLI 端到端：keys/approve/消费/重放拒/联签/feishu 占位/对账", test_cli_end_to_end),
     ("FeishuApprovalSource 占位接口（SKIP）", test_feishu_source_placeholder),
