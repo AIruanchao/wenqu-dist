@@ -32,6 +32,17 @@ P0-6 第六轮（统一事件正源）改写——「单一事件表 + 单一写
     缺席（gap 空位后塞入且双通道未命中）按迟到写拒收。旧表侧无论
     怎么改（含 DROP 三触发器）都改不到统一库侧账本，比对必然失配。
 
+G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）：
+    上述行版本账本只保护「fresh cutover 后」的库——旧版代码跑过的库
+    只有 cutover 记账、没有 digest ledger。若升级时按「当前现状」补记
+    基线，则升级前已发生的 gap/UPDATE+backdate 篡改会被当成可信基线
+    收编入链。根修为 ``legacy_untrusted`` fail-closed：升级路径检测到
+    「cutover 已记账而 digest ledger 缺失/为空」时，绝不按现状补基线
+    ——本次发现的行全部 quarantine（reason=legacy_untrusted_no_baseline，
+    imported=0、主链长度不增），报告显式声明该库 legacy 历史不可验证，
+    需人工从可信正源重建基线或接受永久隔离（见
+    :func:`migrate_legacy_events` 契约）。
+
 约束（不可降级）：
     M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
        绝不触碰源 JSONL 内容（源文件只读打开）；
@@ -81,6 +92,7 @@ __all__ = [
     "LATE_WRITE_REASON", "LEGACY_FREEZE_TRIGGER_NAMES", "LEGACY_CUTOVER_TABLE",
     "ROW_MUTATED_REASON", "LEGACY_ROW_DIGESTS_TABLE",
     "LEGACY_DIGEST_FREEZE_TRIGGER_NAMES",
+    "LEGACY_UNTRUSTED_REASON", "LEGACY_UNTRUSTED_ACTION_REQUIRED",
 ]
 
 # 已知状态别名归一表（键为全大写形式）
@@ -214,6 +226,27 @@ _LEGACY_DIGEST_TRIGGER_DDL = tuple(
 #: 行内容被 UPDATE 过（cutover 后当前内容与账本快照不符）的统一
 #: quarantine reason——含仅改 migrated_at 元数据的伪装性改动
 ROW_MUTATED_REASON = "row_mutated_after_cutover"
+
+# ---------------------------------------------------------------------- #
+# G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）
+# ---------------------------------------------------------------------- #
+#: legacy 升级 fail-closed 的统一 quarantine reason：cutover 已记账而
+#: digest ledger 缺失/为空（旧版代码跑过的库从来没有行版本账本），升级
+#: 时旧表内容不可验证——本次发现的行一律隔离，绝不按「升级时现状」补
+#: 可信基线（那会把升级前已发生的 gap/UPDATE+backdate 篡改收编入链）
+LEGACY_UNTRUSTED_REASON = "legacy_untrusted_no_baseline"
+
+#: ``legacy_untrusted`` 库的显式处置说明（进迁移报告，人工裁定正门）
+LEGACY_UNTRUSTED_ACTION_REQUIRED = (
+    "manual intervention required: rebuild the "
+    f"{LEGACY_ROW_DIGESTS_TABLE} baseline from an authoritative "
+    "pre-cutover source (人工从可信正源重建基线), or accept permanent "
+    "quarantine of all legacy rows (或接受全部旧行永久隔离). "
+    "Baselining from the current legacy table state is forbidden: "
+    "cutover was recorded without a digest ledger, so tampering that "
+    "happened before the upgrade (gap inserts / UPDATE+backdate) "
+    "cannot be distinguished from untampered rows."
+)
 
 
 class ConservationError(RuntimeError):
@@ -684,10 +717,13 @@ def _record_row_digests(conn: sqlite3.Connection,
     UPDATE/DELETE 已被 AFTER 触发器关死，不存在静默重基线路径）。本函数
     同时补建表与 append-only 触发器（幂等）。
 
-    存量库边界（诚实声明）：旧版代码只记了 cutover、没有快照账本的库，
-    升级后首次收编在此补记基线——补记锚定的是当下内容，cutover 后、
-    补记前发生的篡改无法追溯（账本不倒灌历史）；补记之后任何再改动
-    必被比对拒收。
+    存量库边界（G9-05 fail-closed 收口）：旧版代码只记了 cutover、没有
+    快照账本的库，升级后绝不在本函数按「当下内容」补记基线——当下内容
+    无法与 cutover 时刻内容对账，补记等于把升级前篡改洗白成可信基线。
+    该场景由调用方检测（cutover 已记账而账本为空）并整体标记
+    ``legacy_untrusted``：行全部隔离、基线不补记，需人工从可信正源重建。
+    本函数只在「首次 cutover（prior_cutover is None）」这一条路径上被
+    调用。
     """
     conn.execute(_DIGESTS_SCHEMA)
     for ddl in _LEGACY_DIGEST_TRIGGER_DDL:
@@ -740,6 +776,18 @@ def migrate_legacy_events(sqlite_path: str,
       行版本账本在统一库侧，绕过旧表触发器改不掉账本，比对必然失配；
       快照一经记账永不改写、永不重基线（INSERT OR IGNORE + 拒绝触发
       器），quarantine 不会推进 cutover 也不会重写快照；
+    - legacy 升级 fail-closed（G9-05 第九轮根修，R8-EVENT-BACKDATE-008
+      升级路径）：检测到「cutover 已记账而 digest ledger 缺失/为空」
+      （旧版代码跑过的存量库从来没有行版本账本）时，该库标
+      ``legacy_untrusted``——绝不按升级时现状补记基线（当下内容无法与
+      cutover 时刻对账，补记会把升级前已发生的 gap/UPDATE+backdate
+      篡改收编成可信基线）；本次发现的旧行全部 quarantine
+      （reason=legacy_untrusted_no_baseline，imported=0、主链长度不增、
+      账本保持缺席），报告显式给出 legacy_untrusted 标记与处置说明
+      （legacy_untrusted_action_required：人工从可信正源重建基线或接受
+      永久隔离）；冻结触发器照常治愈重装（表仍冻结只读），cutover
+      照常永不推进。有完整 digest ledger 的库（fresh cutover 或新版
+      升级）不受影响，走既有三通道判定；
     - 单一写入 API：每行经 ``EventStore.append`` 以
       ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
       事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
@@ -804,13 +852,47 @@ def migrate_legacy_events(sqlite_path: str,
         # 行内容快照账本（第八轮根修）：与 cutover 同生命周期读取——账本
         # 非空即进入逐行比对模式；为空表示首跑或存量库待补记基线
         prior_digests = _read_row_digests(store._conn)
+        # G9-05 legacy 升级 fail-closed（R8-EVENT-BACKDATE-008 升级路径）：
+        # cutover 已记账而 digest ledger 缺失/为空 == 旧版代码（只有
+        # cutover 通道、无行版本账本）跑过的存量库。此刻旧表内容无法与
+        # cutover 时刻内容对账——升级前已发生的 gap/UPDATE+backdate 篡改
+        # 与合法行不可区分。绝不按「升级时现状」补基线（那是把篡改收编
+        # 成可信基线）：本次发现的行全部隔离、账本保持缺席、人工处置。
+        legacy_untrusted = prior_cutover is not None and not prior_digests
 
         imported = duplicates = quarantined = 0
         quarantine_reasons: Dict[str, int] = {}
         late_rows: List[Dict[str, Any]] = []      # 告警明细（legacy_id+证据）
         mutated_rows: List[Dict[str, Any]] = []   # 内容失配告警明细
+        untrusted_rows: List[Dict[str, Any]] = [] # legacy_untrusted 隔离明细
         with open(sidecar_path, "a", encoding="utf-8") as sidecar:
             for row in legacy_rows:
+                # legacy_untrusted 优先短路一切通道：库级不可验证时逐行
+                # 判定（id/ts/摘要比对）都建立在「有可信基线」的前提上，
+                # 前提不成立即整体隔离——包括本可 duplicate 的已入链行
+                # （区分对待会泄露「哪些行可收编」的信号，且无法自证）
+                if legacy_untrusted:
+                    quarantined += 1
+                    quarantine_reasons[LEGACY_UNTRUSTED_REASON] = \
+                        quarantine_reasons.get(LEGACY_UNTRUSTED_REASON, 0) + 1
+                    untrusted_evidence = (
+                        f"cutover recorded at "
+                        f"{prior_cutover['cutover_ts']} but no "
+                        f"{LEGACY_ROW_DIGESTS_TABLE} rows on record; "
+                        f"table content at upgrade time is unverifiable")
+                    untrusted_rows.append({"legacy_id": row["id"],
+                                           "evidence": untrusted_evidence})
+                    sidecar.write(json.dumps({
+                        "decision": "quarantined",
+                        "reason": LEGACY_UNTRUSTED_REASON,
+                        "legacy_table": LEGACY_EVENTS_TABLE,
+                        "legacy_id": row["id"],
+                        "line_sha": row["line_sha"],
+                        "source_file": row["source_file"],
+                        "source_line": row["source_line"],
+                        "untrusted_evidence": untrusted_evidence,
+                    }, ensure_ascii=False, sort_keys=True) + "\n")
+                    continue
                 # 迟到写拒收：cutover 之后才出现/才落账的行绝不入链（两个
                 # 独立通道任一命中即拒——id 通道抓新出现的行、ts 通道抓
                 # 篡改出的迟到内容；证据原样进 sidecar 与报告）
@@ -914,10 +996,12 @@ def migrate_legacy_events(sqlite_path: str,
                     store._conn,
                     max_legacy_id=max((r["id"] for r in legacy_rows), default=0),
                     trigger_names=frozen_triggers)
-            # 行内容快照记账（第八轮根修）：首跑（无 cutover）或存量库
-            # （旧版只记了 cutover、账本为空）补记基线一次；此后账本
-            # append-only——永不改写、永不重基线，quarantine 不推进快照
-            if prior_cutover is None or not prior_digests:
+            # 行内容快照记账（第八轮根修）：只在首次 cutover（本运行记账）
+            # 时建立基线；此后账本 append-only——永不改写、永不重基线，
+            # quarantine 不推进快照。G9-05：旧版存量库（cutover 已记账、
+            # 账本为空）绝不在此补记基线——当下内容不可验证，补记即把
+            # 升级前篡改洗白成可信基线（legacy_untrusted 路径已全部隔离）
+            if prior_cutover is None:
                 _record_row_digests(store._conn, legacy_rows)
 
         store.verify_chain()
@@ -944,6 +1028,13 @@ def migrate_legacy_events(sqlite_path: str,
             "row_digests_on_record": digests_on_record,
             "row_mutation_alert": bool(mutated_rows),
             "row_mutation_rows": mutated_rows,
+            # G9-05 legacy 升级 fail-closed：显式标记 + 人工处置说明
+            "legacy_untrusted": legacy_untrusted,
+            "legacy_untrusted_reason": (
+                LEGACY_UNTRUSTED_REASON if legacy_untrusted else None),
+            "legacy_untrusted_rows": untrusted_rows,
+            "legacy_untrusted_action_required": (
+                LEGACY_UNTRUSTED_ACTION_REQUIRED if legacy_untrusted else None),
             "cutover_ts": cutover["cutover_ts"] if cutover else None,
             "cutover_max_legacy_id": (cutover["max_legacy_id"]
                                       if cutover else None),
