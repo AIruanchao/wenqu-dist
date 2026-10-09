@@ -31,6 +31,19 @@ R8-REL-PIN-ROOT 根修回归钉（2026-10-08 第八轮 P0-7 残余：自洽替�
   权限过宽（组其他可写）→ 必拒。manifest.source_commit 指不存在 commit
   （幽灵 40hex，已重签）→ 必拒；--repo 树内方案 hash 漂移 → 必拒。
 
+R9-REL-EXTERNAL-ROOTS 根修回归钉（2026-10-09 第九轮 G9-12：pin 自证根
+→ 外部授权根）：
+  旧 plan pin 值由安装器从候选源码自生成并写回同一 release——side commit
+  自洽改方案+冻结常量后安装器亲手铸攻击值为「受保护根」。现外部授权
+  release-roots（--release-roots/$WENQU_RELEASE_ROOTS，0600，
+  allowed_commit+plan_sha256+manifest_sha256）四重 fail-closed：
+  roots 缺失 / 权限过宽（组/其他任何位，>0600 即拒）/ source_commit 不在
+  allowed_commit（side commit）/ roots.plan_sha256 或 manifest 核心 digest
+  与制品不符（攻击者自算值）→ verify 必拒。核心 digest = manifest 去易变
+  字段（build_id/built_at/builder/argv）的 canonical sha256——同 commit
+  异时重建稳定，内容篡改必断裂。roots-template 只打印骨架（授权流程取值
+  用），不写文件。
+
 密钥纪律：测试只用 system/tests/fixtures/approval-keys.json（测试专用 HMAC
 密钥，仓内公开）与运行时临时目录生成的临时 keyring；生产签发密钥绝不入档、
 绝不回显。HMAC 为对称签名（tamper-evident，非非否认）——诚实边界见工具头注。
@@ -483,9 +496,11 @@ def test_verify_report_artifact():
             assert expect_id in ids, f"报告缺检查项 {expect_id}: {ids}"
         assert all(c["ok"] for c in rep["checks"])
         assert rep["keyring"].endswith("approval-keys.json")
-        # R8：报告须回显 pin 与 git 仓（证据链：用了哪个外部根/正源）
+        # R8：报告须回显 pin 与 git 仓（证据链：用了哪个外部根/正源；
+        # .git 目录=正仓 / .git 文件=worktree 指针，均可——wave9 兼容）
         assert rep["plan_pin"] and rep["plan_pin"].endswith("plan.pin"), rep
-        assert rep["repo"] and os.path.isdir(os.path.join(rep["repo"], ".git")), rep
+        assert rep["repo"] and os.path.exists(
+            os.path.join(rep["repo"], ".git")), rep
 
 
 # ====================================================================== #
@@ -702,6 +717,144 @@ def test_plan_pin_and_source_commit_root():
             os.environ["WENQU_PLAN_PIN"] = saved_pin_env
 
 
+# ====================================================================== #
+# 11. R9-REL-EXTERNAL-ROOTS：外部授权 release-roots（G9-12 自证 pin 根修）
+# ====================================================================== #
+def _write_roots(path: str, skeleton: Dict[str, Any],
+                 mode: int = 0o600) -> str:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(skeleton, fh, ensure_ascii=False, indent=1, sort_keys=True)
+        fh.write("\n")
+    os.chmod(path, mode)
+    return path
+
+
+def test_release_roots_external_authorization():
+    saved_roots_env = os.environ.get("WENQU_RELEASE_ROOTS")
+    try:
+        import copy as _copy
+        sys.path.insert(0, os.path.join(REPO_ROOT, "tools"))
+        import release_attest as _ra  # 核心 digest 同源函数（内容绑定断言）
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tar, manifest, sig, sbom, v = full_chain(tmp)
+            assert v.returncode == 0, f"前置全链应绿:\n{v.stdout}"
+            m = json.load(open(manifest, encoding="utf-8"))
+
+            # roots-template 只打印骨架（授权流程取值；不写文件）
+            r = run_tool("roots-template", "--manifest", manifest)
+            assert r.returncode == 0, f"roots-template 失败: {r.stderr}"
+            skeleton = json.loads(r.stdout)
+            assert skeleton["schema"] == "wenqu-release-roots/1"
+            assert skeleton["plan_sha256"] == PLAN_SHA256_TRUTH, \
+                f"骨架 plan 应为冻结正源: {skeleton['plan_sha256']}"
+            entry = skeleton["allowed_commit"][0]
+            assert entry["commit"] == m["source_commit"]
+            assert re.fullmatch(r"[0-9a-f]{64}", entry["manifest_sha256"])
+
+            # 核心 digest 语义钉：易变字段（build_id/built_at/builder/argv）
+            # 不参与——同内容重建 digest 稳定；内容变一位（version）即断裂。
+            m_volatile = _copy.deepcopy(m)
+            m_volatile["build_id"] = "rel-rebuilt-20990101T000000Z"
+            m_volatile["built_at"] = "2099-01-01T00:00:00Z"
+            m_volatile["builder"] = {"user": "rebuilder", "host": "other"}
+            assert _ra._manifest_core_digest(m_volatile) \
+                == entry["manifest_sha256"], "易变字段不得影响核心 digest"
+            m_content = _copy.deepcopy(m)
+            m_content["version"] = "9.9.9"
+            assert _ra._manifest_core_digest(m_content) \
+                != entry["manifest_sha256"], "内容变更必须改变核心 digest"
+
+            roots_path = _write_roots(os.path.join(tmp, "release-roots.json"),
+                                      skeleton)
+
+            # 正门：显式 --release-roots → 全绿（roots 模式优先于 plan-pin）
+            vr = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", roots_path)
+            assert vr.returncode == 0, \
+                f"roots 模式正门应绿:\n{vr.stdout}\n{vr.stderr}"
+            assert "PASS  release-roots" in vr.stdout, vr.stdout
+
+            # N1. roots 缺失 → 必拒（fail-closed 无豁免）
+            v1 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", os.path.join(tmp, "no-such.json"))
+            assert v1.returncode != 0, "roots 缺失 verify 仍绿"
+            assert "release-roots 授权文件缺失" in v1.stdout, v1.stdout
+
+            # N2. 权限过宽（组/其他可读——>0600 即拒）
+            wide = _write_roots(os.path.join(tmp, "wide-roots.json"),
+                                skeleton, mode=0o644)
+            v2 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", wide)
+            assert v2.returncode != 0, "组/其他可读 roots verify 仍绿"
+            assert "权限过宽" in v2.stdout, v2.stdout
+
+            # N3. side commit：allowed_commit 不含制品 source_commit → 必拒
+            #     （外部授权正门——即使四件套自洽签名）
+            side = _copy.deepcopy(skeleton)
+            side["allowed_commit"][0]["commit"] = "deadbeef" * 5
+            side_roots = _write_roots(os.path.join(tmp, "side-roots.json"),
+                                      side)
+            v3 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", side_roots)
+            assert v3.returncode != 0, "source_commit 不在 allowed_commit 仍绿"
+            assert "不在 release-roots allowed_commit" in v3.stdout, v3.stdout
+
+            # N4. pin 被篡改为攻击者自算值①：manifest_sha256 翻一位 hex
+            #     （攻击者重产制品后把 digest 写进 roots）→ 核心 digest 断裂
+            tampered = _copy.deepcopy(skeleton)
+            d = entry["manifest_sha256"]
+            tampered["allowed_commit"][0]["manifest_sha256"] = \
+                d[:-1] + ("0" if d[-1] != "0" else "1")
+            t4 = _write_roots(os.path.join(tmp, "t4-roots.json"), tampered)
+            v4 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", t4)
+            assert v4.returncode != 0, "manifest_sha256 篡改后 verify 仍绿"
+            assert "manifest 核心 digest" in v4.stdout, v4.stdout
+
+            # N5. pin 被篡改为攻击者自算值②：plan_sha256 换成攻击者新方案
+            #     hash（64hex 合法格式）→ 与 manifest 声明/冻结正源断裂
+            t5s = _copy.deepcopy(skeleton)
+            t5s["plan_sha256"] = "f" * 64
+            t5 = _write_roots(os.path.join(tmp, "t5-roots.json"), t5s)
+            v5 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", t5)
+            assert v5.returncode != 0, "plan_sha256 攻击值 verify 仍绿"
+            assert "release-roots.plan_sha256 与 manifest 声明不符" \
+                in v5.stdout, v5.stdout
+
+            # N6. schema 坏 → 必拒
+            t6s = _copy.deepcopy(skeleton)
+            t6s["schema"] = "wenqu-release-roots/evil"
+            t6 = _write_roots(os.path.join(tmp, "t6-roots.json"), t6s)
+            v6 = run_tool("verify", "--manifest", manifest,
+                          "--keyring", FIXTURE_KEYRING,
+                          "--release-roots", t6)
+            assert v6.returncode != 0, "坏 schema roots verify 仍绿"
+            assert "schema 不符" in v6.stdout, v6.stdout
+
+            # 报告工件回显 roots 路径（证据链）
+            rep = os.path.join(tmp, "roots-report.json")
+            vrep = run_tool("verify", "--manifest", manifest,
+                            "--keyring", FIXTURE_KEYRING,
+                            "--release-roots", roots_path, "--report", rep)
+            assert vrep.returncode == 0
+            rj = json.load(open(rep, encoding="utf-8"))
+            assert rj["release_roots"] == os.path.abspath(roots_path), rj
+            assert rj["result"] == "PASS"
+    finally:
+        if saved_roots_env is None:
+            os.environ.pop("WENQU_RELEASE_ROOTS", None)
+        else:
+            os.environ["WENQU_RELEASE_ROOTS"] = saved_roots_env
+
+
 TESTS: List[Tuple[str, Any]] = [
     ("全链绿（build+sign+sbom+verify）+ 确定性构建", test_full_chain_green_and_deterministic),
     ("篡改 tar 一字节 → verify 必拒", test_tamper_tar_one_byte_rejected),
@@ -713,6 +866,7 @@ TESTS: List[Tuple[str, Any]] = [
     ("verify --report 机器可读报告工件", test_verify_report_artifact),
     ("plan-hash 绑定（正确/差一位/61hex 截损/缺 policy_hash/成员不存在）", test_plan_hash_binding),
     ("plan-pin 外部根+source commit（自洽替换/pin 缺失/篡改/过宽/幽灵 commit）", test_plan_pin_and_source_commit_root),
+    ("release-roots 外部授权（roots-template/正门/缺失/过宽/side commit/自算值/坏 schema）", test_release_roots_external_authorization),
 ]
 
 

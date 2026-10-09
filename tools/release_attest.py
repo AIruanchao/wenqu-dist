@@ -41,17 +41,42 @@ DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货�
      实录）必须在 ``--repo`` 的 git 对象库中存在，且该 commit **树内**
      方案文件字节实算 sha256 == manifest.plan_sha256——制品方案与 git
      正源漂移（自洽替换 tar 内容）即拒。
+- **R9-REL-EXTERNAL-ROOTS（第九轮 G9-12 根修：pin 自证根 → 外部授权根）**：
+  第八波的 plan pin 值由安装器从**候选源码**（tools/ac_traceability.py
+  import）自生成并写回同一 release——攻击者带 side commit 自洽改方案+
+  常量后，安装器亲手把攻击值铸成「受保护根」（红证 red2）。现改为**外部
+  授权根**模式 ``--release-roots`` / ``$WENQU_RELEASE_ROOTS``：
+  - roots 文件（生产位 ``~/.wenqu/release-roots.json``，由部署授权流程
+    **仓外预置**，安装器绝不生成/回写）含：``allowed_commit`` 列表（每项
+    ``{commit, manifest_sha256}``）+ 全局 ``plan_sha256``；
+  - 权限纪律：mode 任何组/其他位（>0600 语义，含组/其他可读）即 FAIL；
+  - verify（roots 模式）四重 fail-closed：roots 可解析且权限合规；
+    manifest.source_commit **必须在 allowed_commit 内**（side commit /
+    未授权 commit 即拒）；roots.plan_sha256 == manifest 声明 == tar 实算；
+    roots.manifest_sha256 == manifest **核心 digest**；
+  - ``manifest 核心 digest`` = sha256(canonical JSON(manifest 去除易变
+    字段 build_id/built_at/builder/argv))——授权流程与安装器异时异地
+    重建同 commit 时 digest 稳定（volatile 构建身份不参与），而任何
+    内容篡改（方案/文件/commit/版本）必然断裂；
+  - ``roots-template`` 子命令：对**已授权构建**的 manifest 打印 roots
+    骨架 JSON（stdout，不写文件）——仅部署授权流程人工取值用；安装链
+    脚本内不得调用（grep 可审计）。
 
 用法（纯标准库；仓根执行）：
   python3 tools/release_attest.py build  [--commit HEAD] [--dist-dir dist]
+                                        [--out-dir /path/OUTSIDE-REPO]
                                         [--prefix wenqu-dist] [--repo .]
+      # 构建输出两模式（G9-12）：--dist-dir（默认仓内 dist/，存证 PR 用）/
+      # --out-dir（仓外强制——生产安装链；路径落在仓内即拒绝）。
   python3 tools/release_attest.py sign  --manifest PATH --keyring PATH
                                         [--key-id ID] [--out PATH]
   python3 tools/release_attest.py sbom  --manifest PATH [--out PATH]
+  python3 tools/release_attest.py roots-template --manifest PATH
   python3 tools/release_attest.py verify --manifest PATH --keyring PATH
                                         [--tar PATH] [--sig PATH] [--sbom PATH]
                                         [--report PATH]
                                         [--plan-pin PATH] [--repo PATH]
+                                        [--release-roots PATH]
 
 产物命名（dist/ 下四件套，<name> = <prefix>-<shortsha>）：
   <name>.tar.gz           制品（git archive 干净树）
@@ -87,10 +112,15 @@ if SYSTEM_DIR not in sys.path:
 from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
 
 TOOL_NAME = "release_attest.py"
-TOOL_VERSION = "1.2.0"
+TOOL_VERSION = "1.3.0"
 MANIFEST_SCHEMA = "wenqu-release-manifest/1"
 SIG_SCHEMA = "wenqu-release-sig/1"
 SBOM_SPDX_VERSION = "SPDX-2.3"
+RELEASE_ROOTS_SCHEMA = "wenqu-release-roots/1"
+
+#: manifest 核心 digest 排除的易变字段（构建身份——同 commit 异时异地重建时
+#: 必然不同，但不参与内容绑定：核心=全部内容承载字段）。
+VOLATILE_MANIFEST_KEYS = ("build_id", "built_at", "builder", "argv")
 
 #: 方案快照在归档内的成员路径（冻结正源 evidence/00-baseline/codex-external/
 #: 方案.md 的仓内路径；git archive 干净树必含——缺件即 build fail-closed）。
@@ -232,21 +262,49 @@ def _read_member_bytes(tar_path: str, member: str,
 # ---------------------------------------------------------------------- #
 # build
 # ---------------------------------------------------------------------- #
+def _is_git_repo(path: str) -> bool:
+    """git 仓探测：.git 目录（正仓）或 .git 文件（worktree 指针）均可。
+
+    （旧 isdir 检查在 git worktree 下误判「不是 git 仓」——wave9 并行修复
+    均在独立 worktree 中作业，工具必须 worktree 兼容。）
+    """
+    dotgit = os.path.join(path, ".git")
+    return os.path.isdir(dotgit) or os.path.isfile(dotgit)
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     repo = os.path.abspath(args.repo)
-    if not os.path.isdir(os.path.join(repo, ".git")):
+    if not _is_git_repo(repo):
         _die(f"不是 git 仓库: {repo!r}")
+
+    # G9-12 构建输出两模式（互斥）：
+    #   --dist-dir（缺省仓内 dist/） = 存证模式——PR 存证/本地演练，产物入仓；
+    #   --out-dir（仓外绝对/相对路径）= 生产模式——生产安装链（install-release.sh）
+    #     一律仓外构建，不污染源码树 dist/；路径解析后落在仓内即拒绝。
+    if args.out_dir is not None and args.dist_dir != "dist":
+        _die("--out-dir 与 --dist-dir 互斥（两模式二选一：仓外生产 / 仓内存证）")
+    if args.out_dir is not None:
+        repo_real = os.path.realpath(repo)
+        out_real_parent = os.path.realpath(os.path.abspath(args.out_dir))
+        try:
+            inside = os.path.commonpath([repo_real, out_real_parent]) == repo_real
+        except ValueError:  # 跨盘符等——必在仓外
+            inside = False
+        if inside:
+            _die(f"--out-dir 必须在仓外（生产构建不落源码树）: "
+                 f"{args.out_dir!r} 位于仓 {repo!r} 内——仓内存证请用 --dist-dir")
+        dist_dir = out_real_parent
+    else:
+        dist_dir = os.path.abspath(
+            args.dist_dir if os.path.isabs(args.dist_dir)
+            else os.path.join(repo, args.dist_dir))
+    os.makedirs(dist_dir, exist_ok=True)
 
     full = _git(repo, "rev-parse", "--verify", f"{args.commit}^{{commit}}")
     if not re.fullmatch(r"[0-9a-f]{40}", full):
         _die(f"rev-parse 未返回完整 commit sha: {full!r}")
     short = _git(repo, "rev-parse", "--short=7", full)
     subject = _git(repo, "log", "-1", "--format=%s", full)
-
-    dist_dir = os.path.abspath(
-        args.dist_dir if os.path.isabs(args.dist_dir)
-        else os.path.join(repo, args.dist_dir))
-    os.makedirs(dist_dir, exist_ok=True)
     name = f"{args.prefix}-{short}"
     tar_path = os.path.join(dist_dir, f"{name}.tar.gz")
 
@@ -663,12 +721,107 @@ def _git_raw(repo: str, *args: str) -> subprocess.CompletedProcess:
         raise VerifyFail("git 不可用（PATH 缺失）——source_commit 无法核验")
 
 
+# ---------------------------------------------------------------------- #
+# R9-REL-EXTERNAL-ROOTS：外部授权 release roots（G9-12 根修）
+# ---------------------------------------------------------------------- #
+def _resolve_release_roots(explicit: Optional[str]) -> Optional[str]:
+    """解析优先级：--release-roots > $WENQU_RELEASE_ROOTS > 无（回落 pin 模式）。
+
+    刻意**不设默认路径**：roots 是部署授权流程仓外预置的授权文件，生产由
+    install-release.sh 显式传 `$INSTALL_ROOT/release-roots.json`——工具侧
+    缺省回落到旧 pin 模式（兼容既有测试/流程），安装链则一律 roots 模式。
+    """
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    env = os.environ.get("WENQU_RELEASE_ROOTS", "").strip()
+    if env:
+        return os.path.abspath(os.path.expanduser(env))
+    return None
+
+
+def _manifest_core_digest(manifest: Dict[str, Any]) -> str:
+    """manifest 核心 digest：sha256(canonical JSON 去易变字段)。
+
+    核心 = 除 VOLATILE_MANIFEST_KEYS（build_id/built_at/builder/argv——构建
+    身份，同 commit 异时异地重建必变）外的全部字段（schema/commit/version/
+    policy_hash/artifact/逐文件清单……）。授权流程在授权构建上取值写入
+    roots.manifest_sha256；安装链重建后重算必须等值——方案/文件/commit/
+    版本的任何篡改都改变核心，digest 断裂。
+    """
+    core = {k: v for k, v in manifest.items() if k not in VOLATILE_MANIFEST_KEYS}
+    canonical = json.dumps(core, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _load_release_roots(roots_path: str) -> Dict[str, Any]:
+    """读外部授权 roots 文件（G9-12：安装器只消费，绝不生成）。
+
+    fail-closed 面（全部 VerifyFail，exit 1）：
+    - 文件缺失/不可读/非 JSON 对象；
+    - 权限过宽：mode & 0o077 != 0（组/其他**任何**位——含可读——> 0600
+      语义即拒：他人可读/可写的文件不是授权根）；
+    - schema 不符 / plan_sha256 非 64hex / allowed_commit 空或非列表；
+    - 条目 commit 非 40hex / manifest_sha256 非 64hex / commit 重复。
+
+    返回 {"plan_sha256": str, "entries": {commit: manifest_sha256}}。
+    """
+    if not os.path.isfile(roots_path):
+        raise VerifyFail(
+            f"release-roots 授权文件缺失（fail-closed，无豁免路径）: "
+            f"{roots_path!r}——由部署授权流程仓外预置（0600），安装器不生成")
+    try:
+        st = os.stat(roots_path)
+        if st.st_mode & 0o077:
+            raise VerifyFail(
+                f"release-roots 权限过宽（组/其他任何位，>0600 即拒）: "
+                f"{roots_path!r} mode={oct(st.st_mode & 0o7777)}——授权根须"
+                f" owner-only（0600），由部署授权流程 chmod 600 预置")
+        with open(roots_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except VerifyFail:
+        raise
+    except (OSError, ValueError) as exc:
+        raise VerifyFail(f"release-roots 不可读/非 JSON: {roots_path!r} ({exc})")
+    if not isinstance(data, dict) \
+            or data.get("schema") != RELEASE_ROOTS_SCHEMA:
+        raise VerifyFail(
+            f"release-roots schema 不符（期望 {RELEASE_ROOTS_SCHEMA}）: "
+            f"{roots_path!r}")
+    plan = data.get("plan_sha256")
+    if not isinstance(plan, str) or not re.fullmatch(r"[0-9a-f]{64}", plan):
+        raise VerifyFail(
+            f"release-roots.plan_sha256 非法（应 64 位小写 hex）: {plan!r}")
+    allowed = data.get("allowed_commit")
+    if not isinstance(allowed, list) or not allowed:
+        raise VerifyFail(
+            "release-roots.allowed_commit 须为非空列表（外部授权的 commit "
+            f"清单）: {type(allowed).__name__}")
+    entries: Dict[str, str] = {}
+    for i, ent in enumerate(allowed):
+        if not isinstance(ent, dict):
+            raise VerifyFail(f"allowed_commit[{i}] 非对象: {ent!r}")
+        c = ent.get("commit")
+        d = ent.get("manifest_sha256")
+        if not isinstance(c, str) or not re.fullmatch(r"[0-9a-f]{40}", c):
+            raise VerifyFail(
+                f"allowed_commit[{i}].commit 非法（应 40 位小写 hex）: {c!r}")
+        if not isinstance(d, str) or not re.fullmatch(r"[0-9a-f]{64}", d):
+            raise VerifyFail(
+                f"allowed_commit[{i}].manifest_sha256 非法（应 64hex）: {d!r}")
+        if c in entries:
+            raise VerifyFail(f"allowed_commit 重复 commit: {c}")
+        entries[c] = d
+    return {"plan_sha256": plan, "entries": entries}
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     manifest_path = os.path.abspath(args.manifest)
     base_dir = os.path.dirname(manifest_path)
     checks: List[Dict[str, Any]] = []
     tar_path = sig_path = sbom_path = None
     pin_path: Optional[str] = None
+    roots_path: Optional[str] = None
     repo_path: Optional[str] = None
 
     def record(ok: bool, cid: str, detail: str = "") -> None:
@@ -751,37 +904,67 @@ def cmd_verify(args: argparse.Namespace) -> int:
         record(True, "plan-hash",
                f"{plan_member} sha256={actual_plan[:16]}…（实算等值，64hex）")
 
-        # --- 2c) 外部受保护 plan pin（R8-REL-PIN-ROOT：自洽替换根修）---
-        # 八轮 P0-7 实证洞：tar/manifest/sig/sbom 全部可由持钥者整套重产，
-        # 「方案快照替换 + 四件套自洽重算 + 重签」旧 verify 仍 7 PASS。pin 是
-        # 仓外/制品外受保护根（部署于不可变激活树，0600）：其冻结值必须同时
-        # 等于 manifest 声明值与 tar 实算值——攻击者改了方案内容后无论把
-        # manifest/签名重算得多自洽，都过不了这个不在攻击面里的常量。
-        pin_path = _resolve_plan_pin(args.plan_pin)
-        pin_value = _load_plan_pin(pin_path)  # 缺失/坏格式/权限过宽全拒
-        if pin_value != declared_plan:
+        # --- 2c) 外部授权根（R9-REL-EXTERNAL-ROOTS）或 plan pin（R8 兼容）---
+        # G9-12：生产安装链走 --release-roots / $WENQU_RELEASE_ROOTS——外部
+        # 预置授权文件（0600）是唯一正源：allowed_commit 只含 main push CI
+        # 已绿的确切 SHA（部署授权流程预置），manifest.source_commit 不在
+        # 清单内（side commit / 未授权 commit）即拒；plan 与 manifest 核心
+        # digest 双对账——攻击者自算自洽的四件套在仓外常量处断裂。未给
+        # roots 时回落 R8 pin 模式（--plan-pin/env/默认位，兼容既有流程）。
+        sc = manifest.get("source_commit")
+        if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
             raise VerifyFail(
-                f"plan pin 冻结值与 manifest.policy_hash.plan_sha256 不符"
-                f"（外部受保护根拦截）: pin={pin_value} "
-                f"declared={declared_plan}——自洽替换的四件套在此断裂")
-        if pin_value != actual_plan:
-            raise VerifyFail(
-                f"plan pin 冻结值与 tar 内方案快照实算不符: pin={pin_value} "
-                f"actual={actual_plan}")
-        record(True, "plan-pin",
-               f"{pin_path} 冻结值={pin_value[:16]}…（manifest+tar 双等值）")
+                f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
+        roots_path = _resolve_release_roots(args.release_roots)
+        if roots_path is not None:
+            roots = _load_release_roots(roots_path)  # 缺失/权限宽/坏 schema 全拒
+            if sc not in roots["entries"]:
+                raise VerifyFail(
+                    f"source_commit 不在 release-roots allowed_commit（外部"
+                    f"授权清单）: {sc}——side commit/未授权 commit（四件套"
+                    f"自洽签名也拒，G9-12 fail-closed）")
+            if roots["plan_sha256"] != declared_plan:
+                raise VerifyFail(
+                    f"release-roots.plan_sha256 与 manifest 声明不符（外部"
+                    f"授权根拦截）: roots={roots['plan_sha256']} "
+                    f"declared={declared_plan}——授权冻结面与制品断裂")
+            if roots["plan_sha256"] != actual_plan:
+                raise VerifyFail(
+                    f"release-roots.plan_sha256 与 tar 内方案实算不符: "
+                    f"roots={roots['plan_sha256']} actual={actual_plan}")
+            pinned_digest = roots["entries"][sc]
+            core_digest = _manifest_core_digest(manifest)
+            if pinned_digest != core_digest:
+                raise VerifyFail(
+                    f"release-roots.manifest_sha256 与 manifest 核心 digest "
+                    f"不符: roots={pinned_digest} actual={core_digest}——"
+                    f"内容与授权构建断裂（自洽重产/篡改即拒）")
+            record(True, "release-roots",
+                   f"{roots_path} allowed={len(roots['entries'])} commit="
+                   f"{sc[:12]}… plan+核心digest 双等值")
+        else:
+            pin_path = _resolve_plan_pin(args.plan_pin)
+            pin_value = _load_plan_pin(pin_path)  # 缺失/坏格式/权限过宽全拒
+            if pin_value != declared_plan:
+                raise VerifyFail(
+                    f"plan pin 冻结值与 manifest.policy_hash.plan_sha256 不符"
+                    f"（外部受保护根拦截）: pin={pin_value} "
+                    f"declared={declared_plan}——自洽替换的四件套在此断裂")
+            if pin_value != actual_plan:
+                raise VerifyFail(
+                    f"plan pin 冻结值与 tar 内方案快照实算不符: pin={pin_value} "
+                    f"actual={actual_plan}")
+            record(True, "plan-pin",
+                   f"{pin_path} 冻结值={pin_value[:16]}…（manifest+tar 双等值）")
 
         # --- 2d) source commit 存在性 + 树内方案绑定（防自洽替换 tar 内容）---
         # manifest.source_commit 是 build 期 git rev-parse 实录；verify 回到
         # git 对象库：①commit 必须真实存在（幽灵 commit 即拒）；②该 commit
         # **树内**方案文件字节实算 sha256 必须 == manifest.plan_sha256——
         # 制品里的方案换成任何别的内容（哪怕全套重签）都与 git 正源断裂。
-        sc = manifest.get("source_commit")
-        if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
-            raise VerifyFail(
-                f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
+        # （sc 格式校验已前移至 2c——roots 模式需先以 sc 查授权清单。）
         repo_path = os.path.abspath(args.repo) if args.repo else REPO_ROOT
-        if not os.path.isdir(os.path.join(repo_path, ".git")):
+        if not _is_git_repo(repo_path):
             raise VerifyFail(
                 f"--repo 不是 git 仓库: {repo_path!r}——source_commit 无法核验")
         probe = _git_raw(repo_path, "cat-file", "-e", f"{sc}^{{commit}}")
@@ -857,6 +1040,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             "sbom": sbom_path,
             "keyring": os.path.abspath(args.keyring),
             "plan_pin": pin_path,
+            "release_roots": roots_path,
             "repo": repo_path,
             "checks": checks,
             "result": "PASS" if ok else "FAIL",
@@ -946,6 +1130,48 @@ def _check_sbom(sbom: Dict[str, Any], manifest: Dict[str, Any],
 
 
 # ---------------------------------------------------------------------- #
+# roots-template（G9-12）：部署授权流程取值辅助——只打印，绝不写文件
+# ---------------------------------------------------------------------- #
+def cmd_roots_template(args: argparse.Namespace) -> int:
+    """对已授权构建的 manifest 打印 release-roots 骨架 JSON（stdout）。
+
+    纪律边界：本子命令是**部署授权流程**（人工/CI 授权步）取值用的只读辅助
+    ——产出的骨架须人工审核后由授权方落到 ~/.wenqu/release-roots.json 并
+    chmod 600。**安装链（install-release.sh）内不得调用本子命令**（安装器
+    只消费 roots，绝不生成——grep 'roots-template' system/ 可审计此边界）。
+    """
+    manifest = _load_manifest(os.path.abspath(args.manifest))
+    sc = manifest.get("source_commit")
+    if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
+        _die(f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
+    plan = ((manifest.get("policy_hash") or {}).get("plan_sha256"))
+    if not isinstance(plan, str) or not re.fullmatch(r"[0-9a-f]{64}", plan):
+        _die(f"manifest.policy_hash.plan_sha256 非法（应 64hex）: {plan!r}")
+    skeleton = {
+        "schema": RELEASE_ROOTS_SCHEMA,
+        "provisioned_at": _utc_now_iso(),
+        "provisioned_by": "部署授权流程（人工审核后落位并 chmod 600；"
+                          "安装器绝不生成/回写本文件）",
+        "plan_sha256": plan,
+        "allowed_commit": [
+            {
+                "commit": sc,
+                "manifest_sha256": _manifest_core_digest(manifest),
+            }
+        ],
+    }
+    print(json.dumps(skeleton, ensure_ascii=False, indent=1, sort_keys=True))
+    print(
+        "\n# 授权流程：核对本骨架（allowed_commit 只收录 main push CI 已绿的"
+        "确切 SHA）→\n"
+        "#   合并进 ~/.wenqu/release-roots.json（或 $WENQU_INSTALL_ROOT/"
+        "release-roots.json）→ chmod 600。\n"
+        "# 本子命令不写任何文件；install-release.sh 不调用本子命令。",
+        file=sys.stderr)
+    return 0
+
+
+# ---------------------------------------------------------------------- #
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog=TOOL_NAME,
@@ -954,7 +1180,12 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     p_build = sub.add_parser("build", help="git archive 干净树→tar.gz+manifest")
     p_build.add_argument("--commit", default="HEAD")
-    p_build.add_argument("--dist-dir", default="dist")
+    p_build.add_argument("--dist-dir", default="dist",
+                         help="存证模式：仓内输出目录（默认 dist/，PR 存证用）")
+    p_build.add_argument(
+        "--out-dir", default=None,
+        help="生产模式：仓外输出目录（G9-12——生产安装链用；路径落在仓内"
+             "即拒绝；与 --dist-dir 互斥）")
     p_build.add_argument("--prefix", default="wenqu-dist")
     p_build.add_argument("--repo", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     p_build.set_defaults(func=cmd_build)
@@ -972,6 +1203,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_sbom.add_argument("--out", default=None)
     p_sbom.set_defaults(func=cmd_sbom)
 
+    p_roots = sub.add_parser(
+        "roots-template", help="对外部授权构建的 manifest 打印 release-roots "
+                               "骨架（只打印，不写文件；安装链不得调用）")
+    p_roots.add_argument("--manifest", required=True)
+    p_roots.set_defaults(func=cmd_roots_template)
+
     p_verify = sub.add_parser("verify", help="tar+manifest+sig+sbom 四件套对账")
     p_verify.add_argument("--manifest", required=True)
     p_verify.add_argument("--keyring", required=True)
@@ -983,6 +1220,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--plan-pin", default=None,
         help="受保护 plan pin 文件（0600，含冻结 64hex）；缺省查 "
              "$WENQU_PLAN_PIN 或 ~/.wenqu/current/plan.pin；缺失即 FAIL")
+    p_verify.add_argument(
+        "--release-roots", default=None,
+        help="G9-12 外部授权 roots 文件（0600：allowed_commit+plan_sha256+"
+             "manifest_sha256）；优先于 --plan-pin；缺省查 "
+             "$WENQU_RELEASE_ROOTS，未给则回落 plan-pin 模式")
     p_verify.add_argument(
         "--repo", default=None,
         help="核验 source_commit 的 git 仓（默认工具所在仓）：commit 须在"

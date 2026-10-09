@@ -47,3 +47,35 @@ python3 cli/wenqu verify --path <你的仓> --allow-open 0
 ## CI（平台证据第三环境）
 
 `.github/workflows/acceptance.yml`（macOS+Ubuntu 双矩阵×release-check+64 项+pytest+selftest）已备——推送到 GitHub 即生效，永久闭掉条件放行声明的平台证据盲区（#5）；main 已开分支保护（双平台 required+strict+enforce_admins），合流走 PR 正门。
+
+## Release 构建与安装链（G9-12：外部授权根 + fail-closed 安装器）
+
+**构建输出两模式**（`tools/release_attest.py build`，互斥）：
+
+- `--dist-dir dist`（默认，**存证模式**）：仓内 `dist/` 输出，用于存证 PR——
+  制品随仓归档、可追溯；
+- `--out-dir /仓外路径`（**生产模式**）：强制仓外输出（路径落在仓内即拒绝），
+  生产安装链专用——不污染源码树，已存证制品零触碰。
+
+**生产安装链**（`system/install-release.sh`）只消费**外部预置授权文件**
+`release-roots.json`（生产位 `~/.wenqu/release-roots.json`；0600 owner-only；
+`allowed_commit`（每项 `{commit, manifest_sha256}`）+ `plan_sha256`，由部署
+授权流程仓外预置，安装器绝不生成/回写，也不调用 `roots-template`）：
+
+1. 授权门（构建前 fail-closed）：roots 存在 → 权限无组/其他位 → 目标
+   commit 在 `allowed_commit` 内（外部授权=side commit 拒绝正门；授权流程
+   只收录 main push CI 已绿的确切 SHA）→ commit 为 origin/main 可达血统；
+2. 仓外构建四件套 + `verify --release-roots` 四重对账（allowed_commit /
+   plan_sha256 == manifest == tar 实算 / manifest 核心 digest——核心
+   digest=manifest 去易变字段 build_id/built_at/builder/argv 的 canonical
+   sha256，同 commit 异时重建稳定、内容篡改必断裂）；
+3. 幂等复验/部署位复验均显式 `if verify; then …; else fail`——verify 真实
+   rc 驱动，篡改既有 release 重跑安装器必 rc1（旧版 `verify || true` 吞 rc
+   fail-open 已删除）；
+4. 部署 → 只读化（chmod a-w 失败即中止）→ `current` 原子切换（rename(2)）。
+
+`roots-template` 子命令：对已授权构建的 manifest **打印** roots 骨架
+JSON（不写文件）——部署授权流程人工取值审核后落位并 chmod 600；安装链
+脚本内不得调用（`grep roots-template system/` 可审计此边界）。
+HMAC 对称签名=tamper-evident，非非否认（§21.4 诚实边界）。
+
