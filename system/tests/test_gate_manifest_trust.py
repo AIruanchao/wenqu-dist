@@ -197,18 +197,36 @@ def test_r7auth001_required_tamper_rehash():
         _ck("R7-AUTH-001 ERROR 理由指向验签/manifest",
             "manifest" in (out.get("reason") or ""),
             _tail(out.get("reason")))
-        # 腿二：无 keyring 的 --allow-unsigned 诊断降级 → 一致性 BLOCKED
+        # 腿二（G9-06 新契约）：已签 artifact 只传 --allow-unsigned（无
+        # verify key）→ rc3 拒——已签件永远必须验签，--allow-unsigned 不得
+        # 跳过验签（R8-GATE-ALLOW-UNSIGNED-METADATA-004 残余根修）。
         rc2, out2 = _gate(["--results", s0, "--manifest", tpath,
                            "--allow-unsigned"])
-        reasons = "".join(out2.get("reasons", []))
-        _ck("R7-AUTH-001 改 required（allow-unsigned 腿）rc=2 BLOCKED",
-            rc2 == 2 and out2.get("aggregate_outcome") == BLOCKED,
+        _ck("R7-AUTH-001 改 required 重算 hash（已签件 allow-unsigned）"
+            "rc=3 不跳验签",
+            rc2 == 3 and out2.get("mode") == "manifest_invalid"
+            and ("签名字段" in (out2.get("reason") or "")
+                 or "永远必须验签" in (out2.get("reason") or "")),
             f"rc={rc2} {_tail(out2.get('reason'))}")
+        # 腿三：同篡改剥成真正 unsigned（strip signature/key_id+重算 hash）
+        # → --allow-unsigned 诊断口径可读，但一致性校验独立于签名照拦 BLOCKED
+        udoc = json.load(open(tpath, encoding="utf-8"))
+        udoc.pop("signature")
+        udoc.pop("key_id")
+        _attacker_rehash(udoc)
+        upath = _write(udoc, os.path.join(td, "tampered-unsigned.json"))
+        rc3, out3 = _gate(["--results", s0, "--manifest", upath,
+                           "--allow-unsigned"])
+        reasons3 = "".join(out3.get("reasons", []))
+        _ck("R7-AUTH-001 改 required（真 unsigned allow-unsigned 腿）"
+            "rc=2 BLOCKED",
+            rc3 == 2 and out3.get("aggregate_outcome") == BLOCKED,
+            f"rc={rc3} {_tail(out3.get('reason'))}")
         _ck("R7-AUTH-001 记 required_stations_conflict（一致性独立于签名）",
-            "required_stations_conflict" in reasons,
-            _tail(reasons))
+            "required_stations_conflict" in reasons3,
+            _tail(reasons3))
         _ck("R7-AUTH-001 绝不 PASS（第七轮 rc0/PASS 反例被封死）",
-            out2.get("policy_verdict") != "PASS")
+            out3.get("policy_verdict") != "PASS")
 
 
 def test_r7auth001_ttl_deleted_rehash():
@@ -233,13 +251,25 @@ def test_r7auth001_ttl_deleted_rehash():
         _ck("R7-AUTH-001 删 TTL 重算 hash（正门验签）rc=3 ERROR",
             rc == 3 and out.get("aggregate_outcome") == "ERROR",
             f"rc={rc}")
+        # G9-06 新契约：已签件+allow-unsigned（无 key）→ rc3 不跳验签
         rc2, out2 = _gate(["--results", s0, s1, "--manifest", tpath,
                            "--allow-unsigned"])
-        reasons = "".join(out2.get("reasons", []))
-        _ck("R7-AUTH-001 删 TTL（allow-unsigned 腿）rc=2 BLOCKED + "
-            "station_ttls 违例",
-            rc2 == 2 and "station_ttls" in reasons,
-            f"rc={rc2} {_tail(reasons)}")
+        _ck("R7-AUTH-001 删 TTL（已签件 allow-unsigned）rc=3 不跳验签",
+            rc2 == 3 and out2.get("mode") == "manifest_invalid",
+            f"rc={rc2} {_tail(out2.get('reason'))}")
+        # 真 unsigned 腿（剥签名+重算 hash）→ 一致性 station_ttls 违例照拦
+        udoc = json.load(open(tpath, encoding="utf-8"))
+        udoc.pop("signature")
+        udoc.pop("key_id")
+        _attacker_rehash(udoc)
+        upath = _write(udoc, os.path.join(td, "no-ttl-unsigned.json"))
+        rc3, out3 = _gate(["--results", s0, s1, "--manifest", upath,
+                           "--allow-unsigned"])
+        reasons3 = "".join(out3.get("reasons", []))
+        _ck("R7-AUTH-001 删 TTL（真 unsigned allow-unsigned 腿）rc=2 "
+            "BLOCKED + station_ttls 违例",
+            rc3 == 2 and "station_ttls" in reasons3,
+            f"rc={rc3} {_tail(reasons3)}")
 
 
 def test_r7auth001_internal_inconsistency_valid_signature():
@@ -308,11 +338,19 @@ def test_r7auth001_unsigned_refusals_and_downgrade():
         rc3, out3 = _gate(["--results", s0, s1, "--manifest", mpath,
                            "--verify-key", kpath, "--allow-unsigned"])
         sig = out3.get("manifest", {}).get("signature", {})
-        _ck("R7-AUTH-001 --allow-unsigned 显式降级放行且如实标注",
-            rc3 == 0 and out3.get("policy_verdict") == "PASS"
-            and sig.get("signed") is False
+        # G9-06 新契约：真 unsigned 诊断件永不 PASS——结论只能是
+        # BLOCKED/NOT_EVALUATED（rc2），元数据如实标注降级口径。
+        _ck("R7-AUTH-001 --allow-unsigned 诊断件可读但永不 PASS（rc=2）",
+            rc3 == 2 and out3.get("policy_verdict") in ("BLOCKED",
+                                                        "NOT_EVALUATED")
+            and "unsigned_manifest_never_pass" in "".join(
+                out3.get("reasons", [])),
+            f"rc={rc3} {_tail(out3.get('reason'))}")
+        _ck("R7-AUTH-001 诊断件元数据如实（signed=false/"
+            "allow_unsigned_downgrade=true）",
+            sig.get("signed") is False
             and sig.get("allow_unsigned_downgrade") is True,
-            f"rc={rc3} {_tail(json.dumps(sig))}")
+            _tail(json.dumps(sig)))
         rc4, out4 = _gate(["--results", s0, "--allow-self-declared",
                            "--verify-key", kpath])
         _ck("R7-AUTH-001 --verify-key 无 --manifest → flag_conflict rc=3",
