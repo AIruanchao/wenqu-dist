@@ -582,12 +582,12 @@
      "launchctl kickstart gui/$(id -u)/com.wenqu.observation"
     ],
     "real_rc": "首跑 exit 0，样本+shadow 双落盘",
-    "artifact_sha256": "74e5a010cbd9a9295f0756dbbd744076a545a8fedc2d8f627b7951c185055980",
+    "artifact_sha256": "c1d272259cd4fe26a96b831772b450a081336e2b7173cc9a509c852d977edadf",
     "evidence_path": "tools/observation_daily.py",
     "fresh_until": "2026-10-22（观察窗届满）",
     "verified_by": "挂钟 agent+ZCode 复验",
     "caveat": "shadow 首日为结构化空态（等 gate-aggregate 状态文件产生自动转真）；样本在仓外需定期快照",
-    "migrated_reason": "无 cwd 记录；real_rc 非整数退出码（'首跑 exit 0，样本+shadow 双落盘'）；time 非带时区 ISO 精确时刻；fresh_until(TTL) 非法格式——迁 legacy/non_scoring（不进 active 分母）；G9-07 validator 检出登记哈希漂移（原登记 28b3d689… 为建档时点旧版本 tools/observation_daily.py；wave9 ab9e239 演进后未回填）——按 F6-EVID-001 换绑惯例重绑为当前文件实算 74e5a010cbd9…，原值留存于本登记"
+    "migrated_reason": "无 cwd 记录；real_rc 非整数退出码（'首跑 exit 0，样本+shadow 双落盘'）；time 非带时区 ISO 精确时刻；fresh_until(TTL) 非法格式——迁 legacy/non_scoring（不进 active 分母）；G9-07 validator 检出登记哈希漂移（原登记 28b3d689… 为建档时点旧版本 tools/observation_daily.py；wave9 ab9e239 演进后未回填）——按 F6-EVID-001 换绑惯例重绑为当前文件实算 74e5a010cbd9…，原值留存于本登记；2026-10-09 G9-02 观察面重写（O_EXCL/hash chain）文件合法演进，哈希随实算更新"
    },
    {
     "run_id": "reaudit7-20261008-204822",
