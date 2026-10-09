@@ -8,7 +8,7 @@ test_ac_gate_family 24
 test_ac_state_mig 16
 test_ac_deploy_release 13
 test_ac_station_families 29
-test_ac_ops_families 17
+test_ac_ops_families 18
 test_ac_auth_cond 16
 test_ac_act_run 9
 test_ac_ui_family 7

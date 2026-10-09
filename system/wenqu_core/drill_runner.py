@@ -18,7 +18,9 @@
 - ``run_drill``        编排入口：起真实子进程跑演练脚本，解析双工件
                        （drill-<stamp>.json + .jsonl 事件日志）。
 - ``validate_report``  报告结构契约校验（时间/文件/结果三要素、逐文件
-                       对账布尔、DR 计时块存在且数字有限）。
+                       对账布尔、DR 计时块存在且数字有限；G9-09 起对 PASS
+                       报告另强制归档腿合同：archive 实存 sha/size、独立
+                       解包 extract_sha、作业身份 SHA、恢复源=archive）。
 - ``read_events``      解析 jsonl 事件日志（逐事件 dict；损坏行抛错，
                        fail-closed 不跳行）。
 
@@ -48,6 +50,7 @@ DEFAULT_TIMEOUT_S = 300.0
 
 # YYYYmmddTHHMMSSZ（同秒并发防覆写时可带 -N 序号后缀）
 _STAMP_RE = re.compile(r"\d{8}T\d{6}Z(?:-\d+)?\Z")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 class DrillFailure(RuntimeError):
@@ -148,6 +151,64 @@ def validate_report(report: dict, *, mode: str) -> dict:
                 raise ValueError(f"dr.{key} 非有限数字: {dr.get(key)!r}")
     elif report.get("dr") is not None:
         raise ValueError(f"backup 模式不应有 dr 计时块: {report['dr']!r}")
+
+    # G9-09 归档腿合同（仅 PASS 报告强制——FAIL 报告允许在归档验证前夭折）：
+    # 归档实存 sha/size/materialized、独立解包 extract_sha、恢复源=archive、
+    # 作业身份（drill 脚本/scheduler 源 SHA）。缺任一=结构破坏 fail-closed。
+    if report.get("result") == "PASS":
+        archive = report.get("archive")
+        if not isinstance(archive, dict):
+            raise ValueError("PASS 报告缺 archive 块（归档实存/hash 合同）")
+        for key in ("size", "sha256", "extract_sha256", "materialized"):
+            if key not in archive:
+                raise ValueError(f"archive 块缺字段: {key}")
+        if not isinstance(archive["materialized"], bool) \
+                or archive["materialized"] is not True:
+            raise ValueError(f"archive.materialized 必须 true: {archive!r}")
+        if not (isinstance(archive["size"], int) and archive["size"] > 0):
+            raise ValueError(f"archive.size 必须为正整数: {archive['size']!r}")
+        for key in ("sha256", "extract_sha256"):
+            if not (isinstance(archive[key], str)
+                    and _SHA256_RE.fullmatch(archive[key])):
+                raise ValueError(f"archive.{key} 非 64hex sha256: {archive[key]!r}")
+        arc_files = archive.get("files")
+        if not isinstance(arc_files, list) or not arc_files:
+            raise ValueError("archive.files（独立解包逐文件清单）必须非空")
+        arc_rels = set()
+        for f in arc_files:
+            if not (isinstance(f, dict) and {"rel", "sha256", "size"} <= set(f)
+                    and _SHA256_RE.fullmatch(str(f["sha256"]))):
+                raise ValueError(f"archive.files 条目结构漂移: {f!r}")
+            arc_rels.add(f["rel"])
+        if arc_rels != snap_rels:
+            raise ValueError(
+                f"独立解包文件集与快照不一致: 仅快照 {sorted(snap_rels - arc_rels)} "
+                f"仅解包 {sorted(arc_rels - snap_rels)}")
+        identity = report.get("identity")
+        if not isinstance(identity, dict):
+            raise ValueError("PASS 报告缺 identity 块（作业身份合同）")
+        for key in ("drill_script_sha256", "scheduler_sha256"):
+            if key not in identity:
+                raise ValueError(f"identity 块缺字段: {key}")
+        if not (isinstance(identity["drill_script_sha256"], str)
+                and _SHA256_RE.fullmatch(identity["drill_script_sha256"])):
+            raise ValueError(
+                f"identity.drill_script_sha256 非 64hex: "
+                f"{identity['drill_script_sha256']!r}")
+        if identity["scheduler_sha256"] is not None and not (
+                isinstance(identity["scheduler_sha256"], str)
+                and _SHA256_RE.fullmatch(identity["scheduler_sha256"])):
+            raise ValueError(
+                f"identity.scheduler_sha256 必须为 64hex 或 null: "
+                f"{identity['scheduler_sha256']!r}")
+        arc_step = steps.get("archive")
+        if not (isinstance(arc_step, dict) and arc_step.get("ok") is True
+                and arc_step.get("materialized") is True):
+            raise ValueError(f"steps.archive 归档腿必须 ok+materialized: {arc_step!r}")
+        if steps["restore"].get("source") != "archive":
+            raise ValueError(
+                f"restore.source 必须 'archive'（恢复必须走归档，不得旁路复制）: "
+                f"{steps['restore']!r}")
     return report
 
 

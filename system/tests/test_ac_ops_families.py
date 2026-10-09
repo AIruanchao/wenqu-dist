@@ -102,6 +102,7 @@ from wenqu_core.drill_runner import (                           # noqa: E402
     DrillFailure,
     read_events,
     run_drill,
+    validate_report,
 )
 from wenqu_core.scheduler import (                              # noqa: E402
     HeartbeatMonitor,
@@ -1577,6 +1578,27 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
         assert set(acts) == set(rels) and rep["steps"]["tamper"]["ok"] is True
         assert set(acts.values()) == {"append", "truncate", "delete"}
         assert rep["steps"]["restore"]["files_restored"] == len(rels)
+        # —— G9-09 强化：恢复真实走归档（restore.source=archive，非旁路 backup 复制）——
+        assert rep["steps"]["restore"]["source"] == "archive", \
+            rep["steps"]["restore"]
+        # —— G9-09 强化：归档实存合同（非空普通文件 + sha + 独立解包对账）——
+        arc = rep["archive"]
+        assert arc["materialized"] is True and arc["size"] > 0, arc
+        assert re.fullmatch(r"[0-9a-f]{64}", arc["sha256"]), arc
+        assert re.fullmatch(r"[0-9a-f]{64}", arc["extract_sha256"]), arc
+        assert arc["listing_files"] == len(rels), arc
+        arc_files = {f["rel"]: f for f in arc["files"]}
+        assert set(arc_files) == set(rels), "独立解包文件集必须与语料一致"
+        for rel, f in arc_files.items():
+            assert re.fullmatch(r"[0-9a-f]{64}", f["sha256"]) \
+                and f["sha256"] == sha_before[rel] \
+                and f["size"] > 0, (rel, f)
+        assert rep["steps"]["archive"]["materialized"] is True \
+            and rep["steps"]["archive"]["ok"] is True
+        # —— G9-09 强化：作业身份（drill 脚本/scheduler 源 SHA）入成功报告 ——
+        ident = rep["identity"]
+        assert re.fullmatch(r"[0-9a-f]{64}", ident["drill_script_sha256"]), ident
+        assert re.fullmatch(r"[0-9a-f]{64}", ident["scheduler_sha256"]), ident
         # —— 恢复后逐文件一致（cmp+sha 双证，与快照、与源语料三方一致）——
         recon = {f["rel"]: f for f in rep["steps"]["reconcile"]["files"]}
         assert set(recon) == set(rels)
@@ -1603,6 +1625,11 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
         tamp = {e["file"]: e["result"] for e in evs if e["event"] == "tamper_file"}
         assert set(tamp) == set(rels)
         assert set(tamp.values()) <= {"append", "truncate", "delete"}
+        # —— G9-09 强化：jsonl 归档腿事件（实存验证/逐文件独立解包/恢复源解包）——
+        assert "archive_verified" in kinds and "restore_extract" in kinds, kinds
+        got_extract = {e["file"] for e in evs
+                       if e["event"] == "extract_file" and e["result"] == "true"}
+        assert got_extract == set(rels), ("extract_file", got_extract)
 
         # —— 失败分支：备份语料不可达（backup 失败族）→ fail-closed 不更新 success ——
         pass_bytes = outcome.report_path.read_bytes()
@@ -1671,16 +1698,212 @@ def test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success():
         assert outcome.report_path.read_bytes() == pass_bytes, "PATH 注入腿不得改写 PASS 工件"
 
     _record("BAK-01",
-            f"tmp 语料 {len(rels)} 文件（真实 sqlite DB+4 JSON）四步真实演练："
-            f"快照 sha 与源逐文件一致→篡改三式轮转全覆盖（append/truncate/delete，"
-            f"实测 sha 已变防伪造）→恢复 {rep['steps']['restore']['files_restored']} 文件"
-            f"→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；生产语料前后字节不变"
-            f"（只读）；报告 {rep['stamp']} 含时间/文件/结果三要素+jsonl 事件日志"
-            f"{len(evs)} 事件（ts 单调、每文件四相事件齐全）；失败分支（语料不可达）"
-            f"fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f "
-            f"等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/"
-            f"外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），"
+            f"tmp 语料 {len(rels)} 文件（真实 sqlite DB+4 JSON）五步真实演练："
+            f"快照 sha 与源逐文件一致→归档腿（tar 真通道+清单回读+G9-09 实存验证"
+            f"[非空普通文件非 symlink]+python tarfile 独立解包逐字节对账"
+            f"[archive sha/extract sha/逐文件 sha 全记录]）→篡改三式轮转全覆盖"
+            f"（append/truncate/delete，实测 sha 已变防伪造）→从归档恢复 "
+            f"{rep['steps']['restore']['files_restored']} 文件（restore.source="
+            f"archive，非旁路 backup 复制）→逐文件 cmp+sha256 字节级对账全等"
+            f"（与源三方一致）；作业身份（drill/scheduler 源 SHA）入成功报告；"
+            f"生产语料前后字节不变（只读）；报告 {rep['stamp']} 含时间/文件/结果"
+            f"三要素+jsonl 事件日志{len(evs)} 事件（ts 单调、每文件四相+归档"
+            f"实存/解包事件齐全）；失败分支（语料不可达）fail-closed：exit1+"
+            f"result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，"
+            f"诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH "
+            f"假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），"
             f"既有 PASS 工件零改写=不更新 success")
+
+
+# ---------------------------------------------------------------------------
+# G9-09 / R8-BAK-FAKE-TAR-SUCCESS-019：归档真实性与恢复真实性五负例
+# ---------------------------------------------------------------------------
+def _write_fake_tar(fake_dir: Path, variant: str, canned: Path,
+                    real_tar: str) -> None:
+    """写一个 PATH 前置 fake tar（对抗注入件，仅存在于 tmp 沙箱）。
+
+    五变体（创建与清单全部 rc0——rc/listing 谎报面统一）：
+      lie       创建 rc0 但不产任何归档；清单回放 .names（伪造完整清单）
+      stale     创建=cp 旧语料罐头 tarball（同名旧字节=旧 archive 复用）
+      symlink   创建=ln -s 罐头（目标甚至是内容完全正确的合法 tarball）
+      truncate  真 tar 产出后截断到 40%（gz 头仍在、流不完整）
+      short     真 tar 只打包第一个语料文件；清单仍回放全量名单（伪 listing）
+    """
+    script = f"""#!/bin/sh
+# G9-09 fake tar [{variant}] — 对抗注入件（测试专用）
+d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+names="$d/.names"
+real="{real_tar}"
+canned="{canned}"
+case "$1" in
+  -czf)
+    out="$2"; shift 2
+    : > "$names"; dir=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -C) dir="$2"; shift 2 ;;
+        *) printf '%s\\n' "$1" >> "$names"; shift ;;
+      esac
+    done
+"""
+    if variant == "lie":
+        script += "    exit 0\n"
+    elif variant == "stale":
+        script += '    cp "$canned" "$out"\n    exit 0\n'
+    elif variant == "symlink":
+        script += '    ln -sf "$canned" "$out"\n    exit 0\n'
+    elif variant == "truncate":
+        script += ('    "$real" -czf "$out" -C "$dir" $(cat "$names") || exit 1\n'
+                   '    sz=$(wc -c < "$out"); keep=$(( sz * 40 / 100 ))\n'
+                   '    head -c "$keep" "$out" > "$out.tr" && mv "$out.tr" "$out"\n'
+                   '    exit 0\n')
+    elif variant == "short":
+        script += ('    first=$(head -1 "$names")\n'
+                   '    "$real" -czf "$out" -C "$dir" "$first" || exit 1\n'
+                   '    exit 0\n')
+    else:
+        raise ValueError(variant)
+    script += """    exit 0 ;;
+  -tzf)
+    cat "$names" 2>/dev/null
+    exit 0 ;;
+esac
+exit 0
+"""
+    path = fake_dir / "tar"
+    path.write_text(script, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def test_BAK_02_archive_truth_five_fake_tar_negatives_all_fail_closed():
+    """BAK-02（G9-09）｜注入：伪 tar 五变体｜期望：演练 rc1 + 不更新 success。
+
+    R8-BAK-FAKE-TAR-SUCCESS-019 收口：对 tar 的 rc 与自报清单零信任——
+      1. 伪 tar（创建/清单双 rc0 但不产归档）→ 归档实存验证必死（rc1）；
+      2. 旧 archive 复用（同名旧字节罐头）→ 独立解包逐字节对账必死（rc1）；
+      3. symlink 归档（目标为内容正确的合法 tarball）→ 非普通文件必死（rc1）；
+      4. 截断 archive（真 tar 产出后截 40%）→ python tarfile 独立解包必死（rc1）；
+      5. 伪 listing/内容缺失（真 tar 只打包 1/N 文件+全量伪清单）→ 解包
+         文件集对账必死（rc1）。
+    每腿：exit=1、报告 result=FAIL、reason 点名归档腿、该腿报告目录零新增
+    PASS 工件、既有 PASS 工件逐字节不变（= 不更新 last-success/成功
+    heartbeat）；编排层（drill_runner.validate_report）对「剥离归档块的
+    PASS 报告」fail-closed 拒绝（结构破坏）。
+    """
+    drill_script = REPO / "system" / "sentinels" / "backup-restore-drill.sh"
+    real_tar = shutil.which("tar")
+    assert real_tar, "真 tar 不可用——罐头归档无法构造"
+    sha_re = re.compile(r"[0-9a-f]{64}")
+    # 期望每腿 reason 命中的归档腿标记（区分五个死亡面）
+    leg_markers = {
+        "lie": "not materialized",
+        "stale": "extract reconcile mismatch/missing",
+        "symlink": "not materialized",
+        "truncate": "independent archive extraction failed",
+        "short": "extract reconcile mismatch/missing",
+    }
+    with tempfile.TemporaryDirectory(prefix="wq_bak02_") as td:
+        sandbox = Path(td)
+
+        # 先跑正例（真实 tar，零注入）：PASS 工件 = success 不更新锚
+        good_root, rels = _mk_drill_corpus(sandbox / "good")
+        good_outcome = run_drill(wenqu_root=good_root,
+                                 report_dir=sandbox / "good-reports")
+        assert good_outcome.report["result"] == "PASS"
+        pass_bytes = good_outcome.report_path.read_bytes()
+
+        # 罐头：旧语料（同路径名、旧字节）+ 好语料（symlink 腿用「内容正确」目标）
+        old_root = sandbox / "old-home"
+        old_root.mkdir()
+        (old_root / "state").mkdir(parents=True)
+        (old_root / "observation" / "samples").mkdir(parents=True)
+        (old_root / "observation" / "shadow").mkdir(parents=True)
+        for rel in rels:
+            dst = old_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(f"STALE-OLD-CORPUS-BYTES:{rel}".encode("utf-8"))
+        canned_old = sandbox / "canned-old.tar.gz"
+        subprocess.run([real_tar, "-czf", str(canned_old), "-C", str(old_root)]
+                       + rels, check=True, timeout=60)
+        canned_good = sandbox / "canned-good.tar.gz"
+        subprocess.run([real_tar, "-czf", str(canned_good), "-C", str(good_root)]
+                       + rels, check=True, timeout=60)
+
+        variants = [("lie", canned_old), ("stale", canned_old),
+                    ("symlink", canned_good), ("truncate", canned_old),
+                    ("short", canned_old)]
+        leg_results = {}
+        for variant, canned in variants:
+            fake_dir = sandbox / f"fake-{variant}"
+            fake_dir.mkdir()
+            _write_fake_tar(fake_dir, variant, canned, real_tar)
+            leg_root, _ = _mk_drill_corpus(sandbox / f"home-{variant}")
+            leg_dir = sandbox / f"leg-{variant}"
+            leg_dir.mkdir()
+            proc = subprocess.run(
+                ["bash", str(drill_script), "--wenqu-root", str(leg_root),
+                 "--report-dir", str(leg_dir)],
+                capture_output=True, text=True, timeout=180,
+                env={**os.environ,
+                     "PATH": f"{fake_dir}:{os.environ['PATH']}"})
+            leg = {"rc": proc.returncode, "stderr": proc.stderr[-200:]}
+            freports = sorted(leg_dir.glob("drill-*.json"))
+            assert freports, (variant, "负例必须落 FAIL 报告工件")
+            frep = json.loads(freports[-1].read_text(encoding="utf-8"))
+            leg["result"] = frep["result"]
+            leg["reason"] = frep.get("reason", "")
+            # 五断言：exit=1 / result=FAIL / reason 点名归档腿 / 零新增 PASS /
+            # 既有 PASS 工件逐字节不变（= 不更新 success）
+            assert leg["rc"] == 1, (variant, leg)
+            assert leg["result"] == "FAIL", (variant, leg)
+            assert leg_markers[variant] in leg["reason"], (variant, leg["reason"])
+            assert all(json.loads(p.read_text(encoding="utf-8"))["result"] == "FAIL"
+                       for p in freports), (variant, "负例报告目录出现 PASS 工件")
+            assert good_outcome.report_path.read_bytes() == pass_bytes, \
+                (variant, "负例不得改写既有 PASS 工件（不更新 success）")
+            # FAIL 报告同样携带作业身份（fail 路径也不丢失可审计性）
+            assert sha_re.fullmatch(
+                frep["identity"]["drill_script_sha256"]), frep["identity"]
+            # jsonl 尾事件 = drill_fail
+            fev = read_events(freports[-1].with_suffix(".jsonl"))
+            assert fev[-1]["event"] == "drill_fail" \
+                and fev[-1]["result"] == "FAIL", (variant, fev[-1])
+            leg_results[variant] = leg
+
+        # 编排层 fail-closed：剥离归档块的 PASS 报告必须被 validate_report 拒绝
+        stripped = json.loads(good_outcome.report_path.read_text(encoding="utf-8"))
+        archive_block = stripped.pop("archive")
+        assert archive_block["materialized"] is True  # 剥离前确属 PASS 合同件
+        try:
+            validate_report(stripped, mode="backup")
+            raise AssertionError("缺归档块的 PASS 报告必须被 fail-closed 拒绝")
+        except ValueError as exc:
+            assert "archive" in str(exc), exc
+        # 同理：identity 块剥离、restore.source 旁路化都必须被拒
+        stripped2 = json.loads(good_outcome.report_path.read_text(encoding="utf-8"))
+        stripped2.pop("identity")
+        try:
+            validate_report(stripped2, mode="backup")
+            raise AssertionError("缺身份块的 PASS 报告必须被 fail-closed 拒绝")
+        except ValueError as exc:
+            assert "identity" in str(exc), exc
+        stripped3 = json.loads(good_outcome.report_path.read_text(encoding="utf-8"))
+        stripped3["steps"]["restore"]["source"] = "backup-dir"
+        try:
+            validate_report(stripped3, mode="backup")
+            raise AssertionError("restore.source 非 archive 必须被 fail-closed 拒绝")
+        except ValueError as exc:
+            assert "archive" in str(exc), exc
+
+    _record("BAK-02",
+            f"五负例全 fail-closed（G9-09/R8-BAK-FAKE-TAR-SUCCESS-019 收口）："
+            f"伪 tar 双 rc0 谎报（不产归档+伪清单）/旧 archive 复用（同名旧字节）/"
+            f"symlink 归档（内容正确的合法 tarball 目标）/截断 archive（40%）/"
+            f"伪 listing 内容缺失（1/N 文件+全量伪清单）五腿全部 exit=1+result=FAIL"
+            f"+reason 点名归档腿（not materialized/extract reconcile/extraction "
+            f"failed）+负例目录零 PASS 工件+既有 PASS 工件逐字节不变（不更新 "
+            f"last-success）；FAIL 报告仍携作业身份；编排层对剥离 archive/identity "
+            f"块或 restore.source 旁路化的 PASS 报告 fail-closed 拒绝")
 
 
 def test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets():
