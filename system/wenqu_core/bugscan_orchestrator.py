@@ -118,6 +118,9 @@ __all__ = [
     "replay_manifest_semantics",
     "CONVERGENCE_ROUNDS_MIN",
     "CONVERGENCE_ROUNDS_MAX",
+    "KEY_PURPOSE_MANIFEST",
+    "KEY_PURPOSE_REGISTRY",
+    "DEFAULT_REQUIRED_SCOPE_GLOBS",
     "TRACKER_STATE_RUNNING",
     "TRACKER_STATE_CONVERGED",
     "TRACKER_STATE_BLOCKED",
@@ -205,6 +208,22 @@ SOURCE_GATE_EXIT_CODE_MAPPING: Dict[int, Tuple[str, str]] = {
 
 #: 降档不可移除的底线站（规范 §1：站 0 与收敛环不可省；PR 档最小集=0+1）。
 DOWNGRADE_FLOOR_STATIONS: FrozenSet[int] = frozenset({0, 1})
+
+#: G9-06（第九轮预检 1.4-1/R8-GATE-LANE-REQ-001·TTL-002·SCOPE-003）key 用途域。
+#: registry 快照签名 key 与 manifest 签名 key 分域：manifest 域 key 不得签
+#: registry 快照、registry 域 key 不得签 manifest（keyring meta ``purposes``
+#: 登记面 opt-in）；**同钥双签无条件拒绝**——registry 快照与 manifest 由同一
+#: key 签发时，registry 不是独立语义根（持钥者可同步弱化两者后重签）。
+KEY_PURPOSE_MANIFEST = "manifest"
+KEY_PURPOSE_REGISTRY = "registry"
+
+#: G9-06（R8-GATE-SCOPE-HASH-003 残余：scope 语义域无独立根）registry 锚定的
+#: 必需扫描范围底线——manifest scope.paths 必须覆盖全部底线 glob（超集合法，
+#: 缩水违例）。此前端 8 修法只保证「scope_hash 与 scope 内容自洽」，持钥者
+#: 把 scope 缩到 ["src/**"] 重算 hash 重签即合法外观通过；scope 底线入
+#: registry 快照后，缩 scope 必须同步弱化 registry——落回同钥双改执法面。
+DEFAULT_REQUIRED_SCOPE_GLOBS: Tuple[str, ...] = ("src/**", "tests/**",
+                                                 "tools/**")
 
 #: 风险接受记录日落窗口（规范 §6 豁免纪律：30 天日落失效）。
 RISK_ACCEPTANCE_MAX_DAYS = 30
@@ -1035,8 +1054,16 @@ class RunManifest:
           降级）；signature/key_id 残缺、key 未登记、key 已吊销、HMAC
           不符一律 ManifestFreezeError（fail-closed——重算 manifest_hash
           洗不掉签名，无密钥不可伪造）。
-        - keyring 缺省：hash 复核即全部信任根（legacy 口径；正门验签由
-          CLI --verify-key 强制，见 wenquctl gate）。
+        - **已签 artifact 永远必须验签（G9-06 / R8-GATE-ALLOW-UNSIGNED-
+          METADATA-004）**：doc 携带 signature/key_id 任一字段而 keyring
+          缺省 → ManifestFreezeError——``--allow-unsigned`` 只容忍真正
+          unsigned 诊断件，绝不容忍「有签却跳过验签」（旧口径曾以
+          signed=true/verified=false 的误导性元数据放行 rc0）。
+        - keyring 缺省且件真 unsigned：hash 复核即全部信任根（legacy
+          口径；正门验签由 CLI --verify-key 强制，见 wenquctl gate）。
+        - key 用途分域（G9-06，登记面 opt-in）：签发 key 登记 purposes
+          且不含 ``manifest`` 域 → ManifestFreezeError（registry 域 key
+          不得签 manifest——分域混用拒绝）。
         """
         raw = Path(path).read_bytes()
         data = json.loads(raw.decode("utf-8"))
@@ -1079,6 +1106,27 @@ class RunManifest:
                         "AUTH-001：内容与签发时不符或 key 已吊销——冻结件"
                         "被篡改/伪造）"
                     )
+                # G9-06 用途分域（登记面 opt-in）：registry 域 key 不得签
+                # manifest——分域混用拒绝。
+                purposes = keyring.key_purposes(key_id)
+                if purposes is not None \
+                        and KEY_PURPOSE_MANIFEST not in purposes:
+                    raise ManifestFreezeError(
+                        f"{path}: manifest 签名 key_id {key_id!r} purposes="
+                        f"{list(purposes)} 不含 {KEY_PURPOSE_MANIFEST!r}——"
+                        "用途域混用拒绝（G9-06：registry 域 key 不得签 manifest）"
+                    )
+        elif signature is not None or key_id is not None:
+            # G9-06 / R8-GATE-ALLOW-UNSIGNED-METADATA-004：已签 artifact 检测到
+            # signature/key_id 任一字段却缺 verify key → 拒（即使显式
+            # allow_unsigned——它只容忍真正 unsigned 诊断件）。
+            raise ManifestFreezeError(
+                f"{path}: manifest 携带签名字段（signature={signature!r}, "
+                f"key_id={key_id!r}）却未提供验签 keyring——已签 artifact "
+                "永远必须验签（G9-06：--allow-unsigned 仅适用于真正 unsigned "
+                "诊断件，不得跳过验签后以 signed=true/verified=false 的"
+                "误导性元数据上绿）"
+            )
         return cls._from_verified_dict(data)
 
     @classmethod
@@ -1350,6 +1398,15 @@ def freeze_run_manifest(
             raise ManifestFreezeError(
                 f"manifest 签发 key 不可用（{resolved_key_id!r}）: {exc}"
             ) from exc
+        # G9-06 用途分域（签发面）：key 登记 purposes 且不含 manifest 域 →
+        # 拒签（registry 域 key 不得签 manifest——分域混用 fail-closed）。
+        purposes = signing_keyring.key_purposes(resolved_key_id)
+        if purposes is not None and KEY_PURPOSE_MANIFEST not in purposes:
+            raise ManifestFreezeError(
+                f"manifest 签发 key 用途域不符（{resolved_key_id!r} "
+                f"purposes={list(purposes)} 不含 {KEY_PURPOSE_MANIFEST!r}）"
+                "——registry 域 key 不得签 manifest（G9-06 分域混用拒绝）"
+            )
 
     if resolved_key_id is not None:
         # 签名覆盖 key_id 外全部内容；manifest_hash 覆盖含签名的整体。
@@ -1529,6 +1586,8 @@ class TrustedRegistryView:
     lane_convergence_rounds: Dict[str, int]
     ttl_days: Dict[int, int]
     downgrade_floor_stations: FrozenSet[int]
+    #: G9-06：registry 锚定的必需扫描范围底线（scope 语义域正源）。
+    required_scope_globs: Tuple[str, ...]
     source: str = "code_anchored"
 
     def lane_required(self, lane: str) -> Tuple[int, ...]:
@@ -1571,6 +1630,7 @@ def live_registry_view(
         lane_convergence_rounds=dict(LANE_CONVERGENCE_ROUNDS),
         ttl_days={i: reg.ttl_for(i) for i in range(8)},
         downgrade_floor_stations=DOWNGRADE_FLOOR_STATIONS,
+        required_scope_globs=tuple(DEFAULT_REQUIRED_SCOPE_GLOBS),
         source="code_anchored",
     )
 
@@ -1578,11 +1638,15 @@ def live_registry_view(
 def registry_snapshot_core(
     registry: Optional[StationRegistry] = None,
 ) -> Dict[str, Any]:
-    """受保护快照的被签主体：站定义 + lane 表 + 收敛轮数 + 降档底线 + digest。
+    """受保护快照的被签主体：站定义 + lane 表 + 收敛轮数 + 降档底线 +
+    scope 底线 + digest。
 
     ``registry_digest`` 与 ``StationRegistry.registry_digest()`` 同算法
     （sha256(canonical({registry_version, stations}))）——快照与代码锚定
-    两个信任根对同一 registry 必然给出同一 digest。
+    两个信任根对同一 registry 必然给出同一 digest。scope 底线
+    （G9-06）入签主体：弱化 scope 底线必然要求重签快照——与 manifest
+    同钥时被同钥双签拒绝，异钥时属 registry 根持有者职权（keyholder=root
+    边界），不再是无锚自由面。
     """
     reg = registry or default_registry()
     snap = reg.snapshot()
@@ -1595,6 +1659,7 @@ def registry_snapshot_core(
         },
         "lane_convergence_rounds": dict(LANE_CONVERGENCE_ROUNDS),
         "downgrade_floor_stations": sorted(DOWNGRADE_FLOOR_STATIONS),
+        "required_scope_globs": list(DEFAULT_REQUIRED_SCOPE_GLOBS),
         "registry_digest": reg.registry_digest(),
     }
 
@@ -1635,6 +1700,16 @@ def signed_registry_snapshot(
         raise RegistryTrustError(
             f"registry 快照签发 key 不可用（{resolved!r}）: {exc}"
         ) from exc
+    # G9-06 用途分域（签发面）：key 登记 purposes 且不含 registry 域 → 拒签
+    # （manifest 域专用 key 不得签 registry 快照——分域混用 fail-closed；
+    # 未登记 purposes 的存量 key 不受限，opt-in 与 actors 登记面同型）。
+    purposes = signing_keyring.key_purposes(resolved)
+    if purposes is not None and KEY_PURPOSE_REGISTRY not in purposes:
+        raise RegistryTrustError(
+            f"registry 快照签发 key 用途域不符（{resolved!r} purposes="
+            f"{list(purposes)} 不含 {KEY_PURPOSE_REGISTRY!r}）——"
+            "manifest 域 key 不得签 registry 快照（G9-06 分域混用拒绝）"
+        )
     core = registry_snapshot_core(registry)
     signature = sign_envelope(secret, {**core, "key_id": resolved})
     return {**core, "key_id": resolved, "signature": signature}
@@ -1644,6 +1719,7 @@ def load_trusted_registry_snapshot(
     path: str | os.PathLike[str],
     *,
     keyring: ApprovalKeyring,
+    manifest_key_id: Optional[str] = None,
 ) -> TrustedRegistryView:
     """读回并验证受保护 registry 快照 → TrustedRegistryView（fail-closed）。
 
@@ -1651,10 +1727,17 @@ def load_trusted_registry_snapshot(
     1. JSON 对象 + snapshot_kind 常量；
     2. signature/key_id 成对，key 在验签 keyring 登记，HMAC 验签通过
        （revoked 验签即拒——approval_keys 语义）；
-    3. registry_digest == sha256(canonical({registry_version, stations}))
+    3. **同钥双签拒绝（G9-06，无条件）**：``manifest_key_id`` 给定且与快照
+       key_id 相同 → 拒——registry 快照与 manifest 由同一 key 签发时，
+       registry 不是独立语义根（持钥者可同步弱化两者后重签，R8-GATE
+       LANE-REQ-001/TTL-SEMANTICS-002/SCOPE-HASH-003 预检残余）；
+    4. **用途分域（G9-06，登记面 opt-in）**：key 登记 purposes 且不含
+       ``registry`` 域 → 拒（manifest 域 key 不得签快照）；
+    5. registry_digest == sha256(canonical({registry_version, stations}))
        重算（不信快照自报 digest）；
-    4. 结构完整：站 0..7 齐全、TTL 在铁律 4 双上限内、lane 表覆盖全部
-       三档且非空、降档底线 ⊆ 每档 required 集、收敛轮数 1..MAX。
+    6. 结构完整：站 0..7 齐全、TTL 在铁律 4 双上限内、lane 表覆盖全部
+       三档且非空、降档底线 ⊆ 每档 required 集、收敛轮数 1..MAX、
+       scope 底线非空且全为合法 glob。
     """
     if not isinstance(keyring, ApprovalKeyring):
         raise RegistryTrustError(
@@ -1687,6 +1770,23 @@ def load_trusted_registry_snapshot(
         raise RegistryTrustError(
             f"{path}: registry snapshot key_id {key_id!r} 未在验签 keyring "
             "登记（未知 key——fail-closed 拒绝）"
+        )
+    # G9-06 同钥双签拒绝（无条件——不依赖 purposes 登记面）：manifest 与
+    # registry 快照同一 key 签发 = registry 非独立语义根，整体拒绝。
+    if manifest_key_id is not None and key_id == manifest_key_id:
+        raise RegistryTrustError(
+            f"{path}: registry 快照与 manifest 由同一 key 签发"
+            f"（key_id={key_id!r}）——同钥双签不构成独立语义根"
+            "（G9-06：持钥者可同步弱化 registry 与 manifest 后重签；"
+            "registry 快照必须由与 manifest 签名 key 相异的 key 签发）"
+        )
+    # G9-06 用途分域（登记面 opt-in）：manifest 域 key 不得签 registry 快照。
+    purposes = keyring.key_purposes(key_id)
+    if purposes is not None and KEY_PURPOSE_REGISTRY not in purposes:
+        raise RegistryTrustError(
+            f"{path}: registry snapshot key_id {key_id!r} purposes="
+            f"{list(purposes)} 不含 {KEY_PURPOSE_REGISTRY!r}——"
+            "用途域混用拒绝（G9-06：manifest 域 key 不得签 registry 快照）"
         )
     if not keyring.verify(doc):
         raise RegistryTrustError(
@@ -1781,6 +1881,23 @@ def load_trusted_registry_snapshot(
             )
         parsed_rounds[lane] = value
 
+    # G9-06 scope 底线：非空、去重、全为非空 glob 字符串（无底线=scope
+    # 语义域无锚——快照必须锚定最小扫描范围）。
+    floor_globs_raw = doc.get("required_scope_globs")
+    if (not isinstance(floor_globs_raw, (list, tuple)) or not floor_globs_raw
+            or not all(isinstance(g, str) and g.strip()
+                       for g in floor_globs_raw)):
+        raise RegistryTrustError(
+            f"{path}: required_scope_globs must be a non-empty list of "
+            "non-empty scope globs（G9-06：scope 语义域必须锚定在 registry"
+            "——无底线的注册表不得作为重放正源）"
+        )
+    if len(set(floor_globs_raw)) != len(list(floor_globs_raw)):
+        raise RegistryTrustError(
+            f"{path}: required_scope_globs must be unique（去重底线）"
+        )
+    floor_globs = tuple(sorted(floor_globs_raw))
+
     return TrustedRegistryView(
         registry_version=version,
         registry_digest=recomputed,
@@ -1788,6 +1905,7 @@ def load_trusted_registry_snapshot(
         lane_convergence_rounds=parsed_rounds,
         ttl_days=ttl_days,
         downgrade_floor_stations=floor,
+        required_scope_globs=floor_globs,
         source="signed_snapshot",
     )
 
@@ -1817,7 +1935,10 @@ def replay_manifest_semantics(
     5. 收敛轮数域：>= lane 契约轮数且 <= 全局上限；
     6. scope hash 实算：identity.scope_hash 必须 == sha256(canonical(
        {paths, exclusions})) 从 scope 内容重算——不信字段自报
-       （R8-GATE-SCOPE-HASH-003 scope 面）。
+       （R8-GATE-SCOPE-HASH-003 scope 面）；
+    7. scope 底线（G9-06）：scope.paths 必须覆盖 registry 必需范围底线
+       ``required_scope_globs``（超集合法，缩水违例）——scope 语义域锚定
+       受保护 registry，缩 scope 必然要求弱化 registry（落回同钥双改面）。
 
     本函数只判定不抛错（畸形形状计违例）；station 结果级 freshness
     （ended_at+TTL ≥ gate 时点）在 gate_aggregator 执行（需逐站结果）。
@@ -1983,6 +2104,15 @@ def replay_manifest_semantics(
                 _err("scope_hash_recompute_mismatch: identity.scope_hash 自报 "
                      f"{str(claimed_hash)[:16]}… != scope 内容实算 "
                      f"{recomputed[:16]}…（scope 漂移/谎报 hash 都拒）")
+            # G9-06（R8-GATE-SCOPE-HASH-003 残余）：scope 语义域锚定 registry——
+            # manifest scope 必须覆盖 registry 必需范围底线（超集合法）。此前
+            # 只有「hash 与内容自洽」，持钥者缩 scope 重算 hash 重签即合法通过。
+            missing = [g for g in view.required_scope_globs
+                       if g not in set(paths)]
+            if missing:
+                _err(f"scope_floor_violation: manifest scope 缺少 registry "
+                     f"必需范围底线 {missing}（scope 语义域正源在受保护 "
+                     "registry——缩水 scope 不得按自报口径上绿；G9-06）")
 
     return issues
 

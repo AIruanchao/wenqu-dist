@@ -616,6 +616,15 @@ def cmd_gate(args: argparse.Namespace) -> int:
     execution.ended_at + registry TTL ≥ gate 调用时点，过期/不可解析
     evidence_ttl_violation 并整线 BLOCKED。
 
+    同钥双改与 unsigned 边界（G9-06，第九轮预检 1.4-1/R8-GATE-ALLOW-
+    UNSIGNED-METADATA-004）：--registry 快照必须由与 manifest 签名 key
+    **相异**的 key 签发（同钥双签=registry 非独立语义根，lane 缩水/
+    TTL 放宽/scope 缩水/降档拆底线的「同钥双改」一律 ERROR(3)）；key
+    用途分域（keyring meta ``purposes`` 登记面）同步执法。已签 artifact
+    永远必须验签——检测到 signature 字段却缺 --verify-key 时 ERROR(3)
+    （--allow-unsigned 不得跳过验签）；--allow-unsigned 仅适用于真正
+    unsigned 诊断件，且其结论只能是 BLOCKED/NOT_EVALUATED，永不 PASS。
+
     无 manifest 裸调用默认拒绝（exit 3）：required/coverage 自报不具上绿
     效力背书，必须显式 --allow-self-declared（仅诊断用途）。
 
@@ -704,14 +713,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
         if args.registry:
             assert manifest_keyring is not None  # 上方 flag_conflict 已保证
             try:
+                # G9-06 同钥双签拒绝：快照 key 必须与 manifest 签名 key 相异
+                # （同钥双改=registry 非独立语义根，无条件 rc3 拒绝）；key
+                # 用途分域（purposes 登记面）同步执法。
                 trusted_registry = load_trusted_registry_snapshot(
-                    args.registry, keyring=manifest_keyring)
+                    args.registry, keyring=manifest_keyring,
+                    manifest_key_id=manifest.key_id)
             except (RegistryTrustError, OSError, ValueError,
                     KeyError, TypeError) as exc:
                 return _gate_error_json(
                     f"--registry 快照不可信/不可用 ({args.registry}): "
-                    f"{str(exc)[:200]}（R8 registry 可信根：验签/digest 重算/"
-                    "结构完整缺一不可）",
+                    f"{str(exc)[:240]}（G9-06：registry 快照必须由与 "
+                    "manifest 签名 key 相异的 key 签发——同钥双改"
+                    "（lane 缩水/TTL 放宽/scope 缩水/降档拆底线）不是"
+                    "独立语义根，一律拒绝）",
                     mode="registry_trust_invalid",
                     inputs={"paths": 0, "docs": 0, "load_errors": 0,
                             "schema_invalid": 0})
@@ -966,6 +981,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
         result["reasons"] = [reason_s] + list(result.get("reasons", []))
         result["reason"] = reason_s
 
+    # 7d. unsigned 诊断件永不 PASS（G9-06 / R8-GATE-ALLOW-UNSIGNED-
+    #     METADATA-004 残余）：显式 --allow-unsigned 只容忍真正 unsigned 的
+    #     诊断件（已签 artifact 缺 verify key 已在 load 层 rc3 拒绝），且其
+    #     结论只能是 BLOCKED/NOT_EVALUATED——无信任根背书的冻结件绝不上绿。
+    if manifest_unsigned_downgrade:
+        result["aggregate_outcome"] = BLOCKED
+        result["policy_verdict"] = "NOT_EVALUATED"
+        result["technical_eligible"] = False
+        reason_u = ("unsigned_manifest_never_pass: manifest 无签名"
+                    "（--allow-unsigned 诊断口径）——无信任根背书的冻结件"
+                    "结论只能是 BLOCKED/NOT_EVALUATED，永不 PASS（G9-06）")
+        result["reasons"] = [reason_u] + list(result.get("reasons", []))
+        result["reason"] = reason_u
+
     result["inputs"] = {
         "paths": len(paths),
         "docs": len(docs),
@@ -1124,18 +1153,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--registry", default=None, metavar="PATH",
                    help="受保护 registry 快照 JSON（signed_registry_snapshot "
                         "产物）——R8 语义重放信任根：gate 用它重放 manifest "
-                        "的 lane/required/TTL/降档并实算 scope hash（manifest "
-                        "自报 registry digest 不再采信）。给定则必须经 "
-                        "--verify-key 验签通过（HMAC+digest 重算+结构完整，"
-                        "否则 ERROR(3)）；缺省=运行中 CLI 代码锚定的 "
-                        "default_registry()（生产=immutable ~/.wenqu/current/"
-                        "system 内同一份）；与 --manifest 搭配、需 --verify-key")
+                        "的 lane/required/TTL/降档/scope 底线并实算 scope "
+                        "hash（manifest 自报 registry digest 不再采信）。给定"
+                        "则必须经 --verify-key 验签通过（HMAC+digest 重算+"
+                        "结构完整，否则 ERROR(3)），且快照签名 key 必须与 "
+                        "manifest 签名 key 相异（G9-06：同钥双改=registry 非"
+                        "独立语义根，一律 ERROR(3)）；缺省=运行中 CLI 代码锚定"
+                        "的 default_registry()（生产=immutable ~/.wenqu/"
+                        "current/system 内同一份）；与 --manifest 搭配、需 "
+                        "--verify-key")
     p.add_argument("--allow-unsigned", dest="allow_unsigned",
                    action="store_true",
-                   help="仅诊断用途：显式接受无签名 manifest（默认拒——"
-                        "无信任根的冻结件不具上绿效力背书；生产判定必须 "
-                        "--verify-key 验签。一致性校验仍强制：顶层与 planner "
-                        "的 required/TTL/scope/分母不一致照样 BLOCKED）")
+                   help="仅诊断用途：显式接受**真正无签名**的 manifest"
+                        "（默认拒——无信任根的冻结件不具上绿效力背书；"
+                        "已签 artifact 检测到 signature 却缺 --verify-key "
+                        "一律 ERROR(3)——G9-06：--allow-unsigned 不得跳过"
+                        "验签）。诊断件结论只能是 BLOCKED/NOT_EVALUATED，"
+                        "永不 PASS；一致性校验仍强制：顶层与 planner 的 "
+                        "required/TTL/scope/分母不一致照样 BLOCKED）")
     p.add_argument("--allow-self-declared", dest="allow_self_declared",
                    action="store_true",
                    help="仅诊断用途：显式承认无 manifest 的自报模式（required "

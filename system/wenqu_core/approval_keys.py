@@ -70,6 +70,12 @@ R8-SIGNER-PRINCIPAL-004（Codex 第八轮 P0-2 残余③）：key 元数据新�
 登记面供消费端执法：envelope.actor 必须 ∈ 签名 key 的 actors（同一 actor
 不能冒用两把不属于他的 key 凑联签）；未登记 actors 的存量 key 不受限
 （诚实边界：登记面是 opt-in，CLI ``keys create`` 未接线属后续工作项）。
+
+G9-06（第九轮预检 1.4-1：同钥双签非独立语义根）：key 元数据新增
+``purposes`` 用途分域登记字段（如 ``["manifest"]``/``["registry"]``）——
+``ApprovalKeyring.key_purposes`` 暴露登记面，供 registry 快照/manifest
+验签端执法「签名 key 分域、不得混用」；未登记的存量 key 不受用途限制
+（opt-in，与 actors 同型；同钥双签拒绝在消费端无条件执法、不依赖登记面）。
 """
 
 from __future__ import annotations
@@ -362,7 +368,8 @@ class ApprovalKeyring:
         if not isinstance(meta, Mapping):
             raise ValueError(f"key meta for {key_id!r} must be an object")
         allowed = {"status", "created_at", "rotated_at", "rotated_to",
-                   "revoked_at", "expiry", "description", "owner", "actors"}
+                   "revoked_at", "expiry", "description", "owner", "actors",
+                   "purposes"}
         stray = sorted(set(meta) - allowed)
         if stray:
             raise ValueError(
@@ -410,6 +417,24 @@ class ApprovalKeyring:
             raise ValueError(
                 f"key meta owner for {key_id!r} ({normalized['owner']!r}) "
                 "must appear in actors（登记面自洽）")
+        # G9-06（R8-GATE 预检 1.4-1：同钥双签非独立语义根）：key 用途分域
+        # 登记面——签发时登记该 key 可用于哪些用途域（如 manifest/registry），
+        # 消费端据以执法「registry 快照 key 与 manifest key 不得同钥/混用」。
+        # 未登记 purposes 的存量 key 不受限（opt-in——与 actors 登记面同型）。
+        if "purposes" in meta:
+            purposes = meta["purposes"]
+            purpose_re = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+            if (not isinstance(purposes, (list, tuple)) or not purposes
+                    or not all(isinstance(p, str) and purpose_re.fullmatch(p)
+                               for p in purposes)):
+                raise ValueError(
+                    f"key meta purposes for {key_id!r} must be a non-empty "
+                    "list of purpose tokens（^[a-z][a-z0-9_-]{0,31}$，"
+                    "如 [\"manifest\"]/[\"registry\"]——用途分域登记面）")
+            if len(set(purposes)) != len(list(purposes)):
+                raise ValueError(
+                    f"key meta purposes for {key_id!r} must be unique")
+            normalized["purposes"] = list(purposes)
         if normalized["status"] == KEY_STATUS_ROTATED and \
                 not normalized.get("rotated_at"):
             raise ValueError(
@@ -576,6 +601,24 @@ class ApprovalKeyring:
         if actors is None:
             return None
         return tuple(actors)
+
+    def key_purposes(self, key_id: str) -> Optional[Tuple[str, ...]]:
+        """key 的用途分域登记面（meta.purposes）；未登记返回 ``None``。
+
+        G9-06（同钥双签非独立语义根）：登记面供消费端执法
+        「registry 快照签名 key 与 manifest 签名 key 分域」——例如
+        manifest 域 key 不得签 registry 快照、registry 域 key 不得签
+        manifest。未登记 purposes 的存量 key 不受用途限制（opt-in——
+        与 actors 登记面同型；同钥双签拒绝不依赖登记面，无条件执法）。
+        """
+        if key_id not in self._keys:
+            raise KeyNotFoundError(
+                f"key_id {key_id!r} not registered in keyring "
+                f"(known: {sorted(self._keys)})") from None
+        purposes = self._meta.get(key_id, {}).get("purposes")
+        if purposes is None:
+            return None
+        return tuple(purposes)
 
     def _record_principal_rejection(self, key_id: str,
                                     approval: Mapping[str, Any],
