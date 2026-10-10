@@ -950,8 +950,65 @@ def qualify_identity(repo_info):
     return False, ["repo_identity_missing"]
 
 
+def qualify_against_window(doc, manifest):
+    """样本×窗口资格判定（T2 fail-closed，R9-OBS-T0-QUALIFICATION-002）。
+
+    在 identity/provenance 之外追加（任一不满足 → 不合格，理由入
+    unqualified_reasons，收割器与采样器共用本单一正源）：
+      - health 面可核：legacy_health.status==200 且 json 可解析；
+      - health.target_sha 为 40hex 非零，且 == 窗口 sfinal（digests 正源）；
+      - health scope 非 self_declared（scope_binding.mode / mode 双查）；
+      - capacity gate 非 BLOCKED/CRITICAL 且必须为 OPEN（缺=不可核）；
+      - release_sha == 窗口 sfinal；
+      - observer_sha == 窗口 digests.observer。
+    窗口自身缺 sfinal/observer（旧无效窗）时对应匹配项按不可核处理，
+    绝不放行。返回 (qualified, reasons)。"""
+    reasons = []
+    if not isinstance(manifest, dict):
+        return False, ["manifest_unavailable"]
+    digests = manifest.get("digests")
+    digests = digests if isinstance(digests, dict) else {}
+    sfinal = digests.get("sfinal") or manifest.get("sfinal")
+    lh = doc.get("legacy_health")
+    if not (isinstance(lh, dict) and lh.get("status") == 200
+            and isinstance(lh.get("json"), dict)):
+        reasons.append("health_unverifiable")
+    else:
+        hj = lh["json"]
+        tgt = hj.get("target_sha")
+        if not (isinstance(tgt, str) and SHA1_RE.match(tgt) and tgt != "0" * 40):
+            reasons.append("health_target_sha_invalid")
+        elif sfinal and tgt != sfinal:
+            reasons.append("health_target_sha_mismatch")
+        scope = (hj.get("scope_binding", {}).get("mode")
+                 if isinstance(hj.get("scope_binding"), dict)
+                 else hj.get("scope_mode"))
+        mode = hj.get("mode")
+        if (isinstance(scope, str) and "self_declared" in scope.lower()) \
+                or (isinstance(mode, str) and "self_declared" in mode.lower()):
+            reasons.append("health_scope_self_declared")
+    cg = doc.get("capacity_gate")
+    if not isinstance(cg, dict):
+        reasons.append("capacity_unverifiable")
+    else:
+        gate = cg.get("capacity_gate")
+        if gate in ("BLOCKED", "CRITICAL") or cg.get("severity") == "CRITICAL":
+            reasons.append("capacity_blocked")
+        elif gate != "OPEN":
+            reasons.append("capacity_not_open")
+    if sfinal and doc.get("release_sha") != sfinal:
+        reasons.append("release_sha_window_mismatch")
+    if digests.get("observer") and doc.get("observer_sha") != digests["observer"]:
+        reasons.append("observer_sha_window_mismatch")
+    return (not reasons), reasons
+
+
 def _resolve_window(root, now_dt):
-    """（须持链锁）取当前活跃 manifest；过期 open 窗懒封口；无则 auto-open。"""
+    """（须持链锁）取当前活跃 manifest；过期 open 窗懒封口；无则 auto-open。
+
+    T2 收紧：auto-open 必须从受管环境拿到十项前置
+    （WENQU_WINDOW_PREREQS_JSON/FILE）；缺/坏 → WindowPrereqError →
+    采样 fail-visible rc3——绝不再出现 sfinal=null 起钟的窗口。"""
     docs, _ = wm.load_manifests(root)
     for m in docs:
         if m.get("status") != "open":
@@ -965,7 +1022,11 @@ def _resolve_window(root, now_dt):
     m = wm.active_manifest(root, now=now_dt)  # 歧义 → WindowAmbiguityError
     if m is not None:
         return m
-    return wm.open_window(root, now=now_dt)
+    prereqs, pfail = wm.prerequisites_from_env()
+    if pfail:
+        raise wm.WindowPrereqError(
+            "auto-open refused (T0 ten prerequisites): %s" % "; ".join(pfail))
+    return wm.open_window(root, now=now_dt, prerequisites=prereqs)
 
 
 def record_sample(root, core, *, identity=None, release_sha=None,
@@ -1028,9 +1089,18 @@ def record_sample(root, core, *, identity=None, release_sha=None,
                 "release_sha": rel,
                 "observer_sha": observer_sha(),
                 "scheduler_config_sha": scs,
-                "qualified": qualified,
-                "qualify_failures": failures,
             })
+            # T2 fail-closed：identity/provenance 之外追加窗口资格判定
+            # （health target_sha==sfinal 非零非 self_declared / capacity
+            # 非 BLOCKED / release·observer 与窗口咬合）；任一不满足=
+            # qualified=false 且理由显式入 qualify_failures。
+            qualified = bool(qualified)
+            w_ok, w_reasons = qualify_against_window(doc, manifest)
+            if not w_ok:
+                qualified = False
+                failures = list(failures) + w_reasons
+            doc["qualified"] = qualified
+            doc["qualify_failures"] = failures
             doc["sample_sha256"] = compute_sample_sha256(doc)
             res = write_sample_exclusive(sdir, doc,
                                          kind="sample_create_failed")
@@ -1039,7 +1109,8 @@ def record_sample(root, core, *, identity=None, release_sha=None,
                 return {"rc": 1, "path": None, "doc": doc,
                         "manifest": manifest, "qualified": qualified,
                         "qualify_failures": failures, "error": res["error"]}
-            if head_seq == 0:
+            # T0 只锚定首条【合格】样本（不合格样本不推进窗口起点）
+            if head_seq == 0 and qualified:
                 try:
                     manifest = wm.note_first_sample(
                         root, manifest,
