@@ -121,6 +121,10 @@ __all__ = [
     "KEY_PURPOSE_MANIFEST",
     "KEY_PURPOSE_REGISTRY",
     "DEFAULT_REQUIRED_SCOPE_GLOBS",
+    "AUTHORIZATION_JOINABLE_STATIONS",
+    "REJECT_SHA_ZEROS",
+    "BugscanOrchestrator",
+    "OrchestratorDispatchError",
     "TRACKER_STATE_RUNNING",
     "TRACKER_STATE_CONVERGED",
     "TRACKER_STATE_BLOCKED",
@@ -140,7 +144,11 @@ __all__ = [
     "StationResultValidationError",
 ]
 
-__version__ = "1.0.0"
+#: T-3（wq9 §1 硬阻断 6/§9 P0-3 根修）：新增 BugscanOrchestrator 生产
+#: run/dispatch 链路（站0-7 全站 dispatch）、授权加站通道
+#: （plan(station5_authorization=…)：站5 加入 required 的唯一合法通道）、
+#: manifest 逐站分母冻结（station_denominators）与零 SHA 冻结/消费双拒。
+__version__ = "1.1.0"
 
 # ---------------------------------------------------------------------------
 # 契约常量
@@ -208,6 +216,18 @@ SOURCE_GATE_EXIT_CODE_MAPPING: Dict[int, Tuple[str, str]] = {
 
 #: 降档不可移除的底线站（规范 §1：站 0 与收敛环不可省；PR 档最小集=0+1）。
 DOWNGRADE_FLOOR_STATIONS: FrozenSet[int] = frozenset({0, 1})
+
+#: T-3 生产接线（wq9 §1 硬阻断 6 / §9 P0-3）——授权加站通道：不在任何自动档
+#: required 集内、但可凭一次性 exact-scope 授权显式加入 run 的站。当前仅站5
+#: 实弹面（注册表 notes：生产写须所有者明确口令，w6a-1.1.0 起 LiveFireScanner
+#: 真实实现）。加站授权记录与降档记录共用五要素+30 天日落纪律
+#: （RiskAcceptance 先例）；重放面（replay_manifest_semantics）同规则执法。
+AUTHORIZATION_JOINABLE_STATIONS: FrozenSet[int] = frozenset({5})
+
+#: wq9 §1 硬阻断 3——零 SHA（40 个 '0'）不是任何真实 git 对象身份：freeze
+#: 拒绝冻结、gate 正门拒绝消费（现役健康闭环曾以零 SHA 为目标身份产出
+#: self-declared 假绿）。fail-closed，无诊断豁免。
+REJECT_SHA_ZEROS = "0" * 40
 
 #: G9-06（第九轮预检 1.4-1/R8-GATE-LANE-REQ-001·TTL-002·SCOPE-003）key 用途域。
 #: registry 快照签名 key 与 manifest 签名 key 分域：manifest 域 key 不得签
@@ -736,6 +756,99 @@ class RiskAcceptance:
 
 
 # ---------------------------------------------------------------------------
+# 授权加站记录（T-3：站5 实弹授权加入 required 的唯一通道）
+# ---------------------------------------------------------------------------
+
+
+def _validate_addition_record(
+    data: Any,
+    *,
+    now: Optional[datetime] = None,
+    redacted: bool = False,
+) -> Dict[str, Any]:
+    """授权加站记录（站5 实弹授权）五要素结构+30 天日落校验；返回脱敏视图。
+
+    - ``redacted=False``（planner/freeze 面）：消费完整记录
+      （approver/reason/scope/expiry/token 五要素）——token 只留 sha256
+      前 12 位指纹，绝不入 manifest。
+    - ``redacted=True``（replay 面）：消费 manifest 内的脱敏记录
+      （token 字段为 token_fingerprint）——五要素在场性+日落仍可完整执法。
+
+    违例抛 RiskDowngradeError（与降档记录同型——授权/风险记录共用五要素
+    纪律；fail-closed）。扫描时点的完整授权语义执法在 LiveFireScanner
+    （exact-scope/证据越窗/幂等/回基线），本函数只守计划/冻结/重放面。
+    """
+    token_key = "token_fingerprint" if redacted else "token"
+    required_fields = ("approver", "reason", "scope", "expiry", token_key)
+    if not isinstance(data, Mapping):
+        raise RiskDowngradeError(
+            f"station authorization record must be a mapping, got "
+            f"{type(data).__name__}"
+        )
+    missing = [k for k in required_fields if not data.get(k)]
+    if missing:
+        raise RiskDowngradeError(
+            f"station authorization missing required fields: {missing} "
+            "（所有者/理由/范围/到期/一次性口令指纹 缺一不可）"
+        )
+    reason = str(data["reason"])
+    if len(reason.strip()) < 10:
+        raise RiskDowngradeError(
+            f"station authorization reason too short "
+            f"({len(reason.strip())} chars; 须 ≥10 字，对齐 finding-event-v2)"
+        )
+    scope_raw = data["scope"]
+    if isinstance(scope_raw, str):
+        scope_names = [scope_raw]
+    elif isinstance(scope_raw, (list, tuple)):
+        scope_names = list(scope_raw)
+    else:
+        raise RiskDowngradeError(
+            f"station authorization.scope must be a string or list of flow "
+            f"names, got {type(scope_raw).__name__}"
+        )
+    if not scope_names or any(not isinstance(n, str) or not n.strip()
+                              for n in scope_names):
+        raise RiskDowngradeError(
+            "station authorization.scope must contain at least one non-empty "
+            "flow name（空 exact-scope 授权非法）"
+        )
+    if len(set(scope_names)) != len(scope_names):
+        raise RiskDowngradeError(
+            "station authorization.scope contains duplicate flow names"
+        )
+    try:
+        expiry = _parse_iso(str(data["expiry"]),
+                            what="station authorization.expiry")
+    except ValueError as exc:
+        raise RiskDowngradeError(str(exc)) from exc
+    now = now or _utc_now()
+    if expiry <= now:
+        raise RiskDowngradeError(
+            f"station authorization expired at {data['expiry']}"
+            f"（{RISK_ACCEPTANCE_MAX_DAYS}d 日落执法）"
+        )
+    if expiry > now + timedelta(days=RISK_ACCEPTANCE_MAX_DAYS):
+        raise RiskDowngradeError(
+            f"station authorization expiry {data['expiry']} exceeds "
+            f"{RISK_ACCEPTANCE_MAX_DAYS}d sunset window（一次性 exact-scope "
+            "授权不得无限期存续）"
+        )
+    out: Dict[str, Any] = {
+        "approver": str(data["approver"]),
+        "reason": reason,
+        "scope": [str(n).strip() for n in scope_names],
+        "expiry": str(data["expiry"]),
+    }
+    if redacted:
+        out["token_fingerprint"] = str(data[token_key])
+    else:
+        out["token_fingerprint"] = _sha256_hex(
+            str(data[token_key]).encode("utf-8"))[:12]
+    return out
+
+
+# ---------------------------------------------------------------------------
 # BugscanPlanner——风险定级 → required 站集合
 # ---------------------------------------------------------------------------
 
@@ -752,9 +865,16 @@ class BugscanPlan:
     downgrade: Optional[RiskAcceptance]
     dropped_stations: Tuple[int, ...]
     registry_version: str
+    #: T-3 授权加站通道：经一次性 exact-scope 授权显式加入 required 的站
+    #: （⊆ AUTHORIZATION_JOINABLE_STATIONS，当前仅站5）。加站与降档互为
+    #: 镜像——都是「偏离 lane 表」的显式记录通道，缺记录即重放违例。
+    authorized_additions: Tuple[int, ...] = ()
+    #: 站5 实弹授权的脱敏视图（token 只留指纹；正源记录在授权系统/扫描时
+    #: 重新校验，manifest 只冻结审计与重放所需的最小面）。
+    station5_authorization: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out: Dict[str, Any] = {
             "lane_requested": self.lane_requested,
             "lane_effective": self.lane_effective,
             "required_stations": list(self.required_stations),
@@ -765,6 +885,11 @@ class BugscanPlan:
             "dropped_stations": list(self.dropped_stations),
             "registry_version": self.registry_version,
         }
+        if self.authorized_additions:
+            out["authorized_additions"] = list(self.authorized_additions)
+        if self.station5_authorization is not None:
+            out["station5_authorization"] = dict(self.station5_authorization)
+        return out
 
 
 class BugscanPlanner:
@@ -816,6 +941,7 @@ class BugscanPlanner:
         scope_flags: Iterable[str] = (),
         downgrade: Optional[Mapping[str, Any] | RiskAcceptance] = None,
         downgrade_stations: Iterable[int] = (),
+        station5_authorization: Optional[Mapping[str, Any]] = None,
         now: Optional[datetime] = None,
         convergence_rounds: Optional[int] = None,
     ) -> BugscanPlan:
@@ -825,6 +951,10 @@ class BugscanPlanner:
         - downgrade（映射或 RiskAcceptance）+ downgrade_stations → 显式降档：
           记录五要素校验 + 日落校验；站 0/1 不可移除；只能移除生效档
           required 集内的站。
+        - station5_authorization（T-3 授权加站通道）→ 站5 显式加入 required：
+          五要素+30 天日落校验通过才加站（站5 不在任何自动档——注册表
+          notes 语义；无授权记录绝不入 required）。加站后的 required 集与
+          lane 表的偏差由 replay_manifest_semantics 以同一记录重放执法。
         - convergence_rounds（GATE-09）：显式覆盖收敛轮数 N 时必须过
           validate_convergence_rounds 值域检查（int 且 1≤N≤最高档上限、
           且不得低于生效档契约 N——降档收敛是弱化，按参数错误拒绝）；
@@ -870,6 +1000,24 @@ class BugscanPlanner:
                     )
                 dropped.append(station_id)
             base_set -= set(dropped)
+        # T-3 授权加站：记录在场即校验+加站；缺/坏/过期记录一律拒绝
+        # （fail-closed——绝不带着无效授权把站5 写进 required）。
+        additions: Tuple[int, ...] = ()
+        redacted_auth: Optional[Dict[str, Any]] = None
+        if station5_authorization is not None:
+            joinable = [s for s in AUTHORIZATION_JOINABLE_STATIONS
+                        if s not in base_set]
+            if not joinable:
+                raise RiskDowngradeError(
+                    "station5_authorization provided but no joinable station "
+                    f"remains ({sorted(AUTHORIZATION_JOINABLE_STATIONS)} 均已在 "
+                    f"required 集——授权记录与事实不成对)"
+                )
+            redacted_auth = _validate_addition_record(
+                station5_authorization, now=now)
+            additions = tuple(sorted(set(joinable)
+                                     & AUTHORIZATION_JOINABLE_STATIONS))
+            base_set |= set(additions)
         required = tuple(sorted(base_set))
         return BugscanPlan(
             lane_requested=lane,
@@ -881,6 +1029,8 @@ class BugscanPlanner:
             downgrade=acceptance,
             dropped_stations=tuple(dropped),
             registry_version=REGISTRY_VERSION,
+            authorized_additions=additions,
+            station5_authorization=redacted_auth,
         )
 
     # -- 站0 冻结（委托模块级函数，见下） -----------------------------------
@@ -900,6 +1050,7 @@ class BugscanPlanner:
         now: Optional[datetime] = None,
         signing_keyring: Optional[ApprovalKeyring] = None,
         signing_key_id: Optional[str] = None,
+        station_denominators: Optional[Mapping[int, int]] = None,
     ) -> "RunManifest":
         return freeze_run_manifest(
             plan,
@@ -916,6 +1067,7 @@ class BugscanPlanner:
             registry=self._registry,
             signing_keyring=signing_keyring,
             signing_key_id=signing_key_id,
+            station_denominators=station_denominators,
         )
 
 
@@ -959,6 +1111,10 @@ class RunManifest:
     manifest_hash: str
     signature: Optional[str] = None   # R7-GATE-MANIFEST-AUTH-001（HMAC hex）
     key_id: Optional[str] = None      # 签发 key（keyring 验签用）
+    #: T-3 逐站分母冻结（wq9 §9 P0-3「站0–7 非零分母」的冻结面）：各站
+    #: coverage.denominator 的冻结期望值，键==required 集、值≥1。gate 正门
+    #: 以此逐站对账（缺该键的旧 manifest 回退总分母=scope 路径数口径）。
+    station_denominators: Dict[int, int] = field(default_factory=dict)
 
     # -- 序列化 -------------------------------------------------------------
     def to_dict(self) -> Dict[str, Any]:
@@ -992,6 +1148,9 @@ class RunManifest:
             out["identity"]["base_sha"] = self.base_sha
         if self.lockfile_hash is not None:
             out["identity"]["lockfile_hash"] = self.lockfile_hash
+        if self.station_denominators:
+            out["station_denominators"] = {
+                str(k): v for k, v in sorted(self.station_denominators.items())}
         if self.key_id is not None:
             out["key_id"] = self.key_id
         if self.signature is not None:
@@ -1152,6 +1311,11 @@ class RunManifest:
             downgrade=downgrade,
             dropped_stations=tuple(plan_data.get("dropped_stations", ())),
             registry_version=data["registry_version"],
+            authorized_additions=tuple(
+                plan_data.get("authorized_additions", ())),
+            station5_authorization=(
+                dict(plan_data["station5_authorization"])
+                if plan_data.get("station5_authorization") else None),
         )
         return cls(
             run_id=data["run_id"],
@@ -1179,6 +1343,12 @@ class RunManifest:
             manifest_hash=data["manifest_hash"],
             signature=data.get("signature"),
             key_id=data.get("key_id"),
+            # T-3 逐站分母：容缺失读入（旧 manifest 默认空=回退总分母口径），
+            # 篡改/漂移交 validate_manifest_consistency +
+            # replay_manifest_semantics + gate 逐站对账三层执法。
+            station_denominators={
+                int(k): int(v)
+                for k, v in dict(data.get("station_denominators") or {}).items()},
         )
 
     # -- 站0 station-result --------------------------------------------------
@@ -1268,12 +1438,13 @@ def freeze_run_manifest(
     registry: Optional[StationRegistry] = None,
     signing_keyring: Optional[ApprovalKeyring] = None,
     signing_key_id: Optional[str] = None,
+    station_denominators: Optional[Mapping[int, int]] = None,
 ) -> RunManifest:
     """冻结 run-manifest.json 的内容（返回 RunManifest，由调用方 .save() 落盘）。
 
     绑定（不变量 #2/#3）：run_id + commit_sha + environment + scope_hash +
-    ruleset_hash + data_config_hash + required 站集合 + 各站 TTL。
-    run 起跑后任一指纹变化 → 旧证据立即失效，须重新冻结（新 run）。
+    ruleset_hash + data_config_hash + required 站集合 + 各站 TTL。run 起跑后
+    任一指纹变化 → 旧证据立即失效，须重新冻结（新 run）。
 
     签名面（R7-GATE-MANIFEST-AUTH-001）：signing_keyring 给定时以
     release/manifest 专用 key 对 manifest 签发 ``signature``+``key_id``
@@ -1281,6 +1452,13 @@ def freeze_run_manifest(
     的整体内容。key 解析 fail-closed：多 active key 未显式指定
     signing_key_id、key rotated/revoked/expired/未登记一律
     ManifestFreezeError（绝不猜 key、绝不用不可签发态的 key）。
+
+    零 SHA（wq9 §1 硬阻断 3）：commit_sha/base_sha 为 40 个 '0' 一律
+    ManifestFreezeError——零 SHA 不是真实 git 对象身份，不得作为冻结目标。
+
+    逐站分母（T-3，wq9 §9 P0-3）：station_denominators 给定时键必须恰为
+    required 集、值 int≥1（非零分母）；站 0 分母必须等于 scope 路径数
+    （站0 覆盖=范围冻结清单——唯一可推导分母）。
     """
     registry = registry or default_registry()
     if not isinstance(plan, BugscanPlan):
@@ -1299,6 +1477,15 @@ def freeze_run_manifest(
         if isinstance(exc, ManifestFreezeError):
             raise
         raise ManifestFreezeError(str(exc)) from exc
+    if commit_sha == REJECT_SHA_ZEROS:
+        raise ManifestFreezeError(
+            "commit_sha 全零（40×'0'）不是真实 git 对象身份——零 SHA 冻结"
+            "拒绝（wq9 §1 硬阻断 3：现役健康闭环曾以零 SHA 目标产出假绿）"
+        )
+    if base_sha == REJECT_SHA_ZEROS:
+        raise ManifestFreezeError(
+            "base_sha 全零（40×'0'）不是真实 git 对象身份——零 SHA 冻结拒绝"
+        )
     if environment not in ENVIRONMENTS:
         raise ManifestFreezeError(
             f"environment must be one of {ENVIRONMENTS}, got {environment!r}"
@@ -1335,6 +1522,42 @@ def freeze_run_manifest(
         registry.get(station_id)  # 未注册站 → KeyError（fail-closed）
     station_ttls = {i: registry.ttl_for(i) for i in required}
 
+    # T-3 逐站分母：键==required 集、值非零正整数；站0 分母=scope 路径数。
+    denominators: Dict[int, int] = {}
+    if station_denominators is not None:
+        if not isinstance(station_denominators, Mapping):
+            raise ManifestFreezeError(
+                f"station_denominators must be a mapping, got "
+                f"{type(station_denominators).__name__}"
+            )
+        for key, value in station_denominators.items():
+            if isinstance(key, bool) or not isinstance(key, int):
+                raise ManifestFreezeError(
+                    f"station_denominators key must be an int station id, "
+                    f"got {key!r}"
+                )
+            if key not in required:
+                raise ManifestFreezeError(
+                    f"station_denominators key {key} 不在 required 集 "
+                    f"{list(required)}（逐站分母必须恰覆盖 required 站）"
+                )
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ManifestFreezeError(
+                    f"station_denominators[{key}] must be an int >= 1 "
+                    f"(非零分母——wq9 §9 P0-3), got {value!r}"
+                )
+            denominators[key] = value
+        if sorted(denominators) != sorted(required):
+            raise ManifestFreezeError(
+                f"station_denominators 键 {sorted(denominators)} != required 集 "
+                f"{sorted(required)}（缺站分母=分母缺口，冻结非法）"
+            )
+        if denominators.get(0) is not None and denominators[0] != len(paths):
+            raise ManifestFreezeError(
+                f"station_denominators[0]={denominators[0]} != scope 路径数 "
+                f"{len(paths)}（站0 覆盖=范围冻结清单——唯一可推导分母）"
+            )
+
     started = now or _utc_now()
     created_at = _iso_z(started)
     frozen_at = _iso_z(_utc_now())
@@ -1370,6 +1593,9 @@ def freeze_run_manifest(
         body["identity"]["base_sha"] = base_sha
     if lockfile_digest is not None:
         body["identity"]["lockfile_hash"] = lockfile_digest
+    if denominators:
+        body["station_denominators"] = {
+            str(k): v for k, v in sorted(denominators.items())}
 
     # -- 签名面（R7-GATE-MANIFEST-AUTH-001）---------------------------------
     # 签发 key 解析：显式 signing_key_id > 唯一 active key；绝不猜。
@@ -1437,6 +1663,7 @@ def freeze_run_manifest(
         manifest_hash=manifest_hash,
         signature=signature,
         key_id=resolved_key_id,
+        station_denominators=denominators,
     )
 
 
@@ -1506,6 +1733,53 @@ def validate_manifest_consistency(data: Any) -> List[str]:
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 _err(f"station_ttls[{key!r}] must be an int >= 1, got {value!r}")
 
+    # T-3 逐站分母（wq9 §9 P0-3「非零分母」）：键==required 集、值非零正
+    # 整数；站0 分母=scope 路径数（唯一可推导分母）。
+    denoms = data.get("station_denominators")
+    if denoms is not None:
+        if not isinstance(denoms, Mapping):
+            _err(f"station_denominators must be an object, got "
+                 f"{type(denoms).__name__}")
+        else:
+            expected_keys = sorted(str(i) for i in (top_req or []))
+            if sorted(denoms) != expected_keys:
+                _err(f"station_denominators_conflict: keys {sorted(denoms)} "
+                     f"!= required set {expected_keys}（缺站分母=分母缺口）")
+            for key, value in denoms.items():
+                if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                    _err(f"station_denominators[{key!r}] must be an int >= 1 "
+                         f"(非零分母), got {value!r}")
+            scope_map = data.get("scope")
+            if (isinstance(scope_map, Mapping)
+                    and isinstance(scope_map.get("paths"), list)
+                    and denoms.get("0") is not None
+                    and denoms["0"] != len(scope_map["paths"])):
+                _err(f"station_denominators[0]={denoms['0']} != scope 路径数 "
+                     f"{len(scope_map['paths'])}（站0 覆盖=范围冻结清单）")
+
+    # T-3 授权加站（站5）：additions 与授权记录成对、只认可加站集合。
+    if isinstance(planner, Mapping):
+        additions = planner.get("authorized_additions")
+        addition_rec = planner.get("station5_authorization")
+        if additions is not None:
+            if (not isinstance(additions, list) or not additions
+                    or not all(isinstance(a, int) and not isinstance(a, bool)
+                               for a in additions)):
+                _err(f"planner.authorized_additions must be a non-empty list of "
+                     f"station ids, got {additions!r}")
+            else:
+                bad_join = [a for a in additions
+                            if a not in AUTHORIZATION_JOINABLE_STATIONS]
+                if bad_join:
+                    _err(f"authorized_additions_not_joinable: {bad_join} 不在"
+                         f"授权可加站集合 {sorted(AUTHORIZATION_JOINABLE_STATIONS)}")
+                if not isinstance(addition_rec, Mapping):
+                    _err("authorized_addition_record_missing: 加站却无授权"
+                         "记录（加站唯一合法通道缺失）")
+        elif addition_rec is not None:
+            _err("authorized_addition_record_without_additions: 有授权记录"
+                 "却无加站（记录与事实不成对）")
+
     scope = data.get("scope")
     if not isinstance(scope, Mapping):
         _err(f"scope section missing/malformed, got {type(scope).__name__}")
@@ -1533,6 +1807,9 @@ def validate_manifest_consistency(data: Any) -> List[str]:
         sha = identity.get("commit_sha")
         if not isinstance(sha, str) or not _RE_SHA40.match(sha):
             _err("identity.commit_sha must be a 40-char lowercase hex commit SHA")
+        elif sha == REJECT_SHA_ZEROS:
+            _err("identity_commit_sha_zero: 零 SHA（40×'0'）不是真实 git 对象"
+                 "身份（wq9 §1 硬阻断 3——零 SHA 冻结/消费一律拒绝）")
         if identity.get("environment") not in ENVIRONMENTS:
             _err(f"identity.environment must be one of {ENVIRONMENTS}, "
                  f"got {identity.get('environment')!r}")
@@ -2029,9 +2306,44 @@ def replay_manifest_semantics(
                          f"底线站 {sorted(view.downgrade_floor_stations)}"
                          "（站0 范围冻结与站1 源闸任何情况下不可省略）")
 
-    # 4) required 对账（顶层与 planner 都必须等于重放值）-----------------------
+    # 3b) 授权加站重放（T-3：站5 加入 required 的唯一合法通道——与降档
+    #     互为镜像，缺记录/坏记录/过期记录/越集合加站一律违例）。
+    additions_raw = planner.get("authorized_additions")
+    addition_rec = planner.get("station5_authorization")
+    additions: List[int] = []
+    if additions_raw is not None:
+        if (not isinstance(additions_raw, list) or not additions_raw
+                or not all(_int_ok(a) for a in additions_raw)):
+            _err(f"authorized_additions malformed: {additions_raw!r}")
+        else:
+            additions = list(additions_raw)
+    if additions_raw is None and addition_rec is not None:
+        _err("authorized_addition_record_without_additions: 有授权记录却无"
+             "加站（记录与事实不成对）")
+    valid_additions: set = set()
+    if additions:
+        bad_join = [a for a in additions
+                    if a not in AUTHORIZATION_JOINABLE_STATIONS]
+        if bad_join:
+            _err(f"authorized_addition_not_joinable: stations {bad_join} 不在"
+                 f"授权可加站集合 {sorted(AUTHORIZATION_JOINABLE_STATIONS)}"
+                 "（站5 实弹面之外不存在授权加站通道）")
+        if not isinstance(addition_rec, Mapping):
+            _err(f"authorized_addition_record_missing: additions {additions} "
+                 "无授权记录（加站唯一合法通道缺失——T-3 与降档同型执法）")
+        else:
+            try:
+                _validate_addition_record(addition_rec, now=now, redacted=True)
+            except RiskDowngradeError as exc:
+                _err(f"authorized_addition_record_invalid: {exc}")
+            else:
+                valid_additions = (
+                    set(additions) & AUTHORIZATION_JOINABLE_STATIONS)
+
+    # 4) required 对账（顶层与 planner 都必须等于重放值=lane 表−降档+合法加站）
     if base_set is not None:
-        replayed = tuple(sorted(base_set - set(dropped)))
+        replayed = tuple(sorted((base_set - set(dropped))
+                                | valid_additions))
         for field, claimed in (("top-level", data.get("required_stations")),
                                ("planner", planner.get("required_stations"))):
             if not isinstance(claimed, list) or not all(_int_ok(x) for x in claimed):
@@ -2039,9 +2351,18 @@ def replay_manifest_semantics(
                      f"malformed {claimed!r} != registry 推导 "
                      f"{list(replayed)}")
             elif sorted(set(claimed)) != list(replayed):
-                _err(f"required_stations_not_registry_replayed[{field}]: "
-                     f"{sorted(claimed)} != registry 推导 {list(replayed)}"
-                     "（lane 表−合法降档；缩站/加站都不得按自报口径上绿）")
+                extras = sorted(set(claimed) - set(replayed))
+                if extras and set(extras) <= AUTHORIZATION_JOINABLE_STATIONS:
+                    _err(f"authorized_addition_record_missing: required 含 "
+                         f"{extras} 但无授权加站记录（lane 表−合法降档="
+                         f"{list(replayed)}；站5 须凭一次性 exact-scope 授权"
+                         "经 planner.station5_authorization 加入——加站唯一"
+                         "合法通道）")
+                else:
+                    _err(f"required_stations_not_registry_replayed[{field}]: "
+                         f"{sorted(claimed)} != registry 推导 {list(replayed)}"
+                         "（lane 表−合法降档+合法授权加站；缩站/无记录加站都"
+                         "不得按自报口径上绿）")
         # 5) TTL 重放（逐站相等——扩/缩/删/漂移全拒）--------------------------
         ttls_raw = data.get("station_ttls")
         expected_ttls = {str(i): view.ttl_for(i) for i in replayed}
@@ -2059,6 +2380,36 @@ def replay_manifest_semantics(
                 _err(f"station_ttls_not_registry_replayed: manifest "
                      f"{claimed_ttls} != registry 推导 {expected_ttls}"
                      "（扩 TTL/缩 TTL/删站 TTL 均不得按自报口径上绿）")
+        # 5b) 逐站分母重放（T-3，wq9 §9 P0-3「非零分母」）：键==required 推导
+        #     集、值非零正整数；站0 分母=scope 路径数（唯一可推导分母）。
+        #     其余站分母是冻结证据计划（信任根=签名+冻结不可变+gate 逐站
+        #     对账——本重放守形态与覆盖面）。
+        denoms_raw = data.get("station_denominators")
+        if denoms_raw is not None:
+            if not isinstance(denoms_raw, Mapping):
+                _err(f"station_denominators_not_registry_replayed: must be "
+                     f"an object, got {type(denoms_raw).__name__}")
+            else:
+                claimed_denoms = {str(k): v for k, v in denoms_raw.items()}
+                for key, value in claimed_denoms.items():
+                    if not _int_ok(value) or value < 1:
+                        _err(f"station_denominators_not_registry_replayed"
+                             f"[{key!r}]: 非零正整数分母, got {value!r}")
+                if all(_int_ok(v) and v >= 1
+                       for v in claimed_denoms.values()):
+                    if sorted(claimed_denoms) != [str(i) for i in replayed]:
+                        _err(f"station_denominators_not_registry_replayed: "
+                             f"keys {sorted(claimed_denoms)} != required 推导 "
+                             f"{[str(i) for i in replayed]}（缺站分母=分母缺口）")
+                    scope_map = data.get("scope")
+                    if (isinstance(scope_map, Mapping)
+                            and isinstance(scope_map.get("paths"), list)
+                            and claimed_denoms.get("0") is not None
+                            and claimed_denoms["0"]
+                            != len(scope_map["paths"])):
+                        _err(f"station_denominators_not_registry_replayed[0]: "
+                             f"{claimed_denoms['0']} != scope 路径数 "
+                             f"{len(scope_map['paths'])}（站0 覆盖=范围冻结清单）")
         # 6) 收敛轮数域 ---------------------------------------------------------
         rounds = planner.get("convergence_rounds")
         lane_floor = view.lane_convergence(lane_eff)
@@ -2068,6 +2419,14 @@ def replay_manifest_semantics(
             _err(f"convergence_rounds_out_of_domain: {rounds} 不在 "
                  f"[{lane_floor},{CONVERGENCE_ROUNDS_MAX}]"
                  f"（lane {lane_eff!r} 契约——降档收敛是弱化）")
+
+    # 6b) 零 SHA 身份（wq9 §1 硬阻断 3 防御纵深：gate 侧另有 rc3 短路，
+    #     此处保证库级重放同样拦截手造 manifest）。
+    identity_raw = data.get("identity")
+    if isinstance(identity_raw, Mapping) \
+            and identity_raw.get("commit_sha") == REJECT_SHA_ZEROS:
+        _err("identity_commit_sha_zero: 零 SHA（40×'0'）不是真实 git 对象身份"
+             "（wq9 §1 硬阻断 3——零 SHA manifest 不得参与语义重放）")
 
     # 7) scope hash 实算（不信自报）-------------------------------------------
     scope = data.get("scope")
@@ -2879,6 +3238,331 @@ class ConvergenceTracker:
             "heterogeneous_sequence": [dict(r) for r in self._hetero],
             "round_log": [dict(r) for r in self._log],
         }
+
+
+# ---------------------------------------------------------------------------
+# BugscanOrchestrator——八站生产 run/dispatch 链路（T-3：wq9 §1 硬阻断 6 根修）
+# ---------------------------------------------------------------------------
+
+def _manifest_station_identity(manifest: "RunManifest") -> Dict[str, Any]:
+    """站结果身份三源一律取冻结 manifest 正源（与 station5/6 扫描器同型）。"""
+    identity: Dict[str, Any] = {
+        "project_id": manifest.project_id,
+        "commit_sha": manifest.commit_sha,
+        "environment": manifest.environment,
+        "scope_hash": manifest.scope_hash,
+        "ruleset_hash": manifest.ruleset_hash,
+        "data_config_hash": manifest.data_config_hash,
+    }
+    if manifest.lockfile_hash:
+        identity["lockfile_hash"] = manifest.lockfile_hash
+    return identity
+
+
+class OrchestratorDispatchError(RuntimeError):
+    """生产 dispatch 参数错误：required 站缺输入/输入形态非法——拒绝开跑。
+
+    fail-closed：绝不静默跳站（跳站=分母缩水造假），绝不以伪造结果顶位。
+    唯一例外是站5 授权缺失——那是注册表定义的 error 判据（BLOCKED 结果
+    落账，不算通过），走 LiveFireScanner 自身语义而非异常。
+    """
+
+
+class BugscanOrchestrator:
+    """八站生产 run/dispatch 链路（T-3 接线：站0-7 全部经生产扫描器产出）。
+
+    背景（wq9 §1 硬阻断 6）：LiveFireScanner/AdversarialReviewScanner 曾只
+    在 ``_self_test()`` 与测试中调用——生产 run 链路不存在。本类补齐编排层
+    的最后一环：以冻结 manifest 为正源，把 required 站集合逐站 dispatch 到
+    各站注册表 tools 槽指向的生产扫描器/适配器。
+
+    站×输入契约（``run(inputs)`` 的 inputs 映射，键=站 id；沿用各站既有
+    参数化设计，生产参数从 plan/registry 读——TTL/档位/授权记录一律取
+    manifest 冻结值，不接受自报覆盖）::
+
+        {
+          1: {"gate_result": <SourceGate exact-SHA 结果件>},
+          2: {"station2": <Station2Static 构造参数（repo_dir/scanners/…；
+              run_id/identity 由编排器注入 manifest 正源）>},
+          3: {"station3": {组件名: 载荷}}        # Station3Contract.run(**…)
+          4: {"station4": {"legs": {腿名: 构造参数}}},  # e2e/routes/gui/
+                                                  # quantile/query_count
+          5: {"authorization": <一次性 exact-scope 授权>,   # 授权沙箱参数化
+              "flows": <业务流证据>},                        # （缺失→BLOCKED）
+          6: {"axes": [...], "contexts": [...],             # 异源上下文参数化
+              "required_kinds": [...]?},                    # （缺上下文→BLOCKED）
+          7: {"station7": {"legs": {腿名: 构造参数}}},  # sentinel/slo/alert
+        }
+
+    判定纪律：
+    - 站集合 = ``manifest.required_stations``（INCIDENT+授权加站5=全集 0-7）；
+      required 站缺输入（站5 的 authorization 除外）→ OrchestratorDispatchError。
+    - 每站产物一律过 ``validate_station_result`` 严格校验后返回/落盘；
+      coverage.denominator 与 ``manifest.station_denominators`` 逐站对账
+      （冻结值缺省时记 expected=None——gate 正门仍按总分母对账）。
+    - 站1/2/3/4/7 的扫描器异常原样上抛（fail-closed——编排器不吞证据）；
+      站5/6 的 error 判据（授权缺失/异源缺席）由扫描器自身落 BLOCKED 结果。
+    """
+
+    def __init__(
+        self,
+        manifest: RunManifest,
+        *,
+        registry: Optional[StationRegistry] = None,
+        now: Optional[datetime] = None,
+    ) -> None:
+        if not isinstance(manifest, RunManifest):
+            raise OrchestratorDispatchError(
+                f"manifest must be RunManifest, got {type(manifest).__name__}"
+            )
+        if manifest.commit_sha == REJECT_SHA_ZEROS:
+            raise OrchestratorDispatchError(
+                "零 SHA（40×'0'）manifest 不可开跑（wq9 §1 硬阻断 3）"
+            )
+        self._manifest = manifest
+        self._registry = registry or default_registry()
+        for station_id in manifest.required_stations:
+            self._registry.get(station_id)  # 未注册站 → KeyError（fail-closed）
+        self._now = now
+        #: 每次 dispatch 的对账摘要（station_id → expected/actual denominator）。
+        self.last_dispatch_notes: Dict[int, Dict[str, Any]] = {}
+
+    # -- 属性 ---------------------------------------------------------------
+    @property
+    def manifest(self) -> RunManifest:
+        return self._manifest
+
+    @property
+    def registry(self) -> StationRegistry:
+        return self._registry
+
+    # -- run 链路 -----------------------------------------------------------
+    def run(
+        self,
+        inputs: Mapping[int, Mapping[str, Any]],
+        *,
+        results_dir: Optional[str] = None,
+    ) -> Dict[int, Dict[str, Any]]:
+        """按 manifest.required_stations 逐站 dispatch；返回 {站id: 结果}。
+
+        results_dir 给定时把每站结果原子写为 ``station-<id>.json``
+        （station-result-v2 白名单键、canonical JSON——与冻结件同一序列化
+        纪律）；目录缺省不落盘（调用方自行归档）。
+        """
+        if not isinstance(inputs, Mapping):
+            raise OrchestratorDispatchError(
+                f"inputs must be a mapping station_id -> station inputs, got "
+                f"{type(inputs).__name__}"
+            )
+        results: Dict[int, Dict[str, Any]] = {}
+        for station_id in self._manifest.required_stations:
+            station_input = inputs.get(station_id)
+            if station_input is None:
+                station_input = {}
+            elif not isinstance(station_input, Mapping):
+                raise OrchestratorDispatchError(
+                    f"inputs[{station_id}] must be a mapping, got "
+                    f"{type(station_input).__name__}"
+                )
+            results[station_id] = self.dispatch_station(
+                station_id, station_input)
+        if results_dir is not None:
+            self._write_results(results_dir, results)
+        return results
+
+    def dispatch_station(
+        self,
+        station_id: int,
+        station_input: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        """单站 dispatch → 严格校验 + 逐站分母对账；返回 station-result-v2。"""
+        dispatch = getattr(self, f"_dispatch_station_{station_id}", None)
+        if dispatch is None:
+            raise OrchestratorDispatchError(
+                f"station {station_id} 无生产 dispatch 实现（站0-7 之外/"
+                "未接线——fail-closed）"
+            )
+        result = dispatch(station_input)
+        validate_station_result(result)
+        expected = self._manifest.station_denominators.get(station_id)
+        actual = result.get("coverage", {}).get("denominator")
+        self.last_dispatch_notes[station_id] = {
+            "expected_denominator": expected,
+            "actual_denominator": actual,
+            "denominator_bound": (
+                None if expected is None else expected == actual),
+        }
+        return result
+
+    # -- 逐站 dispatch（站0：冻结件即结果）-----------------------------------
+    def _dispatch_station_0(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        return self._manifest.to_station_result()
+
+    def _dispatch_station_1(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        gate_result = station_input.get("gate_result")
+        if gate_result is None:
+            raise OrchestratorDispatchError(
+                "station 1 需要 gate_result（SourceGate exact-SHA 结果件——"
+                "缺输入=拒绝开跑，不静默缩分母）"
+            )
+        return SourceGateAdapter(
+            self._manifest, registry=self._registry, now=self._now,
+        ).adapt(gate_result)
+
+    def _dispatch_station_2(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        cfg = station_input.get("station2")
+        if cfg is None:
+            raise OrchestratorDispatchError(
+                "station 2 需要 station2 构造参数（Station2Static——"
+                "repo_dir/scanners 等按栈选件）"
+            )
+        from .station2_static import Station2Static
+        payload = Station2Static(
+            self._manifest.run_id,
+            identity=_manifest_station_identity(self._manifest),
+            **dict(cfg),
+        ).scan()
+        return payload["station_result"]
+
+    def _dispatch_station_3(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        cfg = station_input.get("station3")
+        if cfg is None:
+            raise OrchestratorDispatchError(
+                "station 3 需要 station3 组件载荷（Station3Contract——"
+                "openapi/org_guard/permission_matrix/db_drift 按栈选件）"
+            )
+        from .station3_contract import Station3Contract
+        return Station3Contract(
+            self._manifest, registry=self._registry, now=self._now,
+        ).run(**dict(cfg))
+
+    _STATION4_LEGS = ("e2e", "routes", "gui", "quantile", "query_count")
+
+    def _dispatch_station_4(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        cfg = station_input.get("station4")
+        if not isinstance(cfg, Mapping) or not isinstance(cfg.get("legs"), Mapping) \
+                or not cfg["legs"]:
+            raise OrchestratorDispatchError(
+                "station 4 需要 station4.legs={腿名: 构造参数}（e2e/routes/"
+                "gui/quantile/query_count——行为面按栈选件，空腿=空分母拒绝）"
+            )
+        from .station4_behavior import (
+            E2eScanner, QuantileLatencyScanner, QueryCountProfileScanner,
+            RouteDynamicScanner, WebGuiScanner, scan_station4,
+        )
+        factories = {
+            "e2e": E2eScanner,
+            "routes": RouteDynamicScanner,
+            "gui": WebGuiScanner,
+            "quantile": QuantileLatencyScanner,
+            "query_count": QueryCountProfileScanner,
+        }
+        unknown = [leg for leg in cfg["legs"] if leg not in factories]
+        if unknown:
+            raise OrchestratorDispatchError(
+                f"station4.legs 未知腿 {unknown}；已知：{self._STATION4_LEGS}"
+            )
+        scanners = {
+            leg: factories[leg](self._manifest, **dict(kwargs))
+            for leg, kwargs in cfg["legs"].items()
+        }
+        return scan_station4(**scanners)
+
+    def _dispatch_station_5(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        # 授权沙箱参数化（LiveFireScanner 既有设计）：authorization 缺失
+        # → 注册表 error 判据 BLOCKED/NOT_EVALUATED（不算通过）——不抛错、
+        # 不静默跳站；结构性损坏仍 fail-closed 抛 LiveFire*Malformed。
+        from .station5_live_fire import LiveFireScanner
+        return LiveFireScanner(
+            self._manifest,
+            authorization=station_input.get("authorization"),
+            flows=station_input.get("flows", ()),
+            now=self._now,
+        ).scan()
+
+    def _dispatch_station_6(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        # 异源上下文参数化（AdversarialReviewScanner 既有设计）：axes 是
+        # 分母正源（缺失=参数错误）；contexts 缺席 → 注册表 error 判据
+        # BLOCKED（异源端点宕机——降级须登记豁免）；TTL 默认取 registry 正源。
+        axes = station_input.get("axes")
+        if not isinstance(axes, (list, tuple)) or not axes:
+            raise OrchestratorDispatchError(
+                "station 6 需要 axes 对抗轴清单（每轴必问的分母正源——"
+                "空轴=空分母拒绝）"
+            )
+        from .station6_adversarial import AdversarialReviewScanner
+        kwargs: Dict[str, Any] = {
+            "axes": axes,
+            "contexts": station_input.get("contexts", ()),
+            "now": self._now,
+        }
+        if "required_kinds" in station_input:
+            kwargs["required_kinds"] = station_input["required_kinds"]
+        return AdversarialReviewScanner(self._manifest, **kwargs).scan()
+
+    _STATION7_LEGS = ("sentinel", "slo", "alert")
+
+    def _dispatch_station_7(
+        self, station_input: Mapping[str, Any]) -> Dict[str, Any]:
+        cfg = station_input.get("station7")
+        if not isinstance(cfg, Mapping) or not isinstance(cfg.get("legs"), Mapping) \
+                or not cfg["legs"]:
+            raise OrchestratorDispatchError(
+                "station 7 需要 station7.legs={腿名: 构造参数}（sentinel/"
+                "slo/alert——运行时按栈选件，空腿=空分母拒绝）"
+            )
+        from .station7_runtime import (
+            AlertChannelScanner, SentinelHealthScanner, SloMonitorScanner,
+            scan_station7,
+        )
+        factories = {
+            "sentinel": SentinelHealthScanner,
+            "slo": SloMonitorScanner,
+            "alert": AlertChannelScanner,
+        }
+        unknown = [leg for leg in cfg["legs"] if leg not in factories]
+        if unknown:
+            raise OrchestratorDispatchError(
+                f"station7.legs 未知腿 {unknown}；已知：{self._STATION7_LEGS}"
+            )
+        scanners = {
+            leg: factories[leg](self._manifest, **dict(kwargs))
+            for leg, kwargs in cfg["legs"].items()
+        }
+        return scan_station7(**scanners)
+
+    # -- 落盘 ---------------------------------------------------------------
+    @staticmethod
+    def _write_results(results_dir: str,
+                       results: Mapping[int, Mapping[str, Any]]) -> None:
+        target = Path(results_dir)
+        target.mkdir(parents=True, exist_ok=True)
+        for station_id, result in sorted(results.items()):
+            payload = json.dumps(
+                result, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=False).encode("utf-8")
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(target), prefix=f".station-{station_id}-",
+                suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(payload)
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                os.replace(tmp_name, str(target / f"station-{station_id}.json"))
+            except BaseException:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
 
 
 # ---------------------------------------------------------------------------

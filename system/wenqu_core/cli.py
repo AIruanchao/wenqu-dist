@@ -724,6 +724,17 @@ def cmd_gate(args: argparse.Namespace) -> int:
         if not manifest.signature:
             # 显式 --allow-unsigned 才能走到这里（load 默认拒无签名件）
             manifest_unsigned_downgrade = True
+        # wq9 §1 硬阻断 3（零 SHA 目标身份）——持钥者也可能签出零 SHA
+        # manifest：gate 正门在冻结件消费面直接 ERROR（freeze 侧已拒冻，
+        # 此处是消费端防御纵深——零 SHA 不存在任何诊断豁免）。
+        if manifest.commit_sha == "0" * 40:
+            return _gate_error_json(
+                "manifest.commit_sha 为 40 个零——零 SHA 不是真实 git 对象"
+                "身份（wq9 §1 硬阻断 3：现役健康闭环曾以零 SHA 目标产出"
+                "self-declared 假绿；freeze 与 gate 双侧拒绝）",
+                mode="manifest_invalid",
+                inputs={"paths": 0, "docs": 0, "load_errors": 0,
+                        "schema_invalid": 0})
         # R8 语义重放信任根：--registry 受保护快照（验签+digest 重算）优先；
         # 缺省=运行中 CLI 代码锚定的 default_registry()（生产部署里 CLI 从
         # immutable ~/.wenqu/current/system 运行——代码锚定即受保护快照）。
@@ -948,6 +959,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
     if manifest is not None:
         agg_kwargs["expected_scope_hash"] = manifest.scope_hash
         agg_kwargs["expected_denominator"] = manifest.denominator
+        # T-3 逐站分母（wq9 §9 P0-3「站0–7 非零分母」）：manifest 冻结了
+        # station_denominators 时逐站对账（各站分母语义各异）；旧 manifest
+        # 缺该键则回退总分母口径（向后兼容）。
+        if manifest.station_denominators:
+            agg_kwargs["expected_denominators"] = {
+                str(i): d for i, d in manifest.station_denominators.items()}
         # R8 freshness（C7）：逐站 TTL 一律取受保护 registry 推导值（5c 已
         # 保证 manifest 自报 TTL 与 registry 相等——此处注入信任根正源，
         # 全站 0-7 覆盖，旁路站结果同样受时效约束）。
@@ -1031,6 +1048,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "required_stations": sorted(manifest.required_stations),
             "commit_sha": manifest.commit_sha,
             "environment": manifest.environment,
+            # T-3 逐站分母冻结面（缺省=空→总分母口径对账）
+            **({"station_denominators": {
+                    str(i): d
+                    for i, d in sorted(manifest.station_denominators.items())}}
+               if manifest.station_denominators else {}),
             # R7-GATE-MANIFEST-AUTH-001：信任根证据（签名/验签/降级口径）
             "signature": {
                 "signed": bool(manifest.signature),

@@ -482,6 +482,7 @@ class GateAggregator:
     def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
                  *, expected_scope_hash: Optional[str] = None,
                  expected_denominator: Optional[int] = None,
+                 expected_denominators: Optional[Mapping[str, int]] = None,
                  station_ttls: Optional[Mapping[str, int]] = None,
                  now: Optional[datetime] = None) -> None:
         target_sha = str(target_sha or "").strip().lower()
@@ -503,6 +504,27 @@ class GateAggregator:
                 or expected_denominator < 1):
             raise ValueError("expected_denominator must be an integer >= 1 "
                              "(manifest scope denominator)")
+        # T-3 逐站分母（wq9 §9 P0-3「站0–7 非零分母」）：manifest 冻结的
+        # station_denominators——各站 coverage.denominator 的期望值（站5=
+        # 断言点、站6=轴数等语义各异；未列出的站回退 expected_denominator
+        # 总分母口径，向后兼容旧 manifest）。
+        denom_table: Optional[Dict[str, int]] = None
+        if expected_denominators is not None:
+            if expected_scope_hash is None:
+                raise ValueError(
+                    "expected_denominators 仅与 manifest 范围绑定成对提供"
+                    "（逐站分母正源=冻结 manifest）")
+            if not isinstance(expected_denominators, Mapping):
+                raise ValueError("expected_denominators must be a mapping of "
+                                 "station key -> denominator")
+            denom_table = {}
+            for key, value in expected_denominators.items():
+                if isinstance(value, bool) or not isinstance(value, int) \
+                        or value < 1:
+                    raise ValueError(
+                        f"expected_denominators[{key!r}] must be an integer "
+                        f">= 1 (非零分母), got {value!r}")
+                denom_table[str(key)] = value
         ttl_table: Optional[Dict[str, int]] = None
         if station_ttls is not None:
             if not isinstance(station_ttls, Mapping):
@@ -529,6 +551,7 @@ class GateAggregator:
         self.environment: str = environment
         self.expected_scope_hash: Optional[str] = expected_scope_hash
         self.expected_denominator: Optional[int] = expected_denominator
+        self.expected_denominators: Optional[Dict[str, int]] = denom_table
         self.station_ttls: Optional[Dict[str, int]] = ttl_table
         self.freshness_now: Optional[datetime] = now
 
@@ -808,11 +831,13 @@ class GateAggregator:
 
     def _reconcile_manifest_binding(self, station: str,
                                     entry: Dict[str, Any]) -> None:
-        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001）。
+        """C6：manifest 范围绑定逐站对账（F6-GATE-SCOPE-001 + T-3 逐站分母）。
 
-        expected_scope_hash/expected_denominator 给定时：identity.scope_hash
-        必须等于冻结值；coverage.denominator 必须等于 manifest 冻结分母
-        （缺失/自报一律违规）；legacy 结果无法证明 scope 绑定——同样违规。
+        expected_scope_hash 给定时：identity.scope_hash 必须等于冻结值；
+        coverage.denominator 必须等于该站的冻结期望分母——manifest 冻结了
+        station_denominators 时取逐站值（站5=断言点/站6=轴数等语义各异），
+        否则回退 manifest 总分母（scope 路径数——旧口径，向后兼容）；缺失/
+        自报一律违规；legacy 结果无法证明 scope 绑定——同样违规。
         """
         assert self.expected_scope_hash is not None  # 调用点已保证
         if entry.get("input_version") != "v2":
@@ -832,18 +857,27 @@ class GateAggregator:
                 "scope_hash": scope,
                 "expected": self.expected_scope_hash,
             })
+        expected_denom = (
+            self.expected_denominators.get(station)
+            if self.expected_denominators is not None else None)
+        if expected_denom is None:
+            expected_denom = self.expected_denominator
         coverage = entry.get("coverage")
         denominator = (coverage.get("denominator")
                        if isinstance(coverage, Mapping) else None)
-        if denominator != self.expected_denominator:
-            self._scope_violations.append({
+        if denominator != expected_denom:
+            reason = "missing_coverage_denominator" if denominator is None \
+                else ("self_declared_denominator"
+                      if self.expected_denominators is None
+                      and expected_denom == self.expected_denominator
+                      else "self_declared_station_denominator")
+            violation = {
                 "station": station,
-                "reason": ("missing_coverage_denominator"
-                           if denominator is None
-                           else "self_declared_denominator"),
+                "reason": reason,
                 "denominator": denominator,
-                "expected": self.expected_denominator,
-            })
+                "expected": expected_denom,
+            }
+            self._scope_violations.append(violation)
 
     def add(self, station_result: dict) -> "GateAggregator":
         """登记一条 station-result（v2 或 legacy 自动判别）；返回 self 以便链式调用。
@@ -1014,8 +1048,9 @@ class GateAggregator:
                     "scope_bound": e.get("scope_hash") == self.expected_scope_hash,
                     "denominator_bound": (
                         isinstance(e.get("coverage"), Mapping)
-                        and e["coverage"].get("denominator")
-                        == self.expected_denominator),
+                        and e["coverage"].get("denominator") == (
+                            (self.expected_denominators or {}).get(
+                                s, self.expected_denominator))),
                 } if self.expected_scope_hash is not None else {}),
                 **({
                     "ttl_fresh": not any(
@@ -1057,6 +1092,14 @@ class GateAggregator:
                 "expected_scope_hash": self.expected_scope_hash,
                 "expected_denominator": self.expected_denominator,
             }
+            if self.expected_denominators is not None:
+                # T-3 逐站分母（wq9 §9 P0-3）：各站冻结期望分母随判定落账
+                # （未列出的站按 expected_denominator 总分母口径对账）。
+                result["scope_binding"]["station_denominators"] = dict(
+                    sorted(self.expected_denominators.items()))
+                result["scope_binding"]["denominator_mode"] = "per_station"
+            else:
+                result["scope_binding"]["denominator_mode"] = "scope_total"
         else:
             result["scope_binding"] = {"mode": "self_declared"}
         if self.station_ttls is not None:

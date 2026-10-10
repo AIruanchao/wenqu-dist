@@ -607,6 +607,307 @@ def test_ST56_07_orchestrator_selftest_covers_real_stations():
 
 
 # ---------------------------------------------------------------------------
+# T-3 生产接线（wq9 §1 硬阻断 6 / §9 P0-3）：站5/6 纳入生产 dispatch
+# ---------------------------------------------------------------------------
+
+
+def _st56_auth_record(now, *, expiry_days=1, scope=("sandbox-order-create",)):
+    from wenqu_core.station5_live_fire import _iso_z
+    return {
+        "approver": "t3-test-owner",
+        "reason": "T-3 生产接线测试：本地沙箱一次性 exact-scope 授权",
+        "scope": list(scope),
+        "expiry": _iso_z(now + timedelta(days=expiry_days)),
+        "token": "t3-test-one-time-token",
+    }
+
+
+def _st56_flow(name="sandbox-order-create", *, baseline=None, fail=False):
+    from wenqu_core.station5_live_fire import _iso_z
+    before = "a" * 64
+    assertions = ([{"name": "order-visible", "outcome": "PASS"},
+                   {"name": "stock-deducted", "outcome": "PASS"}]
+                  if not fail else
+                  [{"name": "order-visible", "outcome": "FAIL"}])
+    return {
+        "name": name,
+        "executed_at": _iso_z(_now56()),
+        "before_state_hash": before,
+        "after_state_hash": "b" * 64,
+        "baseline_state_hash": baseline or before,
+        "assertions": assertions,
+        "idempotency": {"replay_effects": 0},
+        "conservation": {"invariant": "stock>=0", "violations": 0},
+        "compensation": {"required": fail, "executed": fail},
+    }
+
+
+def _st56_ctx(cid, kind, source, axes, *, now=None):
+    return {
+        "context_id": cid, "kind": kind, "source_identity": source,
+        "captured_at": now or _iso_z56(),
+        "answers": {axis: {"asked": True, "findings": []} for axis in axes},
+    }
+
+
+def _iso_z56():
+    from wenqu_core.station6_adversarial import _iso_z
+    return _iso_z(_now56())
+
+
+def test_ST56_08_production_dispatch_runs_stations_5_and_6():
+    """ST56-08｜注入：BugscanOrchestrator 完整 run（生产 dispatch）｜期望：站0-7 全部经生产链路出合规结果。
+
+    wq9 §1 硬阻断 6 反证：orchestrator 必须存在生产 run/dispatch 链路
+    （BugscanOrchestrator.run），站5 经显式授权加入 required、站6 按
+    registry TTL/异源上下文参数化 dispatch——不再只有 _self_test/测试调用。
+    """
+    from wenqu_core.bugscan_orchestrator import (
+        BugscanOrchestrator, BugscanPlanner, validate_station_result,
+    )
+    now = _now56()
+    planner = BugscanPlanner(default_registry())
+    plan = planner.plan("INCIDENT", station5_authorization=_st56_auth_record(now))
+    assert plan.required_stations == (0, 1, 2, 3, 4, 5, 6, 7), plan
+    manifest = planner.freeze_run_manifest(
+        plan, run_id=_next_run_id("st56t3"), project_id="wenqu-ac-station56",
+        commit_sha="6" * 40, environment="local",
+        scope=["src/**", "tests/**", "tools/**"],
+        ruleset={"version": "ac56", "rules": ["W6A-ST5", "W6A-ST6"]},
+        data_config={"profile": "default"},
+        # 逐站冻结分母=各站输入真实产生的覆盖分母（站0=scope 路径数、
+        # 站1=组件数、站2=启用执行件数、站3=端点×正负例、站4=样本数、
+        # 站5=断言点数、站6=轴数、站7=哨兵数）。
+        station_denominators={0: 3, 1: 1, 2: 1, 3: 2, 4: 3, 5: 6, 6: 2, 7: 1},
+    )
+    axes = ("auth-bypass", "mutation")
+    inputs = {
+        1: {"gate_result": {
+            "commit_sha": manifest.commit_sha, "exit_code": 0,
+            "tool": {"name": "ci-fast-test", "version": "1"},
+            "started_at": manifest.frozen_at, "ended_at": manifest.frozen_at,
+            "components": [{"name": "pytest-fast", "status": "COMPLETED",
+                            "exit_code": 0}],
+        }},
+        2: {"station2": {"repo_dir": REPO, "scanners": ("engine",),
+                         "engine_state_path": _engine_state_fixture()}},
+        3: {"station3": {"org_guard": {
+            "tool": {"name": "probe", "version": "1"},
+            "started_at": manifest.frozen_at, "ended_at": manifest.frozen_at,
+            "probe_identity": {"base_url": "http://local.test",
+                               "positive_principal": "owner",
+                               "negative_principal": "attacker"},
+            "endpoints": [{
+                "method": "GET", "path": "/api/v1/logs",
+                "positive": {"executed": True, "outcome": "ALLOWED"},
+                "negative": {"executed": True, "outcome": "DENIED",
+                             "status_code": 403},
+            }],
+        }}},
+        4: {"station4": {"legs": {"quantile": {
+            "samples": [10.0, 20.0, 30.0],
+            "thresholds_ms": {"p50": 50, "p95": 100, "p99": 200},
+        }}}},
+        5: {"authorization": _st56_auth_record(now),
+            "flows": [_st56_flow()]},
+        6: {"axes": axes,
+             "contexts": [_st56_ctx("s3", "s3_adversarial", "cc/test", axes),
+                          _st56_ctx("s5", "s5_independent_audit", "codex/test",
+                                    axes)]},
+        7: {"station7": {"legs": {"sentinel": {"sentinels": [
+            {"name": "canary", "kind": "heartbeat_json",
+             "path": _heartbeat_fixture(), "freshness_s": 300},
+        ]}}}},
+    }
+    orch = BugscanOrchestrator(manifest)
+    results = orch.run(inputs)
+    assert sorted(results) == list(range(8)), sorted(results)
+    for sid, st in results.items():
+        validate_station_result(st)  # 全部严格合规
+        frozen = manifest.station_denominators[sid]
+        assert st["coverage"]["denominator"] == frozen, (sid, st["coverage"])
+    assert results[5]["station_id"] == 5
+    assert results[5]["policy_verdict"] == "PASS", results[5]
+    assert results[5]["coverage"] == {"denominator": 6, "scanned": 6}
+    assert results[6]["station_id"] == 6
+    assert results[6]["policy_verdict"] == "PASS", results[6]
+    assert results[6]["coverage"] == {"denominator": 2, "scanned": 2}
+    # 站5 无授权 dispatch → 注册表 error 判据（BLOCKED，不算通过）
+    no_auth = BugscanOrchestrator(manifest).run(
+        {**inputs, 5: {"flows": [_st56_flow()]}})
+    assert no_auth[5]["execution_status"] == "BLOCKED"
+    assert no_auth[5]["policy_verdict"] == "NOT_EVALUATED"
+
+
+def test_ST56_09_authorized_addition_channel_and_manifest_semantics():
+    """ST56-09｜注入：授权加站通道+逐站分母冻结+零 SHA 拒绝｜期望：语义重放全通过、旁路全拦。
+
+    - plan(station5_authorization=…) 是站5 加入 required 的唯一通道
+      （授权五要素+30 天日落；缺记录/坏记录/过期全拒）；
+    - station_denominators 冻结后 validate_manifest_consistency 与
+      replay_manifest_semantics 零违例；手改 required 加 5 无授权记录 →
+      重放违例（BLOCKED 面）；缩分母/漂移分母 → 违例；
+    - 零 SHA（40 个 0）身份在 freeze 即拒（wq9 §1 硬阻断 3 的源头修）。
+    """
+    from wenqu_core.bugscan_orchestrator import (
+        BugscanPlanner, ManifestFreezeError, RiskDowngradeError,
+        freeze_run_manifest, replay_manifest_semantics,
+        validate_manifest_consistency,
+    )
+    now = _now56()
+    planner = BugscanPlanner(default_registry())
+    good = _st56_auth_record(now)
+    # 坏授权记录：缺要素 / 过期 / 超日落窗 / 理由过短
+    for bad in ({}, {**good, "token": ""}, {**good, "reason": "太短"},
+                {**good, "expiry": "not-a-date"}):
+        try:
+            planner.plan("INCIDENT", station5_authorization=bad)
+            raise AssertionError(f"bad addition record must raise: {bad!r}")
+        except RiskDowngradeError:
+            pass
+    expired = _st56_auth_record(now, expiry_days=-1)
+    try:
+        planner.plan("INCIDENT", station5_authorization=expired)
+        raise AssertionError("expired addition record must raise")
+    except RiskDowngradeError:
+        pass
+
+    plan = planner.plan("INCIDENT", station5_authorization=good)
+    assert plan.authorized_additions == (5,)
+    manifest = planner.freeze_run_manifest(
+        plan, run_id=_next_run_id("st56sem"), project_id="wenqu-ac-station56",
+        commit_sha="7" * 40, environment="local",
+        scope=["src/**", "tests/**", "tools/**"],
+        ruleset={"r": 1}, data_config={"d": 1},
+        station_denominators={0: 3, 1: 1, 2: 1, 3: 2, 4: 1, 5: 6, 6: 5, 7: 1},
+    )
+    raw = manifest.to_dict()
+    assert validate_manifest_consistency(raw) == []
+    assert replay_manifest_semantics(raw, registry=default_registry()) == []
+    # 冻结分母不可漂移：站0 分母（唯一可推导分母=scope 路径数）被篡改 →
+    # 一致性与重放双违例；非零分母执法：站5 分母改 0 → 双违例。
+    tampered = json.loads(json.dumps(raw))
+    tampered["station_denominators"]["0"] = 2
+    assert any("station_denominators" in v
+               for v in validate_manifest_consistency(tampered))
+    assert any("station_denominators" in v
+               for v in replay_manifest_semantics(tampered,
+                                                  registry=default_registry()))
+    zero_denom = json.loads(json.dumps(raw))
+    zero_denom["station_denominators"]["5"] = 0
+    assert any("station_denominators" in v
+               for v in validate_manifest_consistency(zero_denom))
+    assert any("station_denominators" in v
+               for v in replay_manifest_semantics(zero_denom,
+                                                  registry=default_registry()))
+    # 无授权记录却把 5 写进 required → 重放违例（加站必须走授权通道）：
+    # 构造=删掉 planner 的授权加站记录、保留 required 含 5。
+    ghost = json.loads(json.dumps(raw))
+    ghost["planner"].pop("authorized_additions", None)
+    ghost["planner"].pop("station5_authorization", None)
+    assert any("authorized_addition" in v
+               for v in replay_manifest_semantics(ghost,
+                                                  registry=default_registry()))
+    # 零 SHA 身份：freeze 直接拒绝
+    try:
+        freeze_run_manifest(
+            plan, run_id=_next_run_id("zerosha"),
+            project_id="wenqu-ac-station56", commit_sha="0" * 40,
+            environment="local", scope=["src/**"], ruleset={"r": 1},
+            data_config={"d": 1})
+        raise AssertionError("zero commit_sha must be refused at freeze")
+    except ManifestFreezeError:
+        pass
+
+
+def test_ST56_10_gate_reconciles_per_station_denominators():
+    """ST56-10｜注入：GateAggregator 逐站分母对账｜期望：各站分母=冻结值、缩水/漂移即违规。
+
+    八站 run 的分母语义各异（站0=scope 路径数、站5=断言点、站6=轴数…），
+    manifest 冻结 station_denominators 后 gate 逐站对账——既不要求全站同
+    分母（旧口径），也不放过任何自报/缩水分母。
+    """
+    from wenqu_core.gate_aggregator import GateAggregator
+    agg = GateAggregator(
+        required_stations={"5", "6"}, target_sha="8" * 40, environment="local",
+        expected_scope_hash="9" * 64, expected_denominator=3,
+        expected_denominators={"5": 6, "6": 5})
+    agg.add(_mk_v2_result(5, 6, "9" * 64))
+    agg.add(_mk_v2_result(6, 5, "9" * 64))
+    result = agg.aggregate()
+    assert result["aggregate_outcome"] == "PASS", result["reasons"]
+    assert result["scope_binding"]["station_denominators"] == {"5": 6, "6": 5}
+    # 站6 自报分母 4（缩水）→ scope_binding_violation → BLOCKED
+    agg2 = GateAggregator(
+        required_stations={"5", "6"}, target_sha="8" * 40, environment="local",
+        expected_scope_hash="9" * 64, expected_denominator=3,
+        expected_denominators={"5": 6, "6": 5})
+    agg2.add(_mk_v2_result(5, 6, "9" * 64))
+    agg2.add(_mk_v2_result(6, 4, "9" * 64))
+    result2 = agg2.aggregate()
+    assert result2["aggregate_outcome"] == "BLOCKED"
+    assert any("scope_binding_violation" in r for r in result2["reasons"])
+    # 未冻结逐站分母的旧口径：回退 manifest 总分母（向后兼容）
+    agg3 = GateAggregator(
+        required_stations={"5"}, target_sha="8" * 40, environment="local",
+        expected_scope_hash="9" * 64, expected_denominator=3)
+    agg3.add(_mk_v2_result(5, 3, "9" * 64))
+    assert agg3.aggregate()["aggregate_outcome"] == "PASS"
+
+
+def _mk_v2_result(station_id, denominator, scope_hash):
+    return {
+        "schema_version": "2.0",
+        "run_id": "ac56-gate-denom",
+        "station_id": station_id,
+        "attempt_id": f"att-st{station_id}-denom",
+        "execution_status": "COMPLETED",
+        "policy_verdict": "PASS",
+        "identity": {
+            "project_id": "wenqu-ac-station56", "commit_sha": "8" * 40,
+            "environment": "local", "scope_hash": scope_hash,
+            "ruleset_hash": "1" * 64, "data_config_hash": "2" * 64,
+        },
+        "tool": {"name": "test-probe", "version": "1"},
+        "execution": {
+            "argv_digest": "3" * 64, "started_at": "2026-10-10T00:00:00Z",
+            "ended_at": "2026-10-10T00:00:01Z", "timeout_s": 60,
+            "actual_exit_code": 0, "expected_exit_set": [0],
+            "assertion_verdict": "PASS",
+        },
+        "coverage": {"denominator": denominator, "scanned": denominator},
+        "finding_ids": [],
+        "artifacts": [{"cas_digest": f"sha256:{'4' * 64}", "size": 8}],
+    }
+
+
+def _engine_state_fixture():
+    """全闭环引擎状态夹具（tmp 文件——站2 engine 件真实读入执行）。"""
+    import tempfile as _tf
+    state = {"queue": [
+        {"id": "ENUM", "slug": "enum", "status": "MERGED"},
+        {"id": "CTX", "slug": "ctx", "status": "闭环"},
+        {"id": "MSG", "slug": "msg", "status": "收官"},
+        {"id": "DW", "slug": "dualwrite", "status": "MERGED"},
+        {"id": "DOM", "slug": "domain", "status": "DONE"},
+    ]}
+    fd, path = _tf.mkstemp(suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(state, fh)
+    return path
+
+
+def _heartbeat_fixture():
+    """新鲜哨兵心跳夹具（tmp 文件——站7 sentinel 件真实读入判活）。"""
+    import tempfile as _tf
+    from wenqu_core.station7_runtime import _iso_z
+    fd, path = _tf.mkstemp(suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"last_beat_at": _iso_z(_now56()), "state": "healthy"}, fh)
+    return path
+
+
+# ---------------------------------------------------------------------------
 # 运行器（对齐 system/tests 既有约定：python3 直跑、exit 0=全绿）
 # ---------------------------------------------------------------------------
 
@@ -637,10 +938,16 @@ TESTS = [
      test_ST6_06_registry_wire_real_scanner_and_incident_membership),
     ("ST56-07 orchestrator selftest rc0 且含站5/6 真实扫描步骤",
      test_ST56_07_orchestrator_selftest_covers_real_stations),
+    ("ST56-08 生产 dispatch：BugscanOrchestrator 完整 run 覆盖站0-7（含站5/6）",
+     test_ST56_08_production_dispatch_runs_stations_5_and_6),
+    ("ST56-09 授权加站通道+逐站分母冻结语义+零 SHA freeze 即拒",
+     test_ST56_09_authorized_addition_channel_and_manifest_semantics),
+    ("ST56-10 gate 逐站分母对账：各站=冻结值、缩水/漂移即 BLOCKED",
+     test_ST56_10_gate_reconciles_per_station_denominators),
 ]
 
 IMPLEMENTED_IDS = [name.split()[0] for name, _ in TESTS]
-assert len(IMPLEMENTED_IDS) == len(set(IMPLEMENTED_IDS)) == 13, IMPLEMENTED_IDS
+assert len(IMPLEMENTED_IDS) == len(set(IMPLEMENTED_IDS)) == 16, IMPLEMENTED_IDS
 assert not (set(IMPLEMENTED_IDS) & set(NOT_IMPLEMENTABLE)), "清单互斥被破坏"
 
 
@@ -663,7 +970,7 @@ def main(json_out=None):
                         "duration_ms": round((time.time() - t0) * 1000, 1)})
 
     print(f"\n站5/站6 专属验收测试: {pass_n} PASS / {fail_n} FAIL "
-          f"（负责 13 条；实现 {len(IMPLEMENTED_IDS)}；"
+          f"（负责 {len(IMPLEMENTED_IDS)} 条；实现 {len(IMPLEMENTED_IDS)}；"
           f"不可实现 {len(NOT_IMPLEMENTABLE)}）")
     for tid, reason in sorted(NOT_IMPLEMENTABLE.items()):
         print(f"  [不可实现] {tid}: {reason}")
@@ -674,7 +981,7 @@ def main(json_out=None):
             "command": "python3 system/tests/test_ac_station56.py",
             "exit_code": 1 if fail_n else 0,
             "totals": {
-                "responsible": 13,
+                "responsible": len(IMPLEMENTED_IDS),
                 "implemented": len(IMPLEMENTED_IDS),
                 "not_implementable": len(NOT_IMPLEMENTABLE),
                 "passed": pass_n,
