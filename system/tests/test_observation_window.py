@@ -955,7 +955,7 @@ def test_invalidate_auditable(td):
     """F4 invalidate 工单：可审计作废记录（不删文件），作废窗收割 rc3，
     active 释放后可按新窗重开（新 window_id 重新起算）。"""
     _open_valid(td, duration_hours=24.0)
-    r = _record(td, tag="witness")
+    r = _record(td, tag="witness", scheduler_config_sha="c" * 64)
     assert r["rc"] == 0
     wid = r["manifest"]["window_id"]
     mpath = wm.manifest_path(td, wid)
@@ -1024,7 +1024,7 @@ def test_invalidate_auditable(td):
     m2 = _open_valid(td, duration_hours=336.0)
     _ck("F4 作废释放后新窗可开（新 window_id）",
         m2["window_id"] != wid and m2["status"] == "open")
-    r2 = _record(td, tag="fresh-start")
+    r2 = _record(td, tag="fresh-start", scheduler_config_sha="c" * 64)
     _ck("F4 新窗样本合格 + T0 从新首样起算",
         r2["doc"]["qualified"] is True
         and r2["doc"]["window_id"] == m2["window_id"]
