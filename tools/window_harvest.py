@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
-"""window_harvest.py——G9-02 观察窗收割器（从 raw 样本重算，不信累计计数）。
+"""window_harvest.py——G9-02/T2 观察窗收割器（从 raw 样本重算，不信累计计数）。
 
 四态退出码（plan G9-02）：
-  rc0 PASS        窗口完整通过（封口/到期、≥1 条合格样本、链完整重算全对）；
-  rc1 WINDOW_FAIL 窗口内失败（不合格样本〔identity 缺失等〕/链断/缺
-                  sequence/同序分叉/样本 hash 不匹配/symlink 样本/到期零样本）；
+  rc0 PASS        窗口完整通过（封口/到期、链完整重算全对、资格全合格、
+                  5min 分桶覆盖 ≥ 最低覆盖阈值）；
+  rc1 WINDOW_FAIL 窗口内失败（不合格样本〔identity 缺失/health 坏/capacity
+                  BLOCKED/SHA 与窗口不咬合等〕/链断/缺 sequence/同序分叉/
+                  样本 hash 不匹配/symlink 样本/到期零样本/分桶覆盖不足）；
   rc2 NOT_DUE     窗口未到期（t0 未锚定或 now < end_at）且目前无失败；
   rc3 ENV_ERROR   证据环境错误（根不可读、无 manifest、manifest 损坏、
-                  多个活跃 manifest 歧义）。
+                  多个活跃 manifest 歧义、目标窗已作废、manifest 缺十项
+                  前置〔须先 invalidate 重开〕）。
 
 重算纪律（不信样本内累计计数/自报 qualified 标志）：
   - sample_sha256：pop 后 canonical JSON 重算比对；
   - 链序：sequence 1..N 连续、prev_sha256 逐条咬合、首条 prev=GENESIS；
   - 合格分母：重新判定 identity（repo.identity 40hex）+ provenance 全字段
     （release_sha 40hex / observer_sha、scheduler_config_sha 64hex）+
-    qualified 标志一致性——identity=null 绝不计入合格分母。
+    T2 窗口资格（od.qualify_against_window：health target_sha==sfinal 非零
+    非 self_declared、capacity 非 BLOCKED/CRITICAL、release/observer 与窗口
+    digests 咬合）+ qualified 标志一致性——identity=null/health 坏/容量闸
+    关闭绝不计入合格分母，且逐样本记录 unqualified_reasons；
+  - 窗口级 qualification 聚合：verdict.qualification（全窗合格率+理由直方图）；
+  - 收割严判（T2-C）：5min/bin 预期分桶数 × 最低覆盖阈值（默认 90%）；
+    覆盖不足 → rc1 WINDOW_FAIL（绝不 2 样本 rc0）；legacy 样本不计分母，
+    但 verdict.counts.legacy_ignored 显式计数。
 
 --audit-writers 模式（G9-01/G9-02 唯一 writer 收敛探针）：
   扫描 LaunchAgents plist + scheduler 注册表，发现 com.wenqu.scheduler
@@ -26,6 +36,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -40,6 +51,9 @@ import window_manifest as wm    # noqa: E402
 GENESIS = od.GENESIS_SHA
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
+#: T2-C：样本分桶粒度（分钟）与缺省最低覆盖阈值。
+SAMPLE_BIN_MINUTES = 5
+MIN_COVERAGE = 0.90
 
 
 def _canonical(obj):
@@ -76,10 +90,12 @@ def _scan_samples(root):
     return v2, legacy, symlinks, unparsable
 
 
-def _requalify(doc):
+def _requalify(doc, manifest=None):
     """从 raw 字段重新判定样本合格性（不信 qualified 自报）。
 
-    返回 (qualified, failures)。"""
+    T2 fail-closed：structural（identity/provenance）之外追加
+    od.qualify_against_window（health/capacity/release·observer 咬合窗口）。
+    返回 (qualified, failures)；failures 即该样本的 unqualified_reasons。"""
     failures = []
     identity = (doc.get("repo") or {}).get("identity") \
         if isinstance(doc.get("repo"), dict) else None
@@ -98,6 +114,9 @@ def _requalify(doc):
         failures.append("sequence_invalid")
     if not isinstance(doc.get("epoch_id"), str) or not doc.get("epoch_id"):
         failures.append("epoch_id_invalid")
+    w_ok, w_reasons = od.qualify_against_window(doc, manifest)
+    if not w_ok:
+        failures.extend(w_reasons)
     flagged = doc.get("qualified") is True
     if not failures and not flagged:
         failures.append("qualified_flag_inconsistent")
@@ -159,7 +178,45 @@ def _verify_chain(samples, *, failures):
                                  "file": name})
 
 
-def harvest(root, *, window_id=None, now=None):
+def _coverage(manifest, epoch_samples, *, now_dt=None,
+              bin_minutes=SAMPLE_BIN_MINUTES):
+    """T2-C 分桶覆盖重算：5min/bin 预期桶数 vs 实际被【合格】样本覆盖的桶数。
+
+    返回 {"expected_bins", "covered_bins", "ratio", "qualified_in_window",
+    "bin_minutes"}；无法计算（无 t0/无时长）时 ratio=None。仅统计
+    collected_at 落在 [t0, end) 内的桶。"""
+    t0 = wm.parse_iso(manifest.get("t0") or manifest.get("start_at"))
+    end = wm.parse_iso(manifest.get("end_at"))
+    try:
+        duration_h = float(manifest.get("duration_hours") or 0.0)
+    except (TypeError, ValueError):
+        duration_h = 0.0
+    if t0 is None or duration_h <= 0:
+        return {"expected_bins": None, "covered_bins": 0, "ratio": None,
+                "qualified_in_window": 0, "bin_minutes": bin_minutes}
+    span = (end - t0).total_seconds() if end is not None else \
+        duration_h * 3600.0
+    span = max(span, duration_h * 3600.0)  # 以窗口名义时长为分母下界
+    expected = max(1, math.ceil(span / (bin_minutes * 60.0)))
+    covered, in_win = set(), 0
+    bin_sec = bin_minutes * 60.0
+    for doc, _p, _n in epoch_samples:
+        if not doc.get("qualified"):
+            continue  # 只有合格样本覆盖分桶
+        ts = wm.parse_iso(doc.get("collected_at"))
+        if ts is None:
+            continue
+        idx = int((ts - t0).total_seconds() // bin_sec)
+        if 0 <= idx < expected:
+            covered.add(idx)
+            in_win += 1
+    ratio = len(covered) / expected if expected else None
+    return {"expected_bins": expected, "covered_bins": len(covered),
+            "ratio": ratio, "qualified_in_window": in_win,
+            "bin_minutes": bin_minutes}
+
+
+def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
     """收割一个窗口（默认取最新 manifest）。返回判定 dict（含 rc）。"""
     verdict = {"rc": None, "status": None, "root": root,
                "window_id": window_id, "failures": [], "counts": {},
@@ -187,6 +244,25 @@ def harvest(root, *, window_id=None, now=None):
     verdict["window_id"] = manifest.get("window_id")
     verdict["epoch_id"] = manifest.get("epoch_id")
 
+    # T2-D：目标窗已作废 → 证据环境错误（绝不收割作废窗）
+    if manifest.get("status") == "invalidated":
+        verdict.update(rc=3, status="ENV_ERROR",
+                       error="window %s invalidated (audit record: %s)"
+                             % (manifest.get("window_id"),
+                                manifest.get("window_id")
+                                + ".invalidated.json"))
+        return verdict
+    # T2-A 回看：manifest 必须带十项前置（旧无效窗 sfinal=null/digests 空
+    # → 不能收割出 PASS；须先 invalidate 再按新窗重开）
+    pfail = wm.validate_prerequisites(manifest.get("digests"))
+    if pfail:
+        verdict.update(rc=3, status="ENV_ERROR",
+                       error="manifest %s lacks sealed T0 prerequisites "
+                             "(invalidate + reopen): %s"
+                             % (manifest.get("window_id"), "; ".join(pfail)),
+                       prerequisite_failures=pfail)
+        return verdict
+
     # 多活跃 manifest = 证据环境歧义（双 writer 风险面）
     now_dt = now or datetime.now(timezone.utc)
     if isinstance(now_dt, (int, float)):
@@ -202,7 +278,7 @@ def harvest(root, *, window_id=None, now=None):
 
     samples, legacy, symlinks, unparsable = _scan_samples(root)
     verdict["counts"]["v2_samples_scanned"] = len(samples)
-    verdict["counts"]["legacy_ignored"] = legacy
+    verdict["counts"]["legacy_ignored"] = legacy  # legacy 不计分母，显式计数
     verdict["counts"]["unparsable_ignored"] = unparsable
     failures = verdict["failures"]
     for n in symlinks:
@@ -211,16 +287,30 @@ def harvest(root, *, window_id=None, now=None):
     epoch_samples = [(d, p, n) for d, p, n in samples
                      if d.get("epoch_id") == manifest.get("epoch_id")]
     qualified_n = 0
+    qualification = {
+        "epoch_samples": len(epoch_samples), "qualified_samples": 0,
+        "unqualified_samples": 0, "qualified_ratio": None,
+        "unqualified_reasons": {},
+    }
     for doc, path, name in epoch_samples:
-        ok, qfail = _requalify(doc)
+        ok, qfail = _requalify(doc, manifest)
         if ok:
             qualified_n += 1
         else:
+            for r in qfail:
+                qualification["unqualified_reasons"][r] = \
+                    qualification["unqualified_reasons"].get(r, 0) + 1
             failures.append({"code": "unqualified_sample", "file": name,
-                             "detail": qfail})
+                             "unqualified_reasons": qfail})
     _verify_chain(epoch_samples, failures=failures)
     verdict["counts"]["epoch_samples"] = len(epoch_samples)
     verdict["counts"]["qualified_samples"] = qualified_n
+    qualification["qualified_samples"] = qualified_n
+    qualification["unqualified_samples"] = len(epoch_samples) - qualified_n
+    if epoch_samples:
+        qualification["qualified_ratio"] = \
+            round(qualified_n / len(epoch_samples), 6)
+    verdict["qualification"] = qualification
 
     if failures:
         verdict.update(rc=1, status="WINDOW_FAIL")
@@ -229,7 +319,8 @@ def harvest(root, *, window_id=None, now=None):
     end = wm.parse_iso(manifest.get("end_at"))
     if end is None:
         verdict.update(rc=2, status="NOT_DUE",
-                       note="window open, t0 not yet anchored (no first sample)")
+                       note="window open, t0 not yet anchored (no first "
+                            "qualified sample)")
         return verdict
     if now_dt < end:
         verdict.update(rc=2, status="NOT_DUE",
@@ -248,8 +339,29 @@ def harvest(root, *, window_id=None, now=None):
             failures.append({"code": "first_sample_mismatch"})
             verdict.update(rc=1, status="WINDOW_FAIL")
             return verdict
+    # T2-C 收割严判：5min 分桶覆盖（legacy 不计分母；counts.legacy_ignored
+    # 已显式上报）。覆盖 < 阈值 → rc1 WINDOW_FAIL（绝不 2 样本 rc0）。
+    cov = _coverage(manifest, epoch_samples)
+    verdict["coverage"] = cov
+    if cov["ratio"] is None or cov["ratio"] < float(min_coverage):
+        failures.append({
+            "code": "coverage_below_threshold",
+            "detail": ("qualified-sample bin coverage %.4f < threshold %.2f"
+                       % (cov["ratio"] if cov["ratio"] is not None else -1.0,
+                          float(min_coverage))),
+            "expected_bins": cov["expected_bins"],
+            "covered_bins": cov["covered_bins"],
+            "bin_minutes": cov["bin_minutes"],
+            "ratio": cov["ratio"],
+            "threshold": float(min_coverage),
+            "legacy_ignored": verdict["counts"]["legacy_ignored"],
+        })
+        verdict.update(rc=1, status="WINDOW_FAIL")
+        return verdict
     verdict.update(rc=0, status="PASS",
-                   note="window complete: chain verified by recomputation")
+                   note="window complete: chain verified by recomputation; "
+                        "bin coverage %.4f >= %.2f"
+                        % (cov["ratio"], float(min_coverage)))
     return verdict
 
 
@@ -291,6 +403,9 @@ def _cli(argv=None):
     ap.add_argument("--root", required=True, help="observation root")
     ap.add_argument("--window-id", help="指定窗口（默认=最新 manifest）")
     ap.add_argument("--now", help="ISO 时刻（默认=当前）")
+    ap.add_argument("--min-coverage", type=float, default=MIN_COVERAGE,
+                    help="5min 分桶最低覆盖阈值（默认 %.2f；覆盖不足=rc1）"
+                         % MIN_COVERAGE)
     ap.add_argument("--audit-writers", action="store_true",
                     help="唯一 writer 审计模式（launchd+注册表）")
     ap.add_argument("--launchagents", help="LaunchAgents 目录（审计模式）")
@@ -313,7 +428,8 @@ def _cli(argv=None):
         except ValueError:
             print(json.dumps({"rc": 3, "error": "bad --now: %s" % args.now}))
             return 3
-    verdict = harvest(args.root, window_id=args.window_id, now=now)
+    verdict = harvest(args.root, window_id=args.window_id, now=now,
+                      min_coverage=args.min_coverage)
     print(json.dumps(verdict, ensure_ascii=False, indent=2,
                      default=str))
     return int(verdict["rc"])
