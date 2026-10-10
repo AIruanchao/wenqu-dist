@@ -230,7 +230,8 @@ def _http_get(port: int, path: str, timeout: float = 5.0):
 
 
 def _write_gate_snapshot(path: Path, verdict: str | None, *, age_seconds: float = 0.0,
-                         raw: str | None = None) -> str:
+                         raw: str | None = None,
+                         pre_register=None) -> str:
     """按 read_gate_aggregate 契约写一份聚合器快照；返回 generated_at。
 
     正常快照走原子写（同目录 tmp + os.replace）——合法聚合器的契约行为
@@ -250,6 +251,8 @@ def _write_gate_snapshot(path: Path, verdict: str | None, *, age_seconds: float 
     }
     tmp = path.with_name(path.name + f".tmp.{os.getpid()}.{threading.get_ident()}")
     tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    if pre_register is not None and verdict is not None:
+        pre_register(verdict, gen)  # 写前登记：reader 读到的必已登记（慢机读写交错窗口闭合）
     os.replace(tmp, path)
     return gen
 
@@ -976,8 +979,8 @@ def test_HLT_01_input_watermark_change_invalidates_snapshot():
                 while not stop.is_set():
                     verdict = "PASS" if flip else "BLOCKED"
                     flip = not flip
-                    g = _write_gate_snapshot(snap, verdict)
-                    written.add((verdict, g))
+                    _write_gate_snapshot(snap, verdict,
+                                     pre_register=lambda v, g: written.add((v, g)))
                     time.sleep(0.01)
 
             writer = threading.Thread(target=aggregator_sim, daemon=True)
