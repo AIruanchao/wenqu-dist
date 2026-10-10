@@ -20,6 +20,25 @@
 #                        （allowed_commit+plan_sha256+manifest_sha256，0600，
 #                        由部署授权流程仓外预置），绝不从候选源码/dist 自生
 #                        成 pin 写回；本脚本亦不调用 roots-template。
+#   G9-13（本轮）     九轮 R9-REL-ROLLBACK-ROOT-BYPASS-004 根修：旧 --rollback
+#                        仅凭 .last-current 指向目录存在即切 current——绕过
+#                        roots/manifest/签名/SBOM/哈希/血统，不冒烟不复验（红证
+#                        /tmp/t4-evidence/RED-rollback-tampered-bypass.log：篡改
+#                        manifest 一字节后回滚仍 rc0 直切）。现回滚与正向链
+#                        **同一信任链**六段 fail-closed：
+#                        [1] 结构门（releases/<40hex>/tree + 四件套唯一 +
+#                            manifest.source_commit==目录 SHA——防目录顶包）；
+#                        [2] 外部授权门（roots allowed_commit 须同时容纳现役
+#                            与回滚目标两个 SHA=回滚授权语义；main 血统同正
+#                            向门）；
+#                        [3] 四件套 verify（tar/manifest/sig/sbom 对账外部
+#                            roots 核心 digest，--report 落回滚证据）；
+#                        [4] 解出树逐文件 sha256 对账 manifest（部署后篡改抽核）；
+#                        [5] 切换前实录 current（补偿锚点）→ rename(2) 原子切换；
+#                        [6] 切换后冒烟：可达/身份（readlink+VERSION）+health
+#                            （scheduler 导入）+auth（approval_keys 加载
+#                            keyring）+可选服务重载；任一失败自动补偿切回原
+#                            current 并 rc1（.last-current 保持原值供审计）。
 #
 # 外部授权门（构建前 fail-closed，任一不过=rc1）：
 #   1. roots 文件存在（默认 $WENQU_RELEASE_ROOTS 或
@@ -54,7 +73,10 @@
 #     --reload-dashboard  激活后 launchctl 重载 com.wenqu.dashboard（现役
 #                         dashboard 走 current 不可变树，切换后须重启）
 #     --no-activate       只产四件套到仓外构建位（+verify 过 roots），不部署
-#     --rollback          切回 .last-current 记录的上一个激活目标
+#     --rollback          切回 .last-current 记录的上一个激活目标（G9-13：
+#                         与正向链同一信任链——结构门/外部授权门+main 血统/
+#                         四件套 verify/树逐文件对账/切换后 health+auth 冒烟，
+#                         失败自动补偿切回原 current 并 rc1；详见文件头注）
 #
 # 密钥纪律：keyring 只传路径给 release_attest（只读 import）；secret 绝不
 # 回显/入档。HMAC 对称签名 = tamper-evident，非非否认（§21.4 诚实边界）。
@@ -115,14 +137,247 @@ trap 'rc=$?; rm -f "$INSTALL_ROOT/.current.new.$$" \
       2>/dev/null; exit $rc' EXIT
 
 # ---------------------------------------------------------------- 回滚模式
+# G9-13（R9-REL-ROLLBACK-ROOT-BYPASS-004 根修）：回滚不再「目录存在即切」，
+# 与正向安装链同一信任链六段 fail-closed（详见文件头注）。任一段失败=rc1，
+# 未切换即拒；已切换后冒烟失败=自动补偿切回原 current 再 rc1。
 if [ "$ROLLBACK" = "1" ]; then
   [ -f "$LAST_CURRENT" ] || die "无 .last-current 记录，无法回滚"
   PREV=$(cat "$LAST_CURRENT")
+  [ -n "$PREV" ] || die ".last-current 为空，无法回滚"
   [ -d "$PREV" ] || die "回滚目标不存在: $PREV"
-  ln -s "$PREV" "$INSTALL_ROOT/.current.rollback.$$"
+  [ -f "$KEYRING" ] || die "keyring 不存在: ${KEYRING}（回滚验签必需）"
+  [ -e "$REPO/.git" ] || die "不是 git 仓: ${REPO}（回滚血统/对象库核验必需）"
+  command -v git >/dev/null 2>&1 || die "git 不可用"
+
+  # -------- [1/6] 结构门：受管 releases/<40hex>/tree + 四件套唯一 + 身份钉
+  echo "== rollback [1/6] 结构门: $PREV =="
+  RELROOT_REAL=$(cd "$RELROOT" 2>/dev/null && pwd -P) \
+    || die "releases 根不可达: $RELROOT"
+  PREV_REAL=$(cd "$PREV" 2>/dev/null && pwd -P) \
+    || die "回滚目标不可解析: $PREV"
+  case "$PREV_REAL/" in
+    "$RELROOT_REAL/"*) : ;;
+    *) die "回滚目标不在受管 releases 根内: ${PREV_REAL}——拒绝任意目录顶替 current" ;;
+  esac
+  RB_RELDIR=$(dirname "$PREV_REAL")
+  RB_SHA=$(basename "$RB_RELDIR")
+  [ "$(basename "$PREV_REAL")" = "tree" ] \
+    || die "回滚目标末段不是 tree/: $PREV_REAL"
+  printf '%s' "$RB_SHA" | grep -qE '^[0-9a-f]{40}$' \
+    || die "回滚目标目录名非 40hex commit: $RB_SHA"
+  RB_MANIFESTS=("$RB_RELDIR"/wenqu-dist-*.manifest.json)
+  if [ "${#RB_MANIFESTS[@]}" -ne 1 ] || [ ! -f "${RB_MANIFESTS[0]}" ]; then
+    die "回滚目标 manifest 缺失/不唯一: ${RB_RELDIR}（四件套不完整）"
+  fi
+  RB_MANIFEST="${RB_MANIFESTS[0]}"
+  RB_STEM=${RB_MANIFEST%.manifest.json}
+  for ext in tar.gz release.sig sbom.spdx.json; do
+    [ -f "$RB_STEM.$ext" ] || die "回滚目标四件套缺件: $RB_STEM.$ext"
+  done
+  RB_SC=$("$PY" -c 'import json,sys
+print(json.load(open(sys.argv[1], encoding="utf-8"))["source_commit"])' \
+    "$RB_MANIFEST" 2>/dev/null) \
+    || die "回滚目标 manifest 不可解析: $RB_MANIFEST"
+  [ "$RB_SC" = "$RB_SHA" ] \
+    || die "回滚目标身份断裂: manifest.source_commit=$RB_SC != 目录 SHA=${RB_SHA}（目录顶包/改名，拒绝）"
+  log "结构门 OK  commit=${RB_SHA}（$(basename "$RB_STEM") 四件套完整）"
+
+  # -------- [2/6] 外部授权门（与正向门同构；roots 同时容纳现役与回滚目标）
+  echo "== rollback [2/6] 外部授权门: roots=$ROOTS =="
+  "$PY" - "$ROOTS" "$RB_SHA" "$REPO" <<'PYGATE_RB' || die "回滚外部授权门未过（fail-closed，不切换）"
+import json, os, re, subprocess, sys
+
+roots_path, full_sha, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+ERR = lambda m: print(f"install-release: ERROR: {m}", file=sys.stderr)
+
+# 1) 存在 + 2) owner-only 权限（组/其他任何位即拒——>0600 语义）
+if not os.path.isfile(roots_path):
+    ERR(f"release-roots 授权文件缺失: {roots_path}——回滚目标同样须外部授权"
+        f"（allowed_commit 同时容纳现役与回滚目标两个 SHA），无豁免路径")
+    sys.exit(1)
+mode = os.stat(roots_path).st_mode & 0o7777
+if mode & 0o077:
+    ERR(f"release-roots 权限过宽: {roots_path} mode={oct(mode)}"
+        f"（组/其他任何位即拒，须 0600 owner-only）")
+    sys.exit(1)
+try:
+    roots = json.load(open(roots_path, encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    ERR(f"release-roots 不可读/非 JSON: {exc}")
+    sys.exit(1)
+
+# 3) 回滚目标 commit ∈ allowed_commit（回滚授权正门）
+allowed = roots.get("allowed_commit")
+entries = {}
+if isinstance(allowed, list) and allowed:
+    for ent in allowed:
+        if isinstance(ent, dict):
+            entries[ent.get("commit", "")] = ent.get("manifest_sha256", "")
+if full_sha not in entries:
+    ERR(f"回滚目标 commit 不在 release-roots allowed_commit: {full_sha}"
+        f"——未授权回滚目标（授权清单须同时收录现役与回滚 SHA，"
+        f"四件套自洽签名也不放行）")
+    sys.exit(1)
+plan = roots.get("plan_sha256", "")
+if not re.fullmatch(r"[0-9a-f]{64}", plan):
+    ERR(f"release-roots.plan_sha256 非法（应 64hex）: {plan!r}")
+    sys.exit(1)
+
+# 4) main 血统（与正向门同构：非受保护 main 血统的回滚目标即拒）
+mainref = ""
+for ref in ("origin/main", "main"):
+    probe = subprocess.run(["git", "-C", repo, "rev-parse", "--verify",
+                            f"refs/remotes/{ref}^{{commit}}"] if ref.startswith("origin/")
+                           else ["git", "-C", repo, "rev-parse", "--verify",
+                                 f"refs/heads/{ref}^{{commit}}"],
+                          capture_output=True, text=True)
+    if probe.returncode == 0:
+        mainref = probe.stdout.strip()
+        break
+if not mainref:
+    ERR("无法解析 main 权威 ref（origin/main/main 均失败）——回滚血统无法核验")
+    sys.exit(1)
+anc = subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor",
+                      full_sha, mainref], capture_output=True)
+if anc.returncode != 0:
+    ERR(f"回滚目标非 main 血统: {full_sha} 不可达自 {mainref}——拒绝")
+    sys.exit(1)
+print(f"  回滚授权门 OK  allowed={len(entries)} commit={full_sha[:12]}… "
+      f"main={mainref[:12]}… plan={plan[:12]}…")
+PYGATE_RB
+
+  # -------- [3/6] 四件套 verify（manifest/签名/SBOM/哈希 对账外部 roots）
+  echo "== rollback [3/6] 四件套 verify（对账外部 roots）=="
+  if "$PY" "$REPO/tools/release_attest.py" verify \
+    --manifest "$RB_MANIFEST" --keyring "$KEYRING" \
+    --release-roots "$ROOTS" --repo "$REPO" \
+    --report "$RELROOT/rollback-verify-report.$RB_SHA.json"; then
+    :
+  else
+    die "回滚目标四件套 verify 失败（篡改/未授权/坏件）——拒绝切换（fail-closed）"
+  fi
+
+  # -------- [4/6] 解出树逐文件对账（部署后篡改抽核；只读，不删证据）
+  echo "== rollback [4/6] 解出树逐文件 sha256 对账 =="
+  "$PY" - "$RB_RELDIR" "$(basename "$RB_STEM")" <<'PYRB' \
+    || die "回滚目标解出树与 manifest 逐文件对账失败（部署位被篡改?）——拒绝切换"
+import hashlib, json, os, sys
+reldir, stem = sys.argv[1], sys.argv[2]
+m = json.load(open(os.path.join(reldir, stem + ".manifest.json"),
+                   encoding="utf-8"))
+bad = []
+for rec in m["files"]:
+    if rec["type"] != "file":
+        continue
+    p = os.path.join(reldir, "tree", rec["path"])
+    try:
+        h = hashlib.sha256()
+        with open(p, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        if h.hexdigest() != rec["sha256"]:
+            bad.append(rec["path"])
+    except OSError:
+        bad.append(rec["path"])
+if bad:
+    print("tree drift: %s" % bad[:5], file=sys.stderr)
+    sys.exit(1)
+print("  回滚树与 manifest 逐文件 sha256 全符（%d files）" % len(m["files"]))
+PYRB
+
+  # -------- [5/6] 切换前实录 current（补偿锚点）→ 原子切换
+  echo "== rollback [5/6] 记录 current + 原子切换 =="
+  CUR_BEFORE=$(readlink "$CURRENT" 2>/dev/null || true)
+  [ -n "$CUR_BEFORE" ] || die "current 不存在/不可读——无「切回」语义，人工处置"
+  log "切换前实录 current → ${CUR_BEFORE}（失败补偿锚点）"
+  if [ -e "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
+    die "$CURRENT 已存在且不是 symlink——拒绝覆盖（人工处置）"
+  fi
+  ln -s "$PREV_REAL" "$INSTALL_ROOT/.current.rollback.$$"
   "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
     "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT"
-  log "ROLLBACK OK  current → $PREV"
+  log "ROLLBACK SWITCH  current → $PREV_REAL"
+
+  # 补偿函数：冒烟/重载任一失败 → 切回原 current 并 rc1（.last-current
+  # 保持原值供审计——失败现场不抹除）。
+  rb_compensate() {
+    echo "install-release: ERROR: $*——自动补偿：切回原 current" >&2
+    ln -s "$CUR_BEFORE" "$INSTALL_ROOT/.current.rollback.$$"
+    "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
+      "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT" 2>/dev/null || true
+    if [ "$(readlink "$CURRENT" 2>/dev/null)" = "$CUR_BEFORE" ]; then
+      log "补偿完成  current 已切回 ${CUR_BEFORE}（.last-current 保持原值供审计）"
+    else
+      echo "install-release: ERROR: 补偿失败——current=$(readlink "$CURRENT" 2>/dev/null) 期望=${CUR_BEFORE}，须人工处置" >&2
+    fi
+    exit 1
+  }
+
+  # -------- [6/6] 切换后冒烟：可达/身份 + health + auth（+可选服务重载）
+  echo "== rollback [6/6] 切换后冒烟（可达/身份/health/auth）=="
+  [ -f "$CURRENT/system/wenqu_core/scheduler.py" ] \
+    || rb_compensate "切换后 current/system/wenqu_core/scheduler.py 不可达"
+  [ "$(readlink "$CURRENT" 2>/dev/null)" = "$PREV_REAL" ] \
+    || rb_compensate "切换后 current 身份漂移"
+  RB_VER=$(cat "$CURRENT/system/VERSION" 2>/dev/null) || RB_VER=UNKNOWN
+  log "回滚位身份: VERSION=$RB_VER commit=$RB_SHA"
+  if PYTHONPATH="$CURRENT/system" "$PY" -c \
+    "import wenqu_core.scheduler as s; import os; \
+     print('  rollback health OK  wenqu_core.scheduler from', os.path.dirname(s.__file__))"; then
+    :
+  else
+    rb_compensate "回滚位 wenqu_core.scheduler 导入失败（health 冒烟）"
+  fi
+  if PYTHONPATH="$CURRENT/system" "$PY" - "$KEYRING" <<'PYAUTH'
+import sys
+from wenqu_core.approval_keys import ApprovalKeyring
+ApprovalKeyring.from_path(sys.argv[1])
+print("  rollback auth OK  approval_keys（回滚位）可加载 keyring")
+PYAUTH
+  then
+    :
+  else
+    rb_compensate "回滚位 approval_keys/keyring 加载失败（auth 冒烟）"
+  fi
+
+  # 可选：launchd 服务重载（与正向链同参数；失败走补偿而非裸 die）
+  if [ "$RELOAD_SCHEDULER" = "1" ]; then
+    echo "== rollback reload com.wenqu.scheduler =="
+    PLIST="$HOME/Library/LaunchAgents/com.wenqu.scheduler.plist"
+    [ -f "$PLIST" ] || rb_compensate "plist 不存在: $PLIST"
+    launchctl bootout "gui/$UID_N/com.wenqu.scheduler" 2>/dev/null || true
+    launchctl bootstrap "gui/$UID_N" "$PLIST" \
+      || rb_compensate "launchctl bootstrap 失败（scheduler）"
+    launchctl kickstart "gui/$UID_N/com.wenqu.scheduler" \
+      || rb_compensate "launchctl kickstart 失败（scheduler）"
+    log "scheduler 已重载并 kickstart"
+  fi
+  if [ "$RELOAD_DASHBOARD" = "1" ]; then
+    echo "== rollback reload com.wenqu.dashboard =="
+    PLIST="$HOME/Library/LaunchAgents/com.wenqu.dashboard.plist"
+    [ -f "$PLIST" ] || rb_compensate "plist 不存在: $PLIST"
+    launchctl bootout "gui/$UID_N/com.wenqu.dashboard" 2>/dev/null || true
+    launchctl bootstrap "gui/$UID_N" "$PLIST" \
+      || rb_compensate "launchctl bootstrap 失败（dashboard）"
+    DASH_PORT=7789
+    READY=0
+    for _ in $(seq 1 20); do
+      if curl -sS -o /dev/null --noproxy '*' \
+          "http://127.0.0.1:$DASH_PORT/api/v1/ping" 2>/dev/null; then
+        READY=1; break
+      fi
+      sleep 0.5
+    done
+    [ "$READY" = "1" ] || rb_compensate "dashboard 重载后 15s 内未在 $DASH_PORT 就绪（health 冒烟）"
+    log "dashboard 已重载（current → $(readlink "$CURRENT")）"
+  fi
+
+  # 全部通过：交换 .last-current（下一次 --rollback 即 roll-forward 备援）
+  printf '%s\n' "$CUR_BEFORE" > "$LAST_CURRENT"
+  log "记录上一激活目标（roll-forward 备援）→ $CUR_BEFORE"
+  echo "ROLLBACK OK  current → $PREV_REAL"
+  echo "  回滚授权  : ${ROOTS}（0600；allowed_commit 同时容纳现役与回滚目标）"
+  echo "  回滚证据  : $RELROOT/rollback-verify-report.$RB_SHA.json"
   exit 0
 fi
 

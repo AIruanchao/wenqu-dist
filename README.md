@@ -79,3 +79,34 @@ JSON（不写文件）——部署授权流程人工取值审核后落位并 chm
 脚本内不得调用（`grep roots-template system/` 可审计此边界）。
 HMAC 对称签名=tamper-evident，非非否认（§21.4 诚实边界）。
 
+### 回滚信任链（G9-13：`--rollback` 与正向链同一信任链）
+
+九轮验收 `R9-REL-ROLLBACK-ROOT-BYPASS-004`：旧 `--rollback` 仅凭
+`.last-current` 指向目录存在即切 `current`——绕过 roots/manifest/签名/
+SBOM/哈希/血统，不冒烟不复验。现回滚六段 fail-closed，任一段失败=rc1：
+
+1. **结构门**：回滚目标必须是受管 `releases/<40hex>/tree`（realpath 后
+   不得逃出 releases 根——任意目录顶替即拒）；部署位四件套
+   （tar/manifest/sig/SBOM）恰一套完整；`manifest.source_commit` 必须等于
+   目录 SHA（目录改名/顶包即拒）；
+2. **外部授权门**（与正向门同构）：roots（0600）`allowed_commit` 必须收录
+   回滚目标 SHA——**回滚授权语义=roots 同时容纳现役与回滚目标两个 SHA**
+   （部署授权流程预置双条目；四件套自洽签名不放行）；main 血统不可达即拒；
+3. **四件套 verify**（`release_attest.py verify --release-roots`）：
+   tar 逐文件 hash、plan_sha256 三方等值、manifest 核心 digest 对账
+   roots、source commit git 正源、HMAC 验签、SBOM 对账——篡改 manifest
+   一字节即在核心 digest/验签处断裂；报告落
+   `releases/rollback-verify-report.<sha>.json`；
+4. **解出树逐文件 sha256 对账 manifest**（部署后落盘篡改抽核，只读不删证据）；
+5. **切换前实录 current**（补偿锚点）→ `rename(2)` 原子切换；
+6. **切换后冒烟**：可达性/身份（readlink+VERSION）+ health
+   （`wenqu_core.scheduler` 从回滚位导入）+ auth（回滚位 `approval_keys`
+   加载 keyring，0600 纪律同生产）+ 可选 `--reload-scheduler`/
+   `--reload-dashboard`（活性回读）；**任一失败自动补偿**：切回原
+   `current` 并 rc1，`.last-current` 保持原值供审计。
+
+回滚成功后 `.last-current` 交换为原 current——下一次 `--rollback` 即
+roll-forward 备援。回滚演练三态（合法回滚 rc0 / roll-forward rc0 / 篡改
+目标拒收 rc1 + 补偿态）见 `system/install-release.sh` 文件头注与九轮
+整改证据链。
+
