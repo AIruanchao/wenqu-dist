@@ -93,10 +93,29 @@ R8-AUTH-RETIRED-KEY-005（G9-04 根修，2026-10-09）：退休 key 不可回填
   （与 keyring 权限豁免面同构）；审计文件自身的不可篡改性（0600 + 追加
   写 + 哈希链检出篡改）是部署责任，防持有旧 secret 但无文件写权限的
   攻击者（威胁模型正源），不防能改写 keyring 目录的 root 级攻击者。
+
+R9-AUTH-RECEIPT-COLDSTART-001（G9 后续 T1 根修，2026-10-10）：genesis
+锚 + 消费端 fail-closed——
+- keyring 初始化（``write_key_to_dir``）/首次签发（``append`` 对空账本）
+  时写入**不可删除的 genesis 行**（``RECEIPT_GENESIS``：epoch 随机标记 +
+  created_at + 锚 key + HMAC），receipt 链从 genesis 起链；
+- 消费端判定收紧为「受管（目录型）keyring 存在 → receipt regime **必须**
+  激活」：账本文件缺失（genesis 被删）、账本被截断（首行非 genesis）、
+  退休 key 缺 ``retired_receipt_seq`` 盘点，一律 fail-closed 拒绝——
+  不再存在「regime 未激活」放行分支（旧洞：删账本文件后旧 key 新签+
+  回填 issued_at 旁路通过）。
+
+R9-AUTH-RECEIPT-CONCURRENCY-013（G9 后续 T1 根修，2026-10-10）：receipt
+分配竞窗关闭——``append`` 全程持 ``fcntl.flock`` 排他文件锁（打开-锁定-
+读取-分配-写入同锁临界区），锁内做 seq 唯一性断言 + 全链 prev 链验证
+（genesis 在位/seq 严格递增/链衔接/HMAC 一致），单次 ``os.write`` 落行；
+``save_key_meta`` 的退休盘点（``retired_receipt_seq``）同样在锁内读取
+``max_seq``——并发签发下的盘点不再取到撕裂值。
 """
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import hmac
 import json
@@ -116,6 +135,7 @@ __all__ = [
     "KeyringPermissionError",
     "IssueReceiptLedger",
     "ISSUE_RECEIPTS_FILENAME",
+    "RECEIPT_GENESIS_RECORD_TYPE",
     "KEY_STATUS_ACTIVE",
     "KEY_STATUS_ROTATED",
     "KEY_STATUS_REVOKED",
@@ -158,6 +178,10 @@ KEYRING_EVENTS_FILENAME = "keyring-events.jsonl"
 #: 目录型 keyring 的**签发 receipt 审计根**文件名（R8-AUTH-RETIRED-KEY-005：
 #: 单调 seq + 哈希链 + 逐行 HMAC——退休回填的不可伪造锚点）
 ISSUE_RECEIPTS_FILENAME = "issue-receipts.jsonl"
+
+#: receipt 账本首行 genesis 锚记录类型（R9-AUTH-RECEIPT-COLDSTART-001：
+#: keyring 出生即写入、不可删除——账本缺失/截断（无 genesis）一律 fail-closed）
+RECEIPT_GENESIS_RECORD_TYPE = "RECEIPT_GENESIS"
 
 #: secret/meta 文件与目录的权限（owner-only；目录需 x 位故为 0700）
 _SECRET_FILE_MODE = 0o600
@@ -202,6 +226,15 @@ _ISSUE_RECEIPT_FIELDS = frozenset({
     "issued_at", "ts", "chain_prev", "receipt_hmac",
 })
 
+#: genesis 锚行键集封闭（R9-AUTH-RECEIPT-COLDSTART-001）
+_RECEIPT_GENESIS_FIELDS = frozenset({
+    "record_type", "key_id", "epoch", "created_at", "seq", "chain_prev",
+    "genesis_hmac",
+})
+
+#: 链起点零值（genesis.chain_prev——genesis 之前无行）
+_ZERO_PREV = "0" * 64
+
 
 class IssueReceiptLedger:
     """签发 receipt 账本（append-only jsonl，0600，逐行哈希链+HMAC）。
@@ -212,9 +245,20 @@ class IssueReceiptLedger:
     HMAC-SHA256）。持旧 secret 的攻击者可以手签任意信封与回填时间，但
     无法在受保护目录内追加合法 receipt——消费侧只认链上真实存在的签发。
 
-    - ``append``（issuer 侧）：分配 seq=max+1、算链与 HMAC、单次 write 追加；
-    - ``verify_chain``（消费侧）：重放全链——坏行/键集不闭/seq 非严格
-      递增/链断/未知 key/receipt_hmac 不符即断（fail-closed）；
+    R9-AUTH-RECEIPT-COLDSTART-001（T1 根修）：账本首行是**genesis 锚**
+    （``RECEIPT_GENESIS``：epoch 随机标记+created_at+锚 key+HMAC）——
+    keyring 初始化（``write_key_to_dir``）/首次签发时写入，receipt 链从
+    genesis 起链。首行非 genesis（被截断/伪造/旧版无锚账本）= 账本破损，
+    消费与追加双双 fail-closed。
+
+    R9-AUTH-RECEIPT-CONCURRENCY-013（T1 根修）：``append`` 在
+    ``fcntl.flock`` 排他锁内完成「读取-验证-seq 分配-写入」整个临界区
+    （锁内 seq 唯一性断言 + 全链 prev 链验证），单次 ``os.write`` 落行
+    ——并发 issuer 不可能分到重复 seq 或分叉链。
+
+    - ``append``（issuer 侧）：锁内 genesis 保障 + seq=max+1 + 链与 HMAC；
+    - ``verify_chain``（消费侧）：重放全链——无 genesis/坏行/键集不闭/
+      seq 非严格递增/链断/未知 key/receipt_hmac 不符即断（fail-closed）；
     - ``by_seq``：seq → receipt 行（消费侧按信封 ``issue_receipt.seq``
       查找并做 envelope 等值绑定）。
 
@@ -252,55 +296,238 @@ class IssueReceiptLedger:
                         self._canonical(body).encode("utf-8"),
                         hashlib.sha256).hexdigest()
 
+    def _genesis_hmac(self, record: Mapping[str, Any]) -> str:
+        secret = self._secret_of.get(str(record.get("key_id")))
+        if secret is None:
+            raise KeyNotFoundError(
+                f"genesis 锚 key_id {record.get('key_id')!r} 不在 secret 视图")
+        body = {k: v for k, v in dict(record).items()
+                if k != "genesis_hmac"}
+        return hmac.new(secret.encode("utf-8"),
+                        self._canonical(body).encode("utf-8"),
+                        hashlib.sha256).hexdigest()
+
+    def _make_genesis(self, anchor_key_id: str) -> Dict[str, Any]:
+        """构造 genesis 锚行（epoch 随机标记+创建时间+锚 key+HMAC）。"""
+        record: Dict[str, Any] = {
+            "record_type": RECEIPT_GENESIS_RECORD_TYPE,
+            "key_id": anchor_key_id,
+            "epoch": secrets.token_hex(16),
+            "created_at": _utc_now_iso(),
+            "seq": 0,
+            "chain_prev": _ZERO_PREV,
+        }
+        record["genesis_hmac"] = self._genesis_hmac(record)
+        return record
+
+    # ------------------------------------------------------------------ #
+    # 文件读取（锁内 fd 直读与路径读取共用同一解析器）
+    @staticmethod
+    def _parse_records_text(text: str) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"receipt line {lineno} is not JSON: {exc}") from None
+            if not isinstance(rec, dict):
+                raise ValueError(
+                    f"receipt line {lineno} is not an object")
+            out.append(rec)
+        return out
+
+    @staticmethod
+    def _read_fd_records(fd: int) -> List[Dict[str, Any]]:
+        """从已打开 fd 读全量并解析（调用方负责持锁；读前 seek 0）。"""
+        os.lseek(fd, 0, os.SEEK_SET)
+        chunks: List[bytes] = []
+        while True:
+            block = os.read(fd, 65536)
+            if not block:
+                break
+            chunks.append(block)
+        return IssueReceiptLedger._parse_records_text(
+            b"".join(chunks).decode("utf-8"))
+
+    @staticmethod
+    def _write_all(fd: int, data: bytes) -> None:
+        written = os.write(fd, data)
+        if written != len(data):
+            raise OSError(
+                f"receipt ledger short write: {written}/{len(data)} bytes")
+
     # ------------------------------------------------------------------ #
     def max_seq(self) -> int:
         """链上当前最大 seq（空账本/文件不存在=0）。坏行抛 ValueError。"""
         return max((int(r.get("seq", 0)) for r in self.records()),
                    default=0)
 
+    def locked_max_seq(self) -> int:
+        """在文件锁内读取当前最大 seq（退休盘点用——并发签发下不取撕裂值）。
+
+        与 ``append`` 的「读-验-分配-写」临界区互斥：读到的 max_seq 要么
+        已含并发在途 append 的结果、要么严格早于它（后者属轮换后签发，
+        消费侧 receipt 门本就拒绝）。
+        """
+        if not os.path.exists(self.path):
+            return 0
+        fd = os.open(self.path, os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            records = self._read_fd_records(fd)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+        return max((int(r.get("seq", 0)) for r in records), default=0)
+
     def records(self) -> List[Dict[str, Any]]:
-        """读取全部 receipt 行（不做链校验；坏 JSON/非对象行抛 ValueError）。"""
+        """读取全部账本行（genesis+receipts；不做链校验；坏 JSON/非对象行
+        抛 ValueError）。"""
         if not os.path.exists(self.path):
             return []
-        out: List[Dict[str, Any]] = []
         with open(self.path, "r", encoding="utf-8") as fh:
-            for lineno, line in enumerate(fh, 1):
-                if not line.strip():
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        f"receipt line {lineno} is not JSON: {exc}") from None
-                if not isinstance(rec, dict):
-                    raise ValueError(
-                        f"receipt line {lineno} is not an object")
-                out.append(rec)
-        return out
+            return self._parse_records_text(fh.read())
+
+    # ------------------------------------------------------------------ #
+    def _scan_chain(self, records: List[Dict[str, Any]]) -> None:
+        """全链重放校验（结构 + 密码学）；任一失败抛 ValueError（fail-closed）。
+
+        校验项：首行必须是 genesis（键集封闭/seq=0/chain_prev 零值/
+        genesis_hmac 一致）；其后逐行 ISSUE_RECEIPT（键集封闭/seq 严格
+        递增/chain_prev 衔接/receipt_hmac 与 secret 视图重算一致）。
+        """
+        if not records:
+            raise ValueError(
+                "账本为空——genesis 锚缺失（文件缺失/被清空/被截断，"
+                "fail-closed，R9-AUTH-RECEIPT-COLDSTART-001）")
+        first = records[0]
+        stray = sorted(set(first) - _RECEIPT_GENESIS_FIELDS)
+        if stray or "genesis_hmac" not in first:
+            raise ValueError(
+                f"record 1: genesis 字段不闭: "
+                f"{stray or 'missing genesis_hmac'}")
+        if first.get("record_type") != RECEIPT_GENESIS_RECORD_TYPE:
+            raise ValueError(
+                "record 1: genesis 锚缺失（首行非 RECEIPT_GENESIS——账本"
+                "被截断/伪造/旧版无锚，fail-closed，"
+                "R9-AUTH-RECEIPT-COLDSTART-001）")
+        if first.get("seq") != 0 or first.get("chain_prev") != _ZERO_PREV:
+            raise ValueError("record 1: genesis seq/chain_prev 畸形")
+        try:
+            expected_genesis_hmac = self._genesis_hmac(first)
+        except KeyNotFoundError as exc:
+            raise ValueError(f"record 1: {exc}") from None
+        if not hmac.compare_digest(str(first["genesis_hmac"]),
+                                   expected_genesis_hmac):
+            raise ValueError("record 1: genesis_hmac mismatch")
+        expected_prev = self._line_digest(first)
+        last_seq = 0
+        for idx, rec in enumerate(records[1:], 2):
+            stray = sorted(set(rec) - _ISSUE_RECEIPT_FIELDS)
+            if stray or "receipt_hmac" not in rec:
+                raise ValueError(
+                    f"record {idx}: fields not closed: "
+                    f"{stray or 'missing receipt_hmac'}")
+            if rec.get("record_type") != "ISSUE_RECEIPT":
+                raise ValueError(f"record {idx}: bad record_type")
+            seq = rec.get("seq")
+            if not (isinstance(seq, int) and not isinstance(seq, bool)
+                    and seq == last_seq + 1):
+                raise ValueError(
+                    f"record {idx}: seq {seq!r} 不是严格递增"
+                    f"（期望 {last_seq + 1}）")
+            last_seq = seq
+            if rec.get("chain_prev") != expected_prev:
+                raise ValueError(f"record {idx}: chain_prev mismatch")
+            try:
+                expected_hmac = self._receipt_hmac(rec)
+            except KeyNotFoundError as exc:
+                raise ValueError(f"record {idx}: {exc}") from None
+            if not hmac.compare_digest(str(rec["receipt_hmac"]),
+                                       expected_hmac):
+                raise ValueError(f"record {idx}: receipt_hmac mismatch")
+            expected_prev = self._line_digest(rec)
+
+    # ------------------------------------------------------------------ #
+    def ensure_genesis(self, *, anchor_key_id: str) -> Dict[str, Any]:
+        """保障账本 genesis 锚在位（keyring 初始化正门；幂等、持锁）。
+
+        - 账本缺失/为空 → 锚定 ``anchor_key_id`` 写入 genesis（0600）；
+        - genesis 已在位 → 全链校验通过后原样返回（幂等）；
+        - 账本有内容但无 genesis（截断/伪造/旧版）→ ValueError（锚不可
+          删——fail-closed，不静默补锚改写历史链）。
+        """
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, _SECRET_FILE_MODE)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            records = self._read_fd_records(fd)
+            if not records:
+                genesis = self._make_genesis(anchor_key_id)
+                data = (self._canonical(genesis) + "\n").encode("utf-8")
+                os.lseek(fd, 0, os.SEEK_END)
+                self._write_all(fd, data)
+            else:
+                self._scan_chain(records)  # 无 genesis/坏链 → ValueError
+                genesis = records[0]
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+        os.chmod(self.path, _SECRET_FILE_MODE)
+        return genesis
 
     # ------------------------------------------------------------------ #
     def append(self, *, key_id: str, approval_id: str, nonce_digest: str,
                issued_at: str) -> Dict[str, Any]:
-        """追加一条签发 receipt（seq=max+1，链式+HMAC，0600 单次 write）。"""
+        """追加一条签发 receipt（flock 临界区：genesis 保障→全链验证→
+        seq=max+1 唯一分配→单次 write；0600）。
+
+        R9-AUTH-RECEIPT-CONCURRENCY-013：读取-验证-分配-写入全程持
+        ``fcntl.flock`` 排他锁——并发 issuer 串行进入临界区，seq 唯一且
+        链无分叉；锁内全链 prev 验证保证绝不向破损/截断（无 genesis）的
+        账本续签（fail-closed）。
+        """
         record: Dict[str, Any] = {
             "record_type": "ISSUE_RECEIPT",
             "key_id": key_id,
-            "seq": self.max_seq() + 1,
             "approval_id": approval_id,
             "nonce_digest": nonce_digest,
             "issued_at": issued_at,
             "ts": _utc_now_iso(),
         }
-        prev = self.records()[-1] if os.path.exists(self.path) else None
-        record["chain_prev"] = (self._line_digest(prev)
-                                if prev is not None else "0" * 64)
-        record["receipt_hmac"] = self._receipt_hmac(record)
-        line = self._canonical(record)
-        fd = os.open(self.path,
-                     os.O_WRONLY | os.O_CREAT | os.O_APPEND,
-                     _SECRET_FILE_MODE)
+        prefix = b""
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, _SECRET_FILE_MODE)
         try:
-            os.write(fd, (line + "\n").encode("utf-8"))
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            records = self._read_fd_records(fd)
+            if not records:
+                # 首次签发：先落 genesis 锚（锚定本次签名 key——其 secret
+                # 必在视图内，receipt_hmac 同样依赖它）
+                genesis = self._make_genesis(key_id)
+                prefix = (self._canonical(genesis) + "\n").encode("utf-8")
+                chain_prev = self._line_digest(genesis)
+                last_seq = 0
+            else:
+                self._scan_chain(records)  # 无 genesis/断链 → ValueError
+                chain_prev = self._line_digest(records[-1])
+                last_seq = int(records[-1]["seq"])
+            seq = last_seq + 1
+            # seq 唯一性断言（scan 已保证严格递增；显式断言防回归——
+            # 若触发说明锁或扫描被破坏，宁拒不分叉）
+            existing_seqs = {r.get("seq") for r in records}
+            if seq in existing_seqs:  # pragma: no cover —— 防御性断言
+                raise ValueError(
+                    f"seq 分配唯一性断言失败：seq={seq} 已在链上"
+                    f"（R9-AUTH-RECEIPT-CONCURRENCY-013 fail-closed）")
+            record["seq"] = seq
+            record["chain_prev"] = chain_prev
+            record["receipt_hmac"] = self._receipt_hmac(record)
+            data = prefix + (self._canonical(record) + "\n").encode("utf-8")
+            os.lseek(fd, 0, os.SEEK_END)
+            self._write_all(fd, data)
+            fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
         os.chmod(self.path, _SECRET_FILE_MODE)
@@ -310,45 +537,22 @@ class IssueReceiptLedger:
     def verify_chain(self) -> Dict[str, Any]:
         """重放校验全链；返回 {ok, length, break_at, reason}。
 
-        校验项（任一失败即断）：键集封闭、record_type 固定、seq 严格递增、
-        chain_prev 逐行衔接、receipt_hmac 与 secret 视图重算一致。
+        校验项（任一失败即断）：首行 genesis 锚（键集封闭/seq=0/零值
+        chain_prev/genesis_hmac 一致——R9-AUTH-RECEIPT-COLDSTART-001）、
+        其后逐行 ISSUE_RECEIPT 键集封闭、seq 严格递增、chain_prev 逐行
+        衔接、receipt_hmac 与 secret 视图重算一致。空账本/文件缺失=锚
+        缺失，fail-closed 不 ok。
         """
         try:
             records = self.records()
         except ValueError as exc:
             return {"ok": False, "length": None, "break_at": None,
                     "reason": f"unreadable: {exc}"}
-        expected_prev = "0" * 64
-        last_seq = 0
-        for idx, rec in enumerate(records, 1):
-            stray = sorted(set(rec) - _ISSUE_RECEIPT_FIELDS)
-            if stray or "receipt_hmac" not in rec:
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: fields not closed: "
-                                  f"{stray or 'missing receipt_hmac'}"}
-            if rec.get("record_type") != "ISSUE_RECEIPT":
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: bad record_type"}
-            seq = rec.get("seq")
-            if not (isinstance(seq, int) and not isinstance(seq, bool)
-                    and seq == last_seq + 1):
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: seq {seq!r} 不是严格递增"
-                                  f"（期望 {last_seq + 1}）"}
-            last_seq = seq
-            if rec.get("chain_prev") != expected_prev:
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: chain_prev mismatch"}
-            try:
-                expected_hmac = self._receipt_hmac(rec)
-            except KeyNotFoundError as exc:
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: {exc}"}
-            if not hmac.compare_digest(str(rec["receipt_hmac"]),
-                                       expected_hmac):
-                return {"ok": False, "length": len(records), "break_at": idx,
-                        "reason": f"record {idx}: receipt_hmac mismatch"}
-            expected_prev = self._line_digest(rec)
+        try:
+            self._scan_chain(records)
+        except ValueError as exc:
+            return {"ok": False, "length": len(records), "break_at": None,
+                    "reason": str(exc)}
         return {"ok": True, "length": len(records), "break_at": None,
                 "reason": None}
 
@@ -406,7 +610,8 @@ def _permission_violations(path: str) -> List[str]:
                 if _mode(member) != _SECRET_FILE_MODE:
                     violations.append(
                         f"{member}: mode {oct(_mode(member))} != 0600")
-            elif name == KEYRING_EVENTS_FILENAME:
+            elif name in (KEYRING_EVENTS_FILENAME,
+                          ISSUE_RECEIPTS_FILENAME):
                 if _mode(member) != _SECRET_FILE_MODE:
                     violations.append(
                         f"{member}: mode {oct(_mode(member))} != 0600")
@@ -845,24 +1050,32 @@ class ApprovalKeyring:
                                 approval: Mapping[str, Any]) -> Optional[str]:
         """信封的签发 receipt 执法判定（返回拒绝原因或 None=通过/不适用）。
 
-        R8-AUTH-RETIRED-KEY-005：受管（目录型）keyring 且 receipt 审计根
-        已存在（受控 issuer 至少签发过一次——regime 激活）时，消费侧要求：
+        R8-AUTH-RETIRED-KEY-005：受管（目录型）keyring 的信封消费要求：
 
         1. 信封必须携带 ``issue_receipt={"seq": int}``（无 receipt 一律拒
            ——fail-closed，回填 ``issued_at`` 手签的信封无法伪造链上锚点）；
-        2. receipt 链完整（哈希链 + 逐行 HMAC + seq 严格递增重放通过）；
+        2. receipt 链完整（genesis 锚在位 + 哈希链 + 逐行 HMAC + seq 严格
+           递增重放通过）；
         3. 链上该 seq 的 receipt 与信封等值绑定（key_id/approval_id/
            nonce 摘要/issued_at 四项全等——防挪用他人 receipt）；
         4. key 元数据带 ``retired_receipt_seq`` 时 receipt.seq 不得超过
            （退休盘点后的更大 seq 一律非退休前签发）。
 
-        文件型/内存 keyring 或审计根尚未建立的目录型 keyring：返回 None
-        （regime 未激活——诚实边界，见模块 docstring）。
+        R9-AUTH-RECEIPT-COLDSTART-001（T1 根修）：**受管（目录型）keyring
+        存在 → receipt regime 必须激活**——账本文件缺失（genesis 锚被删）、
+        账本被截断（连 genesis 都没有）、退休 key 缺 ``retired_receipt_seq``
+        盘点，一律 fail-closed 拒绝；不再存在「regime 未激活」放行分支
+        （旧洞：删账本后旧 key 新签+回填 issued_at 旁路通过）。
+        文件型/内存 keyring（无受控审计根）仍返回 None（不受管，不适用）。
         """
         if self._receipts_path is None:
             return None
         if not os.path.exists(self._receipts_path):
-            return None  # 受控 issuer 从未签发——regime 未激活（legacy 存量）
+            return ("受管 keyring 的签发 receipt 审计根缺失"
+                    f"（{ISSUE_RECEIPTS_FILENAME} 不存在——genesis 锚被删/"
+                    "账本未初始化）：受管 keyring 存在即 receipt regime 必须"
+                    "激活，一律 fail-closed 拒绝"
+                    "（R9-AUTH-RECEIPT-COLDSTART-001）")
         ledger = self.receipts_ledger()
         assert ledger is not None  # _receipts_path 已判空
         receipt = approval.get("issue_receipt") if isinstance(
@@ -903,10 +1116,21 @@ class ApprovalKeyring:
                         "receipt 不得跨信封挪用（fail-closed）")
         meta = self._meta.get(str(key_id), {})
         retired = meta.get("retired_receipt_seq")
-        if isinstance(retired, int) and receipt["seq"] > retired:
+        if isinstance(retired, int) and not isinstance(retired, bool) \
+                and receipt["seq"] > retired:
             return (f"receipt.seq={receipt['seq']} 晚于退休盘点 "
                     f"retired_receipt_seq={retired}——退休后签的批不能消费"
                     "（R8-AUTH-RETIRED-KEY-005）")
+        # R9-AUTH-RECEIPT-COLDSTART-001：退休盘点缺失 fail-closed——regime
+        # 激活（受管 keyring+genesis 在位）下轮换/吊销的 key 必须带
+        # retired_receipt_seq；缺失=元数据被篡改或盘点时账本已被抹，拒。
+        if meta.get("status") in (KEY_STATUS_ROTATED, KEY_STATUS_REVOKED) \
+                and not (isinstance(retired, int)
+                         and not isinstance(retired, bool)):
+            return (f"退休 key {key_id}（status={meta.get('status')!r}）缺 "
+                    "retired_receipt_seq 退休盘点——regime 激活下的轮换/吊销"
+                    "必须落盘点（缺失=元数据被篡改或账本被抹，fail-closed，"
+                    "R9-AUTH-RECEIPT-COLDSTART-001）")
         return None
 
     def _record_principal_rejection(self, key_id: str,
@@ -1153,11 +1377,30 @@ def write_key_to_dir(keyring_dir: str, key_id: str, secret: str,
     """把 secret（0600）+ 元数据边车 ``<key_id>.meta.json``（0600）写入目录。
 
     返回规范化后的元数据。目录必须是受管 keyring 目录（0700）。
+
+    R9-AUTH-RECEIPT-COLDSTART-001：受管 keyring 出生即写入 receipt 账本
+    genesis 锚（首个 key 创建时；后续幂等）——受管 keyring 存在即 receipt
+    regime 激活，不存在「从未签发=不执法」窗口。
     """
     ApprovalKeyring._validate_key_id(key_id)  # noqa: SLF001 —— 复用命名约束
     ensure_keyring_dir(keyring_dir)
     _write_private_file(os.path.join(keyring_dir, f"{key_id}.secret"),
                         secret + "\n")
+    # genesis 锚（幂等）：secret 视图取 keyring 目录内全部既有 key 的
+    # secret（受管正门读自家目录）——保证锚定首个 key 的 genesis_hmac
+    # 在全链校验中可验，后续加 key 不会因视图缺锚 key 而误拒。
+    view: Dict[str, str] = {}
+    for name in sorted(os.listdir(keyring_dir)):
+        if name.endswith(".secret"):
+            with open(os.path.join(keyring_dir, name), "r",
+                      encoding="utf-8") as fh:
+                sibling = fh.read().strip()
+            if sibling:
+                view[name[: -len(".secret")]] = sibling
+    view[key_id] = secret
+    IssueReceiptLedger(
+        os.path.join(keyring_dir, ISSUE_RECEIPTS_FILENAME),
+        secret_of=view).ensure_genesis(anchor_key_id=key_id)
     normalized = ApprovalKeyring._normalize_meta(  # noqa: SLF001
         key_id, dict(meta or {}))
     normalized.setdefault("created_at", _utc_now_iso())
@@ -1172,7 +1415,8 @@ def save_key_meta(keyring_dir: str, key_id: str,
 
     R8-AUTH-RETIRED-KEY-005：写入 rotated/revoked 终态且 keyring 目录内
     存在签发 receipt 审计根时，自动盘点 ``retired_receipt_seq``（=链上
-    当前最大 seq；已盘点不覆盖——首次退休时刻为准）。
+    当前最大 seq；已盘点不覆盖——首次退休时刻为准）。R9-CONCURRENCY-013：
+    盘点读取改为锁内 ``locked_max_seq``——并发签发下不取撕裂值。
     """
     normalized = ApprovalKeyring._normalize_meta(key_id, dict(meta))  # noqa: SLF001
     if normalized.get("status") in (KEY_STATUS_ROTATED, KEY_STATUS_REVOKED) \
@@ -1181,7 +1425,7 @@ def save_key_meta(keyring_dir: str, key_id: str,
         if os.path.exists(ledger_path):
             ledger = IssueReceiptLedger(ledger_path)
             try:
-                max_seq = ledger.max_seq()
+                max_seq = ledger.locked_max_seq()
             except ValueError:
                 max_seq = 0  # 坏链不阻断轮换——消费侧链校验会 fail-closed
             if max_seq >= 1:

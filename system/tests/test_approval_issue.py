@@ -36,14 +36,16 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # system/
 sys.path.insert(0, REPO)
 
 from wenqu_core.approval_keys import (  # noqa: E402
-    ISSUE_RECEIPTS_FILENAME, KEYRING_EVENTS_FILENAME, ApprovalKeyring,
-    IssueReceiptLedger, KeyExpiredError, KeyNotFoundError, KeyRevokedError,
+    ISSUE_RECEIPTS_FILENAME, KEYRING_EVENTS_FILENAME,
+    RECEIPT_GENESIS_RECORD_TYPE, ApprovalKeyring, IssueReceiptLedger,
+    KeyExpiredError, KeyNotFoundError, KeyRevokedError,
     KeyRotatedError, KeyStateError, append_keyring_event, ensure_keyring_dir,
     generate_secret, save_key_meta, sign_envelope, verify_envelope,
     write_key_to_dir,
@@ -817,7 +819,9 @@ def _g9_release_payload(tmp):
     }, {"artifact_sha256": art, "manifest_sha256": man}
 
 
-def _g9_issue_high_risk(issuer, mgr, run_id, task, payload, *, atype="prod_write"):
+def _g9_issue_high_risk(issuer, mgr, run_id, task, payload, *,
+                        atype="prod_write", key_id="key_g9_a",
+                        second_key_id="key_g9_b"):
     run_state = mgr.get_run(run_id)
     return issuer.issue(
         actor="alice", approval_type=atype, run_id=run_id, task_id=task,
@@ -826,8 +830,8 @@ def _g9_issue_high_risk(issuer, mgr, run_id, task, payload, *, atype="prod_write
         policy_hash=IDENT["policy_hash"], ruleset_hash=IDENT["ruleset_hash"],
         input_watermark=IDENT["commit_sha"],
         expected_state_version=run_state.state_version,
-        payload=dict(payload), key_id="key_g9_a",
-        confirm_two_persons=True, second_key_id="key_g9_b",
+        payload=dict(payload), key_id=key_id,
+        confirm_two_persons=True, second_key_id=second_key_id,
         second_actor="bob")
 
 
@@ -1097,6 +1101,227 @@ def test_r9_g9_04_receipts_target_principal():
 
 
 # ====================================================================== #
+# 11b3. T1（第九轮整改）：receipt genesis 锚 fail-closed + 并发分配安全
+#       ——R9-AUTH-RECEIPT-COLDSTART-001 / R9-AUTH-RECEIPT-CONCURRENCY-013
+# ====================================================================== #
+def test_r9_t1_receipt_genesis_failclosed_concurrency():
+    tmp = tempfile.mkdtemp(prefix="wenqu-t1-")
+    kdir = os.path.join(tmp, "keyring")
+    ledger_path = os.path.join(kdir, ISSUE_RECEIPTS_FILENAME)
+
+    # ---- 1. genesis 锚：keyring 出生（首个 key 落盘）即写入，形状可验 ----
+    write_key_to_dir(kdir, "key_t1_a", generate_secret(),
+                     {"status": "active", "created_at": "2026-01-01T00:00:00Z",
+                      "owner": "alice", "actors": ["alice"]})
+    write_key_to_dir(kdir, "key_t1_b", generate_secret(),
+                     {"status": "active", "owner": "bob", "actors": ["bob"]})
+    assert os.path.exists(ledger_path), "受管 keyring 出生即须有 genesis 锚"
+    kr = ApprovalKeyring.from_path(kdir)
+    view = {k: kr.get(k) for k in kr.key_ids()}
+    ledger = IssueReceiptLedger(ledger_path, secret_of=view)
+    genesis = ledger.records()[0]
+    assert genesis["record_type"] == RECEIPT_GENESIS_RECORD_TYPE
+    assert genesis["seq"] == 0 and genesis["chain_prev"] == "0" * 64
+    assert len(genesis["epoch"]) == 32 and int(genesis["epoch"], 16) >= 0
+    assert genesis["key_id"] in view and genesis["created_at"]
+    assert ledger.verify_chain()["ok"] is True  # genesis-only 链可验
+    # 幂等：再次 ensure_genesis 不改写、不重复
+    same = IssueReceiptLedger(ledger_path, secret_of=view).ensure_genesis(
+        anchor_key_id="key_t1_b")
+    assert same["epoch"] == genesis["epoch"]
+    assert len(ledger.records()) == 1
+
+    store = EventStore(os.path.join(tmp, "events.db"))
+    mgr = RunManager(store, keyring=kr)
+    issuer = ApprovalIssuer(kr, os.path.join(kdir, "issuance-audit.jsonl"))
+    run_id = mgr.create_run("task_t1_a", IDENT)["run_id"]
+    mgr.advance_stage(run_id)
+    r1 = _g9_issue_high_risk(issuer, mgr, run_id, "task_t1_a",
+                             PROD_WRITE_PAYLOAD, key_id="key_t1_a",
+                             second_key_id="key_t1_b")
+    ap1 = r1["approval"]
+    assert ledger.verify_chain()["ok"] is True \
+        and ledger.verify_chain()["length"] == 2  # genesis + 1 receipt
+    # 受控签发的 receipt 链到 genesis 上（chain_prev=genesis 行摘要）
+    line1 = ledger.by_seq(1)
+    import hashlib as _hl
+    assert line1["chain_prev"] == _hl.sha256(json.dumps(
+        genesis, sort_keys=True, separators=(",", ":"),
+        ensure_ascii=False).encode("utf-8")).hexdigest()
+
+    # 轮换（盘点落 meta）
+    save_key_meta(kdir, "key_t1_a", {
+        **kr.meta("key_t1_a"), "status": "rotated",
+        "rotated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "rotated_to": "key_t1_b"})
+    kr2 = ApprovalKeyring.from_path(kdir)
+    assert kr2.meta("key_t1_a")["retired_receipt_seq"] == 1
+    mgr2 = RunManager(store, keyring=kr2)
+
+    # ---- 2. 冷启动负例（红→绿主案）：删账本后旧 key 回填新签必须拒 ----
+    orig_text = open(ledger_path, encoding="utf-8").read()  # 完整链快照
+    os.remove(ledger_path)
+    secret_a = kr2.get("key_t1_a")
+    backdated = {
+        "schema_version": "2.0", "approval_id": "apr_t1_cold",
+        "approval_type": "prod_write", "key_id": "key_t1_a",
+        "run_id": run_id, "task_id": "task_t1_a",
+        "stop_event_id": "n/a-prod-write", "stop_type": "prod-write",
+        "stage": "S1_REQUIREMENT", "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "expected_state_version": mgr2.get_run(run_id).state_version,
+        "actor": "alice",
+        "issued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                   time.gmtime(time.time() - 3600)),
+        "expires_at": "2099-01-01T00:00:00Z",
+        "nonce": "nonce-t1-cold-0001", "decision": "approve",
+        "payload": dict(PROD_WRITE_PAYLOAD),
+    }
+    backdated["signature"] = sign_envelope(secret_a, backdated)
+    bbody = {k: v for k, v in backdated.items()
+             if k not in ("signature", "cosignatures")}
+    backdated["cosignatures"] = [
+        {"key_id": "key_t1_a", "actor": "alice",
+         "signature": backdated["signature"]},
+        {"key_id": "key_t1_b", "actor": "bob",
+         "signature": sign_envelope(kr2.get("key_t1_b"), bbody)}]
+    before = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+    exc = None
+    try:
+        mgr2.reserve_action(run_id, "prod-write", "erp://prod/batch-t1",
+                            backdated, actor="probe",
+                            action_descriptor=dict(PROD_WRITE_PAYLOAD),
+                            runtime_evidence={**PROD_WRITE_PAYLOAD,
+                                              "action_target":
+                                                  "erp://prod/batch-t1"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "COLDSTART-001" in str(exc), \
+        f"删账本后回填新签必须 fail-closed 拒绝: {exc}"
+    assert store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pipeline_events").fetchone()[0] == before
+    # regime 破损对合法存量同样关闸（fail-closed 不择优）
+    exc = None
+    try:
+        mgr2.reserve_action(run_id, "prod-write", "erp://prod/batch-t1",
+                            ap1, actor="probe",
+                            action_descriptor=dict(ap1["payload"]),
+                            runtime_evidence={**ap1["payload"],
+                                              "action_target":
+                                                  "erp://prod/batch-t1"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "COLDSTART-001" in str(exc)
+
+    # ---- 3. 截断负例：抹掉 genesis 行（保留 receipt）→ 链验失败拒 ----
+    kept_lines = [l for l in orig_text.splitlines() if l.strip()]
+    assert len(kept_lines) == 2  # genesis + 1 receipt
+    with open(ledger_path, "w", encoding="utf-8") as fh:  # 只回填 receipt 行
+        fh.write(kept_lines[1] + "\n")
+    os.chmod(ledger_path, 0o600)
+    bad = IssueReceiptLedger(ledger_path, secret_of=view).verify_chain()
+    assert bad["ok"] is False and "genesis" in (bad["reason"] or "")
+    kr3 = ApprovalKeyring.from_path(kdir)
+    mgr3 = RunManager(store, keyring=kr3)
+    exc = None
+    try:
+        mgr3.reserve_action(run_id, "prod-write", "erp://prod/batch-t1",
+                            ap1, actor="probe",
+                            action_descriptor=dict(ap1["payload"]),
+                            runtime_evidence={**ap1["payload"],
+                                              "action_target":
+                                                  "erp://prod/batch-t1"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "审计链校验失败" in str(exc)
+    # 签发端对称 fail-closed：不向无 genesis 的账本续签
+    expect(ValueError, lambda: IssueReceiptLedger(
+        ledger_path, secret_of=view).append(
+        key_id="key_t1_b", approval_id="apr_x", nonce_digest="0" * 64,
+        issued_at="2026-10-10T00:00:00Z"))
+    expect(ValueError, lambda: IssueReceiptLedger(
+        ledger_path, secret_of=view).ensure_genesis(
+        anchor_key_id="key_t1_b"))
+
+    # ---- 4. 退休盘点缺失负例：meta 被 stripped 后存量消费拒 ----
+    # 恢复完整链（重建 keyring 账本——genesis+receipt 由 append 一次性重建）
+    os.remove(ledger_path)
+    rebuilt = IssueReceiptLedger(ledger_path, secret_of=view)
+    rebuilt.append(key_id="key_t1_a", approval_id=ap1["approval_id"],
+                   nonce_digest=_hl.sha256(
+                       ap1["nonce"].encode()).hexdigest(),
+                   issued_at=ap1["issued_at"])
+    # ap1 现锚定 seq=1（重建链）；攻击：直接抹 meta 的退休盘点
+    meta_file = os.path.join(kdir, "key_t1_a.meta.json")
+    stripped = json.load(open(meta_file))
+    stripped.pop("retired_receipt_seq", None)
+    fd = os.open(meta_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(stripped, fh, ensure_ascii=False, indent=2, sort_keys=True)
+    os.chmod(meta_file, 0o600)
+    kr4 = ApprovalKeyring.from_path(kdir)
+    mgr4 = RunManager(store, keyring=kr4)
+    exc = None
+    try:
+        mgr4.reserve_action(run_id, "prod-write", "erp://prod/batch-t1",
+                            ap1, actor="probe",
+                            action_descriptor=dict(ap1["payload"]),
+                            runtime_evidence={**ap1["payload"],
+                                              "action_target":
+                                                  "erp://prod/batch-t1"})
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "退休盘点" in str(exc), \
+        f"退休 key 缺 retired_receipt_seq 必须 fail-closed: {exc}"
+
+    # ---- 5. 并发分配：32 线程 × 2 轮 → 唯一连续 seq + 链无分叉 ----
+    conc_dir = os.path.join(tmp, "conc")
+    os.makedirs(conc_dir)
+    csecret = generate_secret()
+    cleared = IssueReceiptLedger(
+        os.path.join(conc_dir, ISSUE_RECEIPTS_FILENAME),
+        secret_of={"key_t1_c": csecret})
+    rounds_n, threads_n = 2, 32
+    worker_errors: list = []
+
+    def _burst(ledger_obj, n):
+        barrier = threading.Barrier(n)
+        got: list = [None] * n
+
+        def _w(i):
+            try:
+                barrier.wait(timeout=30)
+                got[i] = ledger_obj.append(
+                    key_id="key_t1_c", approval_id=f"apr_t1_c_{i}_"
+                    f"{os.urandom(4).hex()}",
+                    nonce_digest=os.urandom(16).hex(),
+                    issued_at="2026-10-10T00:00:00Z")["seq"]
+            except Exception as e:  # noqa: BLE001
+                worker_errors.append(f"{type(e).__name__}: {e}")
+        ts = [threading.Thread(target=_w, args=(i,)) for i in range(n)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(timeout=60)
+        return [s for s in got if s is not None]
+
+    all_seqs: list = []
+    for _ in range(rounds_n):
+        all_seqs.extend(_burst(cleared, threads_n))
+    assert not worker_errors, worker_errors
+    assert sorted(all_seqs) == list(range(1, rounds_n * threads_n + 1)), \
+        "32 线程并发签发必须分到唯一连续 seq（无重复/无空洞）"
+    chain = cleared.verify_chain()
+    assert chain["ok"] is True and chain["length"] == \
+        rounds_n * threads_n + 1  # +genesis
+    store.close()
+
+
+# ====================================================================== #
 # 11. CLI 端到端：keys/approve/消费/对账/来源占位（子进程 bash wenquctl）
 # ====================================================================== #
 CTL = os.path.join(REPO, "bin", "wenquctl")
@@ -1279,6 +1504,7 @@ TESTS = [
     ("高危联签审批：reserve_action 消费→重放拒", test_high_risk_cosigned_reserve_action),
     ("R8：principal 登记面（owner/actors）+同 actor 假双人+生命周期过期边界", test_r8_principal_registration_and_issuance_gates),
     ("G9-04：退休key receipt不可回填+actual-target强制绑定+principal强制登记", test_r9_g9_04_receipts_target_principal),
+    ("T1：receipt genesis锚fail-closed（冷启动/截断/盘点缺失）+并发分配安全", test_r9_t1_receipt_genesis_failclosed_concurrency),
     ("审计对账：批了/用了/未用过期/旁路签发/篡改断链", test_audit_reconciliation),
     ("CLI 端到端：keys/approve/消费/重放拒/联签/feishu 占位/对账", test_cli_end_to_end),
     ("FeishuApprovalSource 占位接口（SKIP）", test_feishu_source_placeholder),
