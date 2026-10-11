@@ -1,0 +1,31 @@
+
+PAT /Users/maccc/.wenqu/observation/samples/*.json count 654
+20261010T231339951410000-cc7c5af1.json 2026-10-11T07:13:39.952235+08:00
+ schema obs-sample-v2 collected 2026-10-10T23:13:33.130810+00:00 identity None release_sha 40ac1b72d64df5da995f1ad09f221f06d5fbdc97 repo.identity bb38f70163ce4a1a79f36ea66284e110eff96a95 qualified True qfail None
+20261010T231848873107000-1a382dff.json 2026-10-11T07:18:48.873766+08:00
+ schema obs-sample-v2 collected 2026-10-10T23:18:42.216335+00:00 identity None release_sha 40ac1b72d64df5da995f1ad09f221f06d5fbdc97 repo.identity bb38f70163ce4a1a79f36ea66284e110eff96a95 qualified True qfail None
+20261010T232404205407000-a39f3993.json 2026-10-11T07:24:04.205917+08:00
+ schema obs-sample-v2 collected 2026-10-10T23:23:53.235372+00:00 identity None release_sha 40ac1b72d64df5da995f1ad09f221f06d5fbdc97 repo.identity bb38f70163ce4a1a79f36ea66284e110eff96a95 qualified True qfail None
+20261010T232915247496000-1a40cc31.json 2026-10-11T07:29:15.248610+08:00
+ schema obs-sample-v2 collected 2026-10-10T23:29:08.239782+00:00 identity None release_sha 40ac1b72d64df5da995f1ad09f221f06d5fbdc97 repo.identity bb38f70163ce4a1a79f36ea66284e110eff96a95 qualified True qfail None
+20261010T233424782388000-5906c97d.json 2026-10-11T07:34:24.783414+08:00
+ schema obs-sample-v2 collected 2026-10-10T23:34:18.081872+00:00 identity None release_sha 40ac1b72d64df5da995f1ad09f221f06d5fbdc97 repo.identity bb38f70163ce4a1a79f36ea66284e110eff96a95 qualified True qfail None
+
+PAT /Users/maccc/.wenqu/observation/shadow/*.json count 654
+20261010T231341178236000-291ae160.json 2026-10-11T07:13:41.178926+08:00
+ schema obs-shadow-v2 collected 2026-10-10T23:13:33.130810+00:00 identity None release_sha None repo.identity None qualified None qfail None
+ canary {'window_hours': 48.0, 'anchor': '2026-10-09T23:14:54.495802+00:00', 'status': 'IN_WINDOW', 'equal_count': 270, 'mismatch_count': 0, 'not_comparable_count': 3, 'scanned_files': 273, 'first_sample_at': '2026-10-09T23:14:54.495802+00:00', 'last_sample_at': '2026-10-10T23:13:33.130810+00:00', 'note': '窗口内 shadow 样本 compare.equal 累计计数（锚点=t0，扫描既有样本 + 本样本聚合）'}
+20261010T231850003143000-387c05ba.json 2026-10-11T07:18:50.003895+08:00
+ schema obs-shadow-v2 collected 2026-10-10T23:18:42.216335+00:00 identity None release_sha None repo.identity None qualified None qfail None
+ canary {'window_hours': 48.0, 'anchor': '2026-10-09T23:14:54.495802+00:00', 'status': 'IN_WINDOW', 'equal_count': 271, 'mismatch_count': 0, 'not_comparable_count': 3, 'scanned_files': 274, 'first_sample_at': '2026-10-09T23:14:54.495802+00:00', 'last_sample_at': '2026-10-10T23:18:42.216335+00:00', 'note': '窗口内 shadow 样本 compare.equal 累计计数（锚点=t0，扫描既有样本 + 本样本聚合）'}
+20261010T232405376345000-cecaa070.json 2026-10-11T07:24:05.377176+08:00
+ schema obs-shadow-v2 collected 2026-10-10T23:23:53.235372+00:00 identity None release_sha None repo.identity None qualified None qfail None
+ canary {'window_hours': 48.0, 'anchor': '2026-10-09T23:14:54.495802+00:00', 'status': 'IN_WINDOW', 'equal_count': 272, 'mismatch_count': 0, 'not_comparable_count': 3, 'scanned_files': 275, 'first_sample_at': '2026-10-09T23:14:54.495802+00:00', 'last_sample_at': '2026-10-10T23:23:53.235372+00:00', 'note': '窗口内 shadow 样本 compare.equal 累计计数（锚点=t0，扫描既有样本 + 本样本聚合）'}
+20261010T232917206033000-ba2c0744.json 2026-10-11T07:29:17.206855+08:00
+ schema obs-shadow-v2 collected 2026-10-10T23:29:08.239782+00:00 identity None release_sha None repo.identity None qualified None qfail None
+ canary {'window_hours': 48.0, 'anchor': '2026-10-09T23:14:54.495802+00:00', 'status': 'IN_WINDOW', 'equal_count': 273, 'mismatch_count': 0, 'not_comparable_count': 3, 'scanned_files': 276, 'first_sample_at': '2026-10-09T23:14:54.495802+00:00', 'last_sample_at': '2026-10-10T23:29:08.239782+00:00', 'note': '窗口内 shadow 样本 compare.equal 累计计数（锚点=t0，扫描既有样本 + 本样本聚合）'}
+20261010T233425971028000-fb248ba8.json 2026-10-11T07:34:25.971814+08:00
+ schema obs-shadow-v2 collected 2026-10-10T23:34:18.081872+00:00 identity None release_sha None repo.identity None qualified None qfail None
+ canary {'window_hours': 48.0, 'anchor': '2026-10-09T23:14:54.495802+00:00', 'status': 'IN_WINDOW', 'equal_count': 274, 'mismatch_count': 0, 'not_comparable_count': 3, 'scanned_files': 277, 'first_sample_at': '2026-10-09T23:14:54.495802+00:00', 'last_sample_at': '2026-10-10T23:34:18.081872+00:00', 'note': '窗口内 shadow 样本 compare.equal 累计计数（锚点=t0，扫描既有样本 + 本样本聚合）'}
+
+PAT /Users/maccc/.wenqu/observation/jobs/*.json count 0

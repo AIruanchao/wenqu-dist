@@ -1,0 +1,688 @@
+timestamp=2026-10-11T01:14:10Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && rg -n -i 'row[_ -]?version|legacy|migrat|sidecar|chmod|permission|write|read.only|readonly|immutable|writer.?epoch|cutover|quarantine|reconcile|source.*hash|line.*hash|mode' system/wenqu_core/ledger_migrator.py tools/w5_reconcile.py system/wenqu_core/store.py system/tests/test_ac_state_mig.py evidence/07-migration-reconcile/README.md evidence/07-migration-reconcile/summary.md
+--- output begin ---
+evidence/07-migration-reconcile/README.md:1:# 07-migration-reconcile — W5 旧账迁移对账证据
+evidence/07-migration-reconcile/README.md:7:- `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 全量索引（481 条，
+evidence/07-migration-reconcile/README.md:9:- 坏 JSON/未知状态 → quarantine 清单；
+evidence/07-migration-reconcile/README.md:25:| `system/wenqu_core/ledger_migrator.py` | 存在（P0-6 第六轮统一正源契约；导入行经公共 EventStore.append 入 pipeline_events） |
+evidence/07-migration-reconcile/README.md:26:| 逐项 reconciliation 索引 | **已产出**：`reconcile-report.json`（tools/w5_reconcile.py 机器生成，可重跑；逐行 {row_id, 状态, reason, event_id}） |
+evidence/07-migration-reconcile/README.md:27:| 四态汇总 + 两次迁移幂等 + 源行数守恒 | **已产出**：`summary.md` + `migrated-events.db`（16 mapped / 1950 quarantined / 1 待人工 / 0 不一致 = 1967 非空行，守恒成立） |
+evidence/07-migration-reconcile/README.md:28:| ACCEPTED 缺要素处置记录 | **已产出**：`reconcile-report.json` 的 `accepted_adjudication` 清单（1 条 ACCEPTED-CLOSED，MIG-02 quarantine 待人工 reopen） |
+evidence/07-migration-reconcile/README.md:35:诚实边界：外部探针 `/private/tmp/codex-test/evidence/acceptance-20261007-231333/store-migrator-probes.json`
+evidence/07-migration-reconcile/README.md:41:2. quarantine/invalid/reopen 每条决策须可追溯到源记录原文（脱敏后）。
+evidence/07-migration-reconcile/README.md:46:python3 tools/w5_reconcile.py            # /tmp 演练（fail-closed，exit 0 才可正式）
+evidence/07-migration-reconcile/README.md:47:python3 tools/w5_reconcile.py --formal   # 重产本目录三件套（append-only 幂等）
+evidence/07-migration-reconcile/summary.md:3:- 生成：2026-10-08T09:29:58.137411+00:00（mode=formal，tool=tools/w5_reconcile.py，git_head=1620c7c030bd1ea5eb096e0509b7f864c4e90a6d）
+evidence/07-migration-reconcile/summary.md:5:- 事件正源：pipeline_events（写入 API=EventStore.append；db=`/Users/maccc/Documents/wenqu-dist/evidence/07-migration-reconcile/migrated-events.db`）
+evidence/07-migration-reconcile/summary.md:18:| quarantined（确定性隔离） | 1950 |
+evidence/07-migration-reconcile/summary.md:23:- 守恒等式 `source_nonblank == mapped + quarantined + 待人工 + 不一致` → conserved=True
+evidence/07-migration-reconcile/summary.md:24:- quarantine 原因分布：`{"missing_field:ts": 40, "no_mappable_status": 1910}`
+evidence/07-migration-reconcile/summary.md:28:- 两次迁移：run1 imported=0/dup=16/quarantine=1；run2 imported=0/dup=16/quarantine=1
+evidence/07-migration-reconcile/summary.md:31:- 哈希链 verify_chain：True（head=fe929c37e3416f31…，共 16 事件，其中 LEDGER_MIGRATED 16 条）
+evidence/07-migration-reconcile/summary.md:40:   - row_id=`b622d1e3824cb37ce5f62505c2b73b833ea37f60f10e5aa8151a53d080e1d9ca`；处置：迁移器 quarantine（unknown_status:ACCEPTED*，MIG-02 不猜映射）；人工裁定补齐审批要素后另行再录（reopen 通道）
+evidence/07-migration-reconcile/summary.md:47:- 别名正源：wenqu_core.ledger_migrator.STATUS_ALIASES（冻结正源，本工具零自造别名）
+evidence/07-migration-reconcile/summary.md:48:- 不猜填：候选值不在冻结别名表（DONE/PARTIAL/MERGED/ALL-GREEN/master=… 长文本等）一律 quarantine 记因；FIXED→FIXED_PENDING_VERIFY 由迁移器执行（M3）。
+evidence/07-migration-reconcile/summary.md:52:- 本源为引擎轮次工作日志（action 叙事行占绝大多数），非状态账本——quarantine 主因 `no_mappable_status` 属源数据本性，非工具缺陷；
+evidence/07-migration-reconcile/summary.md:53:- 未写任何生产库；legacy 源目录零写入（SHA 前后一致已证）；
+system/wenqu_core/store.py:12:迁移器（ledger_migrator）的导入行也经公共 append 写入本表同一哈希链
+system/wenqu_core/store.py:14:残留行由 ledger_migrator.migrate_legacy_events 一次性收编。控制事件
+system/wenqu_core/store.py:66:-- P0-6 修：表名改为 pipeline_events 避免与 LedgerMigrator 的 events 表冲突
+system/wenqu_core/store.py:96:        self._conn.execute("PRAGMA journal_mode=WAL")
+system/tests/test_ac_state_mig.py:13:       + system/wenqu_core/ledger_migrator.py —— LedgerMigrator（旧 JSONL
+system/tests/test_ac_state_mig.py:14:       账本迁移：quarantine/守恒/幂等/sidecar 审计；P0-6 第六轮统一正源
+system/tests/test_ac_state_mig.py:19:       STATE-05 writer epoch fencing、STATE-09 重放侧 identity 不变量、
+system/tests/test_ac_state_mig.py:26:    ledger_migrator 无 project 概念）；并行改写后的迁移器已落地最小实现
+system/tests/test_ac_state_mig.py:30:    不可实现（彼时语义在 store/ledger_migrator 中不存在且本文件被禁止
+system/tests/test_ac_state_mig.py:32:    真实语义（run_id/finding_id 结构校验、writer epoch fencing、重放侧
+system/tests/test_ac_state_mig.py:41:    归一化为 BLOCKED 状态导入 + 坏行 quarantine 绝不导入为绿；
+system/tests/test_ac_state_mig.py:70:# A 组用例只依赖 store / ledger_migrator（对 wenqu_pipeline 零依赖）；
+system/tests/test_ac_state_mig.py:75:from wenqu_core.ledger_migrator import (                # noqa: E402
+system/tests/test_ac_state_mig.py:76:    LedgerMigrator, ConservationError, KNOWN_STATUSES,
+system/tests/test_ac_state_mig.py:77:    MIGRATION_EVENT_TYPE, PROJECT_FIELDS, extract_project_ids,
+system/tests/test_ac_state_mig.py:82:    ApprovalRejected, InvalidRunIdError, FencedWriterError,
+system/tests/test_ac_state_mig.py:120:    "MIG-01": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
+system/tests/test_ac_state_mig.py:121:    "MIG-02": "测迁移器已实现面：ACCEPTED 是未知状态——无论缺不缺审批信息一律 quarantine（不猜映射为 PASS），进 quarantine=待人工 reopen 的账，sidecar 全程留痕。『invalid 后写 reopen 事件』属 risk acceptance 子系统（FND-016，不在被测体）",
+system/tests/test_ac_state_mig.py:123:    "MIG-05": "测迁移器最小实现面（P0-6 第六轮 MIG-05 落地）：PROJECT_FIELDS 一致性提取 + 多 project 身份字段值不一致 → project_key_conflict 显式 quarantine（绝不静默选边/拆成假项目）+ 一致时 project_id 贯通进事件负载。§21.1 canonical repo_id（forge_host+owner/repo）冻结映射表与 fingerprint collision 表不在被测体（编排层职责），本文件不越界",
+system/tests/test_ac_state_mig.py:126:    "STATE-05": "fenced 写者（RunManager(writer_epoch=N)）的控制事件带 writer_epoch 扩展字段——超出冻结 run-event-v2 词表（默认/未启用模式零盖章、零比较、字节级兼容，P0-4 对抗 #9 的 schema 全绿面不受影响）——schema 升版登记为后续工作包；fencing 作用域=单 run 事件流（被接管流对旧 epoch writer 全写入拒绝，含 broker 消费路径 loader 栅栏；新流/新 run 不受旧租约牵连，本用例显式验证该边界）；epoch 唯一性由租约发放方保证（同 epoch=同租约不区分实例）",
+system/tests/test_ac_state_mig.py:175:# pipeline_events 上（负载为 canonical JSON；位置溯源在 sidecar）
+system/tests/test_ac_state_mig.py:212:def assert_migration_chain(db, expected_len):
+system/tests/test_ac_state_mig.py:280:    """注入：100 个并发 writer × 各 100 条不同事件（真实多连接 WAL 并发）。
+system/tests/test_ac_state_mig.py:284:    附加子场景：20 个 writer 并发追加同一内容 → 恰好 1 行（幂等不双入账）。
+system/tests/test_ac_state_mig.py:286:    WRITERS, PER_WRITER = 100, 100
+system/tests/test_ac_state_mig.py:290:        inserted = [0] * WRITERS
+system/tests/test_ac_state_mig.py:293:        def writer(w):
+system/tests/test_ac_state_mig.py:297:                    for i in range(PER_WRITER):
+system/tests/test_ac_state_mig.py:298:                        _, ins = s.append({"kind": "load", "writer": w, "i": i})
+system/tests/test_ac_state_mig.py:304:                errors.append(f"writer{w}:{type(e).__name__}:{e}")
+system/tests/test_ac_state_mig.py:306:        threads = [threading.Thread(target=writer, args=(w,))
+system/tests/test_ac_state_mig.py:307:                   for w in range(WRITERS)]
+system/tests/test_ac_state_mig.py:317:            assert total == WRITERS * PER_WRITER, f"丢失/缺行: {total}"
+system/tests/test_ac_state_mig.py:318:            assert sum(inserted) == WRITERS * PER_WRITER, \
+system/tests/test_ac_state_mig.py:323:            assert uniq_ids == WRITERS * PER_WRITER, f"重复行: {uniq_ids}"
+system/tests/test_ac_state_mig.py:325:            assert verify["ok"] and verify["length"] == WRITERS * PER_WRITER
+system/tests/test_ac_state_mig.py:335:        def idem_writer():
+system/tests/test_ac_state_mig.py:345:        threads = [threading.Thread(target=idem_writer) for _ in range(20)]
+system/tests/test_ac_state_mig.py:358:    return {"writers": WRITERS, "per_writer": PER_WRITER,
+system/tests/test_ac_state_mig.py:359:            "total_rows": WRITERS * PER_WRITER,
+system/tests/test_ac_state_mig.py:360:            "distinct_event_ids": WRITERS * PER_WRITER,
+system/tests/test_ac_state_mig.py:375:db, mode, pre, delay = sys.argv[1], sys.argv[2], int(sys.argv[3]), float(sys.argv[4])
+system/tests/test_ac_state_mig.py:386:            if self._begins > pre and mode == "after_begin":
+system/tests/test_ac_state_mig.py:388:        elif mode == "after_insert" and up.startswith("INSERT") and self._begins > pre:
+system/tests/test_ac_state_mig.py:390:        elif mode == "after_commit" and up.startswith("COMMIT") and self._begins > pre:
+system/tests/test_ac_state_mig.py:399:if mode == "timer":
+system/tests/test_ac_state_mig.py:405:if mode == "timer":
+system/tests/test_ac_state_mig.py:414:def _run_kill_child(db, mode, pre, delay=0.0):
+system/tests/test_ac_state_mig.py:418:        [sys.executable, "-c", _KILL_CHILD_SRC, db, mode, str(pre), str(delay)],
+system/tests/test_ac_state_mig.py:435:    for mode in ("after_begin", "after_insert", "after_commit"):
+system/tests/test_ac_state_mig.py:439:            p = _run_kill_child(db, mode, pre)
+system/tests/test_ac_state_mig.py:441:                f"{mode}: 子进程未死于 SIGKILL (rc={p.returncode})"
+system/tests/test_ac_state_mig.py:452:            if mode == "after_commit":
+system/tests/test_ac_state_mig.py:454:                    f"{mode}: 已提交事务丢失 total={total} doomed={doomed}"
+system/tests/test_ac_state_mig.py:457:                    f"{mode}: 未提交事务泄漏 total={total} doomed={doomed}"
+system/tests/test_ac_state_mig.py:458:            assert verify["ok"] is True, f"{mode}: 崩溃后链断裂"
+system/tests/test_ac_state_mig.py:459:            points[mode] = {"rows": total, "chain_ok": True,
+system/tests/test_ac_state_mig.py:460:                            "committed": mode == "after_commit"}
+system/tests/test_ac_state_mig.py:585:    return {"update_path": "rejected", "delete_rewrite_path": "rejected",
+system/tests/test_ac_state_mig.py:637:    return {"overwrite_attempt": "rejected",
+system/tests/test_ac_state_mig.py:708:def _write_lines(dirpath, name, lines):
+system/tests/test_ac_state_mig.py:711:        fh.write("\n".join(lines) + "\n")
+system/tests/test_ac_state_mig.py:715:def _sidecar_records(path):
+system/tests/test_ac_state_mig.py:726:# MIG-01：坏 JSON/未知状态 → quarantine+BLOCKED
+system/tests/test_ac_state_mig.py:728:def test_MIG_01_bad_json_unknown_status_quarantine():
+system/tests/test_ac_state_mig.py:732:    期望（被测体已实现面·P0-6 第六轮统一正源契约）：坏行一律 quarantine
+system/tests/test_ac_state_mig.py:734:    EventStore.append 落同一哈希链（单一事件表+单一写入 API），migration_runs
+system/tests/test_ac_state_mig.py:735:    记 quarantined 计数；sidecar 逐行留痕；ERROR/BLOCKED 行按已知状态
+system/tests/test_ac_state_mig.py:739:        src = os.path.join(td, "legacy"); os.makedirs(src)
+system/tests/test_ac_state_mig.py:756:        _write_lines(src, "legacy-a.jsonl", lines)
+system/tests/test_ac_state_mig.py:758:        mig = LedgerMigrator(src, db)
+system/tests/test_ac_state_mig.py:759:        report = mig.migrate()
+system/tests/test_ac_state_mig.py:763:        assert c["imported"] == 5 and c["quarantined"] == 7 and c["duplicates"] == 0
+system/tests/test_ac_state_mig.py:767:        assert report["quarantine_reasons"] == {
+system/tests/test_ac_state_mig.py:772:        assert report["write_api"] == "EventStore.append"
+system/tests/test_ac_state_mig.py:777:            mig_rows = unified_payloads(conn, MIGRATION_EVENT_TYPE)
+system/tests/test_ac_state_mig.py:795:                assert o["line_sha"] == hashlib.sha256(
+system/tests/test_ac_state_mig.py:797:                assert o["event_type"] == MIGRATION_EVENT_TYPE
+system/tests/test_ac_state_mig.py:803:                              "duplicates, quarantined, conserved FROM "
+system/tests/test_ac_state_mig.py:804:                              "migration_runs")
+system/tests/test_ac_state_mig.py:809:        assert_migration_chain(db, 5)
+system/tests/test_ac_state_mig.py:810:        recs = _sidecar_records(mig.sidecar_path)
+system/tests/test_ac_state_mig.py:811:        quarantined = [r for r in recs if r["decision"] == "quarantined"]
+system/tests/test_ac_state_mig.py:813:        assert len(quarantined) == 7 and len(imported) == 5
+system/tests/test_ac_state_mig.py:814:        assert {r["reason"] for r in quarantined} == {
+system/tests/test_ac_state_mig.py:820:        # 单元面：classify 的 quarantine 判定矩阵
+system/tests/test_ac_state_mig.py:823:            v = LedgerMigrator.classify(bad)
+system/tests/test_ac_state_mig.py:824:            assert v["decision"] == "quarantine", bad
+system/tests/test_ac_state_mig.py:825:        assert LedgerMigrator.classify(
+system/tests/test_ac_state_mig.py:827:    return {"quarantined": 7, "imported": 5,
+system/tests/test_ac_state_mig.py:832:            "write_api": "EventStore.append",
+system/tests/test_ac_state_mig.py:845:    未知状态——无论审批信息缺不缺，一律 invalid 进 quarantine（绝不猜映射
+system/tests/test_ac_state_mig.py:847:    quarantine + sidecar 留痕即待人工 reopen 的账（重进正源必须人工再录），
+system/tests/test_ac_state_mig.py:851:        src = os.path.join(td, "legacy"); os.makedirs(src)
+system/tests/test_ac_state_mig.py:861:        _write_lines(src, "accepted-ledger.jsonl", lines)
+system/tests/test_ac_state_mig.py:863:        mig = LedgerMigrator(src, db)
+system/tests/test_ac_state_mig.py:864:        report = mig.migrate()
+system/tests/test_ac_state_mig.py:868:        assert c["imported"] == 1 and c["quarantined"] == 4, c
+system/tests/test_ac_state_mig.py:869:        assert report["quarantine_reasons"] == {
+system/tests/test_ac_state_mig.py:875:            mig_rows = unified_payloads(conn, MIGRATION_EVENT_TYPE)
+system/tests/test_ac_state_mig.py:883:        assert_migration_chain(db, 1)
+system/tests/test_ac_state_mig.py:884:        recs = _sidecar_records(mig.sidecar_path)
+system/tests/test_ac_state_mig.py:885:        q = [r for r in recs if r["decision"] == "quarantined"]
+system/tests/test_ac_state_mig.py:887:        assert all("preview" in r for r in q), "quarantine 必须带原文预览（reopen 线索）"
+system/tests/test_ac_state_mig.py:888:    return {"accepted_lines": 4, "quarantined": 4, "accepted_imported": 0,
+system/tests/test_ac_state_mig.py:891:            "reopen_channel": "quarantine + sidecar 预览（人工再录）",
+system/tests/test_ac_state_mig.py:898:def test_MIG_03_double_migration_idempotent():
+system/tests/test_ac_state_mig.py:905:    只读（前后字节一致）；sidecar 只追加。
+system/tests/test_ac_state_mig.py:908:        src = os.path.join(td, "legacy"); os.makedirs(src)
+system/tests/test_ac_state_mig.py:917:        src_file = _write_lines(src, "dup-ledger.jsonl", lines)
+system/tests/test_ac_state_mig.py:921:        r1 = LedgerMigrator(src, db).migrate()
+system/tests/test_ac_state_mig.py:928:        head1 = assert_migration_chain(db, 3)
+system/tests/test_ac_state_mig.py:929:        sc1 = open(os.path.join(td, "mig.db.migration-sidecar.jsonl"),
+system/tests/test_ac_state_mig.py:932:        r2 = LedgerMigrator(src, db).migrate()     # 第二个实例、同一库
+system/tests/test_ac_state_mig.py:938:        head2 = assert_migration_chain(db, 3)
+system/tests/test_ac_state_mig.py:939:        sc2 = open(os.path.join(td, "mig.db.migration-sidecar.jsonl"),
+system/tests/test_ac_state_mig.py:944:        assert sc2.startswith(sc1) and len(sc2) > len(sc1), "sidecar 必须只追加"
+system/tests/test_ac_state_mig.py:948:            and c1["quarantined"] == 2 and c1["lines_total"] == 6
+system/tests/test_ac_state_mig.py:950:            and c2["quarantined"] == 2 and c2["lines_total"] == 6
+system/tests/test_ac_state_mig.py:959:            assert rows_of(conn, "SELECT COUNT(*) FROM migration_runs")[0][0] == 2
+system/tests/test_ac_state_mig.py:962:    return {"run1": {"imported": 3, "duplicates": 1, "quarantined": 2},
+system/tests/test_ac_state_mig.py:963:            "run2": {"imported": 0, "duplicates": 4, "quarantined": 2},
+system/tests/test_ac_state_mig.py:967:            "sidecar_append_only": True}
+system/tests/test_ac_state_mig.py:976:      (b) 审计 sidecar 落在一个目录路径上（任何 OS/用户都写不开）；
+system/tests/test_ac_state_mig.py:984:          守恒等式 lines==imported+duplicates+quarantined 在
+system/tests/test_ac_state_mig.py:985:          DB/sidecar 独立对账下成立，绝不静默少账；
+system/tests/test_ac_state_mig.py:987:          migration_runs 零行——没有部分导入、没有假守恒记账；
+system/tests/test_ac_state_mig.py:989:    诚实边界：ConservationError 守卫本身是防御性的——migrate 的计数与
+system/tests/test_ac_state_mig.py:996:        src = os.path.join(td, "legacy"); os.makedirs(src)
+system/tests/test_ac_state_mig.py:1001:        _write_lines(src, "conserved.jsonl", lines)
+system/tests/test_ac_state_mig.py:1004:        r1 = LedgerMigrator(src, db).migrate()
+system/tests/test_ac_state_mig.py:1007:        # 独立对账（不信 report，直接从源文件/统一表/sidecar 重数）
+system/tests/test_ac_state_mig.py:1012:            db_rows = len(unified_payloads(conn, MIGRATION_EVENT_TYPE))
+system/tests/test_ac_state_mig.py:1013:            quarantined_shas = {r["line_sha"] for r in
+system/tests/test_ac_state_mig.py:1014:                                _sidecar_records(db + ".migration-sidecar.jsonl")
+system/tests/test_ac_state_mig.py:1015:                                if r["decision"] == "quarantined"}
+system/tests/test_ac_state_mig.py:1019:        src_shas = {r["line_sha"] for r in LedgerMigrator(src, db).scan()}
+system/tests/test_ac_state_mig.py:1020:        assert src_nonblank == db_rows + len(quarantined_shas)
+system/tests/test_ac_state_mig.py:1021:        assert quarantined_shas <= src_shas and db_rows == n_valid
+system/tests/test_ac_state_mig.py:1033:        head_before = assert_migration_chain(db, n_valid)
+system/tests/test_ac_state_mig.py:1036:        r2 = LedgerMigrator(src, db).migrate()
+system/tests/test_ac_state_mig.py:1043:            assert len(unified_payloads(conn, MIGRATION_EVENT_TYPE)) == n_valid
+system/tests/test_ac_state_mig.py:1046:        head_after = assert_migration_chain(db, n_valid)
+system/tests/test_ac_state_mig.py:1049:        # (b) sidecar 写不开（目录路径；对 root 也成立）→ 整体失败、零部分账
+system/tests/test_ac_state_mig.py:1050:        side_dir = os.path.join(td, "sidecar-is-dir"); os.makedirs(side_dir)
+system/tests/test_ac_state_mig.py:1051:        db_b = os.path.join(td, "fail-sidecar.db")
+system/tests/test_ac_state_mig.py:1053:            LedgerMigrator(src, db_b, sidecar_path=side_dir).migrate()
+system/tests/test_ac_state_mig.py:1054:            raise AssertionError("sidecar 不可写时迁移竟成功（假绿）")
+system/tests/test_ac_state_mig.py:1055:        except (IsADirectoryError, PermissionError, OSError):
+system/tests/test_ac_state_mig.py:1060:            assert count_rows(conn, "migration_runs") == 0
+system/tests/test_ac_state_mig.py:1066:            LedgerMigrator(src, side_dir).migrate()
+system/tests/test_ac_state_mig.py:1071:                                    "db_rows": n_valid, "quarantined": 2},
+system/tests/test_ac_state_mig.py:1073:            "remigration_after_delete_attempt": {"imported": 0,
+system/tests/test_ac_state_mig.py:1076:            "unwritable_sidecar": "迁移失败，pipeline_events=0、migration_runs=0",
+system/tests/test_ac_state_mig.py:1092:      1) 冲突行 → 显式 quarantine，reason 形如
+system/tests/test_ac_state_mig.py:1101:         （imported=0、导入行全计 duplicate、冲突行重复 quarantine）。
+system/tests/test_ac_state_mig.py:1113:        src = os.path.join(td, "legacy"); os.makedirs(src)
+system/tests/test_ac_state_mig.py:1128:        _write_lines(src, "project-ledger.jsonl", [
+system/tests/test_ac_state_mig.py:1133:        v = LedgerMigrator.classify(conflict_a)
+system/tests/test_ac_state_mig.py:1134:        assert v["decision"] == "quarantine"
+system/tests/test_ac_state_mig.py:1136:        v2 = LedgerMigrator.classify(conflict_long)
+system/tests/test_ac_state_mig.py:1137:        assert v2["decision"] == "quarantine" and v2["reason"] == (
+system/tests/test_ac_state_mig.py:1139:        assert LedgerMigrator.classify(consistent) == {
+system/tests/test_ac_state_mig.py:1142:            "line_sha": LedgerMigrator.classify(consistent)["line_sha"]}
+system/tests/test_ac_state_mig.py:1145:        r1 = LedgerMigrator(src, db).migrate()
+system/tests/test_ac_state_mig.py:1149:            and c["quarantined"] == 3, c
+system/tests/test_ac_state_mig.py:1163:            mig_rows = unified_payloads(conn, MIGRATION_EVENT_TYPE)
+system/tests/test_ac_state_mig.py:1188:        assert_migration_chain(db, 4)
+system/tests/test_ac_state_mig.py:1190:        # 幂等：二次迁移 imported=0、导入行全 duplicate、冲突行重复 quarantine
+system/tests/test_ac_state_mig.py:1191:        r2 = LedgerMigrator(src, db).migrate()
+system/tests/test_ac_state_mig.py:1194:            and c2["quarantined"] == 3 and r2["conserved"] is True
+system/tests/test_ac_state_mig.py:1196:        assert_migration_chain(db, 4)
+system/tests/test_ac_state_mig.py:1198:        # sidecar 逐行留痕：冲突行 quarantine 记录带原文预览
+system/tests/test_ac_state_mig.py:1199:        recs = _sidecar_records(db + ".migration-sidecar.jsonl")
+system/tests/test_ac_state_mig.py:1200:        q = [r for r in recs if r["decision"] == "quarantined"]
+system/tests/test_ac_state_mig.py:1205:    return {"conflict_rows_quarantined": 3, "imported_with_project": 3,
+system/tests/test_ac_state_mig.py:1211:                                 "quarantined": 3},
+system/tests/test_ac_state_mig.py:1238:                      writer_epoch=epoch)
+system/tests/test_ac_state_mig.py:1367:# STATE-05：双 writer epoch → 所有写入拒绝
+system/tests/test_ac_state_mig.py:1369:def test_STATE_05_dual_writer_epoch_all_writes_rejected():
+system/tests/test_ac_state_mig.py:1370:    """注入：双 writer epoch——epoch 1 的写者建流写入后，epoch 2 的新写者
+system/tests/test_ac_state_mig.py:1373:    期望（§20.2 逐字）：旧 epoch writer 的**所有写入**拒绝——
+system/tests/test_ac_state_mig.py:1375:         一律 FencedWriterError；
+system/tests/test_ac_state_mig.py:1378:      3) 未启用 epoch 的 writer（视为 epoch 0）同样被拒；
+system/tests/test_ac_state_mig.py:1380:         转换全对）但 writer_epoch 落后的事件 → 重放即 PipelineCorruptionError；
+system/tests/test_ac_state_mig.py:1383:    新流（新建 run）仍可写（双 writer 争用的是同一条正源流）。
+system/tests/test_ac_state_mig.py:1391:        assert w1.get_run(run_id).writer_epoch == 1     # 流内 epoch 折叠可见
+system/tests/test_ac_state_mig.py:1392:        # 双 writer：epoch 2 接管（更高 epoch 写入放行，流内 epoch 前移）
+system/tests/test_ac_state_mig.py:1397:        assert w2.get_run(run_id).writer_epoch == 2
+system/tests/test_ac_state_mig.py:1398:        # 1) 旧 writer 的全部变更 API 拒绝
+system/tests/test_ac_state_mig.py:1403:            lambda: w1.raise_waiting(run_id, "resource", "旧 writer 试图停等"),
+system/tests/test_ac_state_mig.py:1407:            lambda: w1.cancel_run(run_id, "stale writer"),
+system/tests/test_ac_state_mig.py:1408:            lambda: w1.supersede_run(run_id, "stale writer"),
+system/tests/test_ac_state_mig.py:1411:            expect(FencedWriterError, fn)
+system/tests/test_ac_state_mig.py:1412:        # 3) 未启用 epoch 的 writer（epoch 0）同样被拒
+system/tests/test_ac_state_mig.py:1414:        expect(FencedWriterError, lambda: w0.advance_stage(run_id))
+system/tests/test_ac_state_mig.py:1415:        # 2) broker 消费路径：w2 停等后，旧 writer 持完全合法审批消费不了
+system/tests/test_ac_state_mig.py:1424:        expect(FencedWriterError,
+system/tests/test_ac_state_mig.py:1428:        expect(FencedWriterError, lambda: w1.authorize_risk(run_id, ap_risk))
+system/tests/test_ac_state_mig.py:1432:        assert st_w.writer_epoch == 2 and not st_w.findings
+system/tests/test_ac_state_mig.py:1440:        forged["writer_epoch"] = 1
+system/tests/test_ac_state_mig.py:1445:        # 边界：fencing 作用域=单流——旧 writer 对未被接管的新流仍可写
+system/tests/test_ac_state_mig.py:1448:        assert w1.get_run(run_b).writer_epoch == 1
+system/tests/test_ac_state_mig.py:1449:    return {"stale_writer_apis_rejected": 8,
+system/tests/test_ac_state_mig.py:1451:            "unfenced_writer_rejected": True,
+system/tests/test_ac_state_mig.py:1455:                        "writer_epoch 扩展字段（超出冻结 run-event-v2 词表，"
+system/tests/test_ac_state_mig.py:1644:            "post_terminal_writes": "全拒（TerminalRunError×6 + 重放侧 "
+system/tests/test_ac_state_mig.py:1665:    ("STATE-05", "双 writer epoch → 所有写入拒绝（wenqu_pipeline fencing）",
+system/tests/test_ac_state_mig.py:1666:     test_STATE_05_dual_writer_epoch_all_writes_rejected),
+system/tests/test_ac_state_mig.py:1681:    ("MIG-01", "坏 JSON/未知状态 → quarantine+BLOCKED",
+system/tests/test_ac_state_mig.py:1682:     test_MIG_01_bad_json_unknown_status_quarantine),
+system/tests/test_ac_state_mig.py:1686:     test_MIG_03_double_migration_idempotent),
+system/tests/test_ac_state_mig.py:1705:def write_artifact(started_at, finished_at, exit_code):
+system/tests/test_ac_state_mig.py:1728:                       "wenqu_core/ledger_migrator.py，不依赖 wenqu_pipeline；"
+system/tests/test_ac_state_mig.py:1763:          "system/wenqu_core/ledger_migrator.py（不依赖 wenqu_pipeline）")
+system/tests/test_ac_state_mig.py:1789:    path = write_artifact(started_at, finished_at, exit_code)
+tools/w5_reconcile.py:3:"""w5_reconcile.py —— W5 旧账 reconciliation（方案 §14 / §20.2 MIG-01~05 证据面）。
+tools/w5_reconcile.py:6:    legacy *.jsonl（只读）
+tools/w5_reconcile.py:9:      → LedgerMigrator.migrate()（导入行经公共 EventStore.append 写入
+tools/w5_reconcile.py:12:      → 四态汇总（mapped / quarantined / 待人工 / 不一致）
+tools/w5_reconcile.py:14:          导入、不猜映射为 PASS；quarantine+sidecar 留痕即待人工 reopen 通道）
+tools/w5_reconcile.py:21:          - 命中 wenqu_core.ledger_migrator.STATUS_ALIASES（冻结正源）→ 映射；
+tools/w5_reconcile.py:23:            等不在冻结表内的值一律不猜，quarantine 记因）
+tools/w5_reconcile.py:25:            迁移器按 MIG-02 语义 quarantine（unknown_status:ACCEPTED*），本工具
+tools/w5_reconcile.py:27:    坏 JSON / 非对象 / 无可映射 status / 缺 ts（全别名链空）→ quarantine（记因）
+tools/w5_reconcile.py:29:row_id = legacy_event_id = sha256(source_file 绝对路径 \\n line_no \\n 去换行原始行)
+tools/w5_reconcile.py:30:    （方案 §14.2 步骤 2 的逐行身份；位置溯源只进本报告与 sidecar 审计，
+tools/w5_reconcile.py:42:07-migration-reconcile/migrated-events.db），与任何运行态库无关。
+tools/w5_reconcile.py:45:    演练：python3 tools/w5_reconcile.py --workdir /tmp/w5-drill
+tools/w5_reconcile.py:46:    正式：python3 tools/w5_reconcile.py --formal
+tools/w5_reconcile.py:47:          （产物：reconcile-report.json + summary.md + migrated-events.db
+tools/w5_reconcile.py:48:            [+ .migration-sidecar.jsonl 审计]）
+tools/w5_reconcile.py:69:from wenqu_core.ledger_migrator import (            # noqa: E402
+tools/w5_reconcile.py:70:    LedgerMigrator, STATUS_ALIASES, MIGRATION_EVENT_TYPE,
+tools/w5_reconcile.py:75:FORMAL_EVIDENCE_DIR = os.path.join(REPO_ROOT, "evidence", "07-migration-reconcile")
+tools/w5_reconcile.py:86:STATE_QUARANTINED = "quarantined"
+tools/w5_reconcile.py:116:def legacy_event_id(source_file: str, line_no: int, raw: str) -> str:
+tools/w5_reconcile.py:144:      迁移器按 MIG-02 quarantine（unknown_status:ACCEPTED*）→ 待人工；
+tools/w5_reconcile.py:145:    - staged=False：reason 为工具级 quarantine 原因。
+tools/w5_reconcile.py:226:                "raw": raw, "row_id": legacy_event_id(path, line_no, raw),
+tools/w5_reconcile.py:251:    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+tools/w5_reconcile.py:264:    """LEDGER_MIGRATED 事件按 line_sha 索引：{line_sha: {event_id, status, raw}}。"""
+tools/w5_reconcile.py:265:    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+tools/w5_reconcile.py:274:        if obj.get("event_type") == MIGRATION_EVENT_TYPE:
+tools/w5_reconcile.py:283:def sidecar_records(path: str) -> List[Dict[str, Any]]:
+tools/w5_reconcile.py:298:def run_reconcile(source_dir: str, workdir: str, formal: bool) -> Tuple[Dict[str, Any], int]:
+tools/w5_reconcile.py:302:    db_path = os.path.join(workdir, "migrated-events.db")
+tools/w5_reconcile.py:303:    sidecar_path = db_path + ".migration-sidecar.jsonl"
+tools/w5_reconcile.py:315:    quarantine_reasons: Dict[str, int] = {}
+tools/w5_reconcile.py:334:                entry.update(state=STATE_QUARANTINED, reason=reason)
+tools/w5_reconcile.py:335:                quarantine_reasons[reason] = quarantine_reasons.get(reason, 0) + 1
+tools/w5_reconcile.py:342:                entry.update(state=STATE_QUARANTINED, reason=norm["reason"])
+tools/w5_reconcile.py:343:                quarantine_reasons[key] = quarantine_reasons.get(key, 0) + 1
+tools/w5_reconcile.py:353:            staging_handles[row["file_name"]].write(line + "\n")
+tools/w5_reconcile.py:361:            staged_line_shas.add(hashlib.sha256(line.encode("utf-8")).hexdigest())
+tools/w5_reconcile.py:376:                        "迁移器 quarantine（unknown_status:ACCEPTED*，MIG-02 不猜映射）；"
+tools/w5_reconcile.py:386:    sidecar_pre = len(sidecar_records(sidecar_path))
+tools/w5_reconcile.py:387:    run1_report = LedgerMigrator(staging_dir, db_path).migrate()
+tools/w5_reconcile.py:389:    run1_sidecar = sidecar_records(sidecar_path)[sidecar_pre:]
+tools/w5_reconcile.py:391:    run2_report = LedgerMigrator(staging_dir, db_path).migrate()
+tools/w5_reconcile.py:393:    # run2 的 sidecar 记录 = run1 之后的增量（同键以 run2 为终态；逐行裁定读 run1）
+tools/w5_reconcile.py:394:    sidecar_after_run2 = sidecar_records(sidecar_path)
+tools/w5_reconcile.py:395:    run2_sidecar = sidecar_after_run2[sidecar_pre + len(run1_sidecar):]
+tools/w5_reconcile.py:400:    sidecar_run1_by_pos = pos_map(run1_sidecar)
+tools/w5_reconcile.py:401:    sidecar_run2_by_pos = pos_map(run2_sidecar)
+tools/w5_reconcile.py:406:    counts = {STATE_MAPPED: 0, STATE_QUARANTINED: 0, STATE_MANUAL: 0,
+tools/w5_reconcile.py:413:            rec1 = sidecar_run1_by_pos.get(pos)
+tools/w5_reconcile.py:414:            rec2 = sidecar_run2_by_pos.get(pos)
+tools/w5_reconcile.py:415:            line_sha = hashlib.sha256(
+tools/w5_reconcile.py:420:                # MIG-02：ACCEPTED 必须被迁移器 quarantine（unknown_status:ACCEPTED*）
+tools/w5_reconcile.py:422:                if (rec1 or {}).get("decision") != "quarantined" or \
+tools/w5_reconcile.py:426:                        reason=f"ACCEPTED 行未按 MIG-02 quarantine（run1 sidecar={rec1}）")
+tools/w5_reconcile.py:441:                             reason="staged 行在 run1 sidecar 无审计记录")
+tools/w5_reconcile.py:444:            if rec1["decision"] == "quarantined":
+tools/w5_reconcile.py:445:                reason = str(rec1.get("reason", "quarantined"))
+tools/w5_reconcile.py:446:                entry.update(state=STATE_QUARANTINED, reason=reason)
+tools/w5_reconcile.py:449:                quarantine_reasons[key] = quarantine_reasons.get(key, 0) + 1
+tools/w5_reconcile.py:452:                                 reason="quarantine 行出现在事件库（隔离泄漏）")
+tools/w5_reconcile.py:453:                    counts[STATE_QUARANTINED] -= 1
+tools/w5_reconcile.py:456:                    counts[STATE_QUARANTINED] += 1
+tools/w5_reconcile.py:461:                    problems.append("库内无对应 LEDGER_MIGRATED 事件")
+tools/w5_reconcile.py:481:                         reason=f"未知 sidecar 决策 {rec1.get('decision')}")
+tools/w5_reconcile.py:485:        # 工具级 quarantine 行：绝不在库（原文不得等于任何事件 raw=staging 行）
+tools/w5_reconcile.py:486:        if state == STATE_QUARANTINED:
+tools/w5_reconcile.py:489:                             reason="工具级 quarantine 原文出现在事件库（隔离泄漏）")
+tools/w5_reconcile.py:490:                counts[STATE_QUARANTINED] -= 1
+tools/w5_reconcile.py:493:                counts[STATE_QUARANTINED] += 1
+tools/w5_reconcile.py:498:    quarantined_n = counts[STATE_QUARANTINED]
+tools/w5_reconcile.py:503:    conserved = total_nonblank == mapped_n + quarantined_n + manual_n + inconsistent_n
+tools/w5_reconcile.py:505:    # 孤儿事件：库内 LEDGER_MIGRATED 事件必须全部来自本次 staging
+tools/w5_reconcile.py:520:        "run1_quarantined": run1_report["conservation"]["quarantined"],
+tools/w5_reconcile.py:523:        "run2_quarantined": run2_report["conservation"]["quarantined"],
+tools/w5_reconcile.py:545:        "artifact": "w5-migration-reconcile",
+tools/w5_reconcile.py:547:            "W5 旧账 reconciliation：legacy jsonl 逐行规范化→LedgerMigrator"
+tools/w5_reconcile.py:553:        "tool": "tools/w5_reconcile.py",
+tools/w5_reconcile.py:554:        "mode": "formal" if formal else "drill",
+tools/w5_reconcile.py:575:            "alias_table": "wenqu_core.ledger_migrator.STATUS_ALIASES"
+tools/w5_reconcile.py:582:            "write_api": "EventStore.append",
+tools/w5_reconcile.py:588:            "ledger_migrated_events": len(store_index),
+tools/w5_reconcile.py:594:                "equation": "source_nonblank == mapped + quarantined + 待人工 + 不一致",
+tools/w5_reconcile.py:596:                "mapped": mapped_n, "quarantined": quarantined_n,
+tools/w5_reconcile.py:605:            "mapped": mapped_n, "quarantined": quarantined_n,
+tools/w5_reconcile.py:608:        "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+tools/w5_reconcile.py:618:def write_summary(report: Dict[str, Any], summary_path: str) -> None:
+tools/w5_reconcile.py:626:    a(f"- 生成：{report['generated_at']}（mode={report['mode']}，"
+tools/w5_reconcile.py:648:    a(f"| quarantined（确定性隔离） | {s['quarantined']} |")
+tools/w5_reconcile.py:655:    a(f"- quarantine 原因分布："
+tools/w5_reconcile.py:656:      f"`{json.dumps(report['quarantine_reasons'], ensure_ascii=False)}`")
+tools/w5_reconcile.py:662:      f"dup={idem['run1_duplicates']}/quarantine={idem['run1_quarantined']}；"
+tools/w5_reconcile.py:664:      f"dup={idem['run2_duplicates']}/quarantine={idem['run2_quarantined']}")
+tools/w5_reconcile.py:671:      f"LEDGER_MIGRATED {report['event_store']['ledger_migrated_events']} 条）")
+tools/w5_reconcile.py:695:      "master=… 长文本等）一律 quarantine 记因；FIXED→FIXED_PENDING_VERIFY "
+tools/w5_reconcile.py:701:      "quarantine 主因 `no_mappable_status` 属源数据本性，非工具缺陷；")
+tools/w5_reconcile.py:702:    a("- 未写任何生产库；legacy 源目录零写入（SHA 前后一致已证）；")
+tools/w5_reconcile.py:704:      f"{report['quarantine_reasons'].get(PROJECT_KEY_CONFLICT_PREFIX.rstrip(':'), 0)} 例"
+tools/w5_reconcile.py:708:        fh.write("\n".join(lines) + "\n")
+tools/w5_reconcile.py:717:                    help="工作目录（默认 /tmp/w5-reconcile-drill-<tmp>）")
+tools/w5_reconcile.py:719:                    help="正式模式：产物落 evidence/07-migration-reconcile/")
+tools/w5_reconcile.py:723:        args.workdir or tempfile.mkdtemp(prefix="w5-reconcile-drill-"))
+tools/w5_reconcile.py:725:    report, exit_code = run_reconcile(os.path.abspath(args.source), workdir, args.formal)
+tools/w5_reconcile.py:727:    report_name = "reconcile-report.json" if args.formal else "drill-report.json"
+tools/w5_reconcile.py:732:        write_summary(report, os.path.join(workdir, "summary.md"))
+tools/w5_reconcile.py:737:    print(f"[w5_reconcile] mode={report['mode']} workdir={workdir}")
+tools/w5_reconcile.py:739:          f"quarantined {s['quarantined']} | 待人工 {s['待人工']} | "
+tools/w5_reconcile.py:742:          f"quarantine={idem['run1_quarantined']} | run2: "
+tools/w5_reconcile.py:744:          f"quarantine={idem['run2_quarantined']}")
+system/wenqu_core/ledger_migrator.py:14:    - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
+system/wenqu_core/ledger_migrator.py:17:    - R7-EVENT-LEGACY-WRITABLE-007（P0）根修：收编完成后对旧表安装冻结
+system/wenqu_core/ledger_migrator.py:18:      触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)），cutover（冻结）
+system/wenqu_core/ledger_migrator.py:19:      时刻记入库内 bookkeeping 表 ``legacy_events_cutover``；晚于 cutover
+system/wenqu_core/ledger_migrator.py:20:      才出现/才落账的迟到行绝不导入——一律 quarantine
+system/wenqu_core/ledger_migrator.py:21:      （reason=late_write_after_cutover）并在报告告警，迁移器绝不静默
+system/wenqu_core/ledger_migrator.py:22:      吸收收编后的写入（详见 :func:`migrate_legacy_events` 契约）。
+system/wenqu_core/ledger_migrator.py:24:第八轮 P0-6 残余根修（backdated gap/UPDATE 仍可入链）：cutover 的
+system/wenqu_core/ledger_migrator.py:25:    id/ts 双通道都是 writer 可回填的字段——旧表冻结触发器被 DROP 后，
+system/wenqu_core/ledger_migrator.py:29:    ``legacy_row_digests``（rowid→快照；装 AFTER UPDATE/DELETE 拒绝
+system/wenqu_core/ledger_migrator.py:31:    内容失配即 quarantine（reason=row_mutated_after_cutover）、账本
+system/wenqu_core/ledger_migrator.py:35:G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）：
+system/wenqu_core/ledger_migrator.py:36:    上述行版本账本只保护「fresh cutover 后」的库——旧版代码跑过的库
+system/wenqu_core/ledger_migrator.py:37:    只有 cutover 记账、没有 digest ledger。若升级时按「当前现状」补记
+system/wenqu_core/ledger_migrator.py:39:    收编入链。根修为 ``legacy_untrusted`` fail-closed：升级路径检测到
+system/wenqu_core/ledger_migrator.py:40:    「cutover 已记账而 digest ledger 缺失/为空」时，绝不按现状补基线
+system/wenqu_core/ledger_migrator.py:41:    ——本次发现的行全部 quarantine（reason=legacy_untrusted_no_baseline，
+system/wenqu_core/ledger_migrator.py:42:    imported=0、主链长度不增），报告显式声明该库 legacy 历史不可验证，
+system/wenqu_core/ledger_migrator.py:44:    :func:`migrate_legacy_events` 契约）。
+system/wenqu_core/ledger_migrator.py:47:    M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
+system/wenqu_core/ledger_migrator.py:49:    M2 未知状态 / 缺字段 -> quarantine 隔离，绝不猜填字段、绝不猜归一化；
+system/wenqu_core/ledger_migrator.py:52:    M4 数量守恒：源非空行数 == 有效导入 + 重复 + quarantine；不守恒即抛
+system/wenqu_core/ledger_migrator.py:54:    M5（§20.2 MIG-05）project key 冲突 -> 显式冲突 quarantine，绝不静默
+system/wenqu_core/ledger_migrator.py:65:内容决定，不含 source_file/source_line 等位置信息（位置溯源只在 sidecar
+system/wenqu_core/ledger_migrator.py:88:    "LedgerMigrator", "ConservationError", "STATUS_ALIASES", "KNOWN_STATUSES",
+system/wenqu_core/ledger_migrator.py:89:    "MIGRATION_EVENT_TYPE", "LEGACY_EVENTS_TABLE",
+system/wenqu_core/ledger_migrator.py:90:    "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
+system/wenqu_core/ledger_migrator.py:92:    "LATE_WRITE_REASON", "LEGACY_FREEZE_TRIGGER_NAMES", "LEGACY_CUTOVER_TABLE",
+system/wenqu_core/ledger_migrator.py:93:    "ROW_MUTATED_REASON", "LEGACY_ROW_DIGESTS_TABLE",
+system/wenqu_core/ledger_migrator.py:94:    "LEGACY_DIGEST_FREEZE_TRIGGER_NAMES",
+system/wenqu_core/ledger_migrator.py:95:    "LEGACY_UNTRUSTED_REASON", "LEGACY_UNTRUSTED_ACTION_REQUIRED",
+system/wenqu_core/ledger_migrator.py:122:#: 即 project key 冲突 -> 显式 quarantine（绝不静默选边/拆成假项目）
+system/wenqu_core/ledger_migrator.py:125:#: MIG-05 quarantine reason 前缀（报告/对账工具按此前缀聚合冲突清单）
+system/wenqu_core/ledger_migrator.py:130:MIGRATION_EVENT_TYPE = "LEDGER_MIGRATED"
+system/wenqu_core/ledger_migrator.py:133:LEGACY_EVENTS_TABLE = "events"
+system/wenqu_core/ledger_migrator.py:136:LEGACY_RESIDUE_EVENT_TYPE = "LEGACY_EVENTS_ROW_MIGRATED"
+system/wenqu_core/ledger_migrator.py:140:CREATE TABLE IF NOT EXISTS migration_runs (
+system/wenqu_core/ledger_migrator.py:147:    quarantined   INTEGER NOT NULL,
+system/wenqu_core/ledger_migrator.py:153:# R7-EVENT-LEGACY-WRITABLE-007（P0）：旧表冻结只读 + cutover 记账 + 迟到写拒收
+system/wenqu_core/ledger_migrator.py:158:_LEGACY_FREEZE_ACTIONS = ("insert", "update", "delete")
+system/wenqu_core/ledger_migrator.py:159:LEGACY_FREEZE_TRIGGER_NAMES = tuple(
+system/wenqu_core/ledger_migrator.py:160:    f"{LEGACY_EVENTS_TABLE}_legacy_frozen_no_{action}"
+system/wenqu_core/ledger_migrator.py:161:    for action in _LEGACY_FREEZE_ACTIONS)
+system/wenqu_core/ledger_migrator.py:162:_LEGACY_FREEZE_TRIGGER_DDL = tuple(
+system/wenqu_core/ledger_migrator.py:164:    f"BEFORE {action.upper()} ON {LEGACY_EVENTS_TABLE} "
+system/wenqu_core/ledger_migrator.py:166:    f"SELECT RAISE(ABORT, 'legacy {LEGACY_EVENTS_TABLE} frozen read-only "
+system/wenqu_core/ledger_migrator.py:167:    f"after cutover: {action.upper()} is forbidden'); "
+system/wenqu_core/ledger_migrator.py:169:    for action, name in zip(_LEGACY_FREEZE_ACTIONS, LEGACY_FREEZE_TRIGGER_NAMES))
+system/wenqu_core/ledger_migrator.py:171:#: 迟到写（cutover 之后才出现/才落账的旧行）的统一 quarantine reason
+system/wenqu_core/ledger_migrator.py:172:LATE_WRITE_REASON = "late_write_after_cutover"
+system/wenqu_core/ledger_migrator.py:174:#: cutover（冻结时刻）记账表：bookkeeping，非事件正源（与 migration_runs
+system/wenqu_core/ledger_migrator.py:175:#: 同类）。为何记在库内 bookkeeping 而不是事件链/sidecar：
+system/wenqu_core/ledger_migrator.py:176:#: - 迟到写判定必须与库同生命周期可读（sidecar 是旁路审计文件，可被独立
+system/wenqu_core/ledger_migrator.py:180:#: - sidecar 保持逐行 1:1 审计形状。cutover 时刻经迁移报告显式回带。
+system/wenqu_core/ledger_migrator.py:181:LEGACY_CUTOVER_TABLE = "legacy_events_cutover"
+system/wenqu_core/ledger_migrator.py:182:_CUTOVER_SCHEMA = (
+system/wenqu_core/ledger_migrator.py:183:    f"CREATE TABLE IF NOT EXISTS {LEGACY_CUTOVER_TABLE} ("
+system/wenqu_core/ledger_migrator.py:185:    " cutover_ts    TEXT NOT NULL,"
+system/wenqu_core/ledger_migrator.py:186:    " cutover_epoch REAL NOT NULL,"
+system/wenqu_core/ledger_migrator.py:187:    " max_legacy_id INTEGER NOT NULL,"
+system/wenqu_core/ledger_migrator.py:192:_LEGACY_REQUIRED_COLUMNS = frozenset({
+system/wenqu_core/ledger_migrator.py:200:#: 刻意的——旧表 writer（含 DROP 掉旧表冻结触发器的绕过者）对统一库无
+system/wenqu_core/ledger_migrator.py:203:LEGACY_ROW_DIGESTS_TABLE = "legacy_row_digests"
+system/wenqu_core/ledger_migrator.py:206:LEGACY_DIGEST_FREEZE_TRIGGER_NAMES = (
+system/wenqu_core/ledger_migrator.py:207:    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_update",
+system/wenqu_core/ledger_migrator.py:208:    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_delete",
+system/wenqu_core/ledger_migrator.py:211:    f"CREATE TABLE IF NOT EXISTS {LEGACY_ROW_DIGESTS_TABLE} ("
+system/wenqu_core/ledger_migrator.py:212:    " legacy_id   INTEGER PRIMARY KEY,"
+system/wenqu_core/ledger_migrator.py:216:_LEGACY_DIGEST_TRIGGER_DDL = tuple(
+system/wenqu_core/ledger_migrator.py:218:    f"AFTER {action} ON {LEGACY_ROW_DIGESTS_TABLE} "
+system/wenqu_core/ledger_migrator.py:220:    f"SELECT RAISE(ABORT, '{LEGACY_ROW_DIGESTS_TABLE} is append-only: "
+system/wenqu_core/ledger_migrator.py:224:                            LEGACY_DIGEST_FREEZE_TRIGGER_NAMES))
+system/wenqu_core/ledger_migrator.py:226:#: 行内容被 UPDATE 过（cutover 后当前内容与账本快照不符）的统一
+system/wenqu_core/ledger_migrator.py:227:#: quarantine reason——含仅改 migrated_at 元数据的伪装性改动
+system/wenqu_core/ledger_migrator.py:228:ROW_MUTATED_REASON = "row_mutated_after_cutover"
+system/wenqu_core/ledger_migrator.py:231:# G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）
+system/wenqu_core/ledger_migrator.py:233:#: legacy 升级 fail-closed 的统一 quarantine reason：cutover 已记账而
+system/wenqu_core/ledger_migrator.py:237:LEGACY_UNTRUSTED_REASON = "legacy_untrusted_no_baseline"
+system/wenqu_core/ledger_migrator.py:239:#: ``legacy_untrusted`` 库的显式处置说明（进迁移报告，人工裁定正门）
+system/wenqu_core/ledger_migrator.py:240:LEGACY_UNTRUSTED_ACTION_REQUIRED = (
+system/wenqu_core/ledger_migrator.py:242:    f"{LEGACY_ROW_DIGESTS_TABLE} baseline from an authoritative "
+system/wenqu_core/ledger_migrator.py:243:    "pre-cutover source (人工从可信正源重建基线), or accept permanent "
+system/wenqu_core/ledger_migrator.py:244:    "quarantine of all legacy rows (或接受全部旧行永久隔离). "
+system/wenqu_core/ledger_migrator.py:245:    "Baselining from the current legacy table state is forbidden: "
+system/wenqu_core/ledger_migrator.py:246:    "cutover was recorded without a digest ledger, so tampering that "
+system/wenqu_core/ledger_migrator.py:253:    """数量守恒被破坏：源非空行数 != 有效导入 + 重复 + quarantine。"""
+system/wenqu_core/ledger_migrator.py:279:def migration_event(line_sha: str, status: str, raw: str,
+system/wenqu_core/ledger_migrator.py:285:    等位置溯源不进负载（进 sidecar 审计），否则同内容行在不同位置会绕过
+system/wenqu_core/ledger_migrator.py:290:        "event_type": MIGRATION_EVENT_TYPE,
+system/wenqu_core/ledger_migrator.py:300:class LedgerMigrator:
+system/wenqu_core/ledger_migrator.py:305:        mig = LedgerMigrator(source_dir=".../ledgers", sqlite_path=".../events.db")
+system/wenqu_core/ledger_migrator.py:307:        report = mig.migrate()
+system/wenqu_core/ledger_migrator.py:315:                 sidecar_path: Optional[str] = None) -> None:
+system/wenqu_core/ledger_migrator.py:318:        self.sidecar_path = (
+system/wenqu_core/ledger_migrator.py:319:            os.path.abspath(sidecar_path) if sidecar_path
+system/wenqu_core/ledger_migrator.py:320:            else self.sqlite_path + ".migration-sidecar.jsonl"
+system/wenqu_core/ledger_migrator.py:357:    # 分类：已知别名归一化 / 未知或残缺 -> quarantine
+system/wenqu_core/ledger_migrator.py:363:        返回 ``{"decision": "import"|"quarantine", "status": ..., "reason": ...,
+system/wenqu_core/ledger_migrator.py:366:        MIG-05：多个 project 身份字段值不一致 -> quarantine，reason 形如
+system/wenqu_core/ledger_migrator.py:376:            return {**base, "decision": "quarantine", "reason": "invalid_json"}
+system/wenqu_core/ledger_migrator.py:378:            return {**base, "decision": "quarantine", "reason": "not_a_json_object"}
+system/wenqu_core/ledger_migrator.py:381:                return {**base, "decision": "quarantine", "reason": f"missing_field:{field}"}
+system/wenqu_core/ledger_migrator.py:387:            return {**base, "decision": "quarantine", "reason": f"unknown_status:{raw_status}"}
+system/wenqu_core/ledger_migrator.py:400:            return {**base, "decision": "quarantine", "reason": reason}
+system/wenqu_core/ledger_migrator.py:408:    def migrate(self) -> Dict[str, Any]:
+system/wenqu_core/ledger_migrator.py:411:        每行去向恰为三者之一：imported / duplicate / quarantined；
+system/wenqu_core/ledger_migrator.py:415:        ConservationError（migration_runs 表同时记账 conserved=0）。
+system/wenqu_core/ledger_migrator.py:425:            "quarantined": 0,
+system/wenqu_core/ledger_migrator.py:427:        quarantine_reasons: Dict[str, int] = {}
+system/wenqu_core/ledger_migrator.py:433:        os.makedirs(os.path.dirname(self.sidecar_path) or ".", exist_ok=True)
+system/wenqu_core/ledger_migrator.py:439:            # M1：sidecar 只追加（"a"），源 JSONL 全程只读；
+system/wenqu_core/ledger_migrator.py:440:            # sidecar 打不开则整体失败（此时零行导入——先开审计再入账）
+system/wenqu_core/ledger_migrator.py:441:            with open(self.sidecar_path, "a", encoding="utf-8") as sidecar:
+system/wenqu_core/ledger_migrator.py:451:                    sidecar.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+system/wenqu_core/ledger_migrator.py:456:                        "lines": 0, "imported": 0, "duplicates": 0, "quarantined": 0})
+system/wenqu_core/ledger_migrator.py:459:                    if verdict["decision"] == "quarantine":
+system/wenqu_core/ledger_migrator.py:460:                        tally["quarantined"] += 1
+system/wenqu_core/ledger_migrator.py:461:                        stats["quarantined"] += 1
+system/wenqu_core/ledger_migrator.py:463:                        quarantine_reasons[key] = quarantine_reasons.get(key, 0) + 1
+system/wenqu_core/ledger_migrator.py:464:                        audit(entry, "quarantined", reason=key, preview=entry["raw"][:200])
+system/wenqu_core/ledger_migrator.py:470:                    event = migration_event(verdict["line_sha"], verdict["status"],
+system/wenqu_core/ledger_migrator.py:492:                == tally["imported"] + tally["duplicates"] + tally["quarantined"]
+system/wenqu_core/ledger_migrator.py:500:                    "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
+system/wenqu_core/ledger_migrator.py:501:                    " quarantined, conserved) VALUES (?, ?, ?, ?, ?, ?)",
+system/wenqu_core/ledger_migrator.py:503:                     tally["duplicates"], tally["quarantined"], int(conserved)),
+system/wenqu_core/ledger_migrator.py:515:                f"quarantined({tally['quarantined']})"
+system/wenqu_core/ledger_migrator.py:518:        self._last_report = self._build_report(tally, quarantine_reasons, status_counts,
+system/wenqu_core/ledger_migrator.py:528:            raise RuntimeError("no migration report yet: run migrate() first")
+system/wenqu_core/ledger_migrator.py:531:    def _build_report(self, tally: Dict[str, int], quarantine_reasons: Dict[str, int],
+system/wenqu_core/ledger_migrator.py:537:            "sidecar_path": self.sidecar_path,
+system/wenqu_core/ledger_migrator.py:540:            "write_api": "EventStore.append",
+system/wenqu_core/ledger_migrator.py:543:                "equation": "lines_total == imported + duplicates + quarantined",
+system/wenqu_core/ledger_migrator.py:547:                "quarantined": tally["quarantined"],
+system/wenqu_core/ledger_migrator.py:550:            "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+system/wenqu_core/ledger_migrator.py:551:            # MIG-05：project key 冲突单独聚合（仍是 quarantine 的子集，
+system/wenqu_core/ledger_migrator.py:554:                k: v for k, v in sorted(quarantine_reasons.items())
+system/wenqu_core/ledger_migrator.py:565:# R7-EVENT-LEGACY-WRITABLE-007：收编后冻结只读 + 迟到写拒收（第七轮 P0 修）
+system/wenqu_core/ledger_migrator.py:569:    """把行内 ts / migrated_at 等时间值解析为 UTC epoch 秒；不可解析返回 None。
+system/wenqu_core/ledger_migrator.py:608:                         migrated_at: Any = None) -> Optional[float]:
+system/wenqu_core/ledger_migrator.py:610:    表元数据 ``migrated_at``（rowid 侧元数据通道）两路取可解析的最大值。
+system/wenqu_core/ledger_migrator.py:612:    取最大是 fail-closed 方向：任一通道声称该行晚于 cutover，即按迟到
+system/wenqu_core/ledger_migrator.py:616:    meta = _parse_ts_to_epoch(migrated_at)
+system/wenqu_core/ledger_migrator.py:631:def _read_cutover(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
+system/wenqu_core/ledger_migrator.py:632:    """读该库已记录的 cutover；无记账/记账行为空返回 None。"""
+system/wenqu_core/ledger_migrator.py:635:        (LEGACY_CUTOVER_TABLE,)).fetchone()
+system/wenqu_core/ledger_migrator.py:639:        f"SELECT cutover_ts, cutover_epoch, max_legacy_id, trigger_names "
+system/wenqu_core/ledger_migrator.py:640:        f"FROM {LEGACY_CUTOVER_TABLE} WHERE id = 1").fetchone()
+system/wenqu_core/ledger_migrator.py:647:    return {"cutover_ts": row[0], "cutover_epoch": row[1],
+system/wenqu_core/ledger_migrator.py:648:            "max_legacy_id": row[2], "trigger_names": names}
+system/wenqu_core/ledger_migrator.py:651:def _record_cutover(conn: sqlite3.Connection, max_legacy_id: int,
+system/wenqu_core/ledger_migrator.py:656:    迟到判定永远以该库首次 cutover 为准，绝不因后续运行（哪怕吸收过迟到
+system/wenqu_core/ledger_migrator.py:660:    conn.execute(_CUTOVER_SCHEMA)
+system/wenqu_core/ledger_migrator.py:662:        f"INSERT OR IGNORE INTO {LEGACY_CUTOVER_TABLE} "
+system/wenqu_core/ledger_migrator.py:663:        f"(id, cutover_ts, cutover_epoch, max_legacy_id, trigger_names) "
+system/wenqu_core/ledger_migrator.py:666:         int(max_legacy_id), json.dumps(sorted(trigger_names))))
+system/wenqu_core/ledger_migrator.py:675:    for ddl in _LEGACY_FREEZE_TRIGGER_DDL:
+system/wenqu_core/ledger_migrator.py:679:        (LEGACY_EVENTS_TABLE,))}
+system/wenqu_core/ledger_migrator.py:680:    return [name for name in LEGACY_FREEZE_TRIGGER_NAMES if name in present]
+system/wenqu_core/ledger_migrator.py:683:def _legacy_row_sha(row: Dict[str, Any]) -> str:
+system/wenqu_core/ledger_migrator.py:686:    覆盖 :func:`migrate_legacy_events` 实际读出并决定入链/迟判的全部列
+system/wenqu_core/ledger_migrator.py:687:    （id/line_sha/status/source_file/source_line/payload/migrated_at）——
+system/wenqu_core/ledger_migrator.py:688:    收编后对这些列的任何 UPDATE（含仅改 migrated_at 元数据的伪装、含
+system/wenqu_core/ledger_migrator.py:689:    回填早 ts）都会使摘要失配。migrated_at 通道缺席（形状变体无该列）
+system/wenqu_core/ledger_migrator.py:694:         row["source_line"], row["payload"], row["migrated_at"]],
+system/wenqu_core/ledger_migrator.py:703:        (LEGACY_ROW_DIGESTS_TABLE,)).fetchone()
+system/wenqu_core/ledger_migrator.py:707:        f"SELECT legacy_id, row_sha FROM {LEGACY_ROW_DIGESTS_TABLE}")}
+system/wenqu_core/ledger_migrator.py:711:                        legacy_rows: List[Dict[str, Any]]) -> int:
+system/wenqu_core/ledger_migrator.py:720:    存量库边界（G9-05 fail-closed 收口）：旧版代码只记了 cutover、没有
+system/wenqu_core/ledger_migrator.py:722:    无法与 cutover 时刻内容对账，补记等于把升级前篡改洗白成可信基线。
+system/wenqu_core/ledger_migrator.py:723:    该场景由调用方检测（cutover 已记账而账本为空）并整体标记
+system/wenqu_core/ledger_migrator.py:724:    ``legacy_untrusted``：行全部隔离、基线不补记，需人工从可信正源重建。
+system/wenqu_core/ledger_migrator.py:725:    本函数只在「首次 cutover（prior_cutover is None）」这一条路径上被
+system/wenqu_core/ledger_migrator.py:729:    for ddl in _LEGACY_DIGEST_TRIGGER_DDL:
+system/wenqu_core/ledger_migrator.py:731:    for row in legacy_rows:
+system/wenqu_core/ledger_migrator.py:733:            f"INSERT OR IGNORE INTO {LEGACY_ROW_DIGESTS_TABLE} "
+system/wenqu_core/ledger_migrator.py:734:            f"(legacy_id, row_sha) VALUES (?, ?)",
+system/wenqu_core/ledger_migrator.py:735:            (int(row["id"]), _legacy_row_sha(row)))
+system/wenqu_core/ledger_migrator.py:737:        f"SELECT COUNT(*) FROM {LEGACY_ROW_DIGESTS_TABLE}").fetchone()[0]
+system/wenqu_core/ledger_migrator.py:740:def migrate_legacy_events(sqlite_path: str,
+system/wenqu_core/ledger_migrator.py:741:                          sidecar_path: Optional[str] = None) -> Dict[str, Any]:
+system/wenqu_core/ledger_migrator.py:747:    - 冻结只读（R7-EVENT-LEGACY-WRITABLE-007）：收编完成后对旧表安装
+system/wenqu_core/ledger_migrator.py:751:    - cutover（冻结时刻）记账：首次冻结把 cutover_ts/cutover_epoch/
+system/wenqu_core/ledger_migrator.py:752:      max_legacy_id 写入库内 bookkeeping 表 ``legacy_events_cutover``
+system/wenqu_core/ledger_migrator.py:753:      （INSERT OR IGNORE——一经记录永不推进，迟到判定永远以首次 cutover
+system/wenqu_core/ledger_migrator.py:754:      为准）。cutover 不写入事件链（链长不变量与「负载=旧行内容纯函数」
+system/wenqu_core/ledger_migrator.py:755:      幂等契约零扰动）、不额外追加 sidecar 行（sidecar 保持逐行 1:1 审计
+system/wenqu_core/ledger_migrator.py:756:      形状），时刻经返回报告显式回带（cutover_ts/cutover_max_legacy_id）；
+system/wenqu_core/ledger_migrator.py:759:      （``migrated_at`` 列 / id 序）晚于该库已记录 cutover 的行不导入，
+system/wenqu_core/ledger_migrator.py:760:      单独 quarantine（reason=late_write_after_cutover）并在报告告警
+system/wenqu_core/ledger_migrator.py:761:      （late_write_alert/late_write_rows）。两个独立拒收通道：
+system/wenqu_core/ledger_migrator.py:762:      (a) id > cutover.max_legacy_id——cutover 后新出现的行，无论 ts
+system/wenqu_core/ledger_migrator.py:763:          伪装多早；(b) 行有效时间戳 > cutover.cutover_epoch——含
+system/wenqu_core/ledger_migrator.py:765:    - 行内容快照账本（第八轮 P0-6 残余根修）：id/ts 双通道都是 writer
+system/wenqu_core/ledger_migrator.py:769:      ``legacy_row_digests``（append-only：AFTER UPDATE/DELETE 拒绝
+system/wenqu_core/ledger_migrator.py:771:      快照——(c) 内容失配（被 UPDATE 过，含仅改 migrated_at 元数据）->
+system/wenqu_core/ledger_migrator.py:772:      quarantine（reason=row_mutated_after_cutover，报告告警
+system/wenqu_core/ledger_migrator.py:778:      器），quarantine 不会推进 cutover 也不会重写快照；
+system/wenqu_core/ledger_migrator.py:779:    - legacy 升级 fail-closed（G9-05 第九轮根修，R8-EVENT-BACKDATE-008
+system/wenqu_core/ledger_migrator.py:780:      升级路径）：检测到「cutover 已记账而 digest ledger 缺失/为空」
+system/wenqu_core/ledger_migrator.py:782:      ``legacy_untrusted``——绝不按升级时现状补记基线（当下内容无法与
+system/wenqu_core/ledger_migrator.py:783:      cutover 时刻对账，补记会把升级前已发生的 gap/UPDATE+backdate
+system/wenqu_core/ledger_migrator.py:784:      篡改收编成可信基线）；本次发现的旧行全部 quarantine
+system/wenqu_core/ledger_migrator.py:785:      （reason=legacy_untrusted_no_baseline，imported=0、主链长度不增、
+system/wenqu_core/ledger_migrator.py:786:      账本保持缺席），报告显式给出 legacy_untrusted 标记与处置说明
+system/wenqu_core/ledger_migrator.py:787:      （legacy_untrusted_action_required：人工从可信正源重建基线或接受
+system/wenqu_core/ledger_migrator.py:788:      永久隔离）；冻结触发器照常治愈重装（表仍冻结只读），cutover
+system/wenqu_core/ledger_migrator.py:789:      照常永不推进。有完整 digest ledger 的库（fresh cutover 或新版
+system/wenqu_core/ledger_migrator.py:792:      ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
+system/wenqu_core/ledger_migrator.py:798:      JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
+system/wenqu_core/ledger_migrator.py:799:    - 守恒：rows_seen == imported + duplicates + quarantined，否则
+system/wenqu_core/ledger_migrator.py:801:    - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
+system/wenqu_core/ledger_migrator.py:802:      位置溯源；quarantine 行额外携带 reason 与迟到证据（late_evidence）。
+system/wenqu_core/ledger_migrator.py:804:    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``
+system/wenqu_core/ledger_migrator.py:805:    （不装触发器、不记 cutover；但若该库历史上记录过 cutover 而旧表被
+system/wenqu_core/ledger_migrator.py:806:    整表删除，cutover 记账仍在——旧表重建后迟到判定继续生效）。
+system/wenqu_core/ledger_migrator.py:809:    sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
+system/wenqu_core/ledger_migrator.py:810:                    else sqlite_path + ".legacy-events-sidecar.jsonl")
+system/wenqu_core/ledger_migrator.py:811:    os.makedirs(os.path.dirname(sidecar_path) or ".", exist_ok=True)
+system/wenqu_core/ledger_migrator.py:818:            (LEGACY_EVENTS_TABLE,),
+system/wenqu_core/ledger_migrator.py:821:        legacy_rows: List[Dict[str, Any]] = []
+system/wenqu_core/ledger_migrator.py:822:        has_migrated_at = False
+system/wenqu_core/ledger_migrator.py:825:                f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
+system/wenqu_core/ledger_migrator.py:826:            missing = _LEGACY_REQUIRED_COLUMNS - cols
+system/wenqu_core/ledger_migrator.py:830:                    f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
+system/wenqu_core/ledger_migrator.py:831:                    f"missing columns: {sorted(missing)}; refusing to migrate")
+system/wenqu_core/ledger_migrator.py:832:            # migrated_at 是迟到写判定的 rowid 侧元数据通道（旧 schema 自带
+system/wenqu_core/ledger_migrator.py:835:            has_migrated_at = "migrated_at" in cols
+system/wenqu_core/ledger_migrator.py:837:                           + (", migrated_at" if has_migrated_at else ""))
+system/wenqu_core/ledger_migrator.py:840:                f"SELECT {select_cols} FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
+system/wenqu_core/ledger_migrator.py:842:                legacy_rows.append({
+system/wenqu_core/ledger_migrator.py:846:                    "migrated_at": row[6] if has_migrated_at else None,
+system/wenqu_core/ledger_migrator.py:849:        # 该库已记录的 cutover（无论旧表当前是否存在都读：旧表被整表删除
+system/wenqu_core/ledger_migrator.py:850:        # 后重建的场景，迟到判定必须继续以首次 cutover 为准）
+system/wenqu_core/ledger_migrator.py:851:        prior_cutover = _read_cutover(store._conn)
+system/wenqu_core/ledger_migrator.py:852:        # 行内容快照账本（第八轮根修）：与 cutover 同生命周期读取——账本
+system/wenqu_core/ledger_migrator.py:855:        # G9-05 legacy 升级 fail-closed（R8-EVENT-BACKDATE-008 升级路径）：
+system/wenqu_core/ledger_migrator.py:856:        # cutover 已记账而 digest ledger 缺失/为空 == 旧版代码（只有
+system/wenqu_core/ledger_migrator.py:857:        # cutover 通道、无行版本账本）跑过的存量库。此刻旧表内容无法与
+system/wenqu_core/ledger_migrator.py:858:        # cutover 时刻内容对账——升级前已发生的 gap/UPDATE+backdate 篡改
+system/wenqu_core/ledger_migrator.py:861:        legacy_untrusted = prior_cutover is not None and not prior_digests
+system/wenqu_core/ledger_migrator.py:863:        imported = duplicates = quarantined = 0
+system/wenqu_core/ledger_migrator.py:864:        quarantine_reasons: Dict[str, int] = {}
+system/wenqu_core/ledger_migrator.py:865:        late_rows: List[Dict[str, Any]] = []      # 告警明细（legacy_id+证据）
+system/wenqu_core/ledger_migrator.py:867:        untrusted_rows: List[Dict[str, Any]] = [] # legacy_untrusted 隔离明细
+system/wenqu_core/ledger_migrator.py:868:        with open(sidecar_path, "a", encoding="utf-8") as sidecar:
+system/wenqu_core/ledger_migrator.py:869:            for row in legacy_rows:
+system/wenqu_core/ledger_migrator.py:870:                # legacy_untrusted 优先短路一切通道：库级不可验证时逐行
+system/wenqu_core/ledger_migrator.py:874:                if legacy_untrusted:
+system/wenqu_core/ledger_migrator.py:875:                    quarantined += 1
+system/wenqu_core/ledger_migrator.py:876:                    quarantine_reasons[LEGACY_UNTRUSTED_REASON] = \
+system/wenqu_core/ledger_migrator.py:877:                        quarantine_reasons.get(LEGACY_UNTRUSTED_REASON, 0) + 1
+system/wenqu_core/ledger_migrator.py:879:                        f"cutover recorded at "
+system/wenqu_core/ledger_migrator.py:880:                        f"{prior_cutover['cutover_ts']} but no "
+system/wenqu_core/ledger_migrator.py:881:                        f"{LEGACY_ROW_DIGESTS_TABLE} rows on record; "
+system/wenqu_core/ledger_migrator.py:883:                    untrusted_rows.append({"legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:885:                    sidecar.write(json.dumps({
+system/wenqu_core/ledger_migrator.py:886:                        "decision": "quarantined",
+system/wenqu_core/ledger_migrator.py:887:                        "reason": LEGACY_UNTRUSTED_REASON,
+system/wenqu_core/ledger_migrator.py:888:                        "legacy_table": LEGACY_EVENTS_TABLE,
+system/wenqu_core/ledger_migrator.py:889:                        "legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:896:                # 迟到写拒收：cutover 之后才出现/才落账的行绝不入链（两个
+system/wenqu_core/ledger_migrator.py:898:                # 篡改出的迟到内容；证据原样进 sidecar 与报告）
+system/wenqu_core/ledger_migrator.py:901:                if prior_cutover is not None:
+system/wenqu_core/ledger_migrator.py:902:                    if row["id"] > prior_cutover["max_legacy_id"]:
+system/wenqu_core/ledger_migrator.py:904:                                         f"cutover_max_id="
+system/wenqu_core/ledger_migrator.py:905:                                         f"{prior_cutover['max_legacy_id']}")
+system/wenqu_core/ledger_migrator.py:908:                                                   row["migrated_at"])
+system/wenqu_core/ledger_migrator.py:910:                                and eff > prior_cutover["cutover_epoch"]):
+system/wenqu_core/ledger_migrator.py:912:                                f"row_ts={eff:.3f} > cutover_epoch="
+system/wenqu_core/ledger_migrator.py:913:                                f"{prior_cutover['cutover_epoch']:.3f}")
+system/wenqu_core/ledger_migrator.py:914:                # 第三通道（行内容快照比对，第八轮根修）：id/ts 都是 writer
+system/wenqu_core/ledger_migrator.py:918:                if (late_evidence is None and prior_cutover is not None
+system/wenqu_core/ledger_migrator.py:921:                    current_sha = _legacy_row_sha(row)
+system/wenqu_core/ledger_migrator.py:924:                            f"id={row['id']} not present at cutover "
+system/wenqu_core/ledger_migrator.py:929:                            f"cutover_snapshot={snapshot_sha[:16]}")
+system/wenqu_core/ledger_migrator.py:931:                    quarantined += 1
+system/wenqu_core/ledger_migrator.py:932:                    quarantine_reasons[LATE_WRITE_REASON] = \
+system/wenqu_core/ledger_migrator.py:933:                        quarantine_reasons.get(LATE_WRITE_REASON, 0) + 1
+system/wenqu_core/ledger_migrator.py:934:                    late_rows.append({"legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:936:                    sidecar.write(json.dumps({
+system/wenqu_core/ledger_migrator.py:937:                        "decision": "quarantined",
+system/wenqu_core/ledger_migrator.py:938:                        "reason": LATE_WRITE_REASON,
+system/wenqu_core/ledger_migrator.py:939:                        "legacy_table": LEGACY_EVENTS_TABLE,
+system/wenqu_core/ledger_migrator.py:940:                        "legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:948:                    # 内容被 UPDATE 过（cutover 后与快照失配）→ 绝不入链；
+system/wenqu_core/ledger_migrator.py:949:                    # 快照不重写、cutover 不推进——下一次运行同样失配拒收
+system/wenqu_core/ledger_migrator.py:950:                    quarantined += 1
+system/wenqu_core/ledger_migrator.py:951:                    quarantine_reasons[ROW_MUTATED_REASON] = \
+system/wenqu_core/ledger_migrator.py:952:                        quarantine_reasons.get(ROW_MUTATED_REASON, 0) + 1
+system/wenqu_core/ledger_migrator.py:953:                    mutated_rows.append({"legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:955:                    sidecar.write(json.dumps({
+system/wenqu_core/ledger_migrator.py:956:                        "decision": "quarantined",
+system/wenqu_core/ledger_migrator.py:958:                        "legacy_table": LEGACY_EVENTS_TABLE,
+system/wenqu_core/ledger_migrator.py:959:                        "legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:968:                    "event_type": LEGACY_RESIDUE_EVENT_TYPE,
+system/wenqu_core/ledger_migrator.py:980:                sidecar.write(json.dumps({
+system/wenqu_core/ledger_migrator.py:982:                    "legacy_table": LEGACY_EVENTS_TABLE,
+system/wenqu_core/ledger_migrator.py:983:                    "legacy_id": row["id"],
+system/wenqu_core/ledger_migrator.py:990:        # 绕过删除时在此治愈重装）；首次冻结即记 cutover（永不推进）
+system/wenqu_core/ledger_migrator.py:994:            if prior_cutover is None:
+system/wenqu_core/ledger_migrator.py:995:                _record_cutover(
+system/wenqu_core/ledger_migrator.py:997:                    max_legacy_id=max((r["id"] for r in legacy_rows), default=0),
+system/wenqu_core/ledger_migrator.py:999:            # 行内容快照记账（第八轮根修）：只在首次 cutover（本运行记账）
+system/wenqu_core/ledger_migrator.py:1001:            # quarantine 不推进快照。G9-05：旧版存量库（cutover 已记账、
+system/wenqu_core/ledger_migrator.py:1003:            # 升级前篡改洗白成可信基线（legacy_untrusted 路径已全部隔离）
+system/wenqu_core/ledger_migrator.py:1004:            if prior_cutover is None:
+system/wenqu_core/ledger_migrator.py:1005:                _record_row_digests(store._conn, legacy_rows)
+system/wenqu_core/ledger_migrator.py:1008:        if len(legacy_rows) != imported + duplicates + quarantined:
+system/wenqu_core/ledger_migrator.py:1010:                f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
+system/wenqu_core/ledger_migrator.py:1012:                f"quarantined({quarantined})")
+system/wenqu_core/ledger_migrator.py:1014:        cutover = _read_cutover(store._conn)
+system/wenqu_core/ledger_migrator.py:1018:            "legacy_table": LEGACY_EVENTS_TABLE,
+system/wenqu_core/ledger_migrator.py:1019:            "legacy_table_present": present,
+system/wenqu_core/ledger_migrator.py:1020:            "rows_seen": len(legacy_rows),
+system/wenqu_core/ledger_migrator.py:1023:            "quarantined": quarantined,
+system/wenqu_core/ledger_migrator.py:1024:            "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+system/wenqu_core/ledger_migrator.py:1025:            "late_write_alert": bool(late_rows),
+system/wenqu_core/ledger_migrator.py:1026:            "late_write_rows": late_rows,
+system/wenqu_core/ledger_migrator.py:1027:            "row_digest_ledger": LEGACY_ROW_DIGESTS_TABLE,
+system/wenqu_core/ledger_migrator.py:1031:            # G9-05 legacy 升级 fail-closed：显式标记 + 人工处置说明
+system/wenqu_core/ledger_migrator.py:1032:            "legacy_untrusted": legacy_untrusted,
+system/wenqu_core/ledger_migrator.py:1033:            "legacy_untrusted_reason": (
+system/wenqu_core/ledger_migrator.py:1034:                LEGACY_UNTRUSTED_REASON if legacy_untrusted else None),
+system/wenqu_core/ledger_migrator.py:1035:            "legacy_untrusted_rows": untrusted_rows,
+system/wenqu_core/ledger_migrator.py:1036:            "legacy_untrusted_action_required": (
+system/wenqu_core/ledger_migrator.py:1037:                LEGACY_UNTRUSTED_ACTION_REQUIRED if legacy_untrusted else None),
+system/wenqu_core/ledger_migrator.py:1038:            "cutover_ts": cutover["cutover_ts"] if cutover else None,
+system/wenqu_core/ledger_migrator.py:1039:            "cutover_max_legacy_id": (cutover["max_legacy_id"]
+system/wenqu_core/ledger_migrator.py:1040:                                      if cutover else None),
+system/wenqu_core/ledger_migrator.py:1041:            "legacy_frozen": present and len(frozen_triggers)
+system/wenqu_core/ledger_migrator.py:1042:            == len(LEGACY_FREEZE_TRIGGER_NAMES),
+system/wenqu_core/ledger_migrator.py:1045:            "write_api": "EventStore.append",
+system/wenqu_core/ledger_migrator.py:1046:            "sidecar_path": sidecar_path,
+--- output end ---
+exit_code=0

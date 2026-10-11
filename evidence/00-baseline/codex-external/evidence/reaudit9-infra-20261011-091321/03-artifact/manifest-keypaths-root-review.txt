@@ -1,0 +1,129 @@
+
+### wenqu-dist-2bd59ab.manifest.json
+{
+  "argv": [
+    "release_attest.py",
+    "build",
+    "--commit",
+    "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+    "--prefix",
+    "wenqu-dist"
+  ],
+  "artifact": {
+    "deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致",
+    "path": "wenqu-dist-2bd59ab.tar.gz",
+    "sha256": "b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236",
+    "size": 33139660,
+    "source": "git archive 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551 (clean tree from commit object)"
+  },
+  "build_id": "rel-2bd59ab-20261008T142740Z",
+  "builder": {
+    "host": "M2Pro-Agent",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.13",
+    "user": "maccc"
+  },
+  "built_at": "2026-10-08T14:27:40Z",
+  "n_files": 2886,
+  "policy_hash": {
+    "frozen_match": true,
+    "plan_member": "evidence/00-baseline/codex-external/方案.md",
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"
+  },
+  "schema": "wenqu-release-manifest/1",
+  "source_commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+  "source_commit_short": "2bd59ab",
+  "source_commit_subject": "Merge pull request #10 from AIruanchao/wave6/p1f-gate",
+  "tool": "release_attest.py",
+  "tool_version": "1.1.0",
+  "version": "3.8.4"
+}
+files_count 2886
+
+### wenqu-dist-b44b087.manifest.json
+{
+  "argv": [
+    "release_attest.py",
+    "build",
+    "--commit",
+    "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+    "--prefix",
+    "wenqu-dist"
+  ],
+  "artifact": {
+    "deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致",
+    "path": "wenqu-dist-b44b087.tar.gz",
+    "sha256": "cf21788881aa46109e26cfeafdd89cc1d52ad282db3785bfb03c98a1dd669016",
+    "size": 89109004,
+    "source": "git archive b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4 (clean tree from commit object)"
+  },
+  "build_id": "rel-b44b087-20261009T013022Z",
+  "builder": {
+    "host": "M2Pro-Agent",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.13",
+    "user": "maccc"
+  },
+  "built_at": "2026-10-09T01:30:22Z",
+  "n_files": 2942,
+  "policy_hash": {
+    "frozen_match": true,
+    "plan_member": "evidence/00-baseline/codex-external/方案.md",
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"
+  },
+  "schema": "wenqu-release-manifest/1",
+  "source_commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+  "source_commit_short": "b44b087",
+  "source_commit_subject": "Merge pull request #15 from AIruanchao/wave9/sampler-repo-fallback",
+  "tool": "release_attest.py",
+  "tool_version": "1.2.0",
+  "version": "3.8.4"
+}
+files_count 2942
+
+### wenqu-dist-cf6d10e.manifest.json
+{
+  "argv": [
+    "release_attest.py",
+    "build",
+    "--commit",
+    "cf6d10e6f10e5369ea04c3d9f85b797d39279458",
+    "--prefix",
+    "wenqu-dist"
+  ],
+  "artifact": {
+    "deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致",
+    "path": "wenqu-dist-cf6d10e.tar.gz",
+    "sha256": "04a8f7dc6da7f71d6444dc7af2eb4e7203b3546e2b6a7e99ee8a78e1cb25ba29",
+    "size": 44635114,
+    "source": "git archive cf6d10e6f10e5369ea04c3d9f85b797d39279458 (clean tree from commit object)"
+  },
+  "build_id": "rel-cf6d10e-20261008T202539Z",
+  "builder": {
+    "host": "M2Pro-Agent",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.13",
+    "user": "maccc"
+  },
+  "built_at": "2026-10-08T20:25:39Z",
+  "n_files": 2936,
+  "policy_hash": {
+    "frozen_match": true,
+    "plan_member": "evidence/00-baseline/codex-external/方案.md",
+    "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"
+  },
+  "schema": "wenqu-release-manifest/1",
+  "source_commit": "cf6d10e6f10e5369ea04c3d9f85b797d39279458",
+  "source_commit_short": "cf6d10e",
+  "source_commit_subject": "Merge pull request #13 from AIruanchao/wave8/semantics",
+  "tool": "release_attest.py",
+  "tool_version": "1.2.0",
+  "version": "3.8.4"
+}
+files_count 2936

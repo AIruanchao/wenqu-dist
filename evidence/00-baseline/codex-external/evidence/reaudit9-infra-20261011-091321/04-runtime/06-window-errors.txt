@@ -1,0 +1,92 @@
+$ window manifests
+/Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.invalidated.json
+/Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.json
+rc=0
+
+--- /Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.invalidated.json
+{
+  "schema": "obs-window-invalidation-v1",
+  "window_id": "w-20261009T231625506512000-876585",
+  "epoch_id": "e-22ec851fa24a4737bb5d43bfe182464c",
+  "invalidated_at": "2026-10-10T23:36:04.160127+00:00",
+  "reason": "R9: opened before ten prerequisites (sfinal=null)",
+  "principal": "超哥令终装执行",
+  "original_manifest_sha256": "fe4c15c50fd58ea3922bef8e1e9c1b1719e6f87d6852210591db4d0a2db33556",
+  "original_manifest": {
+    "schema": "obs-window-manifest-v1",
+    "window_id": "w-20261009T231625506512000-876585",
+    "epoch_id": "e-22ec851fa24a4737bb5d43bfe182464c",
+    "kind": "w10-observation",
+    "status": "open",
+    "created_at": "2026-10-09T23:14:54.495802+00:00",
+    "duration_hours": 336.0,
+    "sfinal": null,
+    "digests": {},
+    "t0": "2026-10-09T23:14:54.495802+00:00",
+    "first_sample_sha256": "a23c500ab65c6d93de23d7f8fb47ba6dda307d37e44462fcebe8c5783626d2ca",
+    "start_at": "2026-10-09T23:14:54.495802+00:00",
+    "end_at": "2026-10-23T23:14:54.495802+00:00",
+    "sealed_at": null,
+    "canary_hours": 48.0,
+    "history": [
+      {
+        "action": "open",
+        "at": "2026-10-09T23:14:54.495802+00:00",
+        "detail": "manifest created (O_EXCL)"
+      },
+      {
+        "action": "first_sample",
+        "at": "2026-10-09T23:14:54.495802+00:00",
+        "detail": "t0 anchored to first qualified sample"
+      }
+    ]
+  },
+  "note": "auditable invalidation; original manifest file retained (never deleted) with status=invalidated"
+}
+
+--- /Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.json
+{
+  "schema": "obs-window-manifest-v1",
+  "window_id": "w-20261009T231625506512000-876585",
+  "epoch_id": "e-22ec851fa24a4737bb5d43bfe182464c",
+  "kind": "w10-observation",
+  "status": "invalidated",
+  "created_at": "2026-10-09T23:14:54.495802+00:00",
+  "duration_hours": 336.0,
+  "sfinal": null,
+  "digests": {},
+  "t0": "2026-10-09T23:14:54.495802+00:00",
+  "first_sample_sha256": "a23c500ab65c6d93de23d7f8fb47ba6dda307d37e44462fcebe8c5783626d2ca",
+  "start_at": "2026-10-09T23:14:54.495802+00:00",
+  "end_at": "2026-10-23T23:14:54.495802+00:00",
+  "sealed_at": null,
+  "canary_hours": 48.0,
+  "history": [
+    {
+      "action": "open",
+      "at": "2026-10-09T23:14:54.495802+00:00",
+      "detail": "manifest created (O_EXCL)"
+    },
+    {
+      "action": "first_sample",
+      "at": "2026-10-09T23:14:54.495802+00:00",
+      "detail": "t0 anchored to first qualified sample"
+    },
+    {
+      "action": "invalidate",
+      "at": "2026-10-10T23:36:04.160127+00:00",
+      "detail": "R9: opened before ten prerequisites (sfinal=null)",
+      "principal": "超哥令终装执行",
+      "original_manifest_sha256": "fe4c15c50fd58ea3922bef8e1e9c1b1719e6f87d6852210591db4d0a2db33556"
+    }
+  ]
+}
+rc=0
+
+$ latest errors
+rc=0
+
+$ env prereq presence (names only)
+		WENQU_GIT_REPO => /Users/maccc/Documents/wenqu-dist
+		PYTHONPATH => /Users/maccc/.wenqu/current/system
+pipeline_rcs=0 0

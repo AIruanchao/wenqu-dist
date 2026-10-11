@@ -1,0 +1,17 @@
+started=2026-10-11T09:21:38+08:00
+source=/Users/maccc/Documents/wenqu-dist
+requested_ref=origin/main
+expected_commit=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+cmd=git -C SOURCE archive --format=tar origin/main | tar -xf - -C FRESH/base
+pipeline_rc=0
+source_origin_main=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+source_tree=d3de6cfcbdb7b49a9ce35854604f97dc6635bc35
+plan_sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306
+archive_file_count=2934
+archive_symlink_count=30
+git_metadata_present=no
+shared_tree_status_environment_only:
+ D dist/wenqu-dist-2bd59ab.tar.gz
+ D dist/wenqu-dist-b44b087.tar.gz
+ D dist/wenqu-dist-cf6d10e.tar.gz
+ended=2026-10-11T09:21:39+08:00

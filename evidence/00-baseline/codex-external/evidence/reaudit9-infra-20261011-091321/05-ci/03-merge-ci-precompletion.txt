@@ -1,0 +1,17 @@
+$ bash tools/merge-ci-evidence.sh 7eeb8a... --repo shared-readonly --branch main --out-dir evidence/precompletion
+merge-ci-evidence: FAIL  7eeb8a1  →  /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/05-ci/precompletion/merge-ci-7eeb8a1.json
+  有 push run 但不满足双平台 success：1 个 push run 均未全绿
+exit_code=1
+{
+  "collected_at": "2026-10-11T01:17:47Z",
+  "commit": "7eeb8a13107e8b52771f5b8784af8266ed0551b9",
+  "commit_parents": [
+    "bb38f70163ce4a1a79f36ea66284e110eff96a95",
+    "1e31d8800082c3bf025e33faef53afdac8fc79e5"
+  ],
+  "is_merge_commit": true,
+  "verdict": "FAIL",
+  "verdict_reason": "有 push run 但不满足双平台 success：1 个 push run 均未全绿"
+}
+push status/jobs: [('in_progress', '', [('matrix (macos-latest)', 'in_progress', ''), ('matrix (ubuntu-latest)', 'completed', 'success')])]
+json_extract_exit_code=0

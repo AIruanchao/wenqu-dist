@@ -1,0 +1,52 @@
+source_provenance=git archive origin/main @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+source_dir=/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base
+$ python3 plan_change_probe.py FRESH_ARCHIVE
+[
+  {
+    "case": "control",
+    "rc": 0,
+    "catalog_integrity": "OK",
+    "plan_sha256_match": true,
+    "plan_check_ok": true,
+    "problem_count": 0,
+    "stdout_tail": "-03, MRG-04, MRG-05, MRG-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07\n输出: ../../../../../var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-plan-probe-86zs97ws/control.json  (扫描 54 个测试文件)\n================================================================\n"
+  },
+  {
+    "case": "missing_plan",
+    "rc": 2,
+    "catalog_integrity": "FAIL",
+    "plan_sha256_match": null,
+    "plan_check_ok": false,
+    "problem_count": 1,
+    "stdout_tail": "-03, MRG-04, MRG-05, MRG-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07\n输出: ../../../../../var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-plan-probe-86zs97ws/missing.json  (扫描 54 个测试文件)\n================================================================\n"
+  },
+  {
+    "case": "section20_id_substitution",
+    "rc": 2,
+    "catalog_integrity": "FAIL",
+    "plan_sha256_match": false,
+    "plan_check_ok": false,
+    "problem_count": 4,
+    "stdout_tail": "5, MRG-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07\n输出: ../../../../../var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-plan-probe-86zs97ws/section20_id_substitution.json  (扫描 54 个测试文件)\n================================================================\n"
+  },
+  {
+    "case": "section25_mapping_substitution",
+    "rc": 2,
+    "catalog_integrity": "FAIL",
+    "plan_sha256_match": false,
+    "plan_check_ok": true,
+    "problem_count": 2,
+    "stdout_tail": "G-06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07\n输出: ../../../../../var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-plan-probe-86zs97ws/section25_mapping_substitution.json  (扫描 54 个测试文件)\n================================================================\n"
+  },
+  {
+    "case": "outside_sections_zero_width_byte",
+    "rc": 2,
+    "catalog_integrity": "FAIL",
+    "plan_sha256_match": false,
+    "plan_check_ok": true,
+    "problem_count": 1,
+    "stdout_tail": "06, MRG-07, PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06, RB-01, REL-01, REL-02, REL-03, RISK-01, RUN-01, RUN-02, RUN-03, SC-01, SC-02, SC-03, SC-04, SC-05, SCH-01, SCH-02, SCH-03, SCH-04, SCH-05, SCH-06, SCH-07, STA-01, STA-02, STATE-01, STATE-02, STATE-03, STATE-04, STATE-05, STATE-06, STATE-07, STATE-08, STATE-09, STATE-10, STATE-11, STOP-01, STOP-02, STOP-03, TEN-01, TEN-02, TEN-03, TEN-04, TEN-05, TEN-06, TEN-07, TEN-08, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07\n输出: ../../../../../var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-plan-probe-86zs97ws/outside_sections_zero_width_byte.json  (扫描 54 个测试文件)\n================================================================\n"
+  }
+]
+RESULT: PASS — baseline green; missing/§20/§25.1/outside-byte all red
+exit_code=0

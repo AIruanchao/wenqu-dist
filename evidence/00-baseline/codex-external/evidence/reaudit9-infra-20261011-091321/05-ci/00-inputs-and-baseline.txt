@@ -1,0 +1,434 @@
+$ shasum -a 256 "$PLAN"
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/00-baseline/codex-external/方案.md
+exit_code=0
+$ wc -l "$PLAN" "$SUM"
+    2003 /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/00-baseline/codex-external/方案.md
+      21 /private/tmp/codex-test/round8-summary-neutral.md
+    2024 total
+exit_code=0
+$ sed -n 1,260p "$SUM"
+# 第八轮验收要点摘要（中性化版，供第九轮复核用；完整版在仓内 evidence/00-baseline/codex-external/）
+
+## 评分与判定
+- 总分 70/100，判定 BLOCKED（弧线：52→64→70）
+- W 分项：W0=5 W1=9 W2=11 W3=9 W4=9 W5=6 W6=11 W7=6 W8=4 W9=0 W10=0
+- P0 十项：P0-1 PASS（固定候选）/P0-8 PASS；P0-4、P0-5 PARTIAL；P0-2/3/6/7/9/10 FAIL
+
+## 第八轮整改优先级清单（本次复核对象=其中非授权域子集）
+P0 级（本批只核 3/4/5/6 项与 P1 断言质量门）：
+3. 旧表切换：不可回填行版本记录或撤销写权限
+4. 发布校验：受保护冻结方案哈希+允许提交清单；三处等值+源码树绑定
+5. 现役控制台：不可变发布位激活；零占位身份或自声明模式下健康结论不得 PASS
+6. 合并提交精确主线 CI 双平台记录
+P1：断言质量门升级为语法树/行为级
+（第 1/2 项属授权密钥域，本批不核——另行安排）
+
+## 已知未到期项（照常计分不记新发现）
+W9 48 小时投影与金丝雀、W10 十四天观察窗（10-08 起算 10-22 届满）；对称签名非不可否认/签发渠道占位/形式化模型有界/容器级隔离未实测/1950 条隔离行裁定行级合同已上/站5、6 已接生产接线
+
+## 核验口径（同历轮）
+三移除锚点、方案文档三类内容变更必红、关键测试文件删件必红、证据索引逐条实算、dist 制品校验、CI 真实性、分支保护回读、7789 运行身份、调度器、观察样本、验收脚本复跑、pytest 双口径
+exit_code=0
+$ grep relevant headings/terms from plan
+14:> 当前问渠、Bug 管线和 7789 控制面均不得用于生产放行结论；任何部署、合流、分支保护、LaunchAgent、生产 DB、外部告警或回滚动作，仍须逐项获得用户明确授权。
+26:9. **每个工作包必须交付五件套：** 代码/配置、正反测试、证据索引、迁移或部署说明、已演练回滚报告。未演练只能写“已记录回滚路径”。
+41:目标不是把展示分数改成 95，而是让机器执行可信度、证据完整性和故障注入验收均达到生产级，并且消灭已知 P0/P1。
+45:以下是带时点的复审快照。ZCode 开工前必须先执行 W0 重新采集；任何漂移以新 baseline 为准，不得把 14:59 数字当作永远当前。
+57:4. GitHub `AIruanchao/qisemi-erp` 的 `master` 分支保护实时回读仅要求：
+59:   - 完整 Gate 不是 required check。
+65:10. 发布正源 `/Users/maccc/Documents/wenqu-dist`：
+81:| `/Users/maccc/Documents/wenqu-dist/tests/acceptance.sh` | 53 PASS / 0 FAIL，exit 0 |
+98:本轮证据包：`/private/tmp/codex-test/evidence/reaudit-20261007/`，索引为其 `manifest.sha256`。其中包含安全负向红探针、wenqu-dist 回归、health、branch required checks、运行/正源哈希、gatedoctor、waiting 和 launchctl 快照；它仍是本轮复审证据，不等同整改后的完整生产证据包。
+102:- 本轮没有停止自动合流、修改分支保护、发布、写库、点击决策、发送外部告警或触发真实生产动作。
+113:2. Bug 八站由唯一 orchestrator 执行；任一 required 站非 PASS 时整线绝不为 PASS。仅 policy 允许且仍有效的低风险接受可使 aggregate=CONDITIONAL，其余 FAIL/ERROR/BLOCKED/缺失/过期一律 BLOCKED。
+115:4. 合流只接受同一 head SHA 的全部 required checks，并另需 exact action authorization；不存在 admin 自动绕闸。
+130:“清零声明”还要求零有效未关闭 finding、零有效豁免；存在合法 ACCEPTED 风险时只能称“条件放行”。P0/P1 不允许风险豁免。
+150:| 可执行核心/制品 | `wenqu-dist`；`releases/<release-id>` | runner/store/state/gate/dashboard/installer 唯一实现，manifest 校验，不得热改 |
+151:| 策略/Skill | W0/W1 必须确认的正式 quality-policy Git 正源 | 只含受保护 policy/Skill/规则包，不复制 executable core |
+157:`/Users/maccc/.zcode/quality-system` 目前把代码、账本、证据和实时状态混在一个长期脏工作树中，且尚未确认其正式 source repo。W0 必须冻结 quality-policy 的 `repo_id/default branch/owner/build入口/Skill源位置/安装位置/状态位置`；未确定前禁止在现役目录开发。拆分必须渐进进行，不能大爆炸搬迁。
+164:wenqu_dist_commit
+180:2. 任一 required probe 的执行或策略结果非 PASS，整线不得 PASS。
+183:5. 问渠七段必须顺序推进；Bug 八站中相互独立的站应继续/并行取证。任一 required 站非 PASS 时整线绝不为 PASS；仅 policy 允许且有效的低风险接受可形成 CONDITIONAL，其余非 PASS 一律 BLOCKED。禁止因早站失败而形成后续扫描盲区。
+195:17. P0/P1 未清、有效 required evidence 过期或 runtime 漂移时禁止生产放行。
+236:  └─校验身份、TTL、required 集合、状态和证据哈希
+260:- **站级语义：** required station 只有 `COMPLETED+PASS` 才是 station PASS；CONDITIONAL 不得改写成 PASS，也不得计入“全站 PASS”。
+261:- **内部聚合语义：** 存在 policy 允许的低风险 `ACCEPTED_RISK` 时，aggregate 仍为 CONDITIONAL；未授权时 CLI 返回 exit 4，GitHub required context 发布 failure/blocked，自动合流不得消费。
+263:- **唯一条件放行路径：** 所有非接受项均 PASS，且 approval broker 签发绑定完整 finding 集合和失效域的 risk authorization 后，aggregator 可铸造 `AUTHORIZED_CONDITIONAL` attestation。内部 aggregate、详情页和 dashboard 仍保持琥珀色 CONDITIONAL，不得显示 PASS；P0/P1 永不适用。risk authorization 与 action authorization 是两个判别类型；可由同一个人类批准包同时签发，但必须分别校验、分别消费。
+287:只有 `COMPLETED + PASS` 可计 **station required PASS**；`AUTHORIZED_CONDITIONAL` 是独立的显式授权出口，永远不改名为 PASS。
+312:整段不得用豁免伪造 PASSED。`COMPLETED_CONDITIONAL` 仅允许用于 S7，且永远不等于 PASSED。S1_REQUIREMENT、S7_GATE 和 required 安全检查永远不可整段豁免；N/A/风险接受只作用于 policy 明确允许的非关键子检查，并令整线进入 CONDITIONAL。
+324:| 4 | `scope` | 一次性新 scope 授权 + 风险、required 集和证据重新冻结 |
+417:- P0/P1 不允许 ACCEPTED_RISK。
+508:不能粗暴规定所有内层命令都必须 exit 0；例如“越权请求应被拒绝”的负例可以有非零内层退出码，但外层断言器必须 PASS。Gate 只消费 harness 的可信判定及其原始证据。
+516:│ wenqu-dist：唯一 executable core/安装器/dashboard/gate   │
+517:│ quality-policy 正式仓（W0确认）：Skill/policy/规则包       │
+561:| 站 | 目标内容 | required 证据 |
+563:| 0 范围冻结 | 项目、SHA、风险、范围、规则、数据配置、required 站集合 | 五元指纹+定级依据 |
+567:| 4 行为 | E2E、真实浏览器、空态/失败态、业务断言 | trace/截图/DB 断言 |
+615:W0 现场快照与危险面隔离
+618:       ├─W3A exact-SHA 源闸基础件
+624:       └─W7A 原子发布框架/运行布局
+626:W3A+W6A+W6B+W6C+W6D ───→ W3B 聚合/convergence/Required contexts/merge
+627:W2+W3A+W6A～W6D+W7A ─────→ W4 scheduler/outbox/watchdog
+628:W2+W3B+W5+W6A～W6D+W7A ──→ W8 dashboard/控制面/最终投影接线
+629:W3B+W4+W5+W6A～W6D+W7A+W8 → W7B 最终集成制品
+630:W7B ──→ W9 shadow/canary/受控切换
+631:       └─W10 14 天观察、回滚演练与战训收官
+634:W3A/W4 框架/W7A 可在冻结契约后并行开发；W3B 必须等待 W3A 与 W6A～W6D 的真实结果契约完成。W8 在 W7A 的布局中完成 dashboard 与迁移投影接线，W7B 才把包括 W8 在内的全部组件打成最终候选。最终制品、启用、接线和切换必须满足上述真实数据依赖。W3A 只产生可验证的源闸原语，不发布最终 required context；W3B 才是八站聚合和合流控制器，因此不存在 W3↔W6A 自依赖。
+646:# 9. 工作包 W0：现场快照与危险面隔离
+655:- 未完成 writer 盘点和快照前，禁止 W5 迁移、W7 部署、任何生产配置修改。
+696:evidence/W0/baseline-manifest.json
+697:evidence/W0/processes.txt
+698:evidence/W0/branch-protection-before.json
+699:evidence/W0/runtime-source-diff.patch
+700:evidence/W0/writer-inventory.json
+701:evidence/W0/containment-verification.json
+754:- required 证据字段和 TTL；
+760:- `severity` 与 `priority` 分离：默认 `CRITICAL→P0`、`HIGH→P1`；资金、权限、租户、数据损坏、合流绕闸可由版本化 policy 升级；自动流程不得降级；P0/P1 不得风险接受。
+761:- CONDITIONAL 默认 technical eligibility=false。只有独立 risk authorization 精确绑定 finding 集、severity、理由、补偿控制、scope/environment/policy/ruleset/input watermark/state_version/TTL 后，才能铸造 `AUTHORIZED_CONDITIONAL` attestation；任何 merge/release/prod-write/DDL 仍需另一个对应判别 payload 的 exact action authorization。两类授权分别校验、分别消费；required context 必须显式标注条件放行，任一机制未完整落地时不得动作。
+765:- RPO/RTO 数值：本机已提交事件与 outbox 默认目标 RPO=0，恢复 RTO 由项目冻结（建议不高于 30 分钟），offsite RPO 由数据敏感度和授权决定；未冻结、未实测不得进入 W9。
+786:以下路径均为**建议落在 `/Users/maccc/Documents/wenqu-dist` 仓内的相对路径**；W1 ADR 必须先冻结 owner repo、默认分支、owner、build 入口和安装目的地。若 W0 找到已有正式 quality-policy 正源，可将 policy/Skill 移入该仓，但 executable core 只能有一份，禁止两仓复制同名实现。
+841:# 12. 工作包 W3A/W3B：源闸基础件、聚合、收敛、合流与 CI
+845:- **W3A（源闸基础件，依赖 W2）：** 实现 §12.2 的 fresh base 获取、merge-base/diff、affected/full test 执行、真实 rc 捕获、exact-SHA/provenance 校验和规范化 `source-gate-result.json`；它不读取八站汇总、不发布 Required Gate、不执行合流。
+846:- **W3B（最终控制面，依赖 W3A+W6A～W6D）：** 实现 §12.1、§12.3～§12.8 的独立 aggregator、收敛、required contexts 和 merge/release 控制。W3B 只能消费 W3A 结果与八站结果，W6 不得反向消费 W3B。
+863:只有 policy 明确允许的 `COMPLETED+NOT_APPLICABLE` 才能不阻断；SKIP、UNKNOWN、空输出、missing、stale 不属于 N/A。CONDITIONAL 的 required-check 行为严格遵循 §6.1，不得擅自当 PASS。
+890:- verifier 必须重验 CAS hash、identity、TTL、required 站集合。
+902:最优默认是删除本地 auto-merge 写控制器，使用 GitHub 原生 merge queue/auto-merge 加 required ruleset；本机只读观察和告警。以下控制器要求只适用于平台能力确实不足、并经独立 ADR 批准的最小权限 GitHub App fallback，绝不再使用 shell daemon、个人 `gh` 或 admin token。
+904:1. 默认关闭；永久移除 `--admin` 和自动修改 PR 分支能力。
+906:3. 只认 branch protection/ruleset 实时枚举出的 required checks；名称精确匹配，禁止子串匹配。
+933:经用户批准后，分支保护至少 required：
+956:| required check 缺失/旧 SHA/同名伪造 | 禁止合流 |
+969:branch protection 保存 before JSON，但任何回滚不得恢复不安全规则。新聚合器故障时保持 required checks、暂停自动合流，改走人工受保护 PR；不得关闭检查换取可合流。
+977:# 13. 工作包 W4：统一调度、Watchdog、Outbox 与备份
+1133:- required station 的 ERROR/BLOCKED/SKIP 使整线阻断。
+1141:- 站0从 target SHA 生成项目身份、范围、风险、required 站集合和证据失效域；分母缩水默认 BLOCKED。
+1142:- 站1只消费 W3A 的 exact-SHA `source-gate-result.json` 并完成站内 applicability/coverage 适配；不得消费 W3B，不得由 W6 自报 CI 通过或发布 required context。
+1143:- required 集和 registry 来自受保护 policy commit，PR 不可自改。
+1148:| lane/profile | 不可移除最低集合 | 说明 |
+1162:- 每个扫描器有独立 coverage denominator 和 rule digest；任一 required 件缺失/过期即站2非 PASS。
+1173:- 站4：页面/路由/E2E 分母、真实浏览器、截图/trace 和业务断言完整度。
+1258:- 八站 required 集可由风险定级生成，并由 aggregator 强制。
+1266:# 16. 工作包 W7：不可变制品、原子部署与运行身份
+1268:W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+1297:1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+1328:正式部署、生产 expand/contract migration、restart、launchctl 修改和回滚均须用户授权；contract 必须晚于观察与回滚窗并再次独立授权。候选制品、离线 smoke 和回滚脚本可先完成。
+1332:# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+1355:总体状态取 required 项中的**最坏值**，不是加权平均。分数仅作趋势，不参与解除硬阻断；任一 P0 时即使展示分数也不得超过红色区间。
+1362:- required sentinel ERROR/stale；
+1365:- required Gate 缺失、错误 SHA 或过期；
+1367:- P0/P1 未关闭；
+1407:- 任一 required blocker 时页面不可能显示“良好”。
+1415:# 18. 工作包 W9：Shadow、Canary 与受控切换
+1424:6. **正式切换：** 用户逐项授权后切 writer epoch、CI required、scheduler、dashboard read model。
+1465:evidence/W9/shadow-comparison.jsonl
+1466:evidence/W9/difference-adjudications.jsonl
+1467:evidence/W9/canary-runs/
+1468:evidence/W9/writer-epoch-cutover.json
+1469:evidence/W9/branch-rules-after.json
+1470:evidence/W9/runtime-attestation.json
+1471:evidence/W9/rollback-drill.md
+1476:# 19. 工作包 W10：14 天观察、回滚演练与战训收官
+1487:- required sentinel stale 未告警=0；
+1505:5. branch rules 故障时保持 required，人工受保护 PR 可工作；
+1529:- W0–W9 全部 hard DoD；
+1530:- 所有 P0/P1 已关闭；
+1535:- required 证据同一指纹、未过 TTL；
+1667:| COND-04 | P0/P1 尝试风险接受或条件授权 | 拒绝并保持 BLOCKED |
+1759:迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+1787:ZCode 可在停等前完成代码、测试、dry-run、PR、候选制品、回滚脚本和证据包。
+1794:- CI：故障时保持 required checks，转人工受保护 PR；
+1797:- 分支保护：before JSON 只用于审计和安全恢复，不得恢复已知绕过。
+1809:- W0–W10 全部 DoD；
+1812:- 全部 required checks exact-SHA、未过期、来自可信 provenance；
+1813:- P0/P1=0；
+1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+1855:| FND-001 | auto-merge 子串、UNSTABLE、`--admin` | W0/W3B | MRG-01～07 | containment、branch rules、merge dry-run |
+1856:| FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+1857:| FND-003 | base 不存在/零测试假绿 | W3A | GATE-01～03 | runner 原始日志 |
+1858:| FND-004 | verifier 信任 rc/findings/symlink/N | W2/W3B | GATE-04～12 | red-probes before/after |
+1860:| FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+1861:| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+1862:| FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+1863:| FND-009 | 安装器原地覆盖、doctor 吞错 | W7A/W7B | REL-01～03、DEP-01～03 | deploy/rollback drill |
+1865:| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+1871:| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+1872:| FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+1873:| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+1874:| FND-020 | Skill/版本/枚举/数量/状态说明漂移 | W1/W10 | DOC-01～04 | consistency report |
+1875:| FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+1887:| ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+1888:| MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+1896:| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+1897:| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+1898:| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+1899:| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+1902:| CI-05～09 | REQ-CI-001 / AC-CI-TERMINAL | W3B | check runs/ruleset/DAG validation |
+1903:| COND-01～06 | REQ-COND-001 / AC-COND-NOT-PASS | W1/W2/W3B | risk/action auth、attestation、context |
+1905:| STA-01～02 | REQ-STATION-001 / AC-STATION-COVERAGE | W6A～W6D/W3B | station results/aggregate |
+1906:| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+1907:| RB-01 | REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT | W7B | preauthorization/compatibility/drill |
+1908:| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+1909:| HLT-01 | REQ-HEALTH-001 / AC-HEALTH-ATOMIC | W8 | input watermark/snapshot retry |
+1910:| DOC-01～04 | REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT | W1/W10 | generated consistency report |
+1911:| CAP-01 | REQ-CAP-001 / AC-CAP-SAFE-MARGIN | W0/W7A | peak budget/disk-full injection |
+1912:| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+1958:下列行号已在本轮复核时确认存在，仅用于快速定位；ZCode 开工必须先按 W0 记录新 SHA/hash 并重新定位语义，禁止因行号漂移盲改。现役目录只读取证，修复落在对应版本化正源的干净 worktree；尚无远端的 `/Users/maccc/.zcode/quality-system` 先完成 W0 责任仓裁定。
+1962:| `/Users/maccc/.wenqu/daemons/auto-merge.sh` | 34–46、68–75：Fast 子串/UNSTABLE/重试合流 | W0/W3B |
+1964:| `/Users/maccc/.zcode/quality-system/bin/pending-watch.sh` | 51–68：文本协议、notify bump | W2/W4 |
+1965:| `/Users/maccc/.zcode/quality-system/bin/verify-convergence.py` | 55、100–112、121–179、225–263：N/自报结果/证据/超轮 | W2/W3B |
+1966:| `/Users/maccc/.wenqu/bin/iron-gate.sh` | 18–85：diff 错误传播和文本式检查 | W3A |
+1967:| `/Users/maccc/.wenqu/bin/zero-rework.sh` | 29–65：affected test/无测试分支 | W3A |
+1968:| `/Users/maccc/Documents/wenqu-dist/system/install.sh` | 13–25、49–52：原地复制并吞掉 doctor 失败 | W7A |
+1969:| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+1971:| `/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh` | 39–47、63–88：远端错误/空 diff/恒 exit 0 | W4/W6C |
+1972:| `/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh` | 40–56、125–131：吞掉 npm audit 失败且恒 exit 0 | W4/W6B |
+1973:| `/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh` | 37–62：分页/seen/无 verdict gate | W4/W6B |
+1976:| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+1978:首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+1991:| 工作包引用 | PASS；W0～W10 及 W3A/B、W6A～D、W7A/B 均在允许集合，无未定义引用 |
+1992:| 依赖 DAG | PASS；机检拓扑无环，关键链为 W3A→W6A～D→W3B，W8→W7B→W9→W10 |
+1997:| 快照靶点 | PASS；§28 的 15 个绝对路径在验证时均存在；行号仍须 W0 重定位 |
+exit_code=
+$ git log --oneline --decorate d571ab8..origin/main
+7eeb8a1 (HEAD -> main, origin/main) Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+1e31d88 (origin/wave10/t5-gate-frontdoor, wave10/t5-gate-frontdoor) feat(T-5): scheduler gate 刷新正门优先——WENQU_GATE_MANIFEST+VERIFY_KEY(+REGISTRY) 存在即走 gate 正门
+bb38f70 Merge pull request #32 from AIruanchao/wave10/t3-stations
+ebc3e3a (origin/wave10/t3-stations, wave10/t3-stations) feat(T-3): 八站生产接线+逐站分母冻结+gate 正门全链（R9 站5/6 未接线+现役单站分母根修）
+3483d04 Merge pull request #30 from AIruanchao/wave10/t1-receipt
+9ff9632 (origin/wave10/t1-receipt, wave10/t1-receipt) fix(T-1): receipt 冷启动旁路根治+并发竞窗关闭（R9-AUTH-RECEIPT-COLDSTART-001/CONCURRENCY-013）
+2c6df3d Merge pull request #31 from AIruanchao/wave10/t2-window
+5c1a28f (origin/wave10/t2-window, wave10/t2-window) fix(test): HLT-01 写前登记闭合读写交错窗口——慢机『杂交快照』误报根修
+4efb150 fix(test): F4 两处 _record 显式传 scheduler_config_sha——跨平台密闭（ubuntu CI 红根修）
+d70f220 fix(T-2): 观察窗开窗十项前置+资格 fail-closed+收割覆盖门+invalidate 作废（R9-OBS 窗口三连）
+2bded63 Merge pull request #29 from AIruanchao/wave10/t4-rollback
+a741048 (origin/wave10/t4-rollback, wave10/t4-rollback) fix(T-4): 回滚信任链六段 fail-closed——与正向安装链同构（R9-REL-ROLLBACK-ROOT-BYPASS-004）
+b07ac8c Merge pull request #28 from AIruanchao/wave10/t9-registry
+3fe3760 (origin/wave10/t9-registry, wave10/t9-registry) feat(T-9): registry root 部署位供给器——签名快照落位+同钥拒收自检（W1 最后 1 分）
+728a3a5 Merge pull request #27 from AIruanchao/wave10/t8-adjudication
+cd351d0 (origin/wave10/t8-adjudication, wave10/t8-adjudication) evidence(T-8): 1950 裁定升级行级严格合同 v2——每行八字段（row_digest 锚原始行/独立 reason/principal/reviewed_at/HMAC signature）
+fa72947 Merge pull request #26 from AIruanchao/wave9/g9-02-observer
+27c648c (origin/wave9/g9-02-observer, wave9/g9-02-observer) feat(G9-02/01): 观察面 O_EXCL+hash chain+动态窗口+唯一 writer（R8-OBS-NOGIT-015/COLLISION-016）
+d0fba96 Merge pull request #24 from AIruanchao/wave9/g9-08-ci
+b09ac87 (origin/wave9/g9-08-ci, wave9/g9-08-ci) fix(capacity): 自测跨平台断言 total==used+free → >=（Linux 保留块）
+ffd2b58 fix(test): HLT-01 夹具原子写——慢机读写交错半写误杀根治（ubuntu CI 实证）
+365a76f fix(G9-08): 清除跨环境必死的绝对路径 symlink（v-link/r1.txt 内容快照化）
+4f6d632 feat(G9-08): required CI 全量检查面——仓根 pytest/evidence validator/八模块自测/追踪/TLA 双配置/mutation 门（八轮 1.4-10）
+91db19a Merge pull request #25 from AIruanchao/wave9/g9-12-install
+889c71f (origin/wave9/g9-12-install, wave9/g9-12-install) fix(G9-12): 安装链外部授权根+全链 fail-closed+仓外构建（R8-REL-FROZEN-ROOT-009）
+dc323c7 Merge pull request #23 from AIruanchao/wave9/g9-07-measure
+0ec079e (origin/wave9/g9-07-measure, wave9/g9-07-measure) feat(G9-07): P1f2 真 mutation 门+evidence v2 分表严格 schema+测试零污染（R8-TRC-TRUTHY-ASSERT-012/EVID-FIELDS-013/PYTEST-HISTORICAL-COLLECT-014）
+21fa416 Merge pull request #22 from AIruanchao/wave9/g9-03-tla
+49a8e6b (origin/wave9/g9-03-tla, wave9/g9-03-tla) feat(G9-03): TLA 双配置完成级——七段全序×1 attempt + 2段×2 attempts（retry/CAS/nonce）
+657d197 Merge pull request #21 from AIruanchao/wave9/g9-04-approval
+9e2ac44 Merge pull request #18 from AIruanchao/wave9/g9-11-sc05
+06f8c83 Merge pull request #17 from AIruanchao/wave9/g9-05-legacy
+95598d3 (origin/wave9/g9-04-approval, wave9/g9-04-approval) fix(G9-04): 审批 receipt 单调账本+actual-target 实算绑定+principal 强制登记（R8-AUTH-RETIRED-KEY-005/TARGET-UNBOUND-006/ACTOR-DISTINCT-007）
+5830c6e (wave9/g9-09-bak) fix(G9-09): BAK 归档实存+独立解包对账+archive 真恢复（R8-BAK-FAKE-TAR-SUCCESS-019）
+d4ec0b4 (wave9/g9-06-manifest) fix(G9-06): manifest 独立语义根——同钥双签无条件拒+purposes 分域+scope 底线+unsigned 边界（R8-GATE-LANE/TTL/SCOPE/UNSIGNED）
+17a9305 (origin/wave9/g9-11-sc05, wave9/g9-11-sc05) fix(SC-05): 分页元数据形态+自洽全量校验（八轮 R8-SC-PAGINATION-TYPE-018）
+446e10c (origin/wave9/g9-05-legacy, wave9/g9-05-legacy) fix(G9-05): legacy 升级洞 fail-closed——cutover 已记账而 digest 账本缺席=legacy_untrusted 全隔离（八轮 R8-EVENT-BACKDATE-008 升级路径）
+7ffcc00 Merge pull request #16 from AIruanchao/wave9/baseline-green
+609740b (origin/wave9/baseline-green, wave9/baseline-green) evidence(G9-10): 1950 条 quarantine 终态裁定——全量保守 KEEP、PENDING=0、零生产写
+ed258b0 dist: b44b087 制品四件套入仓（main 尖头+current 现役存证）
+74a24d5 fix(runner): 超时证据先锁定——kill/收尸阶段异常不得翻转 timed_out
+b44b087 Merge pull request #15 from AIruanchao/wave9/sampler-repo-fallback
+ab9e239 (origin/wave9/sampler-repo-fallback, wave9/sampler-repo-fallback) fix(observation): 采样器 git 仓回退候选（不可变位无 .git 致 identity=None 根修）
+310c1a9 (wave8/final-install) Merge pull request #14 from AIruanchao/wave8/final-install
+f93e95a (origin/wave8/final-install) fix(wave8): 终装收编——pin 根修+cf6d10e 制品+7789 切换存证
+cf6d10e Merge pull request #13 from AIruanchao/wave8/semantics
+c96794e (origin/wave8/semantics, wave8/semantics) fix(wave8): EventStore busy_timeout=30000——并发写排队不丢面（Ubuntu 百线程实测 3% 写面丢失根修）
+2a9d132 fix(wave8): 八轮 6 语义旁路+F 系收尾全清——registry 重放/审批周期/行版本/受保护根/immutable 位/AST 门
+exit_code=0
+$ git diff --stat d571ab8..origin/main
+ .github/workflows/acceptance.yml                   |    34 +
+ .gitignore                                         |     3 +
+ README.md                                          |    63 +
+ dist/wenqu-dist-b44b087.manifest.json              | 20667 +++++++
+ dist/wenqu-dist-b44b087.release.sig                |    13 +
+ dist/wenqu-dist-b44b087.sbom.spdx.json             | 58892 +++++++++++++++++++
+ dist/wenqu-dist-b44b087.tar.gz                     |   Bin 0 -> 89109004 bytes
+ dist/wenqu-dist-b44b087.verify-report.json         |    61 +
+ dist/wenqu-dist-cf6d10e.manifest.json              | 20625 +++++++
+ dist/wenqu-dist-cf6d10e.release.sig                |    13 +
+ dist/wenqu-dist-cf6d10e.sbom.spdx.json             | 58772 ++++++++++++++++++
+ dist/wenqu-dist-cf6d10e.tar.gz                     |   Bin 0 -> 44635114 bytes
+ dist/wenqu-dist-cf6d10e.verify-report.json         |    61 +
+ .../reaudit-20261007/red-probes/v-link/r1.txt      |     2 +-
+ .../04-unit-property-mutation/ac-ops-families.json |    20 +-
+ .../04-unit-property-mutation/ac-state-mig.json    |     8 +-
+ .../04-unit-property-mutation/ac-ui-family.json    |    18 +-
+ .../p1f2-mutation-gate-adoption.json               |   260 +
+ .../test-zero-pollution-adoption.json              |    17 +
+ .../adjudication/adjudication-final.json           | 21670 +++++++
+ .../adjudication/adjudication-proposal.json        |  2899 +
+ .../07-migration-reconcile/adjudication/summary.md |   105 +
+ .../evidence-strict-validator-adoption.json        |    29 +
+ .../08-ci-and-branch-rules/merge-ci-d571ab8.json   |   433 +
+ evidence/10-ui-launchd-alert-backup/README.md      |     3 +-
+ ...rial-health-conservative-reverify-20261008.json |    12 +
+ ....wenqu.dashboard.plist.pre-immutable-switch.bak |    18 +
+ .../dashboard-7789-immutable-switch-20261008.json  |   117 +
+ .../dashboard-immutable-cf6d10e-20261009.json      |   134 +
+ .../runtime-immutable-switch-20261008T163305Z.log  |    15 +
+ .../runtime-three-probes-20261008T163328Z.log      |    15 +
+ evidence/11-shadow-canary/README.md                |    76 +-
+ evidence/evidence-index.json                       |  1212 +-
+ pytest.ini                                         |     6 +
+ specs/tla/mutation_probes.sh                       |   136 +
+ specs/tla/wenqu_pipeline.cfg                       |    32 -
+ specs/tla/wenqu_pipeline.tla                       |    24 +-
+ specs/tla/wenqu_pipeline_A.cfg                     |    38 +
+ specs/tla/wenqu_pipeline_B.cfg                     |    39 +
+ system/dashboard/server.py                         |   134 +-
+ system/install-release.sh                          |   555 +-
+ system/launchd/README.md                           |    34 +
+ system/launchd/com.wenqu.scheduler.plist.template  |    40 +
+ system/schemas/approval-v2.schema.json             |   631 +-
+ .../schemas/evidence-index-active-v2.schema.json   |    30 +
+ .../schemas/evidence-index-legacy-v1.schema.json   |    31 +
+ system/sentinels/backup-restore-drill.sh           |   188 +-
+ system/tests/fixtures/approval-keys.json           |    24 +-
+ system/tests/p1f_ast_gate.py                       |   634 +
+ system/tests/p1f_mutation_gate.py                  |   368 +
+ system/tests/test_ac_act_run.py                    |    71 +-
+ system/tests/test_ac_auth_cond.py                  |    35 +-
+ system/tests/test_ac_ops_families.py               |   262 +-
+ system/tests/test_ac_state_mig.py                  |    21 +-
+ system/tests/test_ac_station56.py                  |  1007 +
+ system/tests/test_ac_station_families.py           |     8 +
+ system/tests/test_ac_ui_family.py                  |   169 +-
+ system/tests/test_approval_issue.py                |   687 +-
+ system/tests/test_events_unified.py                |   332 +-
+ system/tests/test_gate_manifest_trust.py           |    70 +-
+ system/tests/test_linux_proc_path.py               |   336 +
+ system/tests/test_manifest_semantic_replay.py      |  1231 +
+ system/tests/test_observation_window.py            |  1051 +
+ system/tests/test_release_attest.py                |   330 +-
+ system/tests/test_tla_spec.py                      |    72 +-
+ system/tests/test_w4_production.py                 |    27 +-
+ system/tests/test_wenqu_adversarial.py             |   408 +-
+ system/wenqu_core/approval_issue.py                |    79 +-
+ system/wenqu_core/approval_keys.py                 |   832 +-
+ system/wenqu_core/bugscan_orchestrator.py          |  1446 +-
+ system/wenqu_core/capacity_monitor.py              |     4 +-
+ system/wenqu_core/cli.py                           |   215 +-
+ system/wenqu_core/drill_runner.py                  |    63 +-
+ system/wenqu_core/gate_aggregator.py               |   202 +-
+ system/wenqu_core/ledger_migrator.py               |   258 +
+ system/wenqu_core/runner.py                        |    40 +-
+ system/wenqu_core/scheduler.py                     |   210 +-
+ system/wenqu_core/station2_static.py               |    41 +-
+ system/wenqu_core/station5_live_fire.py            |   785 +
+ system/wenqu_core/station6_adversarial.py          |   715 +
+ system/wenqu_core/store.py                         |     3 +
+ system/wenqu_core/wenqu_pipeline.py                |   415 +-
+ tests/acceptance.sh                                |   223 +-
+ tests/p1f-assert-baseline.txt                      |     2 +-
+ tests/p1f-behavior-baseline.txt                    |    14 +
+ tests/p1f-mutations.json                           |   151 +
+ tools/evidence_validator.py                        |   284 +
+ tools/merge-ci-evidence.sh                         |   188 +
+ tools/observation_daily.py                         |  1164 +-
+ tools/provision_registry_root.py                   |    68 +
+ tools/quarantine_adjudicate.py                     |   672 +
+ tools/release_attest.py                            |   399 +-
+ tools/window_harvest.py                            |   439 +
+ tools/window_manifest.py                           |   655 +
+ 94 files changed, 203676 insertions(+), 1219 deletions(-)
+exit_code=0
+$ git diff --name-status d571ab8..origin/main
+M	.github/workflows/acceptance.yml
+M	.gitignore
+M	README.md
+A	dist/wenqu-dist-b44b087.manifest.json
+A	dist/wenqu-dist-b44b087.release.sig
+A	dist/wenqu-dist-b44b087.sbom.spdx.json
+A	dist/wenqu-dist-b44b087.tar.gz
+A	dist/wenqu-dist-b44b087.verify-report.json
+A	dist/wenqu-dist-cf6d10e.manifest.json
+A	dist/wenqu-dist-cf6d10e.release.sig
+A	dist/wenqu-dist-cf6d10e.sbom.spdx.json
+A	dist/wenqu-dist-cf6d10e.tar.gz
+A	dist/wenqu-dist-cf6d10e.verify-report.json
+T	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/r1.txt
+M	evidence/04-unit-property-mutation/ac-ops-families.json
+M	evidence/04-unit-property-mutation/ac-state-mig.json
+M	evidence/04-unit-property-mutation/ac-ui-family.json
+A	evidence/04-unit-property-mutation/p1f2-mutation-gate-adoption.json
+A	evidence/04-unit-property-mutation/test-zero-pollution-adoption.json
+A	evidence/07-migration-reconcile/adjudication/adjudication-final.json
+A	evidence/07-migration-reconcile/adjudication/adjudication-proposal.json
+A	evidence/07-migration-reconcile/adjudication/summary.md
+A	evidence/08-ci-and-branch-rules/evidence-strict-validator-adoption.json
+A	evidence/08-ci-and-branch-rules/merge-ci-d571ab8.json
+M	evidence/10-ui-launchd-alert-backup/README.md
+A	evidence/10-ui-launchd-alert-backup/adversarial-health-conservative-reverify-20261008.json
+A	evidence/10-ui-launchd-alert-backup/com.wenqu.dashboard.plist.pre-immutable-switch.bak
+A	evidence/10-ui-launchd-alert-backup/dashboard-7789-immutable-switch-20261008.json
+A	evidence/10-ui-launchd-alert-backup/dashboard-immutable-cf6d10e-20261009.json
+A	evidence/10-ui-launchd-alert-backup/runtime-immutable-switch-20261008T163305Z.log
+A	evidence/10-ui-launchd-alert-backup/runtime-three-probes-20261008T163328Z.log
+M	evidence/11-shadow-canary/README.md
+M	evidence/evidence-index.json
+A	pytest.ini
+A	specs/tla/mutation_probes.sh
+D	specs/tla/wenqu_pipeline.cfg
+M	specs/tla/wenqu_pipeline.tla
+A	specs/tla/wenqu_pipeline_A.cfg
+A	specs/tla/wenqu_pipeline_B.cfg
+M	system/dashboard/server.py
+M	system/install-release.sh
+A	system/launchd/README.md
+A	system/launchd/com.wenqu.scheduler.plist.template
+M	system/schemas/approval-v2.schema.json
+A	system/schemas/evidence-index-active-v2.schema.json
+A	system/schemas/evidence-index-legacy-v1.schema.json
+M	system/sentinels/backup-restore-drill.sh
+M	system/tests/fixtures/approval-keys.json
+A	system/tests/p1f_ast_gate.py
+A	system/tests/p1f_mutation_gate.py
+M	system/tests/test_ac_act_run.py
+M	system/tests/test_ac_auth_cond.py
+M	system/tests/test_ac_ops_families.py
+M	system/tests/test_ac_state_mig.py
+A	system/tests/test_ac_station56.py
+M	system/tests/test_ac_station_families.py
+M	system/tests/test_ac_ui_family.py
+M	system/tests/test_approval_issue.py
+M	system/tests/test_events_unified.py
+M	system/tests/test_gate_manifest_trust.py
+A	system/tests/test_linux_proc_path.py
+A	system/tests/test_manifest_semantic_replay.py
+A	system/tests/test_observation_window.py
+M	system/tests/test_release_attest.py
+M	system/tests/test_tla_spec.py
+M	system/tests/test_w4_production.py
+M	system/tests/test_wenqu_adversarial.py
+M	system/wenqu_core/approval_issue.py
+M	system/wenqu_core/approval_keys.py
+M	system/wenqu_core/bugscan_orchestrator.py
+M	system/wenqu_core/capacity_monitor.py
+M	system/wenqu_core/cli.py
+M	system/wenqu_core/drill_runner.py
+M	system/wenqu_core/gate_aggregator.py
+M	system/wenqu_core/ledger_migrator.py
+M	system/wenqu_core/runner.py
+M	system/wenqu_core/scheduler.py
+M	system/wenqu_core/station2_static.py
+A	system/wenqu_core/station5_live_fire.py
+A	system/wenqu_core/station6_adversarial.py
+M	system/wenqu_core/store.py
+M	system/wenqu_core/wenqu_pipeline.py
+M	tests/acceptance.sh
+M	tests/p1f-assert-baseline.txt
+A	tests/p1f-behavior-baseline.txt
+A	tests/p1f-mutations.json
+A	tools/evidence_validator.py
+A	tools/merge-ci-evidence.sh
+M	tools/observation_daily.py
+A	tools/provision_registry_root.py
+A	tools/quarantine_adjudicate.py
+M	tools/release_attest.py
+A	tools/window_harvest.py
+A	tools/window_manifest.py
+exit_code=0

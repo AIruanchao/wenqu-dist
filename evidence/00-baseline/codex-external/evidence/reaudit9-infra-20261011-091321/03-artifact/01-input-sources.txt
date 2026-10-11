@@ -1,0 +1,219 @@
+$ shasum -a 256 方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  /Users/maccc/Documents/wenqu-dist/evidence/00-baseline/codex-external/方案.md
+rc=0
+$ cat round8-summary-neutral.md
+# 第八轮验收要点摘要（中性化版，供第九轮复核用；完整版在仓内 evidence/00-baseline/codex-external/）
+
+## 评分与判定
+- 总分 70/100，判定 BLOCKED（弧线：52→64→70）
+- W 分项：W0=5 W1=9 W2=11 W3=9 W4=9 W5=6 W6=11 W7=6 W8=4 W9=0 W10=0
+- P0 十项：P0-1 PASS（固定候选）/P0-8 PASS；P0-4、P0-5 PARTIAL；P0-2/3/6/7/9/10 FAIL
+
+## 第八轮整改优先级清单（本次复核对象=其中非授权域子集）
+P0 级（本批只核 3/4/5/6 项与 P1 断言质量门）：
+3. 旧表切换：不可回填行版本记录或撤销写权限
+4. 发布校验：受保护冻结方案哈希+允许提交清单；三处等值+源码树绑定
+5. 现役控制台：不可变发布位激活；零占位身份或自声明模式下健康结论不得 PASS
+6. 合并提交精确主线 CI 双平台记录
+P1：断言质量门升级为语法树/行为级
+（第 1/2 项属授权密钥域，本批不核——另行安排）
+
+## 已知未到期项（照常计分不记新发现）
+W9 48 小时投影与金丝雀、W10 十四天观察窗（10-08 起算 10-22 届满）；对称签名非不可否认/签发渠道占位/形式化模型有界/容器级隔离未实测/1950 条隔离行裁定行级合同已上/站5、6 已接生产接线
+
+## 核验口径（同历轮）
+三移除锚点、方案文档三类内容变更必红、关键测试文件删件必红、证据索引逐条实算、dist 制品校验、CI 真实性、分支保护回读、7789 运行身份、调度器、观察样本、验收脚本复跑、pytest 双口径
+rc=0
+$ grep relevant 方案.md
+8:scope: 问渠 one-shot 七段管线、Bug 八站管线、证据/账本、CI、调度、发布、7789 控制面
+14:> 当前问渠、Bug 管线和 7789 控制面均不得用于生产放行结论；任何部署、合流、分支保护、LaunchAgent、生产 DB、外部告警或回滚动作，仍须逐项获得用户明确授权。
+23:6. **不得覆盖或“清理”历史 JSONL。** 旧账本只读快照、逐行哈希、旁路迁移；未知字段或状态进入 quarantine，不得猜填。
+39:| 7789 控制面 | — | 40/100 | **40/100** | 只可作只读汇总面 |
+45:以下是带时点的复审快照。ZCode 开工前必须先执行 W0 重新采集；任何漂移以新 baseline 为准，不得把 14:59 数字当作永远当前。
+49:   - `exm-next-id.sh` 预期哈希 `ecf932e8…`，实测 `aa349c5…`。
+50:2. `http://127.0.0.1:7789/api/health` 同时返回 **87 / 良好**，本机磁盘已达 **90%**。
+65:10. 发布正源 `/Users/maccc/Documents/wenqu-dist`：
+98:本轮证据包：`/private/tmp/codex-test/evidence/reaudit-20261007/`，索引为其 `manifest.sha256`。其中包含安全负向红探针、wenqu-dist 回归、health、branch required checks、运行/正源哈希、gatedoctor、waiting 和 launchctl 快照；它仍是本轮复审证据，不等同整改后的完整生产证据包。
+102:- 本轮没有停止自动合流、修改分支保护、发布、写库、点击决策、发送外部告警或触发真实生产动作。
+114:3. 证据不可由调用者自报；命令、真实退出码、原始输出和工件哈希由 trusted runner 生成。
+119:8. 调度、告警、备份和心跳均表达业务结果，而不是“进程执行过”。
+127:| 受控部署完成 | 用户授权、manifest 对账、真环境 smoke、回滚演练 | 观察完成、零盲区 |
+128:| 发布后闭环完成 | 14 天观察、周任务两轮、强制季度演练、无假绿/漏告警/丢账 | 无限定范围的“绝对安全” |
+142:| 7789 dashboard | 两条管线的只读控制面，不是管线本身，也不能自行制造 PASS |
+150:| 可执行核心/制品 | `wenqu-dist`；`releases/<release-id>` | runner/store/state/gate/dashboard/installer 唯一实现，manifest 校验，不得热改 |
+151:| 策略/Skill | W0/W1 必须确认的正式 quality-policy Git 正源 | 只含受保护 policy/Skill/规则包，不复制 executable core |
+154:| 证据 | content-addressed store `evidence/sha256/<digest>` | 原始输出、不可用路径名寻址、每次 Gate 重验哈希 |
+157:`/Users/maccc/.zcode/quality-system` 目前把代码、账本、证据和实时状态混在一个长期脏工作树中，且尚未确认其正式 source repo。W0 必须冻结 quality-policy 的 `repo_id/default branch/owner/build入口/Skill源位置/安装位置/状态位置`；未确定前禁止在现役目录开发。拆分必须渐进进行，不能大爆炸搬迁。
+159:## 3.3 集成发布身份
+164:wenqu_dist_commit
+165:quality_policy_commit
+177:# 4. 不可变安全不变量
+181:3. PASS 必须绑定：`run_id + commit_sha + environment + scope_hash + ruleset_hash + data_config_hash + artifact hashes + TTL`。
+182:4. run 起跑后 commit、环境、规则集或范围变化，旧证据立即失效并新建 run。
+189:11. evidence 不得是 symlink、外部路径、空文件或无哈希文件。
+204:- 合流与发布正确性；
+236:  └─校验身份、TTL、required 集合、状态和证据哈希
+261:- **内部聚合语义：** 存在 policy 允许的低风险 `ACCEPTED_RISK` 时，aggregate 仍为 CONDITIONAL；未授权时 CLI 返回 exit 4，GitHub required context 发布 failure/blocked，自动合流不得消费。
+268:跨 SQLite 与 GitHub/发布系统禁止宣称 ACID“同一事务”。必须实现 durable saga/outbox：
+348:PASSED/COMPLETED_CONDITIONAL/FAILED/WAITING/CANCELLED 均是该 attempt 的不可变终态
+351:重试或 WAITING 恢复时，不改变旧 attempt；先追加 `ATTEMPT_CREATED(parent_attempt_id=...)`，新 attempt 从 PENDING→RUNNING。stage projection 可由 WAITING/FAILED 投影为 RUNNING，但必须指向新 attempt_id。commit/SHA、scope、environment、policy 或 ruleset 变化强制新 run；任何恢复不得覆盖旧 attempt 或旧证据。
+366:S7 内部只消费 S1～S6 和 Bugscan Gate，外部 `Wenqu Required Gate` 是其输出。`SUCCEEDED` 仅表示七段编排以 exact PASS 完成，不代表已合流、已发布或已部署；`COMPLETED_CONDITIONAL` 更不得投影成 SUCCEEDED。动作结果进入独立 action/deployment saga。
+379:`BACKUP_VERIFIED` 表示一致性 checkpoint 已完成恢复抽验；`EXPANDED` 只允许已授权、幂等、前后兼容的 additive migration。`ROLLED_BACK` 为成功回切终态；`FAILED_BLOCKED`、`ROLLBACK_FAILED` 都是硬阻断终态，必须保留 current/现场、熔断 writer/合流/后续发布并停等用户，不得继续自动尝试。每次转换绑定 `deployment_id/release_id/previous_release_id/schema_version/writer_epoch/migration_lock_id/backup_id/authorization_id/state_version/evidence`。部署状态独立于任务 run 状态；destructive contract migration 使用独立状态机和独立后续授权，不得夹带在本次激活中。
+472:ddl:        database_identity + statement_digest + before/after_schema_hash + backup_id + rollback_plan_hash
+486:repo_id, commit_sha, base_sha, environment, scope_hash,
+517:│ quality-policy 正式仓（W0确认）：Skill/policy/规则包       │
+565:| 2 静态/供应链 | SAST、重复、依赖漏洞、lock、SBOM、安装脚本、来源策略 | 原始 JSON/SBOM/规则哈希 |
+570:| 7 运行时 | 哨兵、SLO、告警触达 | 不计收敛轮，但可阻断发布 |
+584:  "identity": {
+586:    "commit_sha": "...",
+615:W0 现场快照与危险面隔离
+618:       ├─W3A exact-SHA 源闸基础件
+624:       └─W7A 原子发布框架/运行布局
+626:W3A+W6A+W6B+W6C+W6D ───→ W3B 聚合/convergence/Required contexts/merge
+627:W2+W3A+W6A～W6D+W7A ─────→ W4 scheduler/outbox/watchdog
+628:W2+W3B+W5+W6A～W6D+W7A ──→ W8 dashboard/控制面/最终投影接线
+629:W3B+W4+W5+W6A～W6D+W7A+W8 → W7B 最终集成制品
+630:W7B ──→ W9 shadow/canary/受控切换
+631:       └─W10 14 天观察、回滚演练与战训收官
+634:W3A/W4 框架/W7A 可在冻结契约后并行开发；W3B 必须等待 W3A 与 W6A～W6D 的真实结果契约完成。W8 在 W7A 的布局中完成 dashboard 与迁移投影接线，W7B 才把包括 W8 在内的全部组件打成最终候选。最终制品、启用、接线和切换必须满足上述真实数据依赖。W3A 只产生可验证的源闸原语，不发布最终 required context；W3B 才是八站聚合和合流控制器，因此不存在 W3↔W6A 自依赖。
+646:# 9. 工作包 W0：现场快照与危险面隔离
+655:- 未完成 writer 盘点和快照前，禁止 W5 迁移、W7 部署、任何生产配置修改。
+665:   - JSONL/SQLite/waiting/EXM/日志逐文件哈希；
+667:2. 为所有写者建立 inventory：写入对象、锁、调度、凭据、owner、是否可停。
+675:   - 停止并卸载旧 auto-merge 调度；
+680:6. 本机磁盘 90%：先做只读空间归因；任何删除、压缩、迁移日志或证据须另行批准并保留校验清单。
+696:evidence/W0/baseline-manifest.json
+697:evidence/W0/processes.txt
+698:evidence/W0/branch-protection-before.json
+699:evidence/W0/runtime-source-diff.patch
+700:evidence/W0/writer-inventory.json
+701:evidence/W0/containment-verification.json
+710:停止进程、卸载调度、撤销凭据、改 branch protection、改 live dashboard 均须用户逐项授权。
+765:- RPO/RTO 数值：本机已提交事件与 outbox 默认目标 RPO=0，恢复 RTO 由项目冻结（建议不高于 30 分钟），offsite RPO 由数据敏感度和授权决定；未冻结、未实测不得进入 W9。
+778:Schema 在观察期采用 expand/contract；新字段先 additive，旧 reader 保持兼容。禁止用回滚删除已写事件或缩小验证规则。
+786:以下路径均为**建议落在 `/Users/maccc/Documents/wenqu-dist` 仓内的相对路径**；W1 ADR 必须先冻结 owner repo、默认分支、owner、build 入口和安装目的地。若 W0 找到已有正式 quality-policy 正源，可将 policy/Skill 移入该仓，但 executable core 只能有一份，禁止两仓复制同名实现。
+803:1. 命令基于目标 commit 的不可变源快照执行；需要 npm install/build/test 写入时使用独立 ephemeral overlay/scratch 或一次性隔离 worktree，结束后验证源内容未变化，禁止复用共享脏仓。
+837:观察期内 DB migration 只 additive。切换后如果已有 v2 新事件，只允许回滚到兼容 v2 的二进制或前向修复，禁止恢复旧快照覆盖新事件。
+841:# 12. 工作包 W3A/W3B：源闸基础件、聚合、收敛、合流与 CI
+845:- **W3A（源闸基础件，依赖 W2）：** 实现 §12.2 的 fresh base 获取、merge-base/diff、affected/full test 执行、真实 rc 捕获、exact-SHA/provenance 校验和规范化 `source-gate-result.json`；它不读取八站汇总、不发布 Required Gate、不执行合流。
+846:- **W3B（最终控制面，依赖 W3A+W6A～W6D）：** 实现 §12.1、§12.3～§12.8 的独立 aggregator、收敛、required contexts 和 merge/release 控制。W3B 只能消费 W3A 结果与八站结果，W6 不得反向消费 W3B。
+890:- verifier 必须重验 CAS hash、identity、TTL、required 站集合。
+902:最优默认是删除本地 auto-merge 写控制器，使用 GitHub 原生 merge queue/auto-merge 加 required ruleset；本机只读观察和告警。以下控制器要求只适用于平台能力确实不足、并经独立 ADR 批准的最小权限 GitHub App fallback，绝不再使用 shell daemon、个人 `gh` 或 admin token。
+929:`Bugscan Required Gate` 聚合八站。问渠内部 S7 决策只消费 exact-SHA 的 S1～S6、`Bugscan Required Gate` 和其他冻结的 release inputs；`Wenqu Required Gate` 是 S7 的唯一外部输出，绝不能作为 S7 输入或被 S7 递归聚合。`Action Authorization Gate` 独立表达 §6.1 的 exact action authorization，不能由前两个技术 Gate 推导。三者必须由默认分支固定版本或外部受控 App 发布，冻结 GitHub App/integration ID、workflow commit、expected head/merge-group SHA；PR 不能通过修改自己的 workflow/manifest 自证通过。workflow/action 均钉 commit SHA，workflow 目录受 CODEOWNERS 保护。
+931:Ruleset 必须实际启用 CODEOWNERS review，而不是仅存在 CODEOWNERS 文件。聚合检查对普通 PR、fork PR、synchronize、reopened、merge_group、runner 不可用和 station result 缺失都必须产生明确终态；外部 aggregator 超时后发布 FAILURE/BLOCKED，不能永久 Pending 或根本不生成 check。
+959:| 技术 Gate 全绿但 Action Authorization Gate 缺失/旧 SHA | 不合流、不发布 |
+977:# 13. 工作包 W4：统一调度、Watchdog、Outbox 与备份
+979:## 13.1 唯一调度面
+986:~/.local/share/wenqu/current/bin/wenquctl schedule <profile>   # 七段、pending、系统健康、发布观察
+1006:  "commit_sha": "...",
+1061:调度升级失败时保持旧任务停用、改为人工执行新 runner；不得重新启用 fail-open 脚本。Outbox 事件必须保留并在恢复后幂等重放。
+1072:- 未知和缺字段可以完成技术导入，但以 blocker/quarantine 状态存在，发布和清零持续 BLOCKED，直至逐条裁定。
+1076:1. 对所有旧 JSONL/waiting/审批文件做逐文件和逐行 SHA 清单。
+1092:8. 影子 importer 对比 48 小时，要求数量守恒、全部 logical finding 可追溯、**零未解释差异**；有意状态变化必须带 `migration_decision_id`、规则和证据，不得为了零差异复刻旧错误投影。这不等同全线观察窗。
+1103:- 每个 run 的 commit/environment/scope/ruleset/data config。
+1111:- 任一 legacy 行可由 v2 反查原文件/行号/哈希；
+1127:- 所有 scanner 在 exact commit 的不可变源快照上运行；构建/test 写入独立 ephemeral overlay/scratch，结束后验证源快照 diff=0，禁止复用共享脏仓；
+1142:- 站1只消费 W3A 的 exact-SHA `source-gate-result.json` 并完成站内 applicability/coverage 适配；不得消费 W3B，不得由 W6 自报 CI 通过或发布 required context。
+1143:- required 集和 registry 来自受保护 policy commit，PR 不可自改。
+1152:| INCIDENT | 0+1+2+3+4+6；发布就绪还需7 | 涉生产写/资金/外部交易追加5；未获授权则 BLOCKED |
+1169:- DB 连接身份、只读状态、diff 方向和 catalog scope 进入 evidence identity。
+1202:allowlist 必须绑定对象 identity、actual/desired hash、原因、owner、ticket、批准人、到期时间；对象或哈希变化自动失效。
+1266:# 16. 工作包 W7：不可变制品、原子部署与运行身份
+1268:W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+1285:version, source_commit, quality_policy_commit, build_id,
+1288:python/node/runtime identity, dependency lock/SBOM hash,
+1297:1. 源工作树 clean、完整测试和红探针通过；构建不可变制品和 manifest；
+1298:2. 解到 `releases/<id>.tmp`，完成全清单、权限、schema、签名校验；
+1306:10. 对账 PID、exe path、release id、commit、manifest、DB schema、writer epoch、health，并跨过 readiness 稳定窗；
+1307:11. 若激活失败且部署授权已预授权**精确 previous_release、精确触发条件、schema 兼容范围和观察窗**，进入 `ROLLBACK_PENDING` 并原子切回；否则进入 `FAILED_BLOCKED` 等待用户批准，禁止自行选择历史版本；
+1308:12. expand 后的字段/表至少保留完整观察与回滚窗口；只有所有 reader/writer 已迁移、旧版本回滚窗口被明确关闭、备份恢复再验证且另获生产 DDL 授权后，才能在独立变更中执行 contract migration。
+1328:正式部署、生产 expand/contract migration、restart、launchctl 修改和回滚均须用户授权；contract 必须晚于观察与回滚窗并再次独立授权。候选制品、离线 smoke 和回滚脚本可先完成。
+1332:# 17. 工作包 W8：Dashboard、健康模型与控制面安全
+1371:每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+1411:Dashboard 故障只能回退到兼容新 API 的只读版本；不能恢复无鉴权写接口或独立加权健康分。Dashboard 故障本身不得改写底层 Gate，但若 policy 把可观测性列为发布必需项，release readiness 应为 BLOCKED，而不是默认放行。
+1415:# 18. 工作包 W9：Shadow、Canary 与受控切换
+1421:3. **迁移投影观察：** 至少 48 小时满足总记录数量守恒、全部 logical finding 可追溯、零未解释差异；`FIXED→FIXED_PENDING_VERIFY`、非法 ACCEPTED 重开、OTHER quarantine 等有意状态变化必须逐项带 `migration_decision_id`、命中规则和证据。不得要求“零状态变化”而复刻旧错误投影；本阶段也不等同现役观察窗。
+1445:任一出现立即停止新任务、发布和自动合流：
+1465:evidence/W9/shadow-comparison.jsonl
+1466:evidence/W9/difference-adjudications.jsonl
+1467:evidence/W9/canary-runs/
+1468:evidence/W9/writer-epoch-cutover.json
+1469:evidence/W9/branch-rules-after.json
+1470:evidence/W9/runtime-attestation.json
+1471:evidence/W9/rollback-drill.md
+1476:# 19. 工作包 W10：14 天观察、回滚演练与战训收官
+1478:## 19.1 观察窗硬指标
+1529:- W0–W9 全部 hard DoD；
+1538:- 观察窗全部硬指标达标；
+1541:才可对**限定范围、SHA、环境和观察窗**给出最终生产闭环声明。
+1559:| GATE-07 | commit/env/scope/ruleset 不符 | BLOCKED |
+1570:| ACT-03 | check 发布前/后 crash 或回执丢失 | outbox 幂等恢复；同一 check_run 更新，不产生伪双绿 |
+1622:## 20.4 调度、发布、UI
+1660:| CI-07 | 未授权 App 发布同名 context/旧 details URL | 不可信、阻断 |
+1662:| CI-09 | S7 把 `Wenqu Required Gate` 当自身输入、重复发布或递归聚合 | schema/DAG 校验拒绝并发布 FAILURE |
+1680:| SCH-04 | catch-up 与正常调度并发 | 只有一个 logical run |
+1689:| DEP-06 | 无迁移锁/未验证备份/expand 超授权 | 激活前 BLOCKED，旧 current 不变 |
+1690:| DEP-07 | ACTIVATING 失败且无预授权 | `FAILED_BLOCKED`；不得自动回滚或继续发布 |
+1692:| DEP-09 | 观察窗内夹带 contract/down migration | 拒绝；要求独立授权变更 |
+1698:| DOC-02 | bug skill 版本/清单/验收数量漂移 | CI 阻断 |
+1717:无 remote 的仓使用持久 UUID。clone 路径、工作树目录和 remote URL 表达形式仅是 location，不参与业务身份。迁移必须为现有各 ledger 目录生成映射表、检测冲突，禁止继续用不同 URL/path 哈希拆账。
+1721:- station registry、command allowlist、adapter 和 policy 必须来自受保护 policy commit；
+1746:轮换与吊销清单
+1759:迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+1774:# 23. 发布、回滚与授权边界
+1787:ZCode 可在停等前完成代码、测试、dry-run、PR、候选制品、回滚脚本和证据包。
+1792:- 数据：expand/contract，观察期不做 destructive down migration；
+1799:一次部署授权可以预授权“本次 ACTIVATING 失败时，在指定观察窗内切回精确 previous_release_id”；除此之外的独立生产回滚仍需新授权。
+1809:- W0–W10 全部 DoD；
+1820:- shadow/canary/14 天观察窗达标；
+1845:每项绑定 run_id、commit、environment、scope、ruleset、时间、argv、真实 rc、artifact SHA256 和 fresh_until。
+1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+1855:| FND-001 | auto-merge 子串、UNSTABLE、`--admin` | W0/W3B | MRG-01～07 | containment、branch rules、merge dry-run |
+1856:| FND-002 | L4 直推/文本绕过 | W1/W3B | DOC-03、MRG-01～04 | policy diff、required API 回读 |
+1857:| FND-003 | base 不存在/零测试假绿 | W3A | GATE-01～03 | runner 原始日志 |
+1858:| FND-004 | verifier 信任 rc/findings/symlink/N | W2/W3B | GATE-04～12 | red-probes before/after |
+1860:| FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+1861:| FND-007 | Gate 红、dashboard 87 绿 | W8 | UI-04、HLT-01 | aggregator/UI 同水位对照 |
+1862:| FND-008 | runtime/source 热补漂移 | W0/W7A/W7B | REL-01～03、DEP-04 | manifest/attestation |
+1863:| FND-009 | 安装器原地覆盖、doctor 吞错 | W7A/W7B | REL-01～03、DEP-01～03 | deploy/rollback drill |
+1865:| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+1871:| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+1872:| FND-018 | `/api/decide` 无鉴权/非原子 | W2/W8 | AUTH-01～06、UI-03 | security E2E/audit event |
+1873:| FND-019 | 总览空白、日志不显示、状态不可点 | W7B/W8 | UI-01、UI-05～07 | Playwright trace/screenshots |
+1874:| FND-020 | Skill/版本/枚举/数量/状态说明漂移 | W1/W10 | DOC-01～04 | consistency report |
+1875:| FND-021 | 本机磁盘约 90% | W0/§22/W7A/W10 | CAP-01、BAK-01、DEP-06 | capacity budget/recovery |
+1885:| GATE-01～12 | REQ-EVID-001 / AC-EVID-FAIL-CLOSED | W2/W3A/W3B | raw rc、CAS、before/after |
+1887:| ACT-01～06 | REQ-ACT-001 / AC-ACT-SAGA | W2/W3B/W7B | outbox、external receipt、reconcile |
+1888:| MRG-01～07 | REQ-MERGE-001 / AC-MERGE-EXACT-SHA | W3B | ruleset、check、merge audit |
+1891:| DB-01～06 | REQ-DB-001 / AC-DB-FOUR-TRACK | W6C | catalog diff、DB identity |
+1896:| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+1897:| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+1898:| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+1899:| REL-01～03 | REQ-RELEASE-001 / AC-RELEASE-MANIFEST | W7A/W7B | manifest/build identity |
+1902:| CI-05～09 | REQ-CI-001 / AC-CI-TERMINAL | W3B | check runs/ruleset/DAG validation |
+1903:| COND-01～06 | REQ-COND-001 / AC-COND-NOT-PASS | W1/W2/W3B | risk/action auth、attestation、context |
+1905:| STA-01～02 | REQ-STATION-001 / AC-STATION-COVERAGE | W6A～W6D/W3B | station results/aggregate |
+1906:| DEP-01～09 | REQ-DEPLOY-001 / AC-DEPLOY-FENCED | W7A/W7B | lease/migration/activation events |
+1907:| RB-01 | REQ-ROLLBACK-001 / AC-ROLLBACK-EXACT | W7B | preauthorization/compatibility/drill |
+1908:| UI-01～07 | REQ-UI-001 / AC-UI-TRUTHFUL-SECURE | W8 | Playwright/DOM/security trace |
+1909:| HLT-01 | REQ-HEALTH-001 / AC-HEALTH-ATOMIC | W8 | input watermark/snapshot retry |
+1910:| DOC-01～04 | REQ-DOC-001 / AC-DOC-REGISTRY-CONSISTENT | W1/W10 | generated consistency report |
+1911:| CAP-01 | REQ-CAP-001 / AC-CAP-SAFE-MARGIN | W0/W7A | peak budget/disk-full injection |
+1912:| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+1958:下列行号已在本轮复核时确认存在，仅用于快速定位；ZCode 开工必须先按 W0 记录新 SHA/hash 并重新定位语义，禁止因行号漂移盲改。现役目录只读取证，修复落在对应版本化正源的干净 worktree；尚无远端的 `/Users/maccc/.zcode/quality-system` 先完成 W0 责任仓裁定。
+1962:| `/Users/maccc/.wenqu/daemons/auto-merge.sh` | 34–46、68–75：Fast 子串/UNSTABLE/重试合流 | W0/W3B |
+1964:| `/Users/maccc/.zcode/quality-system/bin/pending-watch.sh` | 51–68：文本协议、notify bump | W2/W4 |
+1965:| `/Users/maccc/.zcode/quality-system/bin/verify-convergence.py` | 55、100–112、121–179、225–263：N/自报结果/证据/超轮 | W2/W3B |
+1966:| `/Users/maccc/.wenqu/bin/iron-gate.sh` | 18–85：diff 错误传播和文本式检查 | W3A |
+1967:| `/Users/maccc/.wenqu/bin/zero-rework.sh` | 29–65：affected test/无测试分支 | W3A |
+1968:| `/Users/maccc/Documents/wenqu-dist/system/install.sh` | 13–25、49–52：原地复制并吞掉 doctor 失败 | W7A |
+1969:| `/Users/maccc/Documents/wenqu-dist/system/bin/wenqu-dashboard.py` | 187–213、476–477、750–791、855–958：DOM、XSS、写接口、独立评分 | W2/W8 |
+1971:| `/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh` | 39–47、63–88：远端错误/空 diff/恒 exit 0 | W4/W6C |
+1972:| `/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh` | 40–56、125–131：吞掉 npm audit 失败且恒 exit 0 | W4/W6B |
+1973:| `/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh` | 37–62：分页/seen/无 verdict gate | W4/W6B |
+1976:| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+1978:首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+1991:| 工作包引用 | PASS；W0～W10 及 W3A/B、W6A～D、W7A/B 均在允许集合，无未定义引用 |
+1992:| 依赖 DAG | PASS；机检拓扑无环，关键链为 W3A→W6A～D→W3B，W8→W7B→W9→W10 |
+1997:| 快照靶点 | PASS；§28 的 15 个绝对路径在验证时均存在；行号仍须 W0 重定位 |
+rc=0

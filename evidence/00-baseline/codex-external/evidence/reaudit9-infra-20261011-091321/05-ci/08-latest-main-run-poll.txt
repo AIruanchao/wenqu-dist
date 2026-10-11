@@ -1,0 +1,19 @@
+=== poll 2026-10-11T09:34:44+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('acceptance', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]
+NOTE=first poll loop stopped because zsh readonly variable name status; polling resumed with run_status
+=== poll 2026-10-11T09:36:25+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]
+=== poll 2026-10-11T09:38:32+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]
+=== poll 2026-10-11T09:40:38+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]
+=== poll 2026-10-11T09:42:41+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]
+=== poll 2026-10-11T09:44:48+08:00 rc=0 ===
+{'status': 'in_progress', 'conclusion': '', 'headSha': '7eeb8a13107e8b52771f5b8784af8266ed0551b9', 'event': 'push', 'workflowName': 'acceptance', 'createdAt': '2026-10-11T00:53:42Z', 'updatedAt': '2026-10-11T00:53:50Z', 'url': 'https://github.com/AIruanchao/wenqu-dist/actions/runs/38099969267'}
+jobs= [('matrix (macos-latest)', 'in_progress', '', ('仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）', 'in_progress', '')), ('matrix (ubuntu-latest)', 'completed', 'success', None)]

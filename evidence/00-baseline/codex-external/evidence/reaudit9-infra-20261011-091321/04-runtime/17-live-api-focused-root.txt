@@ -1,0 +1,115 @@
+observed_at= 2026-10-11T01:22:34.231512+00:00
+
+ENDPOINT /api/v1/build
+ERROR HTTPError HTTP Error 404: Not Found
+
+ENDPOINT /api/v1/health
+status= 200 content_type= application/json; charset=utf-8 bytes= 800
+{
+  "aggregate_outcome": "BLOCKED",
+  "cli_exit": 2,
+  "counts": {
+    "bypass_stations": 0,
+    "conflicts": 0,
+    "duplicates_ignored": 0,
+    "malformed": 0,
+    "required_missing": 0,
+    "required_reported": 1,
+    "required_total": 1
+  },
+  "environment": "production",
+  "generated_at": "2026-10-11T01:17:46Z",
+  "inputs": {
+    "docs": 1,
+    "load_errors": 0,
+    "paths": 1,
+    "schema_invalid": 0
+  },
+  "mode": "self_declared_diagnostic",
+  "policy_verdict": "BLOCKED",
+  "reason": "station_hard_failure [0]",
+  "reasons": [
+    "station_hard_failure [0]"
+  ],
+  "scope_binding": {
+    "mode": "self_declared"
+  },
+  "source": "wenquctl-gate",
+  "stations": {
+    "0": {
+      "environment_ok": true,
+      "input_version": "v2",
+      "outcome": "BLOCKED",
+      "required": true,
+      "schema_valid": true,
+      "sha_bound": true
+    }
+  },
+  "target_sha": "0000000000000000000000000000000000000000",
+  "technical_eligible": false
+}
+
+ENDPOINT /api/v1/components
+status= 200 content_type= application/json; charset=utf-8 bytes= 585
+{
+  "bin": [
+    {
+      "name": "wenqu-env.sh",
+      "ok": true
+    },
+    {
+      "name": "iron-gate.sh",
+      "ok": true
+    },
+    {
+      "name": "blast-radius.py",
+      "ok": true
+    },
+    {
+      "name": "cursor-auto-verify.sh",
+      "ok": true
+    },
+    {
+      "name": "deploy-preflight.sh",
+      "ok": true
+    },
+    {
+      "name": "hardening-doctor.sh",
+      "ok": true
+    },
+    {
+      "name": "wenqu-dashboard.py",
+      "ok": true
+    }
+  ],
+  "daemons": [
+    {
+      "name": "auto-merge.sh",
+      "ok": false
+    },
+    {
+      "name": "conservation-daemon.py",
+      "ok": true
+    }
+  ],
+  "sentinels": [
+    {
+      "name": "ci-event-sentinel.sh",
+      "ok": true
+    },
+    {
+      "name": "conservation-sentinel.sh",
+      "ok": true
+    },
+    {
+      "name": "ssl-cert-sentinel.sh",
+      "ok": true
+    }
+  ],
+  "version": "3.8.4"
+}
+
+current_realpath= /Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+current_release_identity= bb38f70163ce4a1a79f36ea66284e110eff96a95
+current_identity_40hex= True
+pipeline_exit=0

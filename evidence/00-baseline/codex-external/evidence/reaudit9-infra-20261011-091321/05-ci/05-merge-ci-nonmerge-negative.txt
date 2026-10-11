@@ -1,0 +1,73 @@
+source_script=git archive origin/main @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9/tools/merge-ci-evidence.sh
+probe_commit=ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+parents=e00de1449b30bc5f7f7137155fd864c323cbd658
+parent_count=1
+subject=feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录
+$ bash FRESH/tools/merge-ci-evidence.sh PROBE --repo SHARED_READONLY --branch main --slug AIruanchao/wenqu-dist --out-dir EVIDENCE
+merge-ci-evidence: PASS  ff050bb  →  /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/05-ci/nonmerge-probe-fresh/merge-ci-ff050bb.json
+  run 37727549548（event=push，headSha=ff050bbb9c95c04ecb975900f5440f9bfcd1a447）双平台 matrix (ubuntu-latest)/matrix (macos-latest) 均 completed/success
+exit_code=0
+json_commit= ff050bbb9c95c04ecb975900f5440f9bfcd1a447
+json_is_merge_commit= False
+json_verdict= PASS
+json_primary_run_id= 37727549548
+json_primary_workflow= acceptance
+json_jobs= [('matrix (macos-latest)', 'completed', 'success'), ('matrix (ubuntu-latest)', 'completed', 'success')]
+static_decision_lines:
+PARENTS=$(git -C "$REPO" show -s --format=%P "$FULL_SHA")
+SUBJECT=$(git -C "$REPO" show -s --format=%s "$FULL_SHA")
+IS_MERGE=0
+[ "$(printf '%s\n' "$PARENTS" | wc -w | tr -d ' ')" -ge 2 ] && IS_MERGE=1
+
+REQUIRED = ["matrix (ubuntu-latest)", "matrix (macos-latest)"]
+
+push_runs = split["push_runs"]
+verdict, reason = "FAIL", ""
+primary = None
+if not push_runs:
+    verdict = "INSUFFICIENT"
+    reason = (f"--branch {branch} --commit {full_sha} 无 event=push run："
+              f"该 SHA 未以 push 事件落到 {branch}（exact-SHA 实查，非推断）")
+else:
+    good = []
+    for r in push_runs:
+        jobs = {(j.get("name"), j.get("status"), j.get("conclusion"))
+                for j in r.get("_jobs", [])}
+        ok = (r.get("status") == "completed"
+              and r.get("conclusion") == "success"
+              and all((n, "completed", "success") in jobs for n in REQUIRED))
+        r["_verdict"] = "PASS" if ok else "FAIL"
+        if ok:
+            good.append(r)
+    if good:
+        primary = max(good, key=lambda r: r.get("createdAt", ""))
+        verdict = "PASS"
+        reason = (f"run {primary['databaseId']}（event=push，headSha={full_sha}）"
+                  f"双平台 {'/'.join(REQUIRED)} 均 completed/success")
+    else:
+        verdict = "FAIL"
+        reason = f"有 push run 但不满足双平台 success：{len(push_runs)} 个 push run 均未全绿"
+
+    "commit": full_sha,
+    "commit_short": short_sha,
+    "commit_subject": subject,
+    "commit_parents": parents.split(),
+    "is_merge_commit": bool(int(is_merge)),
+    "required_matrix_jobs": REQUIRED,
+    "gh_run_list_raw": runs_raw,
+    "push_runs": push_runs,
+    "pr_head_runs_excluded": split["pr_head_runs_excluded"],
+    "primary_run": primary,
+    "verdict": verdict,
+    "verdict_reason": reason,
+    "urls": sorted({r.get("url") for r in push_runs if r.get("url")}),
+}
+with open(out_json, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh, ensure_ascii=False, indent=1, sort_keys=True)
+    fh.write("\n")
+print(f"merge-ci-evidence: {verdict}  {short_sha}  →  {out_json}")
+print(f"  {reason}")
+sys.exit(0 if verdict == "PASS" else 1)
+EXPECTED=non-merge target rejected nonzero
+OBSERVED_RC=0
+NEGATIVE_PROBE_RESULT=FAIL_OPEN_CONFIRMED

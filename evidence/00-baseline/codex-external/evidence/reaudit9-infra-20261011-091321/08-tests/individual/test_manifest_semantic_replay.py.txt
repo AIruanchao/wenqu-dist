@@ -1,0 +1,102 @@
+$ python3 system/tests/test_manifest_semantic_replay.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:08,497719000+08:00
+== R8+G9-06 manifest 语义重放对抗复验（12 组）==
+-- test_g906_allow_unsigned_boundary
+  ✓ G9-06 已签 manifest + --allow-unsigned（无 key）rc=3 不跳验签
+  ✓ G9-06 已签 manifest + --verify-key（allow-unsigned 不误伤）rc=0
+  ✓ G9-06 真 unsigned + --allow-unsigned rc=2 永不 PASS
+  ✓ G9-06 unsigned 诊断件元数据如实（signed=false/allow_unsigned_downgrade=true）
+  ✓ G9-06 真 unsigned + --verify-key（无 allow-unsigned）rc=3 默认拒
+  ✓ G9-06 load 已签件无 keyring 拒（已签 artifact 必须验签）
+  ✓ G9-06 load 已签件 allow_unsigned 也不得跳验签
+  ✓ G9-06 load 真 unsigned 无 keyring 保持 legacy 口径可读
+-- test_g906_key_domain_purposes_enforced
+  ✓ G9-06 manifest 域 key 签快照（签发面）拒（用途域不符）
+  ✓ G9-06 manifest 域 key 手签快照（消费面）拒（分域混用）
+  ✓ G9-06 registry 域 key 签 manifest（冻结面）拒（用途域不符）
+  ✓ G9-06 registry 域口径验已签 manifest（读回面）拒
+  ✓ G9-06 未登记 purposes 的存量 key 不受限（opt-in）
+-- test_g906_same_key_double_sign_four_variants
+  ✓ G9-06 同钥双改[lane-shrink] rc=3 registry_trust_invalid（lane 缩[0]拒绝）
+  ✓ G9-06 同钥双改[ttl-7-to-30] rc=3 registry_trust_invalid（TTL 7→30拒绝）
+  ✓ G9-06 同钥双改[scope-resign] rc=3 registry_trust_invalid（scope 缩水拒绝）
+  ✓ G9-06 同钥双改[downgrade-floor] rc=3 registry_trust_invalid（降档拆底线拒绝）
+  ✓ G9-06 同钥双改[convergence-1] rc=3 registry_trust_invalid（收敛轮数弱化拒绝）
+  ✓ G9-06 诚实 signed 正门（异钥快照）rc=0 PASS
+-- test_g906_scope_floor_registry_anchored
+  ✓ G9-06 scope 缩水（code_anchored 底线）rc=2 BLOCKED + scope_floor_violation
+  ✓ G9-06 超集 scope（覆盖底线之上）rc=0 PASS
+  ✓ G9-06 replay api：缩水 scope 记 scope_floor_violation
+  ✓ G9-06 replay api：超集 scope 零违例
+  ✓ G9-06 快照[缺 required_scope_globs]拒绝作为重放正源（scope 必须锚定）
+  ✓ G9-06 快照[空 required_scope_globs]拒绝作为重放正源（scope 必须锚定）
+-- test_r8_lane001_downgrade_record_replay
+  ✓ R8-LANE-001 合法降档（五要素齐）rc=0 PASS
+  ✓ R8-LANE-001 降档变体[缺 approver] rc=2 BLOCKED + risk_acceptance_invalid
+  ✓ R8-LANE-001 降档变体[理由过短] rc=2 BLOCKED + risk_acceptance_invalid
+  ✓ R8-LANE-001 降档变体[已过期到期] rc=2 BLOCKED + risk_acceptance_invalid
+  ✓ R8-LANE-001 降档变体[超 30 天日落] rc=2 BLOCKED + risk_acceptance_invalid
+  ✓ R8-LANE-001 降档变体[记录与事实不成对（删 dropped）] rc=2 BLOCKED + downgrade_record_without_dropped
+  ✓ R8-LANE-001 降档越底线站1 rc=2 BLOCKED + downgrade_floor_violation
+  ✓ R8-LANE-001 降档出 registry 允许集（FAST dropped=[6]）rc=2 BLOCKED
+-- test_r8_lane001_honest_front_door_and_required_shrink
+  ✓ R8-LANE-001 诚实 FAST 正门 rc=0 PASS
+  ✓ R8-LANE-001 语义重放证据（code_anchored/digest_match/0 违例）
+  ✓ R8-LANE-001 持钥缩 required→[0]（自洽+重签）rc=2 BLOCKED
+  ✓ R8-LANE-001 记 manifest_semantic_replay_violation + required 不符
+  ✓ R8-LANE-001 拦截独立于签名（verified 仍 True，policy 绝不 PASS）
+  ✓ R8-LANE-001 STANDARD 静默砍站→[0,1]（dropped 留空）rc=2 BLOCKED+ required 与 registry 推导不符
+  ✓ R8-LANE-001 STANDARD dropped=[2,3,4] 无记录 rc=2 BLOCKED + downgrade_record_missing
+-- test_r8_lane001_lane_downgrade_and_flag_lies
+  ✓ R8-LANE-001 lane 降档谎报（STANDARD→FAST）rc=2 BLOCKED
+  ✓ R8-LANE-001 升档旗标谎报（escalated 无实升档）记违例
+  ✓ R8-LANE-001 幽灵升档理由记违例
+  ✓ R8-LANE-001 诚实 manifest 语义重放零违例
+-- test_r8_replay_api_units
+  ✓ R8-UNIT 收敛轮数低于档位契约（STANDARD N=1）记违例
+  ✓ R8-UNIT 收敛轮数超全局上限（N=4）记违例
+  ✓ R8-UNIT 畸形输入[None]不崩且返回违例清单
+  ✓ R8-UNIT 畸形输入[list]不崩且返回违例清单
+  ✓ R8-UNIT 畸形输入[空对象]不崩且返回违例清单
+  ✓ R8-UNIT 畸形输入[planner 畸形]不崩且返回违例清单
+  ✓ R8-UNIT 代码锚定视图与 default_registry 同指纹
+  ✓ R8-UNIT 视图未知 lane fail-closed（BugscanPlanError）
+  ✓ R8-UNIT 诚实件 validate_manifest_consistency 亦零违例
+  ✓ R8-UNIT 结构面与语义面同时记账（只增不减）
+-- test_r8_scope003_registry_digest_and_signed_snapshot
+  ✓ R8-SCOPE-003 伪造 registry digest（重签）rc=2 BLOCKED
+  ✓ R8-SCOPE-003 伪造 registry_version rc=2 BLOCKED
+  ✓ R8-SCOPE-003 --registry 验签快照正门（异钥）rc=0 PASS（source 落账）
+  ✓ R8-SCOPE-003 篡改快照（弱化 lane 表不重签）rc=3 ERROR（mode=registry_trust_invalid）
+  ✓ R8-SCOPE-003 无签名快照 rc=3 ERROR
+  ✓ R8-SCOPE-003 他钥快照（key 不在验签 keyring）rc=3 ERROR
+  ✓ R8-SCOPE-003 快照 digest 同步重算但未重签 rc=3 ERROR
+  ✓ R8-SCOPE-003 --registry 无 --manifest rc=3 flag_conflict
+  ✓ R8-SCOPE-003 --registry 无 --verify-key rc=3 flag_conflict
+  ✓ R8-SCOPE-003 快照签发多 active 未显式拒
+  ✓ R8-SCOPE-003 rotated key 不得签快照
+  ✓ R8-SCOPE-003 keyholder=root 语义边界（异钥同 custody 仍可重签——验签链只保 pin 件完整性，同钥双签已被 G9-06 拒绝）
+-- test_r8_scope003_scope_hash_recompute
+  ✓ R8-SCOPE-003 scope 内容漂移（旧 hash+重绑结果+重签）rc=2 BLOCKED
+  ✓ R8-SCOPE-003 scope hash 谎报（内容不动+重绑+重签）rc=2 BLOCKED
+  ✓ R8-SCOPE-003 非规范 scope（未升序）记违例（api 面）
+  ✓ R8-SCOPE-003 重复路径 scope 记违例（api 面）
+-- test_r8_ttl002_freshness_enforcement
+  ✓ R8-TTL-002 陈旧结果（ended 40d 前，TTL 30d）rc=2 BLOCKED
+  ✓ R8-TTL-002 违例点名 evidence_ttl_expired + counts 落账
+  ✓ R8-TTL-002 stations[0].ttl_fresh=false（逐站时效证据）
+  ✓ R8-TTL-002 freshness 证据块（mode=registry_ttl+as_of）
+  ✓ R8-TTL-002 边界：ended+TTL==now 恰好新鲜（不 BLOCKED）
+  ✓ R8-TTL-002 边界：早 1 秒即过期（BLOCKED + evidence_ttl_expired）
+  ✓ R8-TTL-002 check_result_freshness 单元（fresh/过期/畸形）
+  ✓ R8-TTL-002 naive now 拒绝（ValueError）
+  ✓ R8-TTL-002 TTL 表非正值拒绝（ValueError）
+-- test_r8_ttl002_registry_ttl_replay_and_expansion
+  ✓ R8-TTL-002 扩 TTL→31 天（重签）rc=2 BLOCKED
+  ✓ R8-TTL-002 漂移 TTL→7 天（重签）rc=2 BLOCKED
+  ✓ R8-TTL-002 删 station_ttls（重签）rc=2 + 语义面 station_ttls 违例
+================================================================
+RESULT: PASS=82 FAIL=0
+ALL GREEN
+[exit=0]

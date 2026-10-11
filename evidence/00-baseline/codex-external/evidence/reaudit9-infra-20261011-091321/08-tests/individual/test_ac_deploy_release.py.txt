@@ -1,0 +1,24 @@
+$ python3 system/tests/test_ac_deploy_release.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:14:22,403876000+08:00
+========================================================================
+§20 DEP/RB/REL 族专属验收测试（实现 13 条；跳过 0 条见 NOT_IMPLEMENTABLE 登记表）
+------------------------------------------------------------------------
+  PASS DEP-01  test_DEP_01_concurrent_deployers_lease_at_most_one_wins
+  PASS DEP-02  test_DEP_02_smoke_isolation_denies_production_db_state_access
+  PASS DEP-03  test_DEP_03_rollback_compatible_binary_zero_event_loss
+  PASS DEP-04  test_DEP_04_release_key_selfsign_replace_revoked_rejected
+  PASS DEP-05  test_DEP_05_previous_release_schema_out_of_range_rollback_refused
+  PASS DEP-06  test_DEP_06_migration_gate_lock_backup_expand_auth_blocked_before_activation
+  PASS DEP-07  test_DEP_07_activating_failure_without_preauth_failed_blocked_no_auto_rollback
+  PASS DEP-08  test_DEP_08_rollback_failed_fuses_releases_until_manual_resume
+  PASS DEP-09  test_DEP_09_observation_window_contract_down_migration_rejected
+  PASS RB-01  test_RB_01_no_preauth_rollback_and_wrong_previous_refused
+  PASS REL-01  test_REL_01_manifest_missing_extra_hash_drift_deploy_fails
+  PASS REL-02  test_REL_02_sigkill_mid_deploy_keeps_old_or_complete_new_current
+  PASS REL-03  test_REL_03_doctor_red_deploy_fails_and_rolls_back
+------------------------------------------------------------------------
+结果: 13/13 passed
+逐 ID 结果已写: /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-deploy-release.json
+========================================================================
+[exit=0]

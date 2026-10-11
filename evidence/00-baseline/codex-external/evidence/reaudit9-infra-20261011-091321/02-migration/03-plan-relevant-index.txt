@@ -1,0 +1,104 @@
+timestamp=2026-10-11T01:13:57Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && rg -n -i '旧账|迁移|row[_ -]?version|行版本|写权限|revoke|grant|W4|W5|断言|AST|语法树|行为级|p1f|assert' 'evidence/00-baseline/codex-external/方案.md'
+--- output begin ---
+22:5. **先盘点并冻结并发写者。** 当前运行体在复审期间仍被外部过程热改、重启；未取得唯一 writer epoch 前，禁止迁移或切换。
+23:6. **不得覆盖或“清理”历史 JSONL。** 旧账本只读快照、逐行哈希、旁路迁移；未知字段或状态进入 quarantine，不得猜填。
+26:9. **每个工作包必须交付五件套：** 代码/配置、正反测试、证据索引、迁移或部署说明、已演练回滚报告。未演练只能写“已记录回滚路径”。
+52:   - 只按名称子串识别 Fast；
+57:4. GitHub `AIruanchao/qisemi-erp` 的 `master` 分支保护实时回读仅要求：
+58:   - `Fast (lint+tsc)`；
+95:| Fast SUCCESS + Security FAILURE | 自动合流判断可为 yes | 禁止合流 |
+194:16. 只有同一实体身份、同一输入指纹、仍在 TTL 内的 `execution_status=COMPLETED && policy_verdict=PASS` 才能刷新该 probe/station/job 的 `last_success`；N/A、CONDITIONAL、FAIL、ERROR、BLOCKED、TIMEOUT、CANCELLED 均不得刷新。心跳必须包含结果和证据身份。
+196:18. 历史迁移必须数量守恒：源非空行数 = 有效导入 + 重复说明 + quarantine。
+222:- 迁移双写、两个 writer epoch、回滚覆盖新事件。
+407:ACCEPTED_RISK → RISK_REVOKED | RISK_INVALIDATED
+408:RISK_REVOKED/RISK_INVALIDATED → OPEN → FIXING → FIXED_PENDING_VERIFY → VERIFIED → CLOSED
+413:- 现有 `FIXED` 迁移为 `FIXED_PENDING_VERIFY`，不能视为关闭；
+416:- 主动撤销，或 fingerprint、severity、policy/ruleset、scope、补偿控制、证据集合、环境任一变化，均追加 `RISK_REVOKED`/`RISK_INVALIDATED` 事件并立即重开；风险负责人可随时从重开后的 OPEN 进入正常修复链，历史接受事件不得覆盖或删除；
+505:assertion_verdict    = 测试 harness 对行为是否符合预期的判断
+508:不能粗暴规定所有内层命令都必须 exit 0；例如“越权请求应被拒绝”的负例可以有非零内层退出码，但外层断言器必须 PASS。Gate 只消费 harness 的可信判定及其原始证据。
+564:| 1 源闸 | Fast、Full Gate、OpenAPI、org guard、反证、rebase、合并身份 | exact-SHA checks |
+565:| 2 静态/供应链 | SAST、重复、依赖漏洞、lock、SBOM、安装脚本、来源策略 | 原始 JSON/SBOM/规则哈希 |
+566:| 3 契约/数据 | API、权限矩阵、DB 四轨语义对账、迁移 fresh/legacy | canonical catalog diff |
+567:| 4 行为 | E2E、真实浏览器、空态/失败态、业务断言 | trace/截图/DB 断言 |
+602:    "assertion_verdict": "PASS"
+623:       ├─W5 旧账本迁移 dry-run/状态裁定
+627:W2+W3A+W6A～W6D+W7A ─────→ W4 scheduler/outbox/watchdog
+628:W2+W3B+W5+W6A～W6D+W7A ──→ W8 dashboard/控制面/最终投影接线
+629:W3B+W4+W5+W6A～W6D+W7A+W8 → W7B 最终集成制品
+634:W3A/W4 框架/W7A 可在冻结契约后并行开发；W3B 必须等待 W3A 与 W6A～W6D 的真实结果契约完成。W8 在 W7A 的布局中完成 dashboard 与迁移投影接线，W7B 才把包括 W8 在内的全部组件打成最终候选。最终制品、启用、接线和切换必须满足上述真实数据依赖。W3A 只产生可验证的源闸原语，不发布最终 required context；W3B 才是八站聚合和合流控制器，因此不存在 W3↔W6A 自依赖。
+639:- 迁移不得先于 schema；
+655:- 未完成 writer 盘点和快照前，禁止 W5 迁移、W7 部署、任何生产配置修改。
+680:6. 本机磁盘 90%：先做只读空间归因；任何删除、压缩、迁移日志或证据须另行批准并保留校验清单。
+759:- 兼容版本和迁移策略。
+883:- actual exit、expected exit 和 assertion verdict 分离；
+898:5. FAST 三轮超过 N+1 仍收敛。
+936:Fast (lint+tsc)
+947:- 依赖“合流后 master 再兜底”的前置漏洞；
+954:| Fast SUCCESS + Security FAILURE | 禁止合流 |
+955:| 无 Fast + Gate FAILURE | 禁止合流 |
+977:# 13. 工作包 W4：统一调度、Watchdog、Outbox 与备份
+1009:  "last_success_at": "...",
+1014:只有同一 job/probe/station 身份与输入指纹、且证据仍在 TTL 内的 `COMPLETED+PASS` 更新对应实体的 `last_success_at`。`COMPLETED+NOT_APPLICABLE` 只能参与受保护 applicability 聚合，绝不能刷新成功时间。发现问题表达为 `COMPLETED+FAIL`，与 ERROR、BLOCKED、TIMEOUT 分开显示；watchdog 检查业务结果和 freshness，不看 PID 或日志 mtime 冒充健康。
+1065:# 14. 工作包 W5：历史账本迁移与裁定
+1069:- append-only sidecar 迁移；
+1091:7. 输出守恒报告：源非空行数、合法 JSON 行数、事件数、候选 logical finding、fingerprint 冲突、有效导入、重复、quarantine、需重开项。481 仅是旧 dashboard 启发式折叠数，不能充当原始迁移分母。
+1112:- 两次幂等迁移结果一致；
+1150:| FAST/普通 PR | 0+1 | 权限/资金/租户/迁移/公共基础层自动升档并追加相应站 |
+1161:- SAST、dupscan、持续修复五类、route 静态腿、供应链、Advisory、SBOM。
+1167:- OpenAPI 全端点分母、org guard、权限矩阵、正负运行时探针、DB 四轨、迁移 fresh/legacy/minimal。
+1173:- 站4：页面/路由/E2E 分母、真实浏览器、截图/trace 和业务断言完整度。
+1193:迁移类变更还必须覆盖 fresh DB、代表性 legacy/minimal schema、前向迁移、迁移后审计以及失败后的回滚/恢复；只证明“看见漂移”不等于迁移安全。
+1225:2. 使用 TS AST/调用图识别 alias、默认/相对/重导出、repository wrapper、transaction、raw SQL、动态 export。
+1247:- 对资金、权限、租户、迁移做正向+负向+并发+重复提交；
+1268:W7A 先实现 release layout、manifest、installer、lease 和 smoke 框架；W7B 只有在 W3B、W4、W5、W6A～W6D、W8 完成后，才打包含全部组件与最终迁移投影接线的候选制品。W7A 框架通过不代表最终 release 可用。
+1300:4. 生成精确部署包：release/SHA/env、expand migration、迁移前后 schema、备份/恢复、previous release、停止条件与回滚触发器；分别取得部署与生产 DDL/迁移授权；
+1308:12. expand 后的字段/表至少保留完整观察与回滚窗口；只有所有 reader/writer 已迁移、旧版本回滚窗口被明确关闭、备份恢复再验证且另获生产 DDL 授权后，才能在独立变更中执行 contract migration。
+1371:每项显示：verdict、last_attempt、last_success、fresh_until、run_id、commit、environment、evidence link、error reason。
+1421:3. **迁移投影观察：** 至少 48 小时满足总记录数量守恒、全部 logical finding 可追溯、零未解释差异；`FIXED→FIXED_PENDING_VERIFY`、非法 ACCEPTED 重开、OTHER quarantine 等有意状态变化必须逐项带 `migration_decision_id`、命中规则和证据。不得要求“零状态变化”而复刻旧错误投影；本阶段也不等同现役观察窗。
+1436:- ERROR 刷新 last_success；
+1456:10. sentinel ERROR 但 last_success 更新；
+1556:| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+1574:| MRG-01 | Fast 绿、Security 红 | 不合流 |
+1575:| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+1581:## 20.2 状态、账本、迁移
+1593:| MIG-03 | 两次迁移 | 结果幂等一致 |
+1594:| MIG-04 | 源行数不守恒 | 迁移失败 |
+1627:| SCH-02 | 脚本 FAIL 后 touch heartbeat | 测试抓获、last_success 不变 |
+1654:| AUTH-06 | key revoked/clock rollback/无 user-presence | 拒绝 |
+1670:| RISK-01 | 主动撤销或 fingerprint/severity/policy/control 改变 | 追加 REVOKED/INVALIDATED，立即重开并可进入修复链 |
+1683:| SCH-07 | `COMPLETED+NOT_APPLICABLE` 或过期/异指纹 PASS | 不刷新任何实体的 `last_success` |
+1687:| DEP-04 | 自签/替换/revoked release key | 拒绝 |
+1689:| DEP-06 | 无迁移锁/未验证备份/expand 超授权 | 激活前 BLOCKED，旧 current 不变 |
+1717:无 remote 的仓使用持久 UUID。clone 路径、工作树目录和 remote URL 表达形式仅是 location，不参与业务身份。迁移必须为现有各 ledger 目录生成映射表、检测冲突，禁止继续用不同 URL/path 哈希拆账。
+1724:- 扫描未信任 PR 时隔离生产凭据、网络和写权限；
+1759:迁移会同时占用旧账本、CAS、SQLite/WAL、备份和两版 release。本机当前约 90% 已用，W0 必须计算峰值：
+1782:5. 生产 DB、RLS、DDL、迁移；
+1851:下表只覆盖本轮复审形成的**稳定发现族**，不是把 dashboard 投影的 481 条旧记录假称为已经逐条追踪。W5 必须另产出 `legacy_record_id → canonical_finding_id → migration_decision_id → evidence` 的 481 条逐项 reconciliation 索引；数量若随 W0 快照变化，以新快照分母为准并解释差异。
+1860:| FND-006 | pending-watch 82 次假活 | W2/W4 | SCH-02、ALT-02 | outbox/send attempt/receipt |
+1865:| FND-011 | supply FAIL 仍 exit0/刷新心跳 | W4/W6B | SC-01～05、SCH-02 | station-result/heartbeat |
+1867:| FND-013 | 租户扫描固定分母、当前约漏 172 | W6C | TEN-01～08 | DMMF/AST/runtime probes |
+1869:| FND-015 | 当前 481 项多 schema/非法状态 | W5 | MIG-01～05、STATE-01/03～06 | migration reconciliation |
+1870:| FND-016 | 当前 43 ACCEPTED 缺要素 | W5 | MIG-02、RISK-01、COND-01/04/05 | risk acceptance events |
+1871:| FND-017 | 调度多正源/TCC/假心跳 | W4/W7B | SCH-01～06、ALT-01～02 | launchd 真环境日志 |
+1877:脚本必须校验每个 `FND-*` 至少映射一个工作包、一个已定义测试 ID 和一个证据路径；每个高风险测试必须反向映射需求。481 条旧记录的逐项映射属于 W5 交付物，不在本方案验证阶段冒充已完成。
+1890:| MIG-01～05 | REQ-MIG-001 / AC-MIG-RECONCILE | W5 | row mapping、decision、quarantine |
+1894:| TEN-01～08 | REQ-TENANT-001 / AC-TENANT-DENOMINATOR | W6C | DMMF/AST/runtime probes |
+1896:| SCH-01～07 | REQ-SCHED-001 / AC-SCHED-RESULT | W4 | launchd/job result/freshness |
+1897:| ALT-01～02 | REQ-ALERT-001 / AC-ALERT-DELIVERED | W4 | outbox/attempt/receipt/dead-letter |
+1898:| BAK-01 | REQ-BACKUP-001 / AC-BACKUP-RESTORABLE | W4/W7A | checkpoint/restore drill |
+1904:| RISK-01 | REQ-RISK-001 / AC-RISK-INVALIDATE | W2/W5 | revoke/invalidate/reopen events |
+1912:| DR-01 | REQ-DR-001 / AC-DR-RPO-RTO | W4/W7B/W10 | restored state/RPO/RTO timing |
+1949:6. 独立红队复核安全架构、迁移、回滚和完成定义。
+1962:| `/Users/maccc/.wenqu/daemons/auto-merge.sh` | 34–46、68–75：Fast 子串/UNSTABLE/重试合流 | W0/W3B |
+1963:| `/Users/maccc/.zcode/quality-system/bin/pipeline-state.sh` | 34–93：自由状态、路径拼接、直接 clear | W1/W2/W5 |
+1964:| `/Users/maccc/.zcode/quality-system/bin/pending-watch.sh` | 51–68：文本协议、notify bump | W2/W4 |
+1971:| `/Users/maccc/argus-assemble/scripts/bugscan/db-drift-weekly.sh` | 39–47、63–88：远端错误/空 diff/恒 exit 0 | W4/W6C |
+1972:| `/Users/maccc/argus-assemble/scripts/bugscan/supply-chain-audit.sh` | 40–56、125–131：吞掉 npm audit 失败且恒 exit 0 | W4/W6B |
+1973:| `/Users/maccc/argus-assemble/scripts/bugscan/advisory-watch.sh` | 37–62：分页/seen/无 verdict gate | W4/W6B |
+1976:| `/Users/maccc/Documents/ERP）Zcode/qisemi-master-full/.github/workflows/ci.yml` | 103–109、664–726：Gate 触发条件、audit warning+continue | W3B/W6B |
+1978:首轮实施顺序不是逐文件盲修，而是：先 W0 冻结与隔离危险写面，再 W1/W2 建立可信契约和核心，随后按 §8 DAG 迁移 adapter。任何对现役脚本的临时止损都必须单独授权、保留 before hash，并在正源中补齐后才能撤销漂移。
+1995:| 旧账边界 | PASS；481 仅为时点投影，明确由 W5 逐项 reconciliation，不冒充已完成 |
+--- output end ---
+exit_code=0

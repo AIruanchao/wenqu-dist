@@ -1,0 +1,207 @@
+=== merge-ci-evidence source origin/main ===
+     1	#!/usr/bin/env bash
+     2	# merge-ci-evidence.sh —— 精确 merge SHA 的 main CI 证据采集（R8-P0-7 残余根修）。
+     3	#
+     4	# 背景（Codex 第八轮 P0-7/P0-10）：「merge commit 缺精确 main CI」——此前 CI
+     5	# 结论用分支/时间窗推断（run 列表≠该 merge SHA 本身的 push run），无法证明
+     6	# 合流点在 main 上双平台真跑真绿。本脚本对**指定 SHA** 做精确取证：
+     7	#
+     8	#   1. git rev-parse 解析完整 SHA（须在本地对象库；merge 身份用 %P 双亲核验）
+     9	#   2. `gh run list --branch main --commit <full-sha>` 实查（exact-SHA 匹配，
+    10	#      GitHub 只返回 headSha 严格相等的 run——无子串/时间窗推断）
+    11	#   3. 只认 event=push 的 run：merge commit 由 push 事件落到 main；PR 事件
+    12	#      run 的 head SHA 是分支头（≠ merge SHA），不算 main 精确 CI，但如实
+    13	#      记录在 pr_head_runs_excluded 供审计
+    14	#   4. `gh run view <id> --json jobs`：逐 job 核验双平台
+    15	#      matrix (ubuntu-latest) / matrix (macos-latest)（与 main 分支保护
+    16	#      required contexts 同集合）均 status=completed + conclusion=success
+    17	#   5. 结论 JSON（含 gh 原始输出）落
+    18	#      evidence/08-ci-and-branch-rules/merge-ci-<shortsha>.json
+    19	#
+    20	# 用法：
+    21	#   bash tools/merge-ci-evidence.sh <SHA> [--repo DIR] [--branch main]
+    22	#        [--out-dir DIR] [--slug OWNER/REPO]
+    23	#     <SHA>          目标 commit（merge SHA；短 SHA/分支名可解析即须完整唯一）
+    24	#     --repo DIR     源 git 仓（默认脚本所在仓根）
+    25	#     --branch BR    目标分支（默认 main）
+    26	#     --out-dir DIR  证据目录（默认 <repo>/evidence/08-ci-and-branch-rules）
+    27	#     --slug O/R     gh 仓 slug（默认解析 origin remote）
+    28	#
+    29	# exit：0=verdict PASS（该 SHA 在 main 有 push run 且双平台 success）；
+    30	#       1=证据不足（无 push run / 非双平台 / 非 success——如实落档）；
+    31	#       2=环境/用法错（git/gh 缺失、SHA 解析失败等）。
+    32	set -euo pipefail
+    33	
+    34	SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+    35	DEFAULT_REPO=$(cd "$SCRIPT_DIR/.." && pwd)
+    36	
+    37	SHA=""
+    38	REPO="$DEFAULT_REPO"
+    39	BRANCH="main"
+    40	OUT_DIR=""
+    41	SLUG=""
+    42	
+    43	while [ $# -gt 0 ]; do
+    44	  case "$1" in
+    45	    --repo) REPO="${2:?--repo 缺参数}"; shift 2;;
+    46	    --branch) BRANCH="${2:?--branch 缺参数}"; shift 2;;
+    47	    --out-dir) OUT_DIR="${2:?--out-dir 缺参数}"; shift 2;;
+    48	    --slug) SLUG="${2:?--slug 缺参数}"; shift 2;;
+    49	    -h|--help) sed -n '2,32p' "$0"; exit 0;;
+    50	    *) if [ -z "$SHA" ]; then SHA="$1"; shift;
+    51	       else echo "merge-ci-evidence: 未知参数 $1" >&2; exit 2; fi;;
+    52	  esac
+    53	done
+    54	
+    55	[ -n "$SHA" ] || { echo "usage: bash tools/merge-ci-evidence.sh <SHA> [选项]" >&2; exit 2; }
+    56	[ -d "$REPO/.git" ] || { echo "merge-ci-evidence: 不是 git 仓: $REPO" >&2; exit 2; }
+    57	command -v git >/dev/null 2>&1 || { echo "merge-ci-evidence: git 不可用" >&2; exit 2; }
+    58	command -v gh >/dev/null 2>&1 || { echo "merge-ci-evidence: gh 不可用" >&2; exit 2; }
+    59	
+    60	FULL_SHA=$(git -C "$REPO" rev-parse --verify "${SHA}^{commit}" 2>/dev/null) \
+    61	  || { echo "merge-ci-evidence: SHA 解析失败: $SHA" >&2; exit 2; }
+    62	FULL_SHA=${FULL_SHA%%[[:space:]]*}
+    63	SHORT_SHA=$(git -C "$REPO" rev-parse --short=7 "$FULL_SHA")
+    64	PARENTS=$(git -C "$REPO" show -s --format=%P "$FULL_SHA")
+    65	SUBJECT=$(git -C "$REPO" show -s --format=%s "$FULL_SHA")
+    66	IS_MERGE=0
+    67	[ "$(printf '%s\n' "$PARENTS" | wc -w | tr -d ' ')" -ge 2 ] && IS_MERGE=1
+    68	
+    69	if [ -z "$SLUG" ]; then
+    70	  REMOTE_URL=$(git -C "$REPO" remote get-url origin 2>/dev/null) \
+    71	    || { echo "merge-ci-evidence: origin remote 缺失（或用 --slug 指定）" >&2; exit 2; }
+    72	  SLUG=$(printf '%s\n' "$REMOTE_URL" \
+    73	    | sed -e 's|^git@github.com:||' -e 's|^https://github.com/||' \
+    74	          -e 's|^http://github.com/||' -e 's|\.git$||' \
+    75	          -e 's|/$||')
+    76	  case "$SLUG" in
+    77	    */*) : ;;
+    78	    *) echo "merge-ci-evidence: 无法从 remote 解析 slug: $REMOTE_URL" >&2; exit 2;;
+    79	  esac
+    80	fi
+    81	[ -n "$OUT_DIR" ] || OUT_DIR="$REPO/evidence/08-ci-and-branch-rules"
+    82	mkdir -p "$OUT_DIR"
+    83	OUT_JSON="$OUT_DIR/merge-ci-$SHORT_SHA.json"
+    84	
+    85	TD=$(mktemp -d) || exit 2
+    86	trap 'rm -rf "$TD"' EXIT
+    87	
+    88	# 1) exact-SHA run 列表（gh --commit 过滤 = headSha 严格相等）
+    89	gh run list --repo "$SLUG" --branch "$BRANCH" --commit "$FULL_SHA" \
+    90	  --limit 50 --json databaseId,event,headSha,status,conclusion,workflowName,createdAt,updatedAt,url \
+    91	  > "$TD/runs.json" \
+    92	  || { echo "merge-ci-evidence: gh run list 失败（auth/网络?）" >&2; exit 2; }
+    93	
+    94	# 2) push run 逐个取 jobs 明细
+    95	python3 - "$TD/runs.json" "$TD" "$SLUG" "$BRANCH" > "$TD/push_runs.json" <<'PYEOF' || exit 2
+    96	import json, subprocess, sys
+    97	runs_path, td, slug, branch = sys.argv[1:5]
+    98	runs = json.load(open(runs_path, encoding="utf-8"))
+    99	push, excluded = [], []
+   100	for r in runs:
+   101	    if r.get("event") == "push":
+   102	        rid = str(r["databaseId"])
+   103	        proc = subprocess.run(
+   104	            ["gh", "run", "view", rid, "--repo", slug,
+   105	             "--json", "databaseId,headSha,event,status,conclusion,jobs"],
+   106	            capture_output=True, text=True)
+   107	        if proc.returncode != 0:
+   108	            r["_jobs_error"] = proc.stderr.strip()[:200]
+   109	        else:
+   110	            r["_jobs"] = json.loads(proc.stdout).get("jobs", [])
+   111	        push.append(r)
+   112	    else:
+   113	        excluded.append(r)
+   114	json.dump({"push_runs": push, "pr_head_runs_excluded": excluded},
+   115	          open(f"{td}/split.json", "w", encoding="utf-8"),
+   116	          ensure_ascii=False, indent=1)
+   117	print(json.dumps(push))
+   118	PYEOF
+   119	
+   120	# 3) 判定 + 落档（required 双平台与 main 分支保护 required contexts 同集合）
+   121	python3 - "$TD" "$OUT_JSON" "$SLUG" "$BRANCH" "$FULL_SHA" "$SHORT_SHA" \
+   122	          "$PARENTS" "$SUBJECT" "$IS_MERGE" <<'PYEOF'
+   123	import json, os, sys, datetime
+   124	(td, out_json, slug, branch, full_sha, short_sha, parents, subject, is_merge) = \
+   125	    sys.argv[1:10]
+   126	split = json.load(open(f"{td}/split.json", encoding="utf-8"))
+   127	runs_raw = json.load(open(f"{td}/runs.json", encoding="utf-8"))
+   128	REQUIRED = ["matrix (ubuntu-latest)", "matrix (macos-latest)"]
+   129	
+   130	push_runs = split["push_runs"]
+   131	verdict, reason = "FAIL", ""
+   132	primary = None
+   133	if not push_runs:
+   134	    verdict = "INSUFFICIENT"
+   135	    reason = (f"--branch {branch} --commit {full_sha} 无 event=push run："
+   136	              f"该 SHA 未以 push 事件落到 {branch}（exact-SHA 实查，非推断）")
+   137	else:
+   138	    good = []
+   139	    for r in push_runs:
+   140	        jobs = {(j.get("name"), j.get("status"), j.get("conclusion"))
+   141	                for j in r.get("_jobs", [])}
+   142	        ok = (r.get("status") == "completed"
+   143	              and r.get("conclusion") == "success"
+   144	              and all((n, "completed", "success") in jobs for n in REQUIRED))
+   145	        r["_verdict"] = "PASS" if ok else "FAIL"
+   146	        if ok:
+   147	            good.append(r)
+   148	    if good:
+   149	        primary = max(good, key=lambda r: r.get("createdAt", ""))
+   150	        verdict = "PASS"
+   151	        reason = (f"run {primary['databaseId']}（event=push，headSha={full_sha}）"
+   152	                  f"双平台 {'/'.join(REQUIRED)} 均 completed/success")
+   153	    else:
+   154	        verdict = "FAIL"
+   155	        reason = f"有 push run 但不满足双平台 success：{len(push_runs)} 个 push run 均未全绿"
+   156	
+   157	payload = {
+   158	    "schema": "wenqu-merge-ci-evidence/1",
+   159	    "collected_at": datetime.datetime.now(datetime.timezone.utc)
+   160	                    .strftime("%Y-%m-%dT%H:%M:%SZ"),
+   161	    "tool": "tools/merge-ci-evidence.sh",
+   162	    "method": ("gh run list --repo {slug} --branch {branch} --commit <full-sha>"
+   163	               "（exact-SHA 严格相等匹配，无子串/时间窗推断）+ event=push 过滤"
+   164	               "+ gh run view --json jobs 双平台逐 job 核验").format(
+   165	                   slug=slug, branch=branch),
+   166	    "repo": slug,
+   167	    "branch": branch,
+   168	    "commit": full_sha,
+   169	    "commit_short": short_sha,
+   170	    "commit_subject": subject,
+   171	    "commit_parents": parents.split(),
+   172	    "is_merge_commit": bool(int(is_merge)),
+   173	    "required_matrix_jobs": REQUIRED,
+   174	    "gh_run_list_raw": runs_raw,
+   175	    "push_runs": push_runs,
+   176	    "pr_head_runs_excluded": split["pr_head_runs_excluded"],
+   177	    "primary_run": primary,
+   178	    "verdict": verdict,
+   179	    "verdict_reason": reason,
+   180	    "urls": sorted({r.get("url") for r in push_runs if r.get("url")}),
+   181	}
+   182	with open(out_json, "w", encoding="utf-8") as fh:
+   183	    json.dump(payload, fh, ensure_ascii=False, indent=1, sort_keys=True)
+   184	    fh.write("\n")
+   185	print(f"merge-ci-evidence: {verdict}  {short_sha}  →  {out_json}")
+   186	print(f"  {reason}")
+   187	sys.exit(0 if verdict == "PASS" else 1)
+   188	PYEOF
+=== tests/references ===
+origin/main:tools/merge-ci-evidence.sh:2:# merge-ci-evidence.sh —— 精确 merge SHA 的 main CI 证据采集（R8-P0-7 残余根修）。
+origin/main:tools/merge-ci-evidence.sh:4:# 背景（Codex 第八轮 P0-7/P0-10）：「merge commit 缺精确 main CI」——此前 CI
+origin/main:tools/merge-ci-evidence.sh:11:#   3. 只认 event=push 的 run：merge commit 由 push 事件落到 main；PR 事件
+origin/main:tools/merge-ci-evidence.sh:21:#   bash tools/merge-ci-evidence.sh <SHA> [--repo DIR] [--branch main]
+origin/main:tools/merge-ci-evidence.sh:51:       else echo "merge-ci-evidence: 未知参数 $1" >&2; exit 2; fi;;
+origin/main:tools/merge-ci-evidence.sh:55:[ -n "$SHA" ] || { echo "usage: bash tools/merge-ci-evidence.sh <SHA> [选项]" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:56:[ -d "$REPO/.git" ] || { echo "merge-ci-evidence: 不是 git 仓: $REPO" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:57:command -v git >/dev/null 2>&1 || { echo "merge-ci-evidence: git 不可用" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:58:command -v gh >/dev/null 2>&1 || { echo "merge-ci-evidence: gh 不可用" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:61:  || { echo "merge-ci-evidence: SHA 解析失败: $SHA" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:71:    || { echo "merge-ci-evidence: origin remote 缺失（或用 --slug 指定）" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:78:    *) echo "merge-ci-evidence: 无法从 remote 解析 slug: $REMOTE_URL" >&2; exit 2;;
+origin/main:tools/merge-ci-evidence.sh:92:  || { echo "merge-ci-evidence: gh run list 失败（auth/网络?）" >&2; exit 2; }
+origin/main:tools/merge-ci-evidence.sh:158:    "schema": "wenqu-merge-ci-evidence/1",
+origin/main:tools/merge-ci-evidence.sh:161:    "tool": "tools/merge-ci-evidence.sh",
+origin/main:tools/merge-ci-evidence.sh:172:    "is_merge_commit": bool(int(is_merge)),
+origin/main:tools/merge-ci-evidence.sh:185:print(f"merge-ci-evidence: {verdict}  {short_sha}  →  {out_json}")

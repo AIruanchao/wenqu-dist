@@ -1,0 +1,52 @@
+EV=/private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321
+SN=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:50+08:00
+=== git metadata ===
+snapshot_.git_rc=1
+=== direct failing test verbose ===
+============================= test session starts ==============================
+platform darwin -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+rootdir: /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+configfile: pytest.ini
+plugins: anyio-4.14.2
+collected 1 item
+
+system/tests/test_release_attest.py F                                    [100%]
+
+=================================== FAILURES ===================================
+___________________ test_full_chain_green_and_deterministic ____________________
+
+    def test_full_chain_green_and_deterministic():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:164: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpmwb5nzuf'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+=========================== short test summary info ============================
+FAILED system/tests/test_release_attest.py::test_full_chain_green_and_deterministic
+============================== 1 failed in 0.10s ===============================
+rc=1

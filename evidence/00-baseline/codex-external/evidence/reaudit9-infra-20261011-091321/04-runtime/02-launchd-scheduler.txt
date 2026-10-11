@@ -1,0 +1,344 @@
+$ ls LaunchAgents relevant
+-rw-r--r--@   1 maccc  staff   647 Sep 13 10:41 com.maccc.argus-dashboard.plist
+-rw-r--r--    1 maccc  staff   672 Jul 11 14:30 com.maccc.watchdog-dashboard.plist
+-rw-------@   1 maccc  staff   879 Jul  4 18:45 com.nenie.ops-dashboard.plist
+-rw-------@   1 maccc  staff  2062 Jul  9 00:39 com.tokscale.dashboard.plist.disabled
+-rw-------    1 maccc  staff  1283 Jul  2 23:18 com.tunnel.dashboard-portal.plist
+-rw-r--r--@   1 maccc  staff   637 Oct  5 01:01 com.wenqu.app-relay.plist
+-rw-r--r--@   1 maccc  staff  1274 Oct 10 07:21 com.wenqu.dashboard.plist
+-rw-r--r--@   1 maccc  staff   711 Oct  8 14:23 com.wenqu.orchestrator.plist
+-rw-r--r--@   1 maccc  staff  1333 Oct  9 09:12 com.wenqu.scheduler.plist
+-rw-r--r--@   1 maccc  staff   587 Oct  5 01:38 com.wenqu.sentinel-pulse.plist
+-rw-r--r--@   1 maccc  staff   824 Oct  7 01:00 com.wenqu.spec-reconcile.monthly.plist
+-rw-r--r--@   1 maccc  staff   792 Oct  9 05:09 com.wenqu.sweep.plist
+pipeline_rcs=0 0
+
+$ plutil relevant files
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+{
+  "KeepAlive" => true
+  "Label" => "com.wenqu.app-relay"
+  "ProgramArguments" => [
+    0 => "/usr/bin/python3"
+    1 => "/opt/wenqu-app-relay/relay.py"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/relay.err"
+  "WorkingDirectory" => "/opt/wenqu-app-relay"
+}
+rc=0
+cf83da52dac4afd421f4c3ca003c8663db937cc19100df0f531d95e4f17e18ad  /Users/maccc/Library/LaunchAgents/com.wenqu.app-relay.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+{
+  "EnvironmentVariables" => {
+    "HOME" => "/Users/maccc"
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    "PYTHONUNBUFFERED" => "1"
+    "WENQU_DASHBOARD_KEY" => "[REDACTED_SECRET]"
+    "WENQU_REPO_DIR" => "/Users/maccc/.wenqu/current"
+  }
+  "KeepAlive" => true
+  "Label" => "com.wenqu.dashboard"
+  "ProcessType" => "Background"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/current/system/dashboard/server.py"
+    2 => "--port"
+    3 => "7789"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/dashboard-modular.err.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/dashboard-modular.out.log"
+  "WorkingDirectory" => "/Users/maccc/.wenqu/current"
+}
+rc=0
+df44d94e25a7ff4ab9d2bb0e73a4451fc946d22835e93115c40f163150dd38ca  /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.orchestrator.plist
+{
+  "Label" => "com.wenqu.orchestrator"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/Users/maccc/.wenqu/bin/orchestrator.sh"
+  ]
+  "RunAtLoad" => false
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/orchestrator-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/orchestrator-launchd.log"
+  "StartInterval" => 3600
+}
+rc=0
+1deda7625306a238db8f429913f6acbade5236e12f28310c6539dc58a76084d6  /Users/maccc/Library/LaunchAgents/com.wenqu.orchestrator.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+{
+  "EnvironmentVariables" => {
+    "HOME" => "/Users/maccc"
+    "PATH" => "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    "PYTHONPATH" => "/Users/maccc/.wenqu/current/system"
+    "PYTHONUNBUFFERED" => "1"
+    "WENQU_GIT_REPO" => "/Users/maccc/Documents/wenqu-dist"
+    "WENQU_PYTHON" => "/opt/homebrew/bin/python3"
+  }
+  "Label" => "com.wenqu.scheduler"
+  "ProcessType" => "Background"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "-m"
+    2 => "wenqu_core.scheduler"
+    3 => "tick"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log"
+  "StartInterval" => 300
+  "WorkingDirectory" => "/Users/maccc/.wenqu/current"
+}
+rc=0
+a1014705569a097f6a600681fc1649f29368de771cc8c0c500add1f9afdacdc8  /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+{
+  "Label" => "com.wenqu.sentinel-pulse"
+  "ProgramArguments" => [
+    0 => "/bin/bash"
+    1 => "/opt/wenqu-app-relay/watchdog.sh"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/opt/wenqu-app-relay/watchdog.err"
+  "StartInterval" => 1800
+}
+rc=0
+a5b24161aa14b338c999ec7b8e86d4fe2161d72a9e9bc1adf89731d0d0a3eca5  /Users/maccc/Library/LaunchAgents/com.wenqu.sentinel-pulse.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+{
+  "Label" => "com.wenqu.spec-reconcile.monthly"
+  "ProgramArguments" => [
+    0 => "python3"
+    1 => "/Users/maccc/qisemi-research/qisemi-erp-fresh/scripts/gates/spec-reconcile.py"
+    2 => "--repo-root"
+    3 => "/Users/maccc/qisemi-research/qisemi-erp-fresh"
+  ]
+  "StandardErrorPath" => "/tmp/spec-reconcile.err"
+  "StandardOutPath" => "/tmp/spec-reconcile.log"
+  "StartCalendarInterval" => {
+    "Day" => 1
+    "Hour" => 5
+    "Minute" => 0
+  }
+}
+rc=0
+8806bb28e8f69b71b9a05910c0841ffe59a6fb0962bb7d134041e1ad468e68ca  /Users/maccc/Library/LaunchAgents/com.wenqu.spec-reconcile.monthly.plist
+sha_rc=0
+--- /Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+{
+  "Label" => "com.wenqu.sweep"
+  "ProgramArguments" => [
+    0 => "/opt/homebrew/bin/python3"
+    1 => "/Users/maccc/.wenqu/bin/sweep.py"
+    2 => "--days"
+    3 => "14"
+    4 => "--reopen"
+  ]
+  "RunAtLoad" => true
+  "StandardErrorPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StandardOutPath" => "/Users/maccc/.wenqu/logs/sweep-launchd.log"
+  "StartInterval" => 3600
+}
+rc=0
+860ce3c21f8383734b81fb62fcd31d95befef41e0807169b026d71a853d8354f  /Users/maccc/Library/LaunchAgents/com.wenqu.sweep.plist
+sha_rc=0
+
+$ launchctl print scheduler
+gui/502/com.wenqu.scheduler = {
+	active count = 0
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.scheduler.plist
+	type = LaunchAgent
+	state = not running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		-m
+		wenqu_core.scheduler
+		tick
+	}
+
+	working directory = /Users/maccc/.wenqu/current
+
+	stdout path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+	stderr path = /Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		WENQU_PYTHON => /opt/homebrew/bin/python3
+		PYTHONUNBUFFERED => 1
+		WENQU_GIT_REPO => /Users/maccc/Documents/wenqu-dist
+		PATH => /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		PYTHONPATH => /Users/maccc/.wenqu/current/system
+		HOME => /Users/maccc
+		XPC_SERVICE_NAME => com.wenqu.scheduler
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 548
+	last exit code = 0
+
+	resource coalition = {
+		ID = 677060
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	jetsam coalition = {
+		ID = 677061
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.scheduler
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+	run interval = 300 seconds
+
+	properties = runatload | inferred program
+}
+rc=0
+
+$ launchctl print dashboard
+gui/502/com.wenqu.dashboard = {
+	active count = 1
+	path = /Users/maccc/Library/LaunchAgents/com.wenqu.dashboard.plist
+	type = LaunchAgent
+	state = running
+
+	program = /opt/homebrew/bin/python3
+	arguments = {
+		/opt/homebrew/bin/python3
+		/Users/maccc/.wenqu/current/system/dashboard/server.py
+		--port
+		7789
+	}
+
+	working directory = /Users/maccc/.wenqu/current
+
+	stdout path = /Users/maccc/.wenqu/logs/dashboard-modular.out.log
+	stderr path = /Users/maccc/.wenqu/logs/dashboard-modular.err.log
+	inherited environment = {
+		NO_PROXY => localhost,127.0.0.1,::1
+		HTTP_PROXY => http://127.0.0.1:7890
+		HTTPS_PROXY => http://127.0.0.1:7890
+		CLAUDE_CODE_SKIP_AUTH_LOGIN => 1
+		ANTHROPIC_AUTH_TOKEN => 
+		ANTHROPIC_API_KEY => 
+		ANTHROPIC_BASE_URL => https://ai.nenie.vip
+		HERMES_DESKTOP_POOL_IDLE_MS => 86400000
+		SSH_AUTH_SOCK => /var/run/com.apple.launchd.3qyit8eGUg/Listeners
+	}
+
+	default environment = {
+		PATH => /usr/bin:/bin:/usr/sbin:/sbin
+	}
+
+	environment = {
+		OSLogRateLimit => 64
+		PYTHONUNBUFFERED => 1
+		WENQU_REPO_DIR => /Users/maccc/.wenqu/current
+		PATH => /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+		WENQU_DASHBOARD_KEY => [REDACTED_SECRET]
+		HOME => /Users/maccc
+		XPC_SERVICE_NAME => com.wenqu.dashboard
+	}
+
+	domain = gui/502 [100002]
+	asid = 100002
+	minimum runtime = 10
+	exit timeout = 5
+	runs = 6
+	pid = 20003
+	immediate reason = inefficient
+	forks = 2435
+	execs = 2
+	initialized = 1
+	trampolined = 1
+	started suspended = 0
+	proxy started suspended = 0
+	checked allocations = 0 (queried = 1)
+	checked allocations reason = no host
+	checked allocations flags = 0x0
+	last terminating signal = Terminated: 15
+
+	resource coalition = {
+		ID = 754092
+		type = resource
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	jetsam coalition = {
+		ID = 754093
+		type = jetsam
+		state = active
+		active count = 1
+		name = com.wenqu.dashboard
+	}
+
+	spawn type = background (5)
+	jetsam priority = 40
+	jetsam memory limit (active) = (unlimited)
+	jetsam memory limit (inactive) = (unlimited)
+	jetsamproperties category = daemon
+	jetsam thread limit = 32
+	cpumon = default
+
+	properties = keepalive | runatload | inferred program
+}
+rc=0
+
+$ launchctl print forbidden observation
+Bad request.
+Could not find service "com.wenqu.observation" in domain for user gui: 502
+rc=113
+
+$ launchctl print forbidden observation-window
+Bad request.
+Could not find service "com.wenqu.observation-window" in domain for user gui: 502
+rc=113
+
+$ launchctl list filtered
+50663	-15	com.wenqu.app-relay
+-	0	com.wenqu.obs-ttest
+-	0	com.wenqu.spec-reconcile.monthly
+-	1	com.wenqu.sentinel-pulse
+-	0	com.wenqu.scheduler
+-	2	com.wenqu.sweep
+20003	-15	com.wenqu.dashboard
+pipeline_rcs=0 0

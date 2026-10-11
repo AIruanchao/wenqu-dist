@@ -1,0 +1,25 @@
+$ python3 system/tests/test_approval_issue.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:15:33,939356000+08:00
+  ok  契约零漂移：payload 判别表单一正源 + 高危类型集
+  ok  keyring 元数据（静态夹具：active/rotated/revoked）
+  ok  keyring 坏元数据拒绝（未知字段/缺 rotated_at/未知 key）
+  ok  受管 keyring 目录：0700/0600/事件账本/过期
+  ok  签发：结构预检+HMAC 自验+审计（谁/何时/批了什么/TTL）
+  ok  签发：payload 判别封闭（多/缺/空/坏枚举/坏 TTL 全拒且不落审计）
+  ok  签发：key 选择（多 active 歧义拒/无 active 拒/rotated 拒）
+  ok  高危双人规则：缺旗标/缺第二 key/缺第二人/同 key 假联签全拒+联签双验真
+  ok  全链：签发→消费→重放拒→哈希链完好
+  ok  轮换：旧 key 可验存量、不得再签、新签发用新 key
+  ok  吊销：验签即拒+拒绝事件记录+不得再签发
+  ok  高危联签审批：reserve_action 消费→重放拒
+  ok  R8：principal 登记面（owner/actors）+同 actor 假双人+生命周期过期边界
+  ok  G9-04：退休key receipt不可回填+actual-target强制绑定+principal强制登记
+  ok  T1：receipt genesis锚fail-closed（冷启动/截断/盘点缺失）+并发分配安全
+  ok  审计对账：批了/用了/未用过期/旁路签发/篡改断链
+  ok  CLI 端到端：keys/approve/消费/重放拒/联签/feishu 占位/对账
+    ⏭ SKIP 飞书审批流未接线（架构裁定：本地 keyring+CLI 签发为默认案，飞书留接口——submit/callback 占位 NotImplementedError）
+  ok  FeishuApprovalSource 占位接口（SKIP）
+
+审批签发端全链: 18 PASS / 0 FAIL / 1 SKIP
+[exit=0]

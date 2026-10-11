@@ -1,0 +1,42 @@
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-2bd59ab-20261008T142740Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=b4e3d5fce24f2cd5… size=33139660",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "2886/2886 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "plan-hash",
+   "detail": "evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）",
+   "ok": true
+  },
+  {
+   "check": "verify",
+   "detail": "source_commit 不在 release-roots allowed_commit（外部授权清单）: 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551——side commit/未授权 commit（四件套自洽签名也拒，G9-12 fail-closed）",
+   "ok": false
+  }
+ ],
+ "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+ "manifest": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.manifest.json",
+ "plan_pin": null,
+ "release_roots": "/Users/maccc/.wenqu/release-roots.json",
+ "repo": null,
+ "result": "FAIL",
+ "sbom": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.release.sig",
+ "tar": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.3.0",
+ "verified_at": "2026-10-11T01:26:04Z"
+}

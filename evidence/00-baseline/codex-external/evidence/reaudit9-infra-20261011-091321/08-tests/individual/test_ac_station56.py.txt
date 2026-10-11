@@ -1,0 +1,22 @@
+$ python3 system/tests/test_ac_station56.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:14:51,847499000+08:00
+  ok  ST5-01 有效授权+全量证据 → PASS（断言点 12/12+脱敏 artifacts）
+  ok  ST5-02 授权缺失/过期/超日落窗 → BLOCKED（error 判据，不算通过）
+  ok  ST5-03 断言失败/幂等/守恒/补偿/回基线 → FAIL 逐点落账
+  ok  ST5-04 越 exact-scope/授权窗外证据 → BLOCKED
+  ok  ST5-05 结构损坏载荷 → fail-closed 拒绝（不产出任何结果）
+  ok  ST5-06 注册表 tools 槽指向真实扫描器（非 station7 占位件）
+  ok  ST6-01 每轴必问全覆盖+双异源零发现 → PASS（二审定律满足）
+  ok  ST6-02 单上下文零发现/同命令换标签 → FAIL（二审定律）
+  ok  ST6-03 漏问轴/对抗发现 → FAIL 且逐条落账
+  ok  ST6-04 异源端点缺席/证据过期（7d TTL）→ BLOCKED（日落不误伤新鲜证据）
+  ok  ST6-05 账本结构损坏/空轴/重复 context_id → fail-closed 拒绝
+  ok  ST6-06 注册表真实件+INCIDENT required+TTL 正源
+  ok  ST56-07 orchestrator selftest rc0 且含站5/6 真实扫描步骤
+  ok  ST56-08 生产 dispatch：BugscanOrchestrator 完整 run 覆盖站0-7（含站5/6）
+  ok  ST56-09 授权加站通道+逐站分母冻结语义+零 SHA freeze 即拒
+  ok  ST56-10 gate 逐站分母对账：各站=冻结值、缩水/漂移即 BLOCKED
+
+站5/站6 专属验收测试: 16 PASS / 0 FAIL （负责 16 条；实现 16；不可实现 0）
+[exit=0]

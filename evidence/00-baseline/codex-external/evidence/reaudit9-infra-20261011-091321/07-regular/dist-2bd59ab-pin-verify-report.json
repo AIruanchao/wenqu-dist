@@ -1,0 +1,62 @@
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-2bd59ab-20261008T142740Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=b4e3d5fce24f2cd5… size=33139660",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "2886/2886 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "plan-hash",
+   "detail": "evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）",
+   "ok": true
+  },
+  {
+   "check": "plan-pin",
+   "detail": "/private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/public-plan-pin.txt 冻结值=96b8646f6f08fd5f…（manifest+tar 双等值）",
+   "ok": true
+  },
+  {
+   "check": "source-commit",
+   "detail": "commit=2bd59ab73aab… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）",
+   "ok": true
+  },
+  {
+   "check": "signature",
+   "detail": "key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）",
+   "ok": true
+  },
+  {
+   "check": "sbom-reconcile",
+   "detail": "spdxVersion=SPDX-2.3 files=2886 root=3.8.4",
+   "ok": true
+  },
+  {
+   "check": "build-identity",
+   "detail": "commit=2bd59ab73aab… built_at=2026-10-08T14:27:40Z tool=release_attest.py@1.1.0",
+   "ok": true
+  }
+ ],
+ "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+ "manifest": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.manifest.json",
+ "plan_pin": "/private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/public-plan-pin.txt",
+ "release_roots": null,
+ "repo": "/Users/maccc/Documents/wenqu-dist",
+ "result": "PASS",
+ "sbom": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.release.sig",
+ "tar": "/private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-2bd59ab.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.3.0",
+ "verified_at": "2026-10-11T01:26:03Z"
+}

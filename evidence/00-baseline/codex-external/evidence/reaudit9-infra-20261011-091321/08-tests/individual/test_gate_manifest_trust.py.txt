@@ -1,0 +1,62 @@
+$ python3 system/tests/test_gate_manifest_trust.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:18:32,671818000+08:00
+== R7 第七轮两洞对抗复验（10 组）==
+-- test_r7auth001_freeze_key_resolution_fail_closed
+  ✓ R7-AUTH-001 多 active key 未显式 key_id 拒（不猜 key）
+  ✓ R7-AUTH-001 rotated key 不得签发新 manifest
+  ✓ R7-AUTH-001 未登记 key_id 拒
+  ✓ R7-AUTH-001 唯一 active key 免显式 key_id 可签且 key_id 落账
+-- test_r7auth001_internal_inconsistency_valid_signature
+  ✓ R7-AUTH-001 内部不一致·合法签名 → rc=2 BLOCKED（非 ERROR）
+  ✓ R7-AUTH-001 记 manifest_consistency_violation + required 冲突
+  ✓ R7-AUTH-001 签名本身验签通过（verified=True，拦截来自一致性）
+-- test_r7auth001_load_level_signature_semantics
+  ✓ R7-AUTH-001 load+keyring 验签通过且签名字段在
+  ✓ R7-AUTH-001 load 未知 key 拒（ManifestFreezeError）
+  ✓ R7-AUTH-001 load 无签名默认拒（除非 allow_unsigned）
+  ✓ R7-AUTH-001 load 无 keyring 保持 legacy 口径（hash 复核）
+  ✓ R7-AUTH-001 load allow_unsigned 显式降级可读
+  ✓ R7-AUTH-001 重算 hash 可骗过纯 hash 复核（复刻第七轮前提）
+  ✓ R7-AUTH-001 重算 hash 骗不过签名验签（allow-unsigned 也拒坏签名）
+-- test_r7auth001_required_tamper_rehash
+  ✓ R7-AUTH-001 改 required 重算 hash（正门验签）rc=3 ERROR
+  ✓ R7-AUTH-001 ERROR 理由指向验签/manifest
+  ✓ R7-AUTH-001 改 required 重算 hash（已签件 allow-unsigned）rc=3 不跳验签
+  ✓ R7-AUTH-001 改 required（真 unsigned allow-unsigned 腿）rc=2 BLOCKED
+  ✓ R7-AUTH-001 记 required_stations_conflict（一致性独立于签名）
+  ✓ R7-AUTH-001 绝不 PASS（第七轮 rc0/PASS 反例被封死）
+-- test_r7auth001_signed_manifest_front_door_pass
+  ✓ R7-AUTH-001 合法签名 manifest 正门 rc=0 PASS
+  ✓ R7-AUTH-001 输出落签名证据（signed/verified/key_id）
+  ✓ R7-AUTH-001 合法签名件一致性违例=0
+-- test_r7auth001_ttl_deleted_rehash
+  ✓ R7-AUTH-001 删 TTL 重算 hash（正门验签）rc=3 ERROR
+  ✓ R7-AUTH-001 删 TTL（已签件 allow-unsigned）rc=3 不跳验签
+  ✓ R7-AUTH-001 删 TTL（真 unsigned allow-unsigned 腿）rc=2 BLOCKED + station_ttls 违例
+-- test_r7auth001_unknown_and_revoked_key_rejected
+  ✓ R7-AUTH-001 未知 key（验签 keyring 不含签发 key）rc=3 ERROR
+  ✓ R7-AUTH-001 已吊销 key 验签即拒 rc=3 ERROR
+-- test_r7auth001_unsigned_refusals_and_downgrade
+  ✓ R7-AUTH-001 无 --verify-key 的 --manifest rc=3 (mode=manifest_key_required)
+  ✓ R7-AUTH-001 无签名 manifest + --verify-key rc=3（默认拒）
+  ✓ R7-AUTH-001 --allow-unsigned 诊断件可读但永不 PASS（rc=2）
+  ✓ R7-AUTH-001 诊断件元数据如实（signed=false/allow_unsigned_downgrade=true）
+  ✓ R7-AUTH-001 --verify-key 无 --manifest → flag_conflict rc=3
+-- test_r7dup002_field_drift_variants_all_blocked
+  ✓ R7-DUP-002 漂移变体数 ≥ 6（任务下限）
+  ✓ R7-DUP-002 identity.ruleset_hash 漂移 → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 identity.data_config_hash 漂移 → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 tool.name 漂移 → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 tool.digest 漂移 → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 execution.argv_digest 漂移（命令身份漂移） → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 finding_ids 漂移（多报一个发现） → duplicate_conflict BLOCKED
+  ✓ R7-DUP-002 tool.version 漂移 → duplicate_conflict BLOCKED
+-- test_r7dup002_true_idempotent_resend_ignored_pass
+  ✓ R7-DUP-002 全等重发幂等（ignored=1/conflicts=0/PASS）
+  ✓ R7-DUP-002 finding_ids 换序仍幂等（排序摘要，不误报冲突）
+  ✓ R7-DUP-002 幂等重发不双绿（counts.required_reported 不虚增）
+================================================================
+RESULT: PASS=44 FAIL=0
+ALL GREEN
+[exit=0]

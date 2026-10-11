@@ -1,0 +1,374 @@
+timestamp=2026-10-11T01:15:52Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && nl -ba system/tests/p1f_mutation_gate.py | sed -n '1,620p'
+--- output begin ---
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""P1f2 mutation 门——G9-07（R8-TRC-TRUTHY-ASSERT-012 根修：AST 形态门→真 mutation gate）。
+     4	
+     5	背景：八轮后的 AST 形态门（p1f_ast_gate.py）能抓「字面恒真/无被测调用/
+     6	无失败路径」三类字面空壳，但两类非字面绕过仍计入合格函数数：
+     7	  a) 非字面恒真：assert len(str(product_call())) >= 0——非常量、有调用、
+     8	     有失败路径形态，AST 三指标全绿，但断言永不可能失败；
+     9	  b) 与产品行为无数据流关系的等量假测试替换：_ok(1 + 1 == 2) 形假腿。
+    10	形态计数无法区分「断言可失败」与「断言确实对产品行为敏感」。
+    11	
+    12	本工具把完成标准从「形态」换成「行为」：对产品函数做机械变异（三类：
+    13	返回值取反 negate_return / 比较符翻转 flip_compare / 删关键守卫行
+    14	drop_raise），逐 mutation 在沙箱副本树上运行其映射的专属测试文件——
+    15	每个 mutation 必须至少杀死一个测试（对应文件 exit != 0），mutation
+    16	score 必须 100%（于 tests/p1f-mutations.json 所选集）。空壳化/恒真化/
+    17	假测试替换的专属测试文件将杀不死任何 mutation → 本门 rc1。
+    18	
+    19	与两道既有闸的关系（G9-07 定版：三道闸并存，棘轮只增不减）：
+    20	  第一道（主）：本 mutation gate——行为敏感度；
+    21	  第二道：tests/p1f-behavior-baseline.txt AST 形态基线（p1f_ast_gate.py）；
+    22	  第三道：tests/p1f-assert-baseline.txt 文本计数旧棘轮。
+    23	
+    24	沙箱纪律：每 mutation 复制仓树到临时目录（忽略 .git/evidence/dist 等
+    25	重目录），AST 变异只写沙箱内副本，绝不动工作树；测试产物经
+    26	WENQU_EVIDENCE_OUT_DIR 重定向进沙箱临时目录。控制腿（未变异沙箱）先跑：
+    27	映射文件不全绿则本门 rc2（防「测试本来就红→假 kill」空转计分）。
+    28	
+    29	用法：
+    30	  python3 system/tests/p1f_mutation_gate.py --root <repo根> \
+    31	      --mutations tests/p1f-mutations.json [--json OUT.json] [--verbose]
+    32	"""
+    33	from __future__ import annotations
+    34	
+    35	import argparse
+    36	import ast
+    37	import copy
+    38	import json
+    39	import os
+    40	import shutil
+    41	import subprocess
+    42	import sys
+    43	import tempfile
+    44	import time
+    45	from pathlib import Path
+    46	from typing import Any, Dict, List, Optional, Tuple
+    47	
+    48	# 与 acceptance.sh P1f 节 / p1f_ast_gate.py 的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
+    49	P1F_FILES: List[str] = [
+    50	    "test_ac_gate_family",
+    51	    "test_ac_state_mig",
+    52	    "test_ac_deploy_release",
+    53	    "test_ac_station_families",
+    54	    "test_ac_ops_families",
+    55	    "test_ac_auth_cond",
+    56	    "test_ac_act_run",
+    57	    "test_ac_ui_family",
+    58	]
+    59	
+    60	VALID_OPS = ("negate_return", "flip_compare", "drop_raise")
+    61	
+    62	# 沙箱复制忽略（重目录/环境残留；测试面不需要它们）
+    63	_SANDBOX_IGNORE = shutil.ignore_patterns(
+    64	    ".git", "evidence", "dist", ".pytest_cache", "__pycache__",
+    65	    ".github", ".DS_Store", "._*", "*.pyc",
+    66	)
+    67	
+    68	# 比较符翻转映射（机械、成对可逆）
+    69	_FLIP = {
+    70	    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
+    71	    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
+    72	    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
+    73	    ast.In: ast.NotIn, ast.NotIn: ast.In,
+    74	    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
+    75	}
+    76	
+    77	
+    78	class MutationSpecError(RuntimeError):
+    79	    """mutation 集结构/定位失败（集本身损坏——rc2，与 kill 失败区分）。"""
+    80	
+    81	
+    82	# ---------------------------------------------------------------------------
+    83	# AST 机械变异
+    84	# ---------------------------------------------------------------------------
+    85	class _OpCounter(ast.NodeVisitor):
+    86	    """统计目标函数体内各 op 的可作用点数（0=mutation 无法落地）。"""
+    87	
+    88	    def __init__(self) -> None:
+    89	        self.returns_with_value = 0
+    90	        self.flippable_compares = 0
+    91	        self.raises = 0
+    92	
+    93	    def visit_Return(self, node: ast.Return) -> None:
+    94	        if node.value is not None:
+    95	            self.returns_with_value += 1
+    96	
+    97	    def visit_Compare(self, node: ast.Compare) -> None:
+    98	        if node.ops and all(type(op) in _FLIP for op in node.ops):
+    99	            self.flippable_compares += 1
+   100	
+   101	    def visit_Raise(self, node: ast.Raise) -> None:
+   102	        self.raises += 1
+   103	
+   104	
+   105	class _NegateReturn(ast.NodeTransformer):
+   106	    """return V → return not (V)——返回值取反（布尔语义翻转）。"""
+   107	
+   108	    def visit_Return(self, node: ast.Return) -> ast.Return:
+   109	        if node.value is None:
+   110	            return node
+   111	        return ast.copy_location(
+   112	            ast.Return(value=ast.UnaryOp(op=ast.Not(), operand=copy.deepcopy(node.value))),
+   113	            node)
+   114	
+   115	
+   116	class _FlipCompare(ast.NodeTransformer):
+   117	    """比较符翻转：<↔>=、>↔<=、==↔!=、in↔not in、is↔is not。"""
+   118	
+   119	    def visit_Compare(self, node: ast.Compare) -> ast.Compare:
+   120	        new_ops = [_FLIP[type(op)]() for op in node.ops]
+   121	        return ast.copy_location(
+   122	            ast.Compare(left=node.left, ops=new_ops, comparators=node.comparators),
+   123	            node)
+   124	
+   125	
+   126	class _DropRaise(ast.NodeTransformer):
+   127	    """删除函数体内第一个 Raise 语句（关键守卫行删除；后续 raise 保留）。"""
+   128	
+   129	    def __init__(self) -> None:
+   130	        self.dropped = False
+   131	
+   132	    def visit_Raise(self, node: ast.Raise) -> ast.stmt:
+   133	        if not self.dropped:
+   134	            self.dropped = True
+   135	            return ast.copy_location(ast.Pass(), node)
+   136	        return node
+   137	
+   138	
+   139	def _make_scoped(function: str, inner: ast.NodeTransformer) -> ast.NodeTransformer:
+   140	    """构造只作用于同名函数体的变换器（其余源码不动）。"""
+   141	
+   142	    class _Scoped(ast.NodeTransformer):
+   143	        def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+   144	            self.generic_visit(node)  # 先递归（嵌套/方法同名同治）
+   145	            if node.name == function:
+   146	                return ast.copy_location(inner.visit(node), node)
+   147	            return node
+   148	
+   149	    return _Scoped()
+   150	
+   151	
+   152	def apply_mutation(src: str, module_path: str, function: str,
+   153	                   op: str) -> Tuple[str, int]:
+   154	    """对 module 源码中指定函数应用机械变异，返回 (变异后源码, 作用点数)。
+   155	
+   156	    函数不存在 / op 无处落地 / 变异后源码无变化 → MutationSpecError。
+   157	    """
+   158	    try:
+   159	        tree = ast.parse(src, filename=module_path)
+   160	    except SyntaxError as exc:
+   161	        raise MutationSpecError(f"{module_path}: 源码不可解析: {exc}") from exc
+   162	
+   163	    counter = _OpCounter()
+   164	    matched = 0
+   165	    for node in ast.walk(tree):
+   166	        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
+   167	            matched += 1
+   168	            counter.visit(node)
+   169	    if matched == 0:
+   170	        raise MutationSpecError(
+   171	            f"{module_path}: 未找到目标函数 {function!r}——mutation 集与产品码脱锚")
+   172	    points = {
+   173	        "negate_return": counter.returns_with_value,
+   174	        "flip_compare": counter.flippable_compares,
+   175	        "drop_raise": counter.raises,
+   176	    }[op]
+   177	    if points == 0:
+   178	        raise MutationSpecError(
+   179	            f"{module_path}#{function}: op={op} 无处落地（产品码已变？mutation 集需同步）")
+   180	
+   181	    inner = {"negate_return": _NegateReturn, "flip_compare": _FlipCompare,
+   182	             "drop_raise": _DropRaise}[op]()
+   183	    scoped = _make_scoped(function, inner)
+   184	    baseline_unparsed = ast.unparse(tree)  # 先快照（NodeTransformer 原地改树）
+   185	    mutated = ast.fix_missing_locations(scoped.visit(tree))
+   186	    out = ast.unparse(mutated)
+   187	    if out == baseline_unparsed:
+   188	        raise MutationSpecError(
+   189	            f"{module_path}#{function}: op={op} 变异后源码无变化（无效 mutation）")
+   190	    return out, points
+   191	
+   192	
+   193	# ---------------------------------------------------------------------------
+   194	# mutation 集装载与校验
+   195	# ---------------------------------------------------------------------------
+   196	def load_mutations(path: Path) -> List[Dict[str, Any]]:
+   197	    """装载并结构校验 mutation 集（tests/p1f-mutations.json）。"""
+   198	    try:
+   199	        raw = json.loads(path.read_text(encoding="utf-8"))
+   200	    except (OSError, json.JSONDecodeError) as exc:
+   201	        raise MutationSpecError(f"mutation 集不可读: {path}: {exc}") from exc
+   202	    if not isinstance(raw, dict) or "mutations" not in raw:
+   203	        raise MutationSpecError("mutation 集顶层须为 {schema_version, mutations:[...]}")
+   204	    seen_ids: set = set()
+   205	    seen_killer: Dict[str, set] = {name: set() for name in P1F_FILES}
+   206	    for i, m in enumerate(raw["mutations"]):
+   207	        for field in ("id", "module", "function", "op", "test_files", "description"):
+   208	            if field not in m or not m[field]:
+   209	                raise MutationSpecError(f"mutation[{i}] 缺必填字段 {field!r}")
+   210	        if m["id"] in seen_ids:
+   211	            raise MutationSpecError(f"mutation id 重复: {m['id']}")
+   212	        seen_ids.add(m["id"])
+   213	        if m["op"] not in VALID_OPS:
+   214	            raise MutationSpecError(f"{m['id']}: 未知 op {m['op']!r}（合法: {VALID_OPS}）")
+   215	        if not m["module"].startswith("wenqu_core/") or not m["module"].endswith(".py"):
+   216	            raise MutationSpecError(f"{m['id']}: module 须为 wenqu_core/*.py 相对路径")
+   217	        mod_name = m["module"][len("wenqu_core/"):]
+   218	        if "/" in mod_name or not mod_name[:-3].isidentifier():
+   219	            raise MutationSpecError(f"{m['id']}: module 不支持子目录/非法名: {m['module']}")
+   220	        files = m["test_files"]
+   221	        if not isinstance(files, list) or not files:
+   222	            raise MutationSpecError(f"{m['id']}: test_files 须为非空数组")
+   223	        for tf in files:
+   224	            if tf not in P1F_FILES:
+   225	                raise MutationSpecError(f"{m['id']}: test_files 含未知专属文件 {tf!r}")
+   226	            seen_killer[tf].add(m["id"])
+   227	    # 覆盖门：每个专属文件至少杀一个 mutation（防某文件完全脱离行为锚）
+   228	    uncovered = [tf for tf, ids in seen_killer.items() if not ids]
+   229	    if uncovered:
+   230	        raise MutationSpecError(f"mutation 集未覆盖专属文件: {uncovered}")
+   231	    return raw["mutations"]
+   232	
+   233	
+   234	# ---------------------------------------------------------------------------
+   235	# 沙箱执行
+   236	# ---------------------------------------------------------------------------
+   237	def _run_test_file(sandbox: Path, test_file: str,
+   238	                   artifacts_dir: Path) -> Tuple[int, float]:
+   239	    """在沙箱根运行一个专属测试文件，返回 (exit_code, 秒)。"""
+   240	    env = dict(os.environ)
+   241	    env["WENQU_EVIDENCE_OUT_DIR"] = str(artifacts_dir)
+   242	    env["PYTHONDONTWRITEBYTECODE"] = "1"
+   243	    started = time.monotonic()
+   244	    proc = subprocess.run(
+   245	        [sys.executable, str(sandbox / "system" / "tests" / f"{test_file}.py")],
+   246	        cwd=str(sandbox), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+   247	        text=True, timeout=900,
+   248	    )
+   249	    return proc.returncode, time.monotonic() - started
+   250	
+   251	
+   252	def run_gate(root: Path, mutations_path: Path, json_out: Optional[Path],
+   253	             verbose: bool = False) -> int:
+   254	    mutations = load_mutations(mutations_path)
+   255	    needed_files = sorted({tf for m in mutations for tf in m["test_files"]})
+   256	
+   257	    rows: List[Dict[str, Any]] = []
+   258	    killed = 0
+   259	    vacuous: List[str] = []
+   260	    t0 = time.monotonic()
+   261	
+   262	    with tempfile.TemporaryDirectory(prefix="p1f-mutation-gate-") as tmp:
+   263	        tmpd = Path(tmp)
+   264	        # —— 控制腿：未变异沙箱上全部映射文件必须绿（防假 kill 空转计分）——
+   265	        control = _sandbox_copy(root, tmpd / "control")
+   266	        control_art = tmpd / "control-artifacts"
+   267	        control_rc: Dict[str, int] = {}
+   268	        for tf in needed_files:
+   269	            rc, _dt = _run_test_file(control, tf, control_art)
+   270	            control_rc[tf] = rc
+   271	            if rc != 0:
+   272	                vacuous.append(tf)
+   273	        if vacuous:
+   274	            print("❌ 控制腿失败（未变异沙箱即红，kill 不可信——防空转计分）:")
+   275	            for tf in vacuous:
+   276	                print(f"   {tf}: exit={control_rc[tf]}")
+   277	            shutil.rmtree(control, ignore_errors=True)
+   278	            return 2
+   279	        shutil.rmtree(control, ignore_errors=True)
+   280	
+   281	        # —— 变异腿：逐 mutation 沙箱执行 ——
+   282	        for idx, m in enumerate(mutations, 1):
+   283	            module_rel = m["module"]  # wenqu_core/xxx.py
+   284	            sandbox = _sandbox_copy(root, tmpd / f"mut-{idx:02d}")
+   285	            target = sandbox / "system" / module_rel
+   286	            try:
+   287	                src = target.read_text(encoding="utf-8")
+   288	                mutated, points = apply_mutation(src, str(target), m["function"], m["op"])
+   289	                target.write_text(mutated + "\n", encoding="utf-8")
+   290	            except MutationSpecError as exc:
+   291	                print(f"❌ {m['id']}: mutation 集失效——{exc}")
+   292	                shutil.rmtree(sandbox, ignore_errors=True)
+   293	                return 2
+   294	            kill_rc: Optional[int] = None
+   295	            killer: Optional[str] = None
+   296	            for tf in m["test_files"]:
+   297	                rc, _dt = _run_test_file(sandbox, tf, tmpd / f"art-{idx:02d}")
+   298	                if rc != 0:
+   299	                    kill_rc, killer = rc, tf
+   300	                    break  # 至少一个转红即杀死
+   301	            is_killed = kill_rc is not None
+   302	            killed += 1 if is_killed else 0
+   303	            rows.append({
+   304	                "id": m["id"], "module": module_rel, "function": m["function"],
+   305	                "op": m["op"], "points": points,
+   306	                "killed": is_killed, "killer": killer,
+   307	                "kill_rc": kill_rc, "test_files": m["test_files"],
+   308	            })
+   309	            mark = "✅ KILLED" if is_killed else "❌ SURVIVED"
+   310	            line = (f"  [{idx}/{len(mutations)}] {mark} {m['id']} "
+   311	                    f"{module_rel}#{m['function']} op={m['op']}"
+   312	                    + (f" killer={killer}(exit={kill_rc})" if is_killed else ""))
+   313	            print(line)
+   314	            if verbose:
+   315	                print(f"      {m['description']}")
+   316	            shutil.rmtree(sandbox, ignore_errors=True)
+   317	
+   318	    total = len(mutations)
+   319	    score = (100.0 * killed / total) if total else 0.0
+   320	    elapsed = time.monotonic() - t0
+   321	    print("-" * 72)
+   322	    print(f"mutation score: {killed}/{total} = {score:.1f}%（{elapsed:.1f}s，沙箱全临时）")
+   323	    if json_out is not None:
+   324	        json_out.parent.mkdir(parents=True, exist_ok=True)
+   325	        json_out.write_text(json.dumps({
+   326	            "tool": "p1f_mutation_gate", "killed": killed, "total": total,
+   327	            "score": round(score, 2), "control_green": {tf: 0 for tf in needed_files},
+   328	            "rows": rows,
+   329	        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+   330	        print(f"报告已写: {json_out}")
+   331	    if killed != total:
+   332	        survivors = [r["id"] for r in rows if not r["killed"]]
+   333	        print(f"❌ mutation gate 失败——存活 {len(survivors)}: {survivors}")
+   334	        print("   （专属测试空壳化/恒真化/假测试替换会杀不死 mutation——行为覆盖被掏空）")
+   335	        return 1
+   336	    print("✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）")
+   337	    return 0
+   338	
+   339	
+   340	def _sandbox_copy(root: Path, dest: Path) -> Path:
+   341	    if dest.exists():
+   342	        shutil.rmtree(dest)
+   343	    shutil.copytree(root, dest, ignore=_SANDBOX_IGNORE, symlinks=False)
+   344	    return dest
+   345	
+   346	
+   347	def main(argv: Optional[List[str]] = None) -> int:
+   348	    ap = argparse.ArgumentParser(description="P1f2 mutation 门（八专属文件行为敏感度棘轮）")
+   349	    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
+   350	    ap.add_argument("--mutations", required=True, help="mutation 集文件（tests/p1f-mutations.json）")
+   351	    ap.add_argument("--json", help="结构化报告输出路径（临时目录，勿指向 tracked evidence）")
+   352	    ap.add_argument("--verbose", action="store_true", help="附 mutation 描述")
+   353	    args = ap.parse_args(argv)
+   354	
+   355	    root = Path(args.root).resolve()
+   356	    if not root.is_dir():
+   357	        print(f"❌ --root 不存在: {root}")
+   358	        return 2
+   359	    try:
+   360	        return run_gate(root, Path(args.mutations), Path(args.json) if args.json else None,
+   361	                        verbose=args.verbose)
+   362	    except MutationSpecError as exc:
+   363	        print(f"❌ mutation 集失效: {exc}")
+   364	        return 2
+   365	
+   366	
+   367	if __name__ == "__main__":
+   368	    sys.exit(main())
+--- output end ---
+exit_code=0

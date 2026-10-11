@@ -1,0 +1,252 @@
+{
+  "tool": "p1f_mutation_gate",
+  "killed": 18,
+  "total": 18,
+  "score": 100.0,
+  "control_green": {
+    "test_ac_act_run": 0,
+    "test_ac_auth_cond": 0,
+    "test_ac_deploy_release": 0,
+    "test_ac_gate_family": 0,
+    "test_ac_ops_families": 0,
+    "test_ac_state_mig": 0,
+    "test_ac_station_families": 0,
+    "test_ac_ui_family": 0
+  },
+  "rows": [
+    {
+      "id": "MUT-01",
+      "module": "wenqu_core/source_gate.py",
+      "function": "validate_exact_sha",
+      "op": "flip_compare",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_gate_family",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_gate_family"
+      ]
+    },
+    {
+      "id": "MUT-02",
+      "module": "wenqu_core/source_gate.py",
+      "function": "_is_non_behavioral",
+      "op": "negate_return",
+      "points": 1,
+      "killed": true,
+      "killer": "test_ac_gate_family",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_gate_family"
+      ]
+    },
+    {
+      "id": "MUT-03",
+      "module": "wenqu_core/bugscan_orchestrator.py",
+      "function": "validate_station_result",
+      "op": "flip_compare",
+      "points": 28,
+      "killed": true,
+      "killer": "test_ac_gate_family",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_gate_family"
+      ]
+    },
+    {
+      "id": "MUT-04",
+      "module": "wenqu_core/store.py",
+      "function": "verify_chain",
+      "op": "flip_compare",
+      "points": 5,
+      "killed": true,
+      "killer": "test_ac_state_mig",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_state_mig"
+      ]
+    },
+    {
+      "id": "MUT-05",
+      "module": "wenqu_core/ledger_migrator.py",
+      "function": "classify",
+      "op": "flip_compare",
+      "points": 4,
+      "killed": true,
+      "killer": "test_ac_state_mig",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_state_mig"
+      ]
+    },
+    {
+      "id": "MUT-06",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "_verify_seal",
+      "op": "negate_return",
+      "points": 3,
+      "killed": true,
+      "killer": "test_ac_state_mig",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_state_mig"
+      ]
+    },
+    {
+      "id": "MUT-07",
+      "module": "wenqu_core/deploy_framework.py",
+      "function": "verify",
+      "op": "flip_compare",
+      "points": 14,
+      "killed": true,
+      "killer": "test_ac_deploy_release",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_deploy_release"
+      ]
+    },
+    {
+      "id": "MUT-08",
+      "module": "wenqu_core/deploy_framework.py",
+      "function": "valid",
+      "op": "negate_return",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_deploy_release",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_deploy_release"
+      ]
+    },
+    {
+      "id": "MUT-09",
+      "module": "wenqu_core/station2_static.py",
+      "function": "_validate_identity",
+      "op": "flip_compare",
+      "points": 1,
+      "killed": true,
+      "killer": "test_ac_station_families",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_station_families"
+      ]
+    },
+    {
+      "id": "MUT-10",
+      "module": "wenqu_core/station3_contract.py",
+      "function": "derive_dynamic_denominator",
+      "op": "flip_compare",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_station_families",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_station_families"
+      ]
+    },
+    {
+      "id": "MUT-11",
+      "module": "wenqu_core/scheduler.py",
+      "function": "first_due_after",
+      "op": "flip_compare",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_ops_families",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_ops_families"
+      ]
+    },
+    {
+      "id": "MUT-12",
+      "module": "wenqu_core/capacity_monitor.py",
+      "function": "peak_budget_bytes",
+      "op": "flip_compare",
+      "points": 1,
+      "killed": true,
+      "killer": "test_ac_ops_families",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_ops_families"
+      ]
+    },
+    {
+      "id": "MUT-13",
+      "module": "wenqu_core/approval_keys.py",
+      "function": "verify_envelope",
+      "op": "negate_return",
+      "points": 3,
+      "killed": true,
+      "killer": "test_ac_auth_cond",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_auth_cond"
+      ]
+    },
+    {
+      "id": "MUT-14",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "has_unexpired_risk_authorization",
+      "op": "negate_return",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_auth_cond",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_auth_cond"
+      ]
+    },
+    {
+      "id": "MUT-15",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "_verify_signature",
+      "op": "flip_compare",
+      "points": 4,
+      "killed": true,
+      "killer": "test_ac_auth_cond",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_auth_cond"
+      ]
+    },
+    {
+      "id": "MUT-16",
+      "module": "wenqu_core/runner.py",
+      "function": "_build_env",
+      "op": "flip_compare",
+      "points": 1,
+      "killed": true,
+      "killer": "test_ac_act_run",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_act_run"
+      ]
+    },
+    {
+      "id": "MUT-17",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "reserve_action",
+      "op": "flip_compare",
+      "points": 3,
+      "killed": true,
+      "killer": "test_ac_act_run",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_act_run"
+      ]
+    },
+    {
+      "id": "MUT-18",
+      "module": "wenqu_core/ui_probe.py",
+      "function": "html_structural_gate",
+      "op": "negate_return",
+      "points": 2,
+      "killed": true,
+      "killer": "test_ac_ui_family",
+      "kill_rc": 1,
+      "test_files": [
+        "test_ac_ui_family"
+      ]
+    }
+  ]
+}

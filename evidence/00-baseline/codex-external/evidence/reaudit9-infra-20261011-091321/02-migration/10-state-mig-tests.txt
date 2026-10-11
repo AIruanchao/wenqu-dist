@@ -1,0 +1,906 @@
+timestamp=2026-10-11T01:14:11Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && nl -ba system/tests/test_ac_state_mig.py | sed -n '1,900p'
+--- output begin ---
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""§20 验收 ID 专属测试——STATE-01~11 / MIG-01~05（状态、账本、迁移）。
+     4	
+     5	正源（逐字对齐）：
+     6	    evidence/00-baseline/codex-external/方案.md §20.2（STATE-01~06、MIG-01~05）
+     7	    与 §20.5（STATE-07~11）表格的「注入/期望」列。
+     8	
+     9	被测体（wave6/P1F 工单后为两组，A 组断言不依赖 wenqu_pipeline 行为）：
+    10	    A. system/wenqu_core/store.py          —— EventStore（pipeline_events
+    11	       哈希链事件正源：append-only 触发器、控制事件守卫、BEGIN IMMEDIATE
+    12	       事务、WAL 并发、verify_chain、幂等 head）
+    13	       + system/wenqu_core/ledger_migrator.py —— LedgerMigrator（旧 JSONL
+    14	       账本迁移：quarantine/守恒/幂等/sidecar 审计；P0-6 第六轮统一正源
+    15	       ——导入行经公共 EventStore.append 写入同一张 pipeline_events）
+    16	       ——承载 STATE-01/03/04/06/07/08/10、MIG-01~05；
+    17	    B. system/wenqu_core/wenqu_pipeline.py —— 七段状态机 RunManager/
+    18	       ApprovalBroker（wave6 工单补齐产品面语义：STATE-02 ID/路径校验、
+    19	       STATE-05 writer epoch fencing、STATE-09 重放侧 identity 不变量、
+    20	       STATE-11 S7 缺授权终判）——承载 STATE-02/05/09/11。
+    21	
+    22	可实现性裁定（诚实优先，不硬凑、不 xfail）：
+    23	    本文件对全部 16 个 ID 给出专属真实测试：
+    24	        STATE-01~11、MIG-01~05
+    25	    修正记录（2026-10-08 W5 对账轮）：MIG-05 曾登记为不可实现（当时
+    26	    ledger_migrator 无 project 概念）；并行改写后的迁移器已落地最小实现
+    27	    （PROJECT_FIELDS 一致性提取 + project_key_conflict 显式隔离 + project_id
+    28	    贯通进事件负载），本文件随即以真实专属测试替换该过期登记——断言只增不减。
+    29	    修正记录（2026-10-08 wave6/P1F 工单）：STATE-02/05/09/11 曾登记为
+    30	    不可实现（彼时语义在 store/ledger_migrator 中不存在且本文件被禁止
+    31	    import wenqu_pipeline）；wave6 工单在 wenqu_pipeline.py 落地对应最小
+    32	    真实语义（run_id/finding_id 结构校验、writer epoch fencing、重放侧
+    33	    identity 漂移拒绝、adjudicate_gate_conditional 终判口）后，四条过期
+    34	    登记转为真实专属测试（负例必拒、断言只增不减）。
+    35	
+    36	覆盖边界（同样显式登记，不冒充完整验收面）：
+    37	    STATE-06/07/08/10 的完整语义 = store 层不可变/不可伪造保证 +
+    38	    RunManager（wenqu_pipeline）层状态机。本文件只测 store 层已实现的那一半
+    39	    （另一 agent 正在并行改 wenqu_pipeline，本文件禁止 import 它）；
+    40	    MIG-01 期望中的「+BLOCKED」在迁移器内的对应语义是 ERROR/BLOCKED 别名
+    41	    归一化为 BLOCKED 状态导入 + 坏行 quarantine 绝不导入为绿；
+    42	    整次迁移的 run 级 BLOCKED 聚合在编排层，不在本文件被测体范围内。
+    43	
+    44	旧账数据说明：MIG 族全部使用小型「合成旧账」fixture（本文件内
+    45	build_*_ledger 系列函数在临时目录生成），不是生产账本；
+    46	文件名/时间戳/字段名均为合成值。
+    47	
+    48	独立运行：python3 system/tests/test_ac_state_mig.py  → exit 0 全绿；
+    49	逐 ID 结果默认写临时目录（G9-07 测试零污染）；设 WENQU_EVIDENCE_OUT_DIR
+    50	可显式指定输出目录（有意更新 tracked evidence 快照时的正门）。
+    51	"""
+    52	import hashlib
+    53	import json
+    54	import os
+    55	import random
+    56	import shutil
+    57	import sqlite3
+    58	import subprocess
+    59	import sys
+    60	import tempfile
+    61	import threading
+    62	import time
+    63	from datetime import datetime, timezone
+    64	
+    65	HERE = os.path.dirname(os.path.abspath(__file__))
+    66	SYSTEM_DIR = os.path.dirname(HERE)                      # system/
+    67	REPO_ROOT = os.path.dirname(SYSTEM_DIR)                 # 仓根
+    68	sys.path.insert(0, SYSTEM_DIR)
+    69	
+    70	# A 组用例只依赖 store / ledger_migrator（对 wenqu_pipeline 零依赖）；
+    71	# B 组（wave6/P1F）按新工单依赖 wenqu_pipeline——STATE-02/05/09/11 的
+    72	# 产品语义按工单落在该模块（本会话独占其修改权）。
+    73	from wenqu_core.store import (                          # noqa: E402
+    74	    EventStore, ChainIntegrityError, GENESIS_HASH, is_control_event)
+    75	from wenqu_core.ledger_migrator import (                # noqa: E402
+    76	    LedgerMigrator, ConservationError, KNOWN_STATUSES,
+    77	    MIGRATION_EVENT_TYPE, PROJECT_FIELDS, extract_project_ids,
+    78	    PROJECT_KEY_CONFLICT_PREFIX)
+    79	import wenqu_core.wenqu_pipeline as _wp                 # noqa: E402  (B 组被测体)
+    80	from wenqu_core.wenqu_pipeline import (                 # noqa: E402
+    81	    RunManager, PipelineError, PipelineCorruptionError, TerminalRunError,
+    82	    ApprovalRejected, InvalidRunIdError, FencedWriterError,
+    83	    SevenStageStateMachine as _SM, STAGES as _PIPE_STAGES)
+    84	from wenqu_core.approval_keys import (                  # noqa: E402
+    85	    ApprovalKeyring, sign_envelope)
+    86	
+    87	def _artifact_out_dir() -> str:
+    88	    """证据工件输出目录（G9-07 测试零污染，R8-PYTEST-HISTORICAL-COLLECT-014）：
+    89	
+    90	    - 显式设 ``WENQU_EVIDENCE_OUT_DIR`` → 写该目录（需有意更新 tracked
+    91	      evidence 快照时的正门——人工跑、复核后另行入册）；
+    92	    - 缺省 → 独立临时目录（mkdtemp）——测试输出零污染，绝不改写仓内
+    93	      tracked evidence（git_head/时间戳不再被每次运行覆写）。
+    94	    """
+    95	    env_dir = os.environ.get("WENQU_EVIDENCE_OUT_DIR")
+    96	    if env_dir:
+    97	        os.makedirs(env_dir, exist_ok=True)
+    98	        return env_dir
+    99	    return tempfile.mkdtemp(prefix="wenqu-artifact-ac-state-mig-")
+   100	
+   101	
+   102	ARTIFACT_PATH = os.path.join(_artifact_out_dir(), "ac-state-mig.json")
+   103	
+   104	# ---------------------------------------------------------------------- #
+   105	# 不可实现登记表（模块级；语义在被测体中不存在，非测试跳过）
+   106	# wave6/P1F 后为空：STATE-02/05/09/11 已在 wenqu_pipeline 落地最小真实
+   107	# 语义并转为专属真实测试（见下方 B 组用例）；MIG-05 已在 W5 对账轮由
+   108	# 并行迁移器实现面承接。登记表保留机制本身——未来再出现被测体确无语义
+   109	# 的 ID 时按同一格式登记，不以 skip/xfail 冒充。
+   110	# ---------------------------------------------------------------------- #
+   111	NOT_IMPLEMENTABLE_IN_SCOPE: dict = {}
+   112	
+   113	# STATE-06/07/08/10 与 MIG-01 的覆盖边界（测的是被测体已实现的那一半）
+   114	COVERAGE_BOUNDARY = {
+   115	    "STATE-01": "测 store 层 schema 边界：携带任意 stage/status 的管线控制事件（RUN_*/STAGE_*/ATTEMPT_* 等 event_type）经公共 EventStore.append 一律 ValueError；attempt 状态枚举校验在 wenqu_pipeline（禁 import，不越界）",
+   116	    "STATE-06": "测 store 层：SUPERSEDED 属控制事件不可裸 append 伪造；WAITING 残留事件行不可 UPDATE/DELETE 静默消除，唯一出路是追加新事件。残留清扫与 SUPERSEDED 控制事件的实际签发在 RunManager（wenqu_pipeline，禁 import）",
+   117	    "STATE-07": "测 store 层：已落账的 PASSED 证据不可 UPDATE/DELETE 回改成 RUNNING；RUNNING 类状态转移事件是控制类型，普通（裸）事件无法伪造。转移表级拒绝（InvalidTransitionError）在 wenqu_pipeline（禁 import）",
+   118	    "STATE-08": "测 store 层：FAILED attempt 的旧证据行不可覆盖（UPDATE 拒绝），重试只能追加新事件（新 attempt 记录），旧证据逐字节不变且链可验证。attempt_id 分配与不可变（AttemptImmutabilityError）在 wenqu_pipeline（禁 import）",
+   119	    "STATE-10": "测 store 层前半句：WAITING/FAILED attempt 直接改回 RUNNING 的两条路（UPDATE 行 / 伪造控制事件）全拒；追加新 attempt 事件成功且旧行保留。后半句 stage projection 指向新 attempt 在 RunManager（禁 import）",
+   120	    "MIG-01": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
+   121	    "MIG-02": "测迁移器已实现面：ACCEPTED 是未知状态——无论缺不缺审批信息一律 quarantine（不猜映射为 PASS），进 quarantine=待人工 reopen 的账，sidecar 全程留痕。『invalid 后写 reopen 事件』属 risk acceptance 子系统（FND-016，不在被测体）",
+   122	    "MIG-04": "ConservationError 是防御性守卫：tally 与处理循环遍历同一 list，经公共 API 构造不出账目不平（已实证 + 代码通读）。本用例测同秩语义的运行时面：逐行独立对账零失联 + 统一 append-only 事件表上删行攻击被触发器直接拒绝（旧版独立 events 表删后补账的少账向量就此关闭）+ 重迁移幂等零变化 + 审计侧不可写则迁移整体失败、零部分导入、零假守恒记账",
+   123	    "MIG-05": "测迁移器最小实现面（P0-6 第六轮 MIG-05 落地）：PROJECT_FIELDS 一致性提取 + 多 project 身份字段值不一致 → project_key_conflict 显式 quarantine（绝不静默选边/拆成假项目）+ 一致时 project_id 贯通进事件负载。§21.1 canonical repo_id（forge_host+owner/repo）冻结映射表与 fingerprint collision 表不在被测体（编排层职责），本文件不越界",
+   124	    # ---- wave6/P1F（B 组，被测体 = wenqu_pipeline.py）---- #
+   125	    "STATE-02": "测 wenqu_pipeline 三个调用方可控 ID 面：create_run task_id（^字母数字/-/_ 且 ≤64，既有）、register_finding finding_id（^fnd_ 且 ≤64，wave6 补长度面）、全部公开 API 的 run_id（^run_[A-Za-z0-9_-]+$ 且 ≤64，wave6 新增 _validate_run_id 闸口）。../、绝对路径、NUL、超长一律结构层拒绝。store 层 event_id 是 canonical payload 内容哈希（STATE-03/04 已实证无调用方输入面），故注入面落在管线 ID 校验；审批信封内 stop_event_id 等绑定字段属 AUTH 族（AUTH-01/COND-02 已覆盖），不在本 ID 范围",
+   126	    "STATE-05": "fenced 写者（RunManager(writer_epoch=N)）的控制事件带 writer_epoch 扩展字段——超出冻结 run-event-v2 词表（默认/未启用模式零盖章、零比较、字节级兼容，P0-4 对抗 #9 的 schema 全绿面不受影响）——schema 升版登记为后续工作包；fencing 作用域=单 run 事件流（被接管流对旧 epoch writer 全写入拒绝，含 broker 消费路径 loader 栅栏；新流/新 run 不受旧租约牵连，本用例显式验证该边界）；epoch 唯一性由租约发放方保证（同 epoch=同租约不区分实例）",
+   127	    "STATE-09": "测重放侧 identity 不变量：RUN_CREATED 冻结身份后，流内任何事件携带漂移 identity（SHA/scope/policy 任一变化）或缺 identity 即 PipelineCorruptionError；『强制新 run』正道（supersede 旧 run + 新 identity 新建 run，不变量 #3）以正例激活。写入侧 identity 结构校验（_validate_identity：40-hex/枚举/必填）为既有语义由正常流隐式覆盖；审批跨 SHA/scope/policy 的绑定拒绝属 COND-02/AUTH-02 面（已覆盖）",
+   128	    "STATE-11": "complete_run 对『软终态缺可用授权』的 fail-closed 拒绝保持不变（P0-2 既有测试断言不回退）；终判 FAILED 由 wave6 专属裁决口 adjudicate_gate_conditional 承接（S7 软终态 + 无已消费/未过期/指纹匹配授权 → RUN_COMPLETED/COMPLETED/FAIL）。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL 留档），终判落在 run 层；gate_aggregator 的 technical eligibility/context failure 属 COND-01 面（已覆盖）",
+   129	}
+   130	
+   131	# ---------------------------------------------------------------------- #
+   132	# 基础设施
+   133	# ---------------------------------------------------------------------- #
+   134	PASS_N, FAIL_N = 0, 0
+   135	RESULTS = []          # [(test_id, name, ok, detail_dict)]
+   136	
+   137	
+   138	class TmpDir:
+   139	    def __init__(self, prefix):
+   140	        self.prefix = prefix
+   141	        self.path = None
+   142	
+   143	    def __enter__(self):
+   144	        self.path = tempfile.mkdtemp(prefix=self.prefix)
+   145	        return self.path
+   146	
+   147	    def __exit__(self, *exc):
+   148	        shutil.rmtree(self.path, ignore_errors=True)
+   149	
+   150	
+   151	def expect(exc, fn):
+   152	    try:
+   153	        fn()
+   154	    except exc:
+   155	        return
+   156	    except Exception as e:  # noqa: BLE001
+   157	        raise AssertionError(
+   158	            f"expected {exc.__name__}, got {type(e).__name__}: {e}")
+   159	    raise AssertionError(f"expected {exc.__name__}, nothing raised")
+   160	
+   161	
+   162	def raw_conn(db_path):
+   163	    """打开裸 sqlite 连接做对抗性 SQL（绕过 EventStore 侧 API）。"""
+   164	    conn = sqlite3.connect(db_path)
+   165	    conn.execute("PRAGMA busy_timeout=10000")
+   166	    return conn
+   167	
+   168	
+   169	def rows_of(conn, sql, args=()):
+   170	    return conn.execute(sql, args).fetchall()
+   171	
+   172	
+   173	# ---------------------------------------------------------------------- #
+   174	# P0-6 第六轮（统一事件正源）查询辅助：MIG 族断言全部落在唯一事件表
+   175	# pipeline_events 上（负载为 canonical JSON；位置溯源在 sidecar）
+   176	# ---------------------------------------------------------------------- #
+   177	def unified_rows(conn):
+   178	    """统一事件表全行快照（seq/event_id/payload/prev_event_hash/event_hash）。"""
+   179	    return rows_of(conn, "SELECT seq, event_id, payload, prev_event_hash, "
+   180	                         "event_hash FROM pipeline_events ORDER BY seq ASC")
+   181	
+   182	
+   183	def unified_payloads(conn, event_type=None):
+   184	    """统一事件表 payload 对象列表（可按 event_type 过滤）。"""
+   185	    out = []
+   186	    for (p,) in rows_of(conn, "SELECT payload FROM pipeline_events ORDER BY seq ASC"):
+   187	        obj = json.loads(p)
+   188	        if event_type is None or obj.get("event_type") == event_type:
+   189	            out.append(obj)
+   190	    return out
+   191	
+   192	
+   193	def assert_single_event_table(conn):
+   194	    """唯一正源断言：库里只有 pipeline_events 这一张事件表（旧 events 表
+   195	    不得被新代码创建/复活——两表两正源复发即红）。"""
+   196	    tables = {r[0] for r in rows_of(
+   197	        conn, "SELECT name FROM sqlite_master WHERE type='table'")}
+   198	    assert "pipeline_events" in tables, "统一事件表 pipeline_events 缺失"
+   199	    assert "events" not in tables, "旧 events 表被创建（两表两正源复发）"
+   200	
+   201	
+   202	def count_rows(conn, table):
+   203	    """表行数；表不存在（失败路径未建 bookkeeping 表）按 0 计（诚实计数，
+   204	    不把『表不存在』误报为非零或让查询异常逃逸）。"""
+   205	    hit = rows_of(conn, "SELECT 1 FROM sqlite_master WHERE type='table' "
+   206	                        "AND name = ?", (table,))
+   207	    if not hit:
+   208	        return 0
+   209	    return rows_of(conn, f"SELECT COUNT(*) FROM {table}")[0][0]  # 表名为字面量
+   210	
+   211	
+   212	def assert_migration_chain(db, expected_len):
+   213	    """迁移产物与 EventStore 同表同链：verify_chain 通过、长度精确。"""
+   214	    store = EventStore(db)
+   215	    try:
+   216	        head, total = store.head()
+   217	        verify = store.verify_chain()
+   218	        assert verify["ok"] is True and verify["length"] == expected_len, verify
+   219	        assert total == expected_len and head == verify["head"]
+   220	        return head
+   221	    finally:
+   222	        store.close()
+   223	
+   224	
+   225	# ---------------------------------------------------------------------- #
+   226	# STATE-01：任意 stage/status → schema 拒绝
+   227	# ---------------------------------------------------------------------- #
+   228	def test_STATE_01_arbitrary_stage_status_schema_rejected():
+   229	    """注入：任意 stage/status 组合（合法名/未知名/空/超长/含换行与穿越串）。
+   230	
+   231	    期望（被测体已实现面）：这些值要进事件账本只能走管线控制事件
+   232	    （RUN_*/STAGE_*/ATTEMPT_*/WAITING_*/APPROVAL_*/ACTION_*/FINDING_* /
+   233	    SUPERSEDED），而公共 EventStore.append 对控制类型一律 ValueError——
+   234	    即 store 的 schema 边界对「任意 stage/status 的状态写入」整体拒绝；
+   235	    连伪造 seal 字段也绕不过（守卫按 event_type 判定）。
+   236	    """
+   237	    stages = ["S1", "S7", "nonexistent-stage", "", "x" * 5000,
+   238	              "../secrets", "/etc/passwd", "a\nb", "站七"]
+   239	    statuses = ["PASS", "FAIL", "RUNNING", "PASSED", "WAITING", "", "WEIRD",
+   240	                "x" * 5000, "PASSED\nRUNNING"]
+   241	    control_types = ["STAGE_ATTEMPT_RECORDED", "STAGE_STATUS", "RUN_STATUS",
+   242	                     "ATTEMPT_STATUS", "RUN_RUNNING"]
+   243	    checked = 0
+   244	    with TmpDir("ac-s1-") as td:
+   245	        store = EventStore(os.path.join(td, "ev.db"))
+   246	        try:
+   247	            for etype in control_types:
+   248	                for stage in stages:
+   249	                    for status in statuses:
+   250	                        ev = {"event_type": etype, "stage": stage,
+   251	                              "status": status, "attempt": "a-1"}
+   252	                        expect(ValueError, lambda ev=ev: store.append(ev))
+   253	                        checked += 1
+   254	            # 伪造 seal 字段也绕不过守卫（守卫只看 event_type）
+   255	            for forged in ({"event_type": "STAGE_PASSED", "seal": "f" * 64},
+   256	                           {"event_type": "SUPERSEDED", "seal": "0" * 64},
+   257	                           {"event_type": "RUN_RUNNING", "seal": "ab"}):
+   258	                expect(ValueError, lambda ev=forged: store.append(ev))
+   259	                checked += 1
+   260	            # 对照组：普通（非控制）事件不受影响——拒绝面精确针对状态写入路径
+   261	            h, ins = store.append({"event_type": "OBSERVATION",
+   262	                                   "stage": "S1", "status": "PASS",
+   263	                                   "note": "ordinary event is fine"})
+   264	            assert ins is True
+   265	            # 任意 stage/status 没有经任何路径落库（对照组仅 1 行）
+   266	            assert store.head() == (h, 1)
+   267	            assert store.verify_chain()["ok"] is True
+   268	        finally:
+   269	            store.close()
+   270	    assert checked == len(control_types) * len(stages) * len(statuses) + 3
+   271	    return {"rejected_combinations": checked,
+   272	            "control_types": control_types,
+   273	            "boundary": "attempt 状态枚举校验在 wenqu_pipeline（本文件禁 import）"}
+   274	
+   275	
+   276	# ---------------------------------------------------------------------- #
+   277	# STATE-03：100×100 并发写 → 零丢失/重复
+   278	# ---------------------------------------------------------------------- #
+   279	def test_STATE_03_concurrent_100x100_no_loss_no_dup():
+   280	    """注入：100 个并发 writer × 各 100 条不同事件（真实多连接 WAL 并发）。
+   281	
+   282	    期望：零丢失（10000 行全在）、零重复（10000 个唯一 event_id，
+   283	    每条恰好 inserted=True 一次）、链仍单一线性且 verify_chain 通过。
+   284	    附加子场景：20 个 writer 并发追加同一内容 → 恰好 1 行（幂等不双入账）。
+   285	    """
+   286	    WRITERS, PER_WRITER = 100, 100
+   287	    with TmpDir("ac-s3-") as td:
+   288	        db = os.path.join(td, "ev.db")
+   289	        EventStore(db).close()          # 预建 schema，再放开并发
+   290	        inserted = [0] * WRITERS
+   291	        errors = []
+   292	
+   293	        def writer(w):
+   294	            try:
+   295	                s = EventStore(db)
+   296	                try:
+   297	                    for i in range(PER_WRITER):
+   298	                        _, ins = s.append({"kind": "load", "writer": w, "i": i})
+   299	                        if ins:
+   300	                            inserted[w] += 1
+   301	                finally:
+   302	                    s.close()
+   303	            except Exception as e:      # noqa: BLE001
+   304	                errors.append(f"writer{w}:{type(e).__name__}:{e}")
+   305	
+   306	        threads = [threading.Thread(target=writer, args=(w,))
+   307	                   for w in range(WRITERS)]
+   308	        for t in threads:
+   309	            t.start()
+   310	        for t in threads:
+   311	            t.join()
+   312	        assert not errors, f"并发写抛错（即丢失面）: {errors[:3]}"
+   313	
+   314	        store = EventStore(db)
+   315	        try:
+   316	            head, total = store.head()
+   317	            assert total == WRITERS * PER_WRITER, f"丢失/缺行: {total}"
+   318	            assert sum(inserted) == WRITERS * PER_WRITER, \
+   319	                f"inserted 计数不符: {sum(inserted)}"
+   320	            uniq_ids = rows_of(
+   321	                store._conn,
+   322	                "SELECT COUNT(DISTINCT event_id) FROM pipeline_events")[0][0]
+   323	            assert uniq_ids == WRITERS * PER_WRITER, f"重复行: {uniq_ids}"
+   324	            verify = store.verify_chain()
+   325	            assert verify["ok"] and verify["length"] == WRITERS * PER_WRITER
+   326	            assert verify["head"] == head
+   327	        finally:
+   328	            store.close()
+   329	
+   330	        # 子场景：同内容并发重放 → 恰好 1 行、1 个 inserted=True、hash 全同
+   331	        db2 = os.path.join(td, "idem.db")
+   332	        EventStore(db2).close()
+   333	        results, ierr = [], []
+   334	
+   335	        def idem_writer():
+   336	            try:
+   337	                s = EventStore(db2)
+   338	                try:
+   339	                    results.append(s.append({"same": "retry-payload", "n": 1}))
+   340	                finally:
+   341	                    s.close()
+   342	            except Exception as e:      # noqa: BLE001
+   343	                ierr.append(type(e).__name__)
+   344	
+   345	        threads = [threading.Thread(target=idem_writer) for _ in range(20)]
+   346	        for t in threads:
+   347	            t.start()
+   348	        for t in threads:
+   349	            t.join()
+   350	        assert not ierr, f"幂等并发抛错: {ierr}"
+   351	        assert sum(1 for _, ins in results if ins) == 1
+   352	        assert len({h for h, _ in results}) == 1
+   353	        s2 = EventStore(db2)
+   354	        try:
+   355	            assert s2.head()[1] == 1
+   356	        finally:
+   357	            s2.close()
+   358	    return {"writers": WRITERS, "per_writer": PER_WRITER,
+   359	            "total_rows": WRITERS * PER_WRITER,
+   360	            "distinct_event_ids": WRITERS * PER_WRITER,
+   361	            "chain_verified": True,
+   362	            "same_content_concurrent_rows": 1}
+   363	
+   364	
+   365	# ---------------------------------------------------------------------- #
+   366	# STATE-04：事务各点 kill -9 → 全有或全无
+   367	# ---------------------------------------------------------------------- #
+   368	# 子进程脚本：包装 sqlite3.connect 拦截 execute，在事务的确定性点位对自身发
+   369	# SIGKILL（真 kill -9，不是异常模拟）；timer 模式在随机延时后自杀。
+   370	_KILL_CHILD_SRC = r'''
+   371	import os, signal, sys, threading
+   372	import sqlite3
+   373	import wenqu_core.store as st
+   374	
+   375	db, mode, pre, delay = sys.argv[1], sys.argv[2], int(sys.argv[3]), float(sys.argv[4])
+   376	
+   377	class WrapConn:
+   378	    def __init__(self, real):
+   379	        self._real = real
+   380	        self._begins = 0
+   381	    def execute(self, sql, *a):
+   382	        cur = self._real.execute(sql, *a)
+   383	        up = sql.upper()
+   384	        if up.startswith("BEGIN"):
+   385	            self._begins += 1
+   386	            if self._begins > pre and mode == "after_begin":
+   387	                os.kill(os.getpid(), signal.SIGKILL)
+   388	        elif mode == "after_insert" and up.startswith("INSERT") and self._begins > pre:
+   389	            os.kill(os.getpid(), signal.SIGKILL)
+   390	        elif mode == "after_commit" and up.startswith("COMMIT") and self._begins > pre:
+   391	            os.kill(os.getpid(), signal.SIGKILL)
+   392	        return cur
+   393	    def __getattr__(self, name):
+   394	        return getattr(self._real, name)
+   395	
+   396	_orig = sqlite3.connect
+   397	sqlite3.connect = lambda *a, **kw: WrapConn(_orig(*a, **kw))
+   398	
+   399	if mode == "timer":
+   400	    threading.Timer(delay, lambda: os.kill(os.getpid(), signal.SIGKILL)).start()
+   401	
+   402	s = st.EventStore(db)
+   403	for i in range(pre):
+   404	    s.append({"pre": i})
+   405	if mode == "timer":
+   406	    for i in range(50):
+   407	        s.append({"batch": i})
+   408	else:
+   409	    s.append({"doomed": True})
+   410	print("survived")
+   411	'''
+   412	
+   413	
+   414	def _run_kill_child(db, mode, pre, delay=0.0):
+   415	    env = dict(os.environ)
+   416	    env["PYTHONPATH"] = SYSTEM_DIR + os.pathsep + env.get("PYTHONPATH", "")
+   417	    return subprocess.run(
+   418	        [sys.executable, "-c", _KILL_CHILD_SRC, db, mode, str(pre), str(delay)],
+   419	        capture_output=True, text=True, timeout=60, env=env)
+   420	
+   421	
+   422	def test_STATE_04_kill9_all_or_nothing():
+   423	    """注入：事务各点 kill -9（SIGKILL，真崩溃，非异常模拟）。
+   424	
+   425	    确定性点位（对第 pre+1 条 doomed append）：
+   426	      after_begin  —— BEGIN IMMEDIATE 刚执行完
+   427	      after_insert —— INSERT 已执行、未 COMMIT
+   428	      after_commit —— COMMIT 已执行、未返回调用方
+   429	    随机点位：timer 模式在 50 条批量写入中随机自杀，重复 8 轮。
+   430	    期望（全有或全无）：重开库后哈希链始终可验证；行数只会是
+   431	    pre（事务未提交，WAL 回收丢弃）或 pre+1（已提交），绝无撕裂半行；
+   432	    批量场景行数落在 [0,50] 且链完好。
+   433	    """
+   434	    points = {}
+   435	    for mode in ("after_begin", "after_insert", "after_commit"):
+   436	        with TmpDir("ac-s4-") as td:
+   437	            db = os.path.join(td, "ev.db")
+   438	            pre = 3
+   439	            p = _run_kill_child(db, mode, pre)
+   440	            assert p.returncode == -9, \
+   441	                f"{mode}: 子进程未死于 SIGKILL (rc={p.returncode})"
+   442	            store = EventStore(db)
+   443	            try:
+   444	                total = store.head()[1]
+   445	                verify = store.verify_chain()
+   446	                doomed = rows_of(
+   447	                    store._conn,
+   448	                    "SELECT COUNT(*) FROM pipeline_events "
+   449	                    "WHERE payload LIKE '%doomed%'")[0][0]
+   450	            finally:
+   451	                store.close()
+   452	            if mode == "after_commit":
+   453	                assert total == pre + 1 and doomed == 1, \
+   454	                    f"{mode}: 已提交事务丢失 total={total} doomed={doomed}"
+   455	            else:
+   456	                assert total == pre and doomed == 0, \
+   457	                    f"{mode}: 未提交事务泄漏 total={total} doomed={doomed}"
+   458	            assert verify["ok"] is True, f"{mode}: 崩溃后链断裂"
+   459	            points[mode] = {"rows": total, "chain_ok": True,
+   460	                            "committed": mode == "after_commit"}
+   461	
+   462	    rng = random.Random(20261008)      # 固定种子，证据可复现
+   463	    timer_observed = []
+   464	    for round_no in range(8):
+   465	        with TmpDir("ac-s4t-") as td:
+   466	            db = os.path.join(td, "ev.db")
+   467	            delay = rng.uniform(0.005, 0.25)
+   468	            p = _run_kill_child(db, "timer", 0, delay)
+   469	            assert p.returncode == -9, f"timer r{round_no}: rc={p.returncode}"
+   470	            store = EventStore(db)
+   471	            try:
+   472	                total = store.head()[1]
+   473	                verify = store.verify_chain()
+   474	            finally:
+   475	                store.close()
+   476	            assert 0 <= total <= 50, f"timer r{round_no}: 行数越界 {total}"
+   477	            assert verify["ok"] is True, f"timer r{round_no}: 链断裂 @ {total} 行"
+   478	            timer_observed.append({"round": round_no, "delay_s": round(delay, 3),
+   479	                                   "rows": total, "chain_ok": True})
+   480	    return {"deterministic_points": points,
+   481	            "timer_rounds": timer_observed,
+   482	            "verdict": "每次崩溃后：链完好，行数=已提交事务数（全有或全无）"}
+   483	
+   484	
+   485	# ---------------------------------------------------------------------- #
+   486	# STATE-06：WAITING 终态残留 → SUPERSEDED 事件，不静默删
+   487	# ---------------------------------------------------------------------- #
+   488	def test_STATE_06_waiting_residue_superseded_not_silently_deleted():
+   489	    """注入：账本里留有 WAITING 终态残留事件行；尝试静默消除它。
+   490	
+   491	    期望（被测体已实现面）：
+   492	      1) 残留行不可 DELETE/UPDATE（静默删除路径被 append-only 触发器关死）；
+   493	      2) SUPERSEDED 是控制事件类型——裸 append 伪造『已被接管』被拒；
+   494	      3) 唯一出路是追加新事件（账本延长，残留行逐字节保留、链可验证）。
+   495	    """
+   496	    with TmpDir("ac-s6-") as td:
+   497	        db = os.path.join(td, "ev.db")
+   498	        store = EventStore(db)
+   499	        try:
+   500	            store.append({"event_type": "NOTE", "stage": "S5",
+   501	                          "residue": "attempt waiting since kill -9"})
+   502	            residue_snapshot = rows_of(
+   503	                store._conn, "SELECT seq, payload, event_hash FROM pipeline_events")
+   504	            # 1) 静默删/改两条路全拒
+   505	            expect(sqlite3.IntegrityError, lambda: store._conn.execute(
+   506	                "DELETE FROM pipeline_events WHERE payload LIKE '%waiting%'"))
+   507	            expect(sqlite3.IntegrityError, lambda: store._conn.execute(
+   508	                "UPDATE pipeline_events SET payload = '{}' "
+   509	                "WHERE payload LIKE '%waiting%'"))
+   510	            # 裸连接同样拒（触发器在 schema 层，不依赖 EventStore API）
+   511	            conn = raw_conn(db)
+   512	            try:
+   513	                expect(sqlite3.IntegrityError, lambda: conn.execute(
+   514	                    "DELETE FROM pipeline_events"))
+   515	            finally:
+   516	                conn.close()
+   517	            # 2) 伪造 SUPERSEDED 控制事件被拒（覆盖旧残留必须走带 seal 的内部口）
+   518	            expect(ValueError, lambda: store.append(
+   519	                {"event_type": "SUPERSEDED", "residue_ref": "S5"}))
+   520	            expect(ValueError, lambda: store.append(
+   521	                {"event_type": "WAITING_SUPERSEDED", "residue_ref": "S5"}))
+   522	            # 3) 正道：追加接管事件；残留行原样保留
+   523	            h2, ins = store.append({"event_type": "NOTE", "stage": "S5",
+   524	                                    "superseded_by": "run-2"})
+   525	            assert ins is True
+   526	            after = rows_of(
+   527	                store._conn, "SELECT seq, payload, event_hash FROM pipeline_events")
+   528	            assert after[:len(residue_snapshot)] == residue_snapshot, \
+   529	                "残留行被改动（不允许）"
+   530	            assert store.head() == (h2, 2)
+   531	            assert store.verify_chain()["ok"] is True
+   532	        finally:
+   533	            store.close()
+   534	    return {"silent_delete": "rejected (append-only trigger)",
+   535	            "silent_update": "rejected (append-only trigger)",
+   536	            "forged_superseded_events": "rejected (control-event guard)",
+   537	            "residue_rows_preserved": 1,
+   538	            "boundary": "SUPERSEDED 控制事件的实际签发在 RunManager（禁 import）"}
+   539	
+   540	
+   541	# ---------------------------------------------------------------------- #
+   542	# STATE-07：普通事件把 PASSED 改回 RUNNING → 拒绝
+   543	# ---------------------------------------------------------------------- #
+   544	def test_STATE_07_normal_event_cannot_flip_passed_to_running():
+   545	    """注入：已落账的 PASSED 证据；三种『改回 RUNNING』的尝试。
+   546	
+   547	    期望（被测体已实现面）：
+   548	      1) UPDATE 旧行把 PASSED 换成 RUNNING → 触发器拒绝；
+   549	      2) DELETE 旧行再补一条 RUNNING 版本 → DELETE 拒绝；
+   550	      3) 普通调用方伪造状态转移事件（event_type 为 RUNNING/ATTEMPT_*/…）
+   551	        → 控制事件守卫拒绝（状态转移只能走带 seal 的内部口）；
+   552	      4) 事后账本完好：PASSED 行原样、链可验证。
+   553	    """
+   554	    with TmpDir("ac-s7-") as td:
+   555	        db = os.path.join(td, "ev.db")
+   556	        store = EventStore(db)
+   557	        try:
+   558	            store.append({"event_type": "NOTE", "stage": "S3",
+   559	                          "status": "PASSED", "evidence": "att-1"})
+   560	            before = rows_of(store._conn, "SELECT payload FROM pipeline_events")
+   561	            # 1) UPDATE 改状态
+   562	            expect(sqlite3.IntegrityError, lambda: store._conn.execute(
+   563	                "UPDATE pipeline_events SET payload = replace(payload, "
+   564	                "'PASSED', 'RUNNING')"))
+   565	            # 2) DELETE 后重写
+   566	            expect(sqlite3.IntegrityError, lambda: store._conn.execute(
+   567	                "DELETE FROM pipeline_events WHERE payload LIKE '%PASSED%'"))
+   568	            # 3) 伪造 RUNNING 状态转移控制事件（普通事件无转移语义，只能冒充控制类型）
+   569	            for forged in ({"event_type": "RUN_RUNNING"},
+   570	                           {"event_type": "ATTEMPT_RESUMED", "status": "RUNNING"},
+   571	                           {"event_type": "STAGE_STATUS", "stage": "S3",
+   572	                            "status": "RUNNING"}):
+   573	                expect(ValueError, lambda ev=forged: store.append(ev))
+   574	            after = rows_of(store._conn, "SELECT payload FROM pipeline_events")
+   575	            assert after == before, "PASSED 证据被改动"
+   576	            assert store.head()[1] == 1
+   577	            assert store.verify_chain()["ok"] is True
+   578	            # 仍是 PASSED
+   579	            assert rows_of(store._conn, "SELECT COUNT(*) FROM pipeline_events "
+   580	                          "WHERE payload LIKE '%PASSED%'")[0][0] == 1
+   581	            assert rows_of(store._conn, "SELECT COUNT(*) FROM pipeline_events "
+   582	                          "WHERE payload LIKE '%RUNNING%'")[0][0] == 0
+   583	        finally:
+   584	            store.close()
+   585	    return {"update_path": "rejected", "delete_rewrite_path": "rejected",
+   586	            "forged_transition_events": "rejected",
+   587	            "passed_evidence_intact": True,
+   588	            "boundary": "转移表级拒绝（InvalidTransitionError）在 wenqu_pipeline"}
+   589	
+   590	
+   591	# ---------------------------------------------------------------------- #
+   592	# STATE-08：FAILED 重试 → 新 attempt，旧证据不覆盖
+   593	# ---------------------------------------------------------------------- #
+   594	def test_STATE_08_failed_retry_new_attempt_old_evidence_intact():
+   595	    """注入：一次 FAILED attempt 的证据事件；随后发起『重试』。
+   596	
+   597	    期望（被测体已实现面）：
+   598	      1) 用新 attempt 数据覆盖旧证据行 → UPDATE 拒绝；
+   599	      2) 正当重试路径 = 追加一条新 attempt 事件（新内容、新 event_id/hash）；
+   600	      3) 旧 FAILED 证据逐字节不变（payload+event_hash 快照对比），
+   601	         新旧 attempt 同时在账、链可验证——旧证据不覆盖。
+   602	    """
+   603	    with TmpDir("ac-s8-") as td:
+   604	        db = os.path.join(td, "ev.db")
+   605	        store = EventStore(db)
+   606	        try:
+   607	            store.append({"event_type": "NOTE", "attempt": "att-1",
+   608	                          "result": "FAILED", "log": "exit 1 at S2",
+   609	                          "ts": "2026-10-08T00:00:00Z"})
+   610	            old = rows_of(store._conn,
+   611	                          "SELECT seq, payload, prev_event_hash, event_hash "
+   612	                          "FROM pipeline_events")
+   613	            # 1) 覆盖旧证据 → 拒绝
+   614	            expect(sqlite3.IntegrityError, lambda: store._conn.execute(
+   615	                "UPDATE pipeline_events SET payload = ? WHERE payload LIKE ?",
+   616	                (json.dumps({"event_type": "NOTE", "attempt": "att-2",
+   617	                             "result": "RUNNING"}, sort_keys=True), "%att-1%")))
+   618	            # 2) 正当路径：追加新 attempt
+   619	            h2, ins = store.append({"event_type": "NOTE", "attempt": "att-2",
+   620	                                    "result": "RUNNING", "retry_of": "att-1",
+   621	                                    "ts": "2026-10-08T01:00:00Z"})
+   622	            assert ins is True
+   623	            # 3) 旧证据不变；新 attempt 落账；链完好
+   624	            rows = rows_of(store._conn,
+   625	                           "SELECT seq, payload, prev_event_hash, event_hash "
+   626	                           "FROM pipeline_events ORDER BY seq")
+   627	            assert rows[0] == old[0], "旧 FAILED 证据被覆盖/改动"
+   628	            assert rows[1][1] != old[0][1] and rows[1][3] == h2
+   629	            assert store.head() == (h2, 2)
+   630	            assert store.verify_chain()["ok"] is True
+   631	            both = rows_of(store._conn,
+   632	                           "SELECT COUNT(*) FROM pipeline_events "
+   633	                           "WHERE payload LIKE '%att-%'")[0][0]
+   634	            assert both == 2
+   635	        finally:
+   636	            store.close()
+   637	    return {"overwrite_attempt": "rejected",
+   638	            "old_evidence_byte_identical": True,
+   639	            "attempts_in_ledger": ["att-1 (FAILED)", "att-2 (new, RUNNING)"],
+   640	            "chain_verified": True,
+   641	            "boundary": "attempt_id 分配/AttemptImmutabilityError 在 wenqu_pipeline"}
+   642	
+   643	
+   644	# ---------------------------------------------------------------------- #
+   645	# STATE-10：WAITING/FAILED attempt 直接改回 RUNNING → 拒绝；
+   646	#           追加新 attempt 后（projection 由管道层指向它）
+   647	# ---------------------------------------------------------------------- #
+   648	def test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok():
+   649	    """注入：WAITING 残留 attempt 与 FAILED attempt 各一条证据行；
+   650	    尝试把它们『直接改回 RUNNING』。
+   651	
+   652	    期望（被测体已实现面·前半句）：
+   653	      1) UPDATE 行改 RUNNING → 拒绝（两行都拒）；
+   654	      2) 伪造 ATTEMPT_/RUNNING 控制事件 → 拒绝；
+   655	      （后半句）追加新 attempt 事件是允许的出路：新事件落账、
+   656	      旧 WAITING/FAILED 行原样保留（projection 读账决定指向——该读侧
+   657	      逻辑在 RunManager，本文件不越界重造）。
+   658	    """
+   659	    with TmpDir("ac-s10-") as td:
+   660	        db = os.path.join(td, "ev.db")
+   661	        store = EventStore(db)
+   662	        try:
+   663	            store.append({"event_type": "NOTE", "attempt": "att-1",
+   664	                          "status": "WAITING", "why": "manual-gate"})
+   665	            store.append({"event_type": "NOTE", "attempt": "att-2",
+   666	                          "status": "FAILED", "why": "timeout"})
+   667	            snap = rows_of(store._conn,
+   668	                           "SELECT seq, payload, event_hash FROM pipeline_events "
+   669	                           "ORDER BY seq")
+   670	            # 1) 两行直接 UPDATE 改 RUNNING → 全拒
+   671	            for marker in ("WAITING", "FAILED"):
+   672	                expect(sqlite3.IntegrityError, lambda m=marker: store._conn.execute(
+   673	                    "UPDATE pipeline_events SET payload = replace(payload, ?, "
+   674	                    "'RUNNING')", (m,)))
+   675	            # 2) 伪造控制事件改状态 → 拒绝
+   676	            for forged in ({"event_type": "ATTEMPT_RESUMED", "attempt": "att-1",
+   677	                            "status": "RUNNING"},
+   678	                           {"event_type": "RUN_RUNNING", "attempt": "att-2"},
+   679	                           {"event_type": "WAITING_RESUMED", "attempt": "att-1"}):
+   680	                expect(ValueError, lambda ev=forged: store.append(ev))
+   681	            # 3) 正道：追加新 attempt；旧行原样保留
+   682	            h3, ins = store.append({"event_type": "NOTE", "attempt": "att-3",
+   683	                                    "status": "RUNNING",
+   684	                                    "continues_from": ["att-1", "att-2"]})
+   685	            assert ins is True
+   686	            rows = rows_of(store._conn,
+   687	                           "SELECT seq, payload, event_hash FROM pipeline_events "
+   688	                           "ORDER BY seq")
+   689	            assert rows[0] == snap[0] and rows[1] == snap[1], \
+   690	                "WAITING/FAILED 旧行被改动或被删"
+   691	            assert store.head() == (h3, 3)
+   692	            assert store.verify_chain()["ok"] is True
+   693	            still = rows_of(store._conn, "SELECT COUNT(*) FROM pipeline_events "
+   694	                            "WHERE payload LIKE '%WAITING%'")[0][0]
+   695	            assert still == 1
+   696	        finally:
+   697	            store.close()
+   698	    return {"direct_update_to_running": "rejected (WAITING & FAILED rows)",
+   699	            "forged_control_transitions": "rejected",
+   700	            "new_attempt_appended": "att-3",
+   701	            "old_rows_preserved": ["att-1 WAITING", "att-2 FAILED"],
+   702	            "boundary": "stage projection 指向新 attempt 在 RunManager（禁 import）"}
+   703	
+   704	
+   705	# ---------------------------------------------------------------------- #
+   706	# 合成旧账 fixture 构造器（MIG 族共用；均为合成数据，非生产账本）
+   707	# ---------------------------------------------------------------------- #
+   708	def _write_lines(dirpath, name, lines):
+   709	    path = os.path.join(dirpath, name)
+   710	    with open(path, "w", encoding="utf-8") as fh:
+   711	        fh.write("\n".join(lines) + "\n")
+   712	    return path
+   713	
+   714	
+   715	def _sidecar_records(path):
+   716	    out = []
+   717	    with open(path, encoding="utf-8") as fh:
+   718	        for ln in fh:
+   719	            ln = ln.strip()
+   720	            if ln:
+   721	                out.append(json.loads(ln))
+   722	    return out
+   723	
+   724	
+   725	# ---------------------------------------------------------------------- #
+   726	# MIG-01：坏 JSON/未知状态 → quarantine+BLOCKED
+   727	# ---------------------------------------------------------------------- #
+   728	def test_MIG_01_bad_json_unknown_status_quarantine():
+   729	    """注入（合成旧账）：坏 JSON、非对象 JSON、缺 status/ts、未知状态；
+   730	    对照组：已知别名（含 ERROR→BLOCKED 的 fail-closed 归一）。
+   731	
+   732	    期望（被测体已实现面·P0-6 第六轮统一正源契约）：坏行一律 quarantine
+   733	    （reason 精确），绝不进入唯一事件表 pipeline_events；导入行经公共
+   734	    EventStore.append 落同一哈希链（单一事件表+单一写入 API），migration_runs
+   735	    记 quarantined 计数；sidecar 逐行留痕；ERROR/BLOCKED 行按已知状态
+   736	    BLOCKED 入链——绝不把坏行洗成绿。
+   737	    """
+   738	    with TmpDir("ac-m1-") as td:
+   739	        src = os.path.join(td, "legacy"); os.makedirs(src)
+   740	        lines = [
+   741	            '{"status": "PASS", "ts": "2026-10-01T00:00:00Z", "id": 1}',
+   742	            '{"status": "ERROR", "ts": "2026-10-01T00:01:00Z", "id": 2}',
+   743	            '{"status": "BLOCKED", "ts": "2026-10-01T00:02:00Z", "id": 3}',
+   744	            '{"status": "OK", "ts": "2026-10-01T00:03:00Z", "id": 4}',
+   745	            '{"status": "FIXED", "ts": "2026-10-01T00:04:00Z", "id": 5}',
+   746	            '{broken json',
+   747	            '["not", "an", "object"]',
+   748	            '"just a string"',
+   749	            '{"status": "PASS"}',
+   750	            '{"ts": "2026-10-01T00:05:00Z"}',
+   751	            '{"status": "", "ts": "2026-10-01T00:06:00Z"}',
+   752	            '{"status": "WEIRD_STATE", "ts": "2026-10-01T00:07:00Z"}',
+   753	            '',
+   754	            '   ',
+   755	        ]
+   756	        _write_lines(src, "legacy-a.jsonl", lines)
+   757	        db = os.path.join(td, "mig.db")
+   758	        mig = LedgerMigrator(src, db)
+   759	        report = mig.migrate()
+   760	
+   761	        c = report["conservation"]
+   762	        assert c["lines_total"] == 12, c          # 空白行不计分母
+   763	        assert c["imported"] == 5 and c["quarantined"] == 7 and c["duplicates"] == 0
+   764	        assert report["conserved"] is True
+   765	        assert report["imported_status_counts"] == {
+   766	            "BLOCKED": 2, "FIXED_PENDING_VERIFY": 1, "PASS": 2}
+   767	        assert report["quarantine_reasons"] == {
+   768	            "invalid_json": 1, "missing_field:status": 2, "missing_field:ts": 1,
+   769	            "not_a_json_object": 2, "unknown_status:WEIRD_STATE": 1}
+   770	        # P0-6 第六轮：统一正源锚点字段
+   771	        assert report["event_table"] == "pipeline_events"
+   772	        assert report["write_api"] == "EventStore.append"
+   773	
+   774	        conn = sqlite3.connect(db)
+   775	        try:
+   776	            assert_single_event_table(conn)      # 唯一事件表（无第二 events 表）
+   777	            mig_rows = unified_payloads(conn, MIGRATION_EVENT_TYPE)
+   778	            statuses = {}
+   779	            for o in mig_rows:
+   780	                statuses[o["status"]] = statuses.get(o["status"], 0) + 1
+   781	            assert len(mig_rows) == 5
+   782	            assert statuses == {"BLOCKED": 2, "FIXED_PENDING_VERIFY": 1,
+   783	                                "PASS": 2}
+   784	            # 坏行绝不在唯一事件表里（按导入行 raw 逐条比对，不信 LIKE）
+   785	            imported_raws = {o["raw"] for o in mig_rows}
+   786	            for bad in ('{broken json', '["not", "an", "object"]',
+   787	                        '"just a string"', '{"status": "PASS"}',
+   788	                        '{"ts": "2026-10-01T00:05:00Z"}',
+   789	                        '{"status": "", "ts": "2026-10-01T00:06:00Z"}',
+   790	                        '{"status": "WEIRD_STATE", "ts": "2026-10-01T00:07:00Z"}'):
+   791	                assert bad not in imported_raws, f"坏行被导入: {bad}"
+   792	            # 事件负载是行内容的纯函数：line_sha 与 raw 逐条对应，
+   793	            # event_id = sha256(canonical payload)（与 EventStore 同一幂等键）
+   794	            for o, row in zip(mig_rows, unified_rows(conn)):
+   795	                assert o["line_sha"] == hashlib.sha256(
+   796	                    o["raw"].encode("utf-8")).hexdigest()
+   797	                assert o["event_type"] == MIGRATION_EVENT_TYPE
+   798	                canon = json.dumps(o, sort_keys=True, separators=(",", ":"),
+   799	                                   ensure_ascii=False)
+   800	                assert row[1] == hashlib.sha256(
+   801	                    canon.encode("utf-8")).hexdigest()
+   802	            run = rows_of(conn, "SELECT files_scanned, lines_total, imported, "
+   803	                              "duplicates, quarantined, conserved FROM "
+   804	                              "migration_runs")
+   805	            assert run == [(1, 12, 5, 0, 7, 1)]
+   806	        finally:
+   807	            conn.close()
+   808	        # 迁移产物与 EventStore 同表同链（唯一正源运行时证明）
+   809	        assert_migration_chain(db, 5)
+   810	        recs = _sidecar_records(mig.sidecar_path)
+   811	        quarantined = [r for r in recs if r["decision"] == "quarantined"]
+   812	        imported = [r for r in recs if r["decision"] == "imported"]
+   813	        assert len(quarantined) == 7 and len(imported) == 5
+   814	        assert {r["reason"] for r in quarantined} == {
+   815	            "invalid_json", "missing_field:status", "missing_field:ts",
+   816	            "not_a_json_object", "unknown_status:WEIRD_STATE"}
+   817	        # 导入行按已知状态入账：ERROR/BLOCKED 两行均以 BLOCKED 状态落库
+   818	        assert sorted(r["status"] for r in imported) == [
+   819	            "BLOCKED", "BLOCKED", "FIXED_PENDING_VERIFY", "PASS", "PASS"]
+   820	        # 单元面：classify 的 quarantine 判定矩阵
+   821	        for bad in ('{nope', '[1]', 'null', '"s"', '{"status":"X","ts":"t"}',
+   822	                    '{"status":"PASS"}', '{"ts":"t"}'):
+   823	            v = LedgerMigrator.classify(bad)
+   824	            assert v["decision"] == "quarantine", bad
+   825	        assert LedgerMigrator.classify(
+   826	            '{"status": "ERROR", "ts": "t"}')["status"] == "BLOCKED"
+   827	    return {"quarantined": 7, "imported": 5,
+   828	            "imported_status_counts": {"BLOCKED": 2, "PASS": 2,
+   829	                                       "FIXED_PENDING_VERIFY": 1},
+   830	            "bad_lines_in_pipeline_events": 0,
+   831	            "single_event_table": "pipeline_events",
+   832	            "write_api": "EventStore.append",
+   833	            "chain_verified_len": 5,
+   834	            "boundary": "run 级 BLOCKED 聚合在编排层（不在被测体）"}
+   835	
+   836	
+   837	# ---------------------------------------------------------------------- #
+   838	# MIG-02：缺审批信息的 ACCEPTED → invalid/reopen
+   839	# ---------------------------------------------------------------------- #
+   840	def test_MIG_02_accepted_missing_approval_invalid_reopen():
+   841	    """注入（合成旧账）：四类 ACCEPTED 行——缺 ts、缺审批要素、带看似完整的
+   842	    审批信息、以及一个对照组合法 PASS 行。
+   843	
+   844	    期望（被测体已实现面·P0-6 第六轮统一正源契约）：ACCEPTED 对迁移器是
+   845	    未知状态——无论审批信息缺不缺，一律 invalid 进 quarantine（绝不猜映射
+   846	    成 PASS），零导入（唯一事件表 pipeline_events 中零 ACCEPTED 行）；
+   847	    quarantine + sidecar 留痕即待人工 reopen 的账（重进正源必须人工再录），
+   848	    绝不静默放行、绝不静默丢弃。
+   849	    """
+   850	    with TmpDir("ac-m2-") as td:
+   851	        src = os.path.join(td, "legacy"); os.makedirs(src)
+   852	        lines = [
+   853	            '{"status": "ACCEPTED", "ts": "2026-10-01T00:00:00Z", "id": 1}',
+   854	            '{"status": "ACCEPTED", "ts": "2026-10-01T00:01:00Z", "id": 2, '
+   855	            '"approval": {"approved_by": "u1", "risk": "P3", '
+   856	            '"fingerprint": "abc", "expires": "2026-12-01"}}',
+   857	            '{"status": "ACCEPTED"}',
+   858	            '{"status": "accepted", "ts": "2026-10-01T00:02:00Z", "id": 3}',
+   859	            '{"status": "PASS", "ts": "2026-10-01T00:03:00Z", "id": 4}',
+   860	        ]
+   861	        _write_lines(src, "accepted-ledger.jsonl", lines)
+   862	        db = os.path.join(td, "mig.db")
+   863	        mig = LedgerMigrator(src, db)
+   864	        report = mig.migrate()
+   865	
+   866	        c = report["conservation"]
+   867	        assert c["lines_total"] == 5
+   868	        assert c["imported"] == 1 and c["quarantined"] == 4, c
+   869	        assert report["quarantine_reasons"] == {
+   870	            "missing_field:ts": 1, "unknown_status:ACCEPTED": 3}
+   871	        assert report["event_table"] == "pipeline_events"
+   872	        conn = sqlite3.connect(db)
+   873	        try:
+   874	            assert_single_event_table(conn)
+   875	            mig_rows = unified_payloads(conn, MIGRATION_EVENT_TYPE)
+   876	            assert len(mig_rows) == 1 and mig_rows[0]["status"] == "PASS"
+   877	            accepted_in_db = sum(
+   878	                1 for o in unified_payloads(conn)
+   879	                if "ACCEPTED" in o["raw"] or "accepted" in o["raw"])
+   880	            assert accepted_in_db == 0, "ACCEPTED 行被导入（不允许）"
+   881	        finally:
+   882	            conn.close()
+   883	        assert_migration_chain(db, 1)
+   884	        recs = _sidecar_records(mig.sidecar_path)
+   885	        q = [r for r in recs if r["decision"] == "quarantined"]
+   886	        assert len(q) == 4
+   887	        assert all("preview" in r for r in q), "quarantine 必须带原文预览（reopen 线索）"
+   888	    return {"accepted_lines": 4, "quarantined": 4, "accepted_imported": 0,
+   889	            "imported_total": 1,
+   890	            "accepted_in_pipeline_events": 0,
+   891	            "reopen_channel": "quarantine + sidecar 预览（人工再录）",
+   892	            "boundary": "risk acceptance/reopen 事件子系统（FND-016）不在被测体"}
+   893	
+   894	
+   895	# ---------------------------------------------------------------------- #
+   896	# MIG-03：两次迁移 → 结果幂等一致
+   897	# ---------------------------------------------------------------------- #
+   898	def test_MIG_03_double_migration_idempotent():
+   899	    """注入（合成旧账）：同一账本连续两次完整迁移（两个独立迁移器实例）。
+   900	
+--- output end ---
+exit_code=0

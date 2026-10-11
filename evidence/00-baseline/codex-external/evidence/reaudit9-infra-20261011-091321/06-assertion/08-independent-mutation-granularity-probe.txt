@@ -1,0 +1,18 @@
+timestamp=2026-10-11T09:23:18+08:00
+command=python3 /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/06-assertion/08-independent-mutation-granularity-probe.py
+{
+  "actual_points_changed_by_record": 2,
+  "baseline_test_pass": true,
+  "combined_all_points_test_pass": false,
+  "combined_record_would_be_counted": "KILLED",
+  "operator": "flip_compare",
+  "probe": "mutation granularity synthetic behavioral counterexample",
+  "probe_assertion_verdict": "PASS",
+  "production_gate_source": "/private/tmp/codex-test/reaudit9-infra-pristine-20261011-092030/system/tests/p1f_mutation_gate.py",
+  "reason": "一个易杀作用点可令整条高阶批量变异记 KILLED，同时另一个逐点变异仍存活",
+  "reported_mutant_records": 1,
+  "second_point_only_test_pass": true,
+  "system_metric_verdict": "FAIL",
+  "uncovered_individual_point": "SURVIVED"
+}
+exit_code=0

@@ -1,0 +1,21 @@
+$ date -Ins
+2026-10-11T09:13:21,951159000+08:00
+[exit=0]
+$ pwd
+/Users/maccc/Documents/wenqu-dist
+[exit=0]
+$ git status --short --branch
+## main...origin/main
+ D dist/wenqu-dist-2bd59ab.tar.gz
+ D dist/wenqu-dist-b44b087.tar.gz
+ D dist/wenqu-dist-cf6d10e.tar.gz
+[exit=0]
+$ git rev-parse HEAD origin/main
+7eeb8a13107e8b52771f5b8784af8266ed0551b9
+7eeb8a13107e8b52771f5b8784af8266ed0551b9
+[exit=0]
+$ git diff --name-status
+D	dist/wenqu-dist-2bd59ab.tar.gz
+D	dist/wenqu-dist-b44b087.tar.gz
+D	dist/wenqu-dist-cf6d10e.tar.gz
+[exit=0]

@@ -1,0 +1,62 @@
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-ed25cbd-20261011T011740Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=014540be21dab838… size=46802",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "3/3 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "plan-hash",
+   "detail": "evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）",
+   "ok": true
+  },
+  {
+   "check": "release-roots",
+   "detail": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/roots-tampered.json allowed=1 commit=ed25cbdeb3da… plan+核心digest 双等值",
+   "ok": true
+  },
+  {
+   "check": "source-commit",
+   "detail": "commit=ed25cbdeb3da… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）",
+   "ok": true
+  },
+  {
+   "check": "signature",
+   "detail": "key_id=key_test_1 algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）",
+   "ok": true
+  },
+  {
+   "check": "sbom-reconcile",
+   "detail": "spdxVersion=SPDX-2.3 files=3 root=9.9.9-probe",
+   "ok": true
+  },
+  {
+   "check": "build-identity",
+   "detail": "commit=ed25cbdeb3da… built_at=2026-10-11T01:17:40Z tool=release_attest.py@1.3.0",
+   "ok": true
+  }
+ ],
+ "keyring": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/keyring.json",
+ "manifest": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.manifest.json",
+ "plan_pin": null,
+ "release_roots": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/roots-tampered.json",
+ "repo": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/repo",
+ "result": "PASS",
+ "sbom": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.release.sig",
+ "tar": "/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.3.0",
+ "verified_at": "2026-10-11T01:17:55Z"
+}

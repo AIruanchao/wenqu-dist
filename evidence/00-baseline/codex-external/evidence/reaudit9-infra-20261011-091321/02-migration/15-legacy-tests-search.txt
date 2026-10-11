@@ -1,0 +1,101 @@
+timestamp=2026-10-11T01:14:35Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && rg -n 'migrate_legacy_events|legacy_row_digests|row_mutated_after_cutover|legacy_untrusted|late_write_after_cutover|backdate|gap' system/tests tools tests
+--- output begin ---
+tools/window_harvest.py:161:            failures.append({"code": "sequence_gap",
+tools/window_harvest.py:175:                continue  # gap 已记
+system/tests/test_ac_ops_families.py:145:        "gap": "真实 launchd 会话 + TCC「无 Documents 权限」注入",
+system/tests/test_ac_ops_families.py:151:        "gap": "真实系统睡眠/唤醒跨真实周期",
+system/tests/test_ac_ops_families.py:157:        "gap": "跨故障域独立 watchdog 宿主（独立进程/独立机器）",
+system/tests/test_ac_ops_families.py:163:        "gap": "gate_aggregator 聚合进程内的 watermark 竞态重算",
+system/tests/test_observation_window.py:319:        v["rc"] == 1 and any(f["code"] == "sequence_gap"
+system/tests/test_ac_station56.py:425:def test_ST6_03_axis_gap_and_findings_fail_with_ledger():
+system/tests/test_ac_station56.py:429:    fnd_adv_axis_gap（点名轴+上下文）；「对抗发现」：S3 报 1 条 HIGH 越权
+system/tests/test_ac_station56.py:447:    assert scanner.last_breakdown["axis_gaps"] == [
+system/tests/test_ac_station56.py:449:    assert any(f.startswith("fnd_adv_axis_gap") for f in st["finding_ids"])
+system/tests/test_ac_station56.py:932:     test_ST6_03_axis_gap_and_findings_fail_with_ledger),
+system/tests/test_events_unified.py:9:    第二张 events 表；旧 events 表残留由 migrate_legacy_events 一次性收编
+system/tests/test_events_unified.py:32:         （late_write_after_cutover）绝不入链，且 id 通道（id>
+system/tests/test_events_unified.py:37:         sha256 记入统一库侧受保护账本 legacy_row_digests（AFTER UPDATE/
+system/tests/test_events_unified.py:39:         比对——UPDATE+backdate 的失配行 quarantine
+system/tests/test_events_unified.py:40:         （row_mutated_after_cutover）绝不入链且不重基线快照；gap 空位
+system/tests/test_events_unified.py:45:         ledger——合成法：正常收编后 DROP TABLE legacy_row_digests 抹掉
+system/tests/test_events_unified.py:47:         现状」补可信基线：删除 trigger 后的 gap 空位 INSERT+UPDATE+
+system/tests/test_events_unified.py:48:         backdate（id/ts 双通道全漏的篡改）在升级收编中全部 quarantine
+system/tests/test_events_unified.py:49:         （legacy_untrusted_no_baseline）、imported=0、主链长度不增、
+system/tests/test_events_unified.py:50:         digest 账本保持缺席（永不重基线）、报告显式 legacy_untrusted
+system/tests/test_events_unified.py:73:    LedgerMigrator, migrate_legacy_events, migration_event,
+system/tests/test_events_unified.py:471:        r1 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:510:        r2 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:536:        r4 = migrate_legacy_events(fresh_db)
+system/tests/test_events_unified.py:548:        expect(RuntimeError, lambda: migrate_legacy_events(weird_db))
+system/tests/test_events_unified.py:629:#: 第八轮（UPDATE+backdate 拒收）专用载荷：收编后 UPDATE 旧行改写的
+system/tests/test_events_unified.py:634:                   '"mutated": "backdated"}')
+system/tests/test_events_unified.py:635:#: 第八轮（gap 空位全回填拒收）专用载荷：塞进历史空位（id 在
+system/tests/test_events_unified.py:640:               '"gap": "backfilled"}')
+system/tests/test_events_unified.py:669:        r1 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:719:        r2 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:758:        s1 = migrate_legacy_events(db2)
+system/tests/test_events_unified.py:768:        s2 = migrate_legacy_events(db2)
+system/tests/test_events_unified.py:779:        r3 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:809:        # ---- (5) 行内容快照账本（第八轮）：UPDATE+backdate 失配行 quarantine ----
+system/tests/test_events_unified.py:814:        t1 = migrate_legacy_events(db3)
+system/tests/test_events_unified.py:845:        t2 = migrate_legacy_events(db3)
+system/tests/test_events_unified.py:854:        assert unified_rows(db3) == rows_t1, "UPDATE+backdate 行被导入统一链"
+system/tests/test_events_unified.py:855:        assert all("backdated" not in r[2] for r in unified_rows(db3))
+system/tests/test_events_unified.py:860:        t3 = migrate_legacy_events(db3)
+system/tests/test_events_unified.py:879:        # ---- (6) gap 空位全回填 INSERT（第八轮）：id/ts 双通道全漏 ----
+system/tests/test_events_unified.py:890:        u1 = migrate_legacy_events(db4)
+system/tests/test_events_unified.py:902:        u2 = migrate_legacy_events(db4)
+system/tests/test_events_unified.py:908:            "gap 空位全回填行未被账本缺席通道抓到（id/ts 双通道漏过）"
+system/tests/test_events_unified.py:910:        assert unified_rows(db4) == rows_u1, "gap 回填行被导入统一链"
+system/tests/test_events_unified.py:927:            "update_backdate_row": "quarantined (row_mutated_after_cutover)",
+system/tests/test_events_unified.py:928:            "gap_backfilled_row": "quarantined (no row digest on record)",
+system/tests/test_events_unified.py:937:#: gap 空位篡改行（id=2 ≤ max，行内 ts 与 migrated_at 全部回填 cutover 前
+system/tests/test_events_unified.py:940:               '"gap": "backfilled"}')
+system/tests/test_events_unified.py:941:#: UPDATE+backdate 篡改载荷（id=1 不变，payload ts 与 migrated_at 回填到
+system/tests/test_events_unified.py:944:                   '"mutated": "backdated"}')
+system/tests/test_events_unified.py:969:        old = migrate_legacy_events(db)
+system/tests/test_events_unified.py:986:        # ---- (2) 升级前篡改：DROP 三触发器 → gap INSERT + UPDATE+backdate ----
+system/tests/test_events_unified.py:990:            # gap 空位全回填（id=2 ≤ max_legacy_id=3，时间全早）
+system/tests/test_events_unified.py:997:            # UPDATE 既有行 + backdate（id=1 不变，时间回填更早）
+system/tests/test_events_unified.py:1009:        # ---- (3) 新版升级收编：legacy_untrusted fail-closed ----
+system/tests/test_events_unified.py:1010:        up = migrate_legacy_events(db)
+system/tests/test_events_unified.py:1015:        assert up["legacy_untrusted"] is True, "存量库升级未标 legacy_untrusted"
+system/tests/test_events_unified.py:1016:        assert up["legacy_untrusted_reason"] == LEGACY_UNTRUSTED_REASON
+system/tests/test_events_unified.py:1017:        assert [r["legacy_id"] for r in up["legacy_untrusted_rows"]] == [1, 2, 3]
+system/tests/test_events_unified.py:1018:        assert all(r["evidence"] for r in up["legacy_untrusted_rows"])
+system/tests/test_events_unified.py:1020:        assert up["legacy_untrusted_action_required"] == \
+system/tests/test_events_unified.py:1024:        # 篡改内容绝不入链：行集零变化、链上负载无 backfilled/backdated
+system/tests/test_events_unified.py:1025:        assert unified_rows(db) == rows_before, "legacy_untrusted 行被导入统一链"
+system/tests/test_events_unified.py:1026:        assert all("backfilled" not in r[2] and "backdated" not in r[2]
+system/tests/test_events_unified.py:1048:        up2 = migrate_legacy_events(db)
+system/tests/test_events_unified.py:1051:        assert up2["legacy_untrusted"] is True
+system/tests/test_events_unified.py:1061:        t1 = migrate_legacy_events(db2)
+system/tests/test_events_unified.py:1064:        assert t1["legacy_untrusted"] is False
+system/tests/test_events_unified.py:1066:        t2 = migrate_legacy_events(db2)
+system/tests/test_events_unified.py:1068:        assert t2["legacy_untrusted"] is False, "完整账本库被误标 untrusted"
+system/tests/test_events_unified.py:1075:        f1 = migrate_legacy_events(db3)
+system/tests/test_events_unified.py:1077:        assert f1["legacy_untrusted"] is False, "全新库被误标 untrusted"
+system/tests/test_events_unified.py:1085:    return {"legacy_upgrade_tamper": "all quarantined (legacy_untrusted_no_baseline)",
+system/tests/test_events_unified.py:1088:            "report": "legacy_untrusted + manual action required",
+system/tests/test_ac_ui_family.py:119:        "gap": "真实浏览器渲染执行环境（chromium headless）内 XSS payload 不执行的终证",
+system/tests/test_ac_ui_family.py:128:        "gap": "浏览器侧同水位目视读数（总览页渲染出的判定与权威一致）",
+system/tests/test_ac_ui_family.py:135:        "gap": "quarantine 状态的 UI 钻取表面；ACCEPTED/OTHER 节点的浏览器点击链",
+system/tests/test_ac_ui_family.py:145:        "gap": "真实 DNS rebinding 攻击链（攻击者域名解析到回环+浏览器宿主）",
+system/tests/test_approval_issue.py:903:    backdated = {
+system/tests/test_approval_issue.py:904:        "schema_version": "2.0", "approval_id": "apr_g904_backdate",
+system/tests/test_approval_issue.py:918:        "nonce": "nonce-g904-backdate-0001", "decision": "approve",
+system/tests/test_approval_issue.py:921:    backdated["signature"] = sign_envelope(secret_a, backdated)
+system/tests/test_approval_issue.py:922:    body = {k: v for k, v in backdated.items()
+system/tests/test_approval_issue.py:924:    backdated["cosignatures"] = [
+system/tests/test_approval_issue.py:926:         "signature": backdated["signature"]},
+system/tests/test_approval_issue.py:934:                            backdated, actor="probe",
+system/tests/test_approval_issue.py:1165:    backdated = {
+system/tests/test_approval_issue.py:1183:    backdated["signature"] = sign_envelope(secret_a, backdated)
+system/tests/test_approval_issue.py:1184:    bbody = {k: v for k, v in backdated.items()
+system/tests/test_approval_issue.py:1186:    backdated["cosignatures"] = [
+system/tests/test_approval_issue.py:1188:         "signature": backdated["signature"]},
+system/tests/test_approval_issue.py:1196:                            backdated, actor="probe",
+--- output end ---
+exit_code=0

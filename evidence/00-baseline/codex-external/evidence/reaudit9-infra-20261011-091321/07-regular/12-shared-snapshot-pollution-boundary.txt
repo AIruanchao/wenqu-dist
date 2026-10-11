@@ -1,0 +1,12 @@
+collected_at=2026-10-11T09:27:27+08:00
+environment_fact_only=shared snapshot was used concurrently; no later destructive probes relied on it
+snapshot_git_metadata=no
+pytest_cache_paths:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/.pytest_cache
+tracked_blob_drift_vs_origin_main (read-only comparison):
+missing_count= 0
+missing_sample= []
+drift_count= 1
+drift= [('evidence/04-unit-property-mutation/ac-ops-families.json', '76de6731df47b88458ac27f629ac0acddae6bc7a', 'f534f5ec6f7dcd03102d9521691493750c5beabb')]
+comparison_exit_code=0
+classification=parallel audit environment pollution; excluded from product finding; source conclusions use new git archive origin/main copies

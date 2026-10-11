@@ -1,0 +1,41 @@
+timestamp=2026-10-11T01:15:08Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && rg -n -A30 -B4 '^LEGACY_SCHEMA' system/tests/test_events_unified.py
+--- output begin ---
+174-]
+175-
+176-# 旧版 ledger_migrator._SCHEMA 的 events 部分（合成历史库 fixture 用；
+177-# 逐字复刻 v3.7.1 之前的两正源表形状，非生产库）
+178:LEGACY_SCHEMA = """
+179-CREATE TABLE IF NOT EXISTS events (
+180-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+181-    line_sha     TEXT NOT NULL UNIQUE,
+182-    status       TEXT NOT NULL,
+183-    source_file  TEXT NOT NULL,
+184-    source_line  INTEGER NOT NULL,
+185-    payload      TEXT NOT NULL,
+186-    migrated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+187-);
+188-CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+189-CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_file, source_line);
+190-"""
+191-
+192-
+193-# ---------------------------------------------------------------------- #
+194-# UE-01：单一事件表 + 单一写入 API
+195-# ---------------------------------------------------------------------- #
+196-def test_UE_01_single_table_single_write_api():
+197-    with TmpDir("ue1-") as td:
+198-        src = make_ledger(td, VALID_LINES + ['{"status": "GHOST", "ts": "t"}'])
+199-        db = os.path.join(td, "ev.db")
+200-        report = LedgerMigrator(src, db).migrate()
+201-
+202-        assert report["event_table"] == "pipeline_events"
+203-        assert report["write_api"] == "EventStore.append"
+204-        assert report["conservation"]["imported"] == 3
+205-
+206-        # 唯一事件表：pipeline_events 在，旧 events 表绝不被创建
+207-        tables = tables_of(db)
+208-        assert "pipeline_events" in tables
+--- output end ---
+exit_code=0

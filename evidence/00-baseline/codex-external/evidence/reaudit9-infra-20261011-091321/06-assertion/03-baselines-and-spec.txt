@@ -1,0 +1,184 @@
+timestamp=2026-10-11T01:15:52Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && { printf '%s\n' '--- text baseline ---'; cat tests/p1f-assert-baseline.txt; printf '%s\n' '--- behavior baseline ---'; cat tests/p1f-behavior-baseline.txt; printf '%s\n' '--- mutations ---'; cat tests/p1f-mutations.json; printf '%s\n' '--- acceptance wiring ---'; nl -ba tests/acceptance.sh | sed -n '1160,1360p'; }
+--- output begin ---
+--- text baseline ---
+# P1f 断言语义棘轮基线（R7-TRC-VACUOUS-003）——只允许增长，缩水即 CI 红
+test_ac_gate_family 141
+test_ac_state_mig 188
+test_ac_deploy_release 167
+test_ac_station_families 235
+test_ac_ops_families 251
+test_ac_ui_family 89
+test_ac_auth_cond 94
+test_ac_act_run 70
+--- behavior baseline ---
+# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被
+# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。
+# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。
+# 只允许增长，缩水即 CI 红。再生成：
+#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
+#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）
+test_ac_gate_family 24
+test_ac_state_mig 16
+test_ac_deploy_release 13
+test_ac_station_families 29
+test_ac_ops_families 18
+test_ac_auth_cond 16
+test_ac_act_run 9
+test_ac_ui_family 7
+--- mutations ---
+{
+  "schema_version": "1.0.0",
+  "description": "P1f2 mutation 集冻结（G9-07：R8-TRC-TRUTHY-ASSERT-012 根修）。对 system/wenqu_core 产品函数做三类机械变异——negate_return（返回值取反）/ flip_compare（比较符翻转）/ drop_raise（删关键守卫行）——逐 mutation 在沙箱副本上运行映射的专属测试文件，必须至少杀死一个测试（mutation score 100%）。每个八专属文件至少被一条 mutation 覆盖（覆盖门）。只增不减：新增 mutation 须同步验证 100% kill 后再冻结；删减即 acceptance P1f2 节红。",
+  "frozen_min_mutations": 18,
+  "mutations": [
+    {
+      "id": "MUT-01",
+      "module": "wenqu_core/source_gate.py",
+      "function": "validate_exact_sha",
+      "op": "flip_compare",
+      "test_files": ["test_ac_gate_family"],
+      "description": "exact-SHA 原子比对翻转（!= → ==）：相等 head 反被 StaleShaError 拒、异源 SHA 放行——GATE-04/MRG-07/CI-05 腿必须红"
+    },
+    {
+      "id": "MUT-02",
+      "module": "wenqu_core/source_gate.py",
+      "function": "_is_non_behavioral",
+      "op": "negate_return",
+      "test_files": ["test_ac_gate_family"],
+      "description": "行为/非行为文件分类取反：behavioral_files 与 non_behavioral_files 互换——scope 分面测试必须红"
+    },
+    {
+      "id": "MUT-03",
+      "module": "wenqu_core/bugscan_orchestrator.py",
+      "function": "validate_station_result",
+      "op": "flip_compare",
+      "test_files": ["test_ac_gate_family"],
+      "description": "station-result 结构校验比较符翻转（station_id 值域/枚举/键集）：合法结果被拒/非法结果漏过——CI-07/CI-09 腿必须红"
+    },
+    {
+      "id": "MUT-04",
+      "module": "wenqu_core/store.py",
+      "function": "verify_chain",
+      "op": "flip_compare",
+      "test_files": ["test_ac_state_mig"],
+      "description": "哈希链校验 prev != expected 翻转为 ==：好链必报断/坏链漏检——STATE-06 链校验腿必须红"
+    },
+    {
+      "id": "MUT-05",
+      "module": "wenqu_core/ledger_migrator.py",
+      "function": "classify",
+      "op": "flip_compare",
+      "test_files": ["test_ac_state_mig"],
+      "description": "旧账行分类比较符翻转（缺字段/未知状态/project 冲突判定）：坏行进口/好行隔离——MIG-01/MIG-05 腿必须红"
+    },
+    {
+      "id": "MUT-06",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "_verify_seal",
+      "op": "negate_return",
+      "test_files": ["test_ac_state_mig"],
+      "description": "事件 seal 常量时间比对取反：真 seal 被拒/伪 seal 放行——STATE-09 重放身份不变量腿必须红"
+    },
+    {
+      "id": "MUT-07",
+      "module": "wenqu_core/deploy_framework.py",
+      "function": "verify",
+      "op": "flip_compare",
+      "test_files": ["test_ac_deploy_release"],
+      "description": "release manifest 对账比较符翻转（schema 值域/哈希漂移/签名绑定）：好发布被拒或篡改漏检——REL-01/02、DEP-04/05 腿必须红"
+    },
+    {
+      "id": "MUT-08",
+      "module": "wenqu_core/deploy_framework.py",
+      "function": "valid",
+      "op": "negate_return",
+      "test_files": ["test_ac_deploy_release"],
+      "description": "BackupProof.valid 旧版完好性预检取反：坏旧版放行回滚/好旧版被拒——RB-01 回滚先验腿必须红"
+    },
+    {
+      "id": "MUT-09",
+      "module": "wenqu_core/station2_static.py",
+      "function": "_validate_identity",
+      "op": "flip_compare",
+      "test_files": ["test_ac_station_families"],
+      "description": "站2 identity 校验比较符翻转（键集封闭/40hex/非空）：合法 identity 被拒/畸形漏检——SC/ADV 站2 腿必须红"
+    },
+    {
+      "id": "MUT-10",
+      "module": "wenqu_core/station3_contract.py",
+      "function": "derive_dynamic_denominator",
+      "op": "flip_compare",
+      "test_files": ["test_ac_station_families"],
+      "description": "动态分母正源选择翻转（is not None → is None）：分母正源错位/缺源不拒——TEN 租户分母腿必须红"
+    },
+    {
+      "id": "MUT-11",
+      "module": "wenqu_core/scheduler.py",
+      "function": "first_due_after",
+      "op": "flip_compare",
+      "test_files": ["test_ac_ops_families"],
+      "description": "调度下次触发时刻比较符翻转（interval 分派/cand > after）：触发时刻错位或搜索失败——SCH 调度腿必须红"
+    },
+    {
+      "id": "MUT-12",
+      "module": "wenqu_core/capacity_monitor.py",
+      "function": "peak_budget_bytes",
+      "op": "flip_compare",
+      "test_files": ["test_ac_ops_families"],
+      "description": "峰值预算分量校验翻转（value < 0 → >= 0）：正常分量被拒/负值漏检——CAP 分母冻结腿必须红"
+    },
+    {
+      "id": "MUT-13",
+      "module": "wenqu_core/approval_keys.py",
+      "function": "verify_envelope",
+      "op": "negate_return",
+      "test_files": ["test_ac_auth_cond"],
+      "description": "审批信封 HMAC 验签取反：真签被拒/伪签放行——COND-01/03/04 验签腿必须红"
+    },
+    {
+      "id": "MUT-14",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "has_unexpired_risk_authorization",
+      "op": "negate_return",
+      "test_files": ["test_ac_auth_cond"],
+      "description": "未过期 risk 授权查询取反：有授权判无/无授权判有（bool 冒充 Optional）——COND-03 在位断言与 COND-05 失效断言必须红"
+    },
+    {
+      "id": "MUT-15",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "_verify_signature",
+      "op": "flip_compare",
+      "test_files": ["test_ac_auth_cond"],
+      "description": "ApprovalBroker 主签校验比较符翻转（actor ∈ key actors 等绑定判定）：越权签批放行/合法签批被拒——COND/APPR 绑定腿必须红"
+    },
+    {
+      "id": "MUT-16",
+      "module": "wenqu_core/runner.py",
+      "function": "_build_env",
+      "op": "flip_compare",
+      "test_files": ["test_ac_act_run"],
+      "description": "TrustedRunner env 白名单构建翻转（value is not None → is None）：白名单基础变量被剥除——RUN-01 白名单保留断言必须红"
+    },
+    {
+      "id": "MUT-17",
+      "module": "wenqu_core/wenqu_pipeline.py",
+      "function": "reserve_action",
+      "op": "flip_compare",
+      "test_files": ["test_ac_act_run"],
+      "description": "action 预留审批门比较符翻转（_ACTION_APPROVAL_TYPE 封闭映射校验）：无审批 action 放行/有审批被拒——ACT-01 腿必须红"
+    },
+    {
+      "id": "MUT-18",
+      "module": "wenqu_core/ui_probe.py",
+      "function": "html_structural_gate",
+      "op": "negate_return",
+      "test_files": ["test_ac_ui_family"],
+      "description": "UI 静态结构门返回取反：finding 列表变布尔——UI-01/02 结构断言腿必须红"
+    }
+  ]
+}
+--- acceptance wiring ---
+--- output end ---
+exit_code=0

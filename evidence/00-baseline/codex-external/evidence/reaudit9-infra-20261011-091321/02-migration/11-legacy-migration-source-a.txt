@@ -1,0 +1,366 @@
+timestamp=2026-10-11T01:14:14Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && nl -ba system/wenqu_core/ledger_migrator.py | sed -n '1,360p'
+--- output begin ---
+     1	# -*- coding: utf-8 -*-
+     2	"""旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器（Codex W5）。
+     3	
+     4	P0-6 第六轮（统一事件正源）改写——「单一事件表 + 单一写入 API」：
+     5	    旧版迁移器自建独立 ``events`` 表，与 ``store.EventStore`` 的
+     6	    ``pipeline_events`` 哈希链表形成两表两正源。本轮起迁移器不再含
+     7	    ``events`` 建表 DDL、绝不写入任何第二事件表：全部导入行经公共
+     8	    :meth:`EventStore.append` 写入与管线控制事件/外部事件同一张
+     9	    ``pipeline_events`` 表——迁移产物与 EventStore.append 产物同表、
+    10	    同哈希链，混合流 ``verify_chain()`` 单链贯穿。
+    11	
+    12	旧 ``events`` 表（仅存在于历史库）冻结为只读兼容：
+    13	    - 新代码绝不创建、绝不写入该表；
+    14	    - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
+    15	      ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
+    16	    - 收编后旧表原样保留在库中，仅供只读对账，不再是事件正源；
+    17	    - R7-EVENT-LEGACY-WRITABLE-007（P0）根修：收编完成后对旧表安装冻结
+    18	      触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)），cutover（冻结）
+    19	      时刻记入库内 bookkeeping 表 ``legacy_events_cutover``；晚于 cutover
+    20	      才出现/才落账的迟到行绝不导入——一律 quarantine
+    21	      （reason=late_write_after_cutover）并在报告告警，迁移器绝不静默
+    22	      吸收收编后的写入（详见 :func:`migrate_legacy_events` 契约）。
+    23	
+    24	第八轮 P0-6 残余根修（backdated gap/UPDATE 仍可入链）：cutover 的
+    25	    id/ts 双通道都是 writer 可回填的字段——旧表冻结触发器被 DROP 后，
+    26	    UPDATE 旧行并回填早 ts（或向历史 gap 空位 INSERT 全回填行）可骗过
+    27	    双通道二次入链。根修为「不可伪造的行版本账本」：首次收编把旧表
+    28	    每行已读内容的 sha256 记入统一库侧 bookkeeping 表
+    29	    ``legacy_row_digests``（rowid→快照；装 AFTER UPDATE/DELETE 拒绝
+    30	    触发器，与事件链同库受 append-only 保护）；二次收编逐行比对——
+    31	    内容失配即 quarantine（reason=row_mutated_after_cutover）、账本
+    32	    缺席（gap 空位后塞入且双通道未命中）按迟到写拒收。旧表侧无论
+    33	    怎么改（含 DROP 三触发器）都改不到统一库侧账本，比对必然失配。
+    34	
+    35	G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）：
+    36	    上述行版本账本只保护「fresh cutover 后」的库——旧版代码跑过的库
+    37	    只有 cutover 记账、没有 digest ledger。若升级时按「当前现状」补记
+    38	    基线，则升级前已发生的 gap/UPDATE+backdate 篡改会被当成可信基线
+    39	    收编入链。根修为 ``legacy_untrusted`` fail-closed：升级路径检测到
+    40	    「cutover 已记账而 digest ledger 缺失/为空」时，绝不按现状补基线
+    41	    ——本次发现的行全部 quarantine（reason=legacy_untrusted_no_baseline，
+    42	    imported=0、主链长度不增），报告显式声明该库 legacy 历史不可验证，
+    43	    需人工从可信正源重建基线或接受永久隔离（见
+    44	    :func:`migrate_legacy_events` 契约）。
+    45	
+    46	约束（不可降级）：
+    47	    M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
+    48	       绝不触碰源 JSONL 内容（源文件只读打开）；
+    49	    M2 未知状态 / 缺字段 -> quarantine 隔离，绝不猜填字段、绝不猜归一化；
+    50	    M3 状态归一化仅限已知别名表；FIXED 一律记为 FIXED_PENDING_VERIFY
+    51	       （未经独立验证不承认修复完成）；
+    52	    M4 数量守恒：源非空行数 == 有效导入 + 重复 + quarantine；不守恒即抛
+    53	       ConservationError，绝不静默少账。
+    54	    M5（§20.2 MIG-05）project key 冲突 -> 显式冲突 quarantine，绝不静默
+    55	       选边、绝不拆成假项目：同一行携带多个 project 身份字段且值不一致时，
+    56	       以 ``project_key_conflict:...`` reason 隔离待人工裁定，导入行绝不
+    57	       归入任一冲突方；一致时按 ``PROJECT_FIELDS`` 优先级取 project_id
+    58	       贯通进事件负载（§14.3 canonical repo_id 映射的最小实现）。
+    59	
+    60	每行账本契约：JSON 对象，至少含 ``status`` 与 ``ts`` 两个字段；``status``
+    61	归一化后必须落在已知状态集合内。空行不计入守恒分母。
+    62	
+    63	重复判定（与旧版 line_sha 唯一约束语义等价）：导入事件的负载是行内容的
+    64	纯函数——``event_type``/``line_sha``/``status``/``raw`` 全部由该行字节
+    65	内容决定，不含 source_file/source_line 等位置信息（位置溯源只在 sidecar
+    66	审计里逐行映射）。因此 ``event_id``（= canonical payload 的 SHA256，
+    67	由 EventStore.append 计算）相等当且仅当行内容相同：同输入两次迁移零
+    68	重复；跨文件出现的同内容行同样计为 duplicate（与旧版「按行内容 SHA256
+    69	判重」一致）。
+    70	
+    71	提交粒度：导入行逐条经 EventStore.append 入链（每行一个 BEGIN
+    72	IMMEDIATE 事务，与管线事件同一写入纪律）；中途崩溃后重跑幂等续账
+    73	（已入链行计 duplicate），不会双记账。
+    74	"""
+    75	
+    76	from __future__ import annotations
+    77	
+    78	import hashlib
+    79	import json
+    80	import os
+    81	import sqlite3
+    82	from datetime import datetime, timezone
+    83	from typing import Any, Dict, List, Optional
+    84	
+    85	from .store import EventStore
+    86	
+    87	__all__ = [
+    88	    "LedgerMigrator", "ConservationError", "STATUS_ALIASES", "KNOWN_STATUSES",
+    89	    "MIGRATION_EVENT_TYPE", "LEGACY_EVENTS_TABLE",
+    90	    "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
+    91	    "PROJECT_FIELDS", "extract_project_ids",
+    92	    "LATE_WRITE_REASON", "LEGACY_FREEZE_TRIGGER_NAMES", "LEGACY_CUTOVER_TABLE",
+    93	    "ROW_MUTATED_REASON", "LEGACY_ROW_DIGESTS_TABLE",
+    94	    "LEGACY_DIGEST_FREEZE_TRIGGER_NAMES",
+    95	    "LEGACY_UNTRUSTED_REASON", "LEGACY_UNTRUSTED_ACTION_REQUIRED",
+    96	]
+    97	
+    98	# 已知状态别名归一表（键为全大写形式）
+    99	STATUS_ALIASES = {
+   100	    "PASS": "PASS",
+   101	    "PASSED": "PASS",
+   102	    "OK": "PASS",
+   103	    "SUCCESS": "PASS",
+   104	    "GREEN": "PASS",
+   105	    "FAIL": "FAIL",
+   106	    "FAILED": "FAIL",
+   107	    "FAILURE": "FAIL",
+   108	    "RED": "FAIL",
+   109	    "CONDITIONAL": "CONDITIONAL",
+   110	    "WARN": "CONDITIONAL",
+   111	    "WARNING": "CONDITIONAL",
+   112	    "BLOCKED": "BLOCKED",
+   113	    "ERROR": "BLOCKED",
+   114	    "FIXED": "FIXED_PENDING_VERIFY",          # M3：FIXED 未验证不承认
+   115	    "FIXED_PENDING_VERIFY": "FIXED_PENDING_VERIFY",
+   116	}
+   117	KNOWN_STATUSES = frozenset({"PASS", "FAIL", "CONDITIONAL", "BLOCKED", "FIXED_PENDING_VERIFY"})
+   118	REQUIRED_FIELDS = ("status", "ts")
+   119	
+   120	#: project 身份字段（MIG-05 §14.3 canonical repo_id 映射的最小实现）：
+   121	#: 按序取第一个非空值作为该行 project_id；多字段同时存在且值不一致
+   122	#: 即 project key 冲突 -> 显式 quarantine（绝不静默选边/拆成假项目）
+   123	PROJECT_FIELDS = ("project_id", "project", "repo_id", "repo", "task")
+   124	
+   125	#: MIG-05 quarantine reason 前缀（报告/对账工具按此前缀聚合冲突清单）
+   126	PROJECT_KEY_CONFLICT_PREFIX = "project_key_conflict:"
+   127	
+   128	#: 导入行的统一事件类型（非控制类型——控制事件前缀/枚举之外，可经公共
+   129	#: EventStore.append 写入；见 store.CONTROL_EVENT_TYPE_*）
+   130	MIGRATION_EVENT_TYPE = "LEDGER_MIGRATED"
+   131	
+   132	#: 旧版两正源残留表名（冻结只读；新代码绝不创建、绝不写入）
+   133	LEGACY_EVENTS_TABLE = "events"
+   134	
+   135	#: 旧表残留行收编进 pipeline_events 时的事件类型（同样非控制类型）
+   136	LEGACY_RESIDUE_EVENT_TYPE = "LEGACY_EVENTS_ROW_MIGRATED"
+   137	
+   138	#: run 级迁移记账表（bookkeeping，非事件正源；与事件表分离）
+   139	_RUNS_SCHEMA = """
+   140	CREATE TABLE IF NOT EXISTS migration_runs (
+   141	    run_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+   142	    finished_at   TEXT NOT NULL DEFAULT (datetime('now')),
+   143	    files_scanned INTEGER NOT NULL,
+   144	    lines_total   INTEGER NOT NULL,
+   145	    imported      INTEGER NOT NULL,
+   146	    duplicates    INTEGER NOT NULL,
+   147	    quarantined   INTEGER NOT NULL,
+   148	    conserved     INTEGER NOT NULL
+   149	);
+   150	"""
+   151	
+   152	# ---------------------------------------------------------------------- #
+   153	# R7-EVENT-LEGACY-WRITABLE-007（P0）：旧表冻结只读 + cutover 记账 + 迟到写拒收
+   154	# ---------------------------------------------------------------------- #
+   155	#: 收编完成后对旧表安装的冻结触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）。
+   156	#: CREATE TRIGGER IF NOT EXISTS 幂等安装：重跑不报错、不重复；触发器曾被
+   157	#: 绕过删除时，下一次收编运行治愈重装。
+   158	_LEGACY_FREEZE_ACTIONS = ("insert", "update", "delete")
+   159	LEGACY_FREEZE_TRIGGER_NAMES = tuple(
+   160	    f"{LEGACY_EVENTS_TABLE}_legacy_frozen_no_{action}"
+   161	    for action in _LEGACY_FREEZE_ACTIONS)
+   162	_LEGACY_FREEZE_TRIGGER_DDL = tuple(
+   163	    f"CREATE TRIGGER IF NOT EXISTS {name} "
+   164	    f"BEFORE {action.upper()} ON {LEGACY_EVENTS_TABLE} "
+   165	    "BEGIN "
+   166	    f"SELECT RAISE(ABORT, 'legacy {LEGACY_EVENTS_TABLE} frozen read-only "
+   167	    f"after cutover: {action.upper()} is forbidden'); "
+   168	    "END;"
+   169	    for action, name in zip(_LEGACY_FREEZE_ACTIONS, LEGACY_FREEZE_TRIGGER_NAMES))
+   170	
+   171	#: 迟到写（cutover 之后才出现/才落账的旧行）的统一 quarantine reason
+   172	LATE_WRITE_REASON = "late_write_after_cutover"
+   173	
+   174	#: cutover（冻结时刻）记账表：bookkeeping，非事件正源（与 migration_runs
+   175	#: 同类）。为何记在库内 bookkeeping 而不是事件链/sidecar：
+   176	#: - 迟到写判定必须与库同生命周期可读（sidecar 是旁路审计文件，可被独立
+   177	#:   删除/移动，不能承担执法凭证）；
+   178	#: - 往事件链追加 bookkeeping 事件会扰动「收编行数=链增量」的链长不变量，
+   179	#:   并混淆「事件负载=旧行内容纯函数」的幂等契约；
+   180	#: - sidecar 保持逐行 1:1 审计形状。cutover 时刻经迁移报告显式回带。
+   181	LEGACY_CUTOVER_TABLE = "legacy_events_cutover"
+   182	_CUTOVER_SCHEMA = (
+   183	    f"CREATE TABLE IF NOT EXISTS {LEGACY_CUTOVER_TABLE} ("
+   184	    " id            INTEGER PRIMARY KEY CHECK (id = 1),"
+   185	    " cutover_ts    TEXT NOT NULL,"
+   186	    " cutover_epoch REAL NOT NULL,"
+   187	    " max_legacy_id INTEGER NOT NULL,"
+   188	    " trigger_names TEXT NOT NULL)"
+   189	)
+   190	
+   191	#: 旧 ``events`` 表收编时必须存在的列（缺失即形状异常，fail-closed 拒收）
+   192	_LEGACY_REQUIRED_COLUMNS = frozenset({
+   193	    "id", "line_sha", "status", "source_file", "source_line", "payload"})
+   194	
+   195	# ---------------------------------------------------------------------- #
+   196	# 第八轮 P0-6 残余根修：行内容快照账本（不可伪造的行版本记录）
+   197	# ---------------------------------------------------------------------- #
+   198	#: 行内容快照账本（bookkeeping，非事件正源）：首跑收编把旧表每行「已读
+   199	#: 内容」的 sha256 记入该表（rowid -> 快照）。记在统一库侧而非旧表侧是
+   200	#: 刻意的——旧表 writer（含 DROP 掉旧表冻结触发器的绕过者）对统一库无
+   201	#: 写权限，改不到账本；账本自身装 AFTER UPDATE/DELETE 拒绝触发器，
+   202	#: append-only 保护与 ``pipeline_events`` 同库同级。
+   203	LEGACY_ROW_DIGESTS_TABLE = "legacy_row_digests"
+   204	
+   205	#: 快照账本自身的 append-only 守卫触发器（AFTER UPDATE/DELETE 一律 ABORT）
+   206	LEGACY_DIGEST_FREEZE_TRIGGER_NAMES = (
+   207	    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_update",
+   208	    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_delete",
+   209	)
+   210	_DIGESTS_SCHEMA = (
+   211	    f"CREATE TABLE IF NOT EXISTS {LEGACY_ROW_DIGESTS_TABLE} ("
+   212	    " legacy_id   INTEGER PRIMARY KEY,"
+   213	    " row_sha     TEXT NOT NULL,"
+   214	    " recorded_at TEXT NOT NULL DEFAULT (datetime('now')))"
+   215	)
+   216	_LEGACY_DIGEST_TRIGGER_DDL = tuple(
+   217	    f"CREATE TRIGGER IF NOT EXISTS {name} "
+   218	    f"AFTER {action} ON {LEGACY_ROW_DIGESTS_TABLE} "
+   219	    "BEGIN "
+   220	    f"SELECT RAISE(ABORT, '{LEGACY_ROW_DIGESTS_TABLE} is append-only: "
+   221	    f"{action} is forbidden'); "
+   222	    "END;"
+   223	    for action, name in zip(("update", "delete"),
+   224	                            LEGACY_DIGEST_FREEZE_TRIGGER_NAMES))
+   225	
+   226	#: 行内容被 UPDATE 过（cutover 后当前内容与账本快照不符）的统一
+   227	#: quarantine reason——含仅改 migrated_at 元数据的伪装性改动
+   228	ROW_MUTATED_REASON = "row_mutated_after_cutover"
+   229	
+   230	# ---------------------------------------------------------------------- #
+   231	# G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）
+   232	# ---------------------------------------------------------------------- #
+   233	#: legacy 升级 fail-closed 的统一 quarantine reason：cutover 已记账而
+   234	#: digest ledger 缺失/为空（旧版代码跑过的库从来没有行版本账本），升级
+   235	#: 时旧表内容不可验证——本次发现的行一律隔离，绝不按「升级时现状」补
+   236	#: 可信基线（那会把升级前已发生的 gap/UPDATE+backdate 篡改收编入链）
+   237	LEGACY_UNTRUSTED_REASON = "legacy_untrusted_no_baseline"
+   238	
+   239	#: ``legacy_untrusted`` 库的显式处置说明（进迁移报告，人工裁定正门）
+   240	LEGACY_UNTRUSTED_ACTION_REQUIRED = (
+   241	    "manual intervention required: rebuild the "
+   242	    f"{LEGACY_ROW_DIGESTS_TABLE} baseline from an authoritative "
+   243	    "pre-cutover source (人工从可信正源重建基线), or accept permanent "
+   244	    "quarantine of all legacy rows (或接受全部旧行永久隔离). "
+   245	    "Baselining from the current legacy table state is forbidden: "
+   246	    "cutover was recorded without a digest ledger, so tampering that "
+   247	    "happened before the upgrade (gap inserts / UPDATE+backdate) "
+   248	    "cannot be distinguished from untampered rows."
+   249	)
+   250	
+   251	
+   252	class ConservationError(RuntimeError):
+   253	    """数量守恒被破坏：源非空行数 != 有效导入 + 重复 + quarantine。"""
+   254	
+   255	
+   256	def _line_sha(line: str) -> str:
+   257	    """行内容 SHA256（剥离行尾换行，保证跨平台一致）。"""
+   258	    return hashlib.sha256(line.rstrip("\r\n").encode("utf-8")).hexdigest()
+   259	
+   260	
+   261	def extract_project_ids(obj: Dict[str, Any]) -> Dict[str, str]:
+   262	    """按 ``PROJECT_FIELDS`` 顺序提取行内的 project 身份字段。
+   263	
+   264	    只取标量（str/int/float）非空值；dict/list 或空串视为该字段缺席
+   265	    （绝不把复杂值 stringify 成假 project key）。返回 ``{字段名: 规格化值}``
+   266	    （保留字段名大小写与顺序，值做 strip）。
+   267	    """
+   268	    out: Dict[str, str] = {}
+   269	    for field in PROJECT_FIELDS:
+   270	        val = obj.get(field)
+   271	        if val is None or isinstance(val, (dict, list, bool)):
+   272	            continue
+   273	        text = str(val).strip()
+   274	        if text:
+   275	            out[field] = text
+   276	    return out
+   277	
+   278	
+   279	def migration_event(line_sha: str, status: str, raw: str,
+   280	                    project_id: Optional[str] = None) -> Dict[str, Any]:
+   281	    """构造一条导入行的统一事件（行内容的纯函数，保证内容寻址幂等）。
+   282	
+   283	    负载只含由该行字节内容决定的字段（event_type/line_sha/status/raw，
+   284	    以及可选 project_id——同样由该行内容决定）；source_file/source_line
+   285	    等位置溯源不进负载（进 sidecar 审计），否则同内容行在不同位置会绕过
+   286	    判重、破坏 MIG 幂等语义。project_id 为 None（行内无 project 字段）时
+   287	    不写入该键，负载形状与既有无 project 行逐字节一致。
+   288	    """
+   289	    event: Dict[str, Any] = {
+   290	        "event_type": MIGRATION_EVENT_TYPE,
+   291	        "line_sha": line_sha,
+   292	        "status": status,
+   293	        "raw": raw,
+   294	    }
+   295	    if project_id is not None:
+   296	        event["project_id"] = project_id
+   297	    return event
+   298	
+   299	
+   300	class LedgerMigrator:
+   301	    """旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器。
+   302	
+   303	    用法::
+   304	
+   305	        mig = LedgerMigrator(source_dir=".../ledgers", sqlite_path=".../events.db")
+   306	        mig.scan()          # 可选：显式建立逐文件逐行 SHA 清单
+   307	        report = mig.migrate()
+   308	        assert report["conserved"] is True
+   309	
+   310	    sqlite_path 指向的库即统一事件正源库：EventStore 在该库上维护
+   311	    ``pipeline_events`` 哈希链表；迁移行与管线事件同表同链。
+   312	    """
+   313	
+   314	    def __init__(self, source_dir: str, sqlite_path: str,
+   315	                 sidecar_path: Optional[str] = None) -> None:
+   316	        self.source_dir = os.path.abspath(source_dir)
+   317	        self.sqlite_path = os.path.abspath(sqlite_path)
+   318	        self.sidecar_path = (
+   319	            os.path.abspath(sidecar_path) if sidecar_path
+   320	            else self.sqlite_path + ".migration-sidecar.jsonl"
+   321	        )
+   322	        self._inventory: List[Dict[str, Any]] = []
+   323	        self._last_report: Optional[Dict[str, Any]] = None
+   324	
+   325	    # ------------------------------------------------------------------ #
+   326	    # 扫描：逐文件逐行 SHA 清单
+   327	    # ------------------------------------------------------------------ #
+   328	    def scan(self, source_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+   329	        """扫描 *.jsonl（按文件名排序），对每个非空行建立 SHA 清单。
+   330	
+   331	        只读操作，绝不写源文件（M1）。空行跳过、不计入分母。
+   332	        """
+   333	        root = os.path.abspath(source_dir) if source_dir else self.source_dir
+   334	        if not os.path.isdir(root):
+   335	            raise FileNotFoundError(f"source_dir not found: {root}")
+   336	
+   337	        inventory: List[Dict[str, Any]] = []
+   338	        for name in sorted(os.listdir(root)):
+   339	            path = os.path.join(root, name)
+   340	            if not name.endswith(".jsonl") or not os.path.isfile(path):
+   341	                continue
+   342	            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+   343	                for line_no, line in enumerate(fh, start=1):
+   344	                    if not line.strip():
+   345	                        continue  # 空行不计入守恒分母
+   346	                    inventory.append({
+   347	                        "file": path,
+   348	                        "file_name": name,
+   349	                        "line_no": line_no,
+   350	                        "line_sha": _line_sha(line),
+   351	                        "raw": line.rstrip("\r\n"),
+   352	                    })
+   353	        self._inventory = inventory
+   354	        return inventory
+   355	
+   356	    # ------------------------------------------------------------------ #
+   357	    # 分类：已知别名归一化 / 未知或残缺 -> quarantine
+   358	    # ------------------------------------------------------------------ #
+   359	    @staticmethod
+   360	    def classify(line: str) -> Dict[str, Any]:
+--- output end ---
+exit_code=0

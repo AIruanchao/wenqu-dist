@@ -1,0 +1,51 @@
+source_provenance=git archive origin/main @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+git_metadata_present=no
+$ python3 system/tests/test_release_attest.py
+release_attest 全链自测  tool=/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321/tools/release_attest.py
+  ---- 全链绿（build+sign+sbom+verify）+ 确定性构建
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- 篡改 tar 一字节 → verify 必拒
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- 重打包攻击（自洽改 manifest）→ 签名拦截
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- 换 key 验签必拒（未知 key_id/同 id 异 secret/改 sig key_id）
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- SBOM 字段完整性（SPDX 2.3 必填面+逐文件对账+验证码）+ 篡改必拒
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- 篡改 manifest/sig/缺件 → verify 必拒
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- key 生命周期：rotated 不得签发/revoked 验签即拒
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- verify --report 机器可读报告工件
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- plan-hash 绑定（正确/差一位/61hex 截损/缺 policy_hash/成员不存在）
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- plan-pin 外部根+source commit（自洽替换/pin 缺失/篡改/过宽/幽灵 commit）
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+  ---- release-roots 外部授权（roots-template/正门/缺失/过宽/side commit/自算值/坏 schema）
+    ❌ build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-ci-regular-nogit-20261011-091321'
+
+
+
+release_attest: 0 PASS / 11 FAIL
+EXIT_CODE: 1

@@ -1,0 +1,310 @@
+timestamp=2026-10-11T01:16:02Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && { nl -ba system/tests/p1f_mutation_gate.py | sed -n '40,200p'; printf '\n--- acceptance P1f ---\n'; nl -ba tests/acceptance.sh | sed -n '370,510p'; }
+--- output begin ---
+    40	import shutil
+    41	import subprocess
+    42	import sys
+    43	import tempfile
+    44	import time
+    45	from pathlib import Path
+    46	from typing import Any, Dict, List, Optional, Tuple
+    47	
+    48	# 与 acceptance.sh P1f 节 / p1f_ast_gate.py 的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
+    49	P1F_FILES: List[str] = [
+    50	    "test_ac_gate_family",
+    51	    "test_ac_state_mig",
+    52	    "test_ac_deploy_release",
+    53	    "test_ac_station_families",
+    54	    "test_ac_ops_families",
+    55	    "test_ac_auth_cond",
+    56	    "test_ac_act_run",
+    57	    "test_ac_ui_family",
+    58	]
+    59	
+    60	VALID_OPS = ("negate_return", "flip_compare", "drop_raise")
+    61	
+    62	# 沙箱复制忽略（重目录/环境残留；测试面不需要它们）
+    63	_SANDBOX_IGNORE = shutil.ignore_patterns(
+    64	    ".git", "evidence", "dist", ".pytest_cache", "__pycache__",
+    65	    ".github", ".DS_Store", "._*", "*.pyc",
+    66	)
+    67	
+    68	# 比较符翻转映射（机械、成对可逆）
+    69	_FLIP = {
+    70	    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
+    71	    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
+    72	    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
+    73	    ast.In: ast.NotIn, ast.NotIn: ast.In,
+    74	    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
+    75	}
+    76	
+    77	
+    78	class MutationSpecError(RuntimeError):
+    79	    """mutation 集结构/定位失败（集本身损坏——rc2，与 kill 失败区分）。"""
+    80	
+    81	
+    82	# ---------------------------------------------------------------------------
+    83	# AST 机械变异
+    84	# ---------------------------------------------------------------------------
+    85	class _OpCounter(ast.NodeVisitor):
+    86	    """统计目标函数体内各 op 的可作用点数（0=mutation 无法落地）。"""
+    87	
+    88	    def __init__(self) -> None:
+    89	        self.returns_with_value = 0
+    90	        self.flippable_compares = 0
+    91	        self.raises = 0
+    92	
+    93	    def visit_Return(self, node: ast.Return) -> None:
+    94	        if node.value is not None:
+    95	            self.returns_with_value += 1
+    96	
+    97	    def visit_Compare(self, node: ast.Compare) -> None:
+    98	        if node.ops and all(type(op) in _FLIP for op in node.ops):
+    99	            self.flippable_compares += 1
+   100	
+   101	    def visit_Raise(self, node: ast.Raise) -> None:
+   102	        self.raises += 1
+   103	
+   104	
+   105	class _NegateReturn(ast.NodeTransformer):
+   106	    """return V → return not (V)——返回值取反（布尔语义翻转）。"""
+   107	
+   108	    def visit_Return(self, node: ast.Return) -> ast.Return:
+   109	        if node.value is None:
+   110	            return node
+   111	        return ast.copy_location(
+   112	            ast.Return(value=ast.UnaryOp(op=ast.Not(), operand=copy.deepcopy(node.value))),
+   113	            node)
+   114	
+   115	
+   116	class _FlipCompare(ast.NodeTransformer):
+   117	    """比较符翻转：<↔>=、>↔<=、==↔!=、in↔not in、is↔is not。"""
+   118	
+   119	    def visit_Compare(self, node: ast.Compare) -> ast.Compare:
+   120	        new_ops = [_FLIP[type(op)]() for op in node.ops]
+   121	        return ast.copy_location(
+   122	            ast.Compare(left=node.left, ops=new_ops, comparators=node.comparators),
+   123	            node)
+   124	
+   125	
+   126	class _DropRaise(ast.NodeTransformer):
+   127	    """删除函数体内第一个 Raise 语句（关键守卫行删除；后续 raise 保留）。"""
+   128	
+   129	    def __init__(self) -> None:
+   130	        self.dropped = False
+   131	
+   132	    def visit_Raise(self, node: ast.Raise) -> ast.stmt:
+   133	        if not self.dropped:
+   134	            self.dropped = True
+   135	            return ast.copy_location(ast.Pass(), node)
+   136	        return node
+   137	
+   138	
+   139	def _make_scoped(function: str, inner: ast.NodeTransformer) -> ast.NodeTransformer:
+   140	    """构造只作用于同名函数体的变换器（其余源码不动）。"""
+   141	
+   142	    class _Scoped(ast.NodeTransformer):
+   143	        def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+   144	            self.generic_visit(node)  # 先递归（嵌套/方法同名同治）
+   145	            if node.name == function:
+   146	                return ast.copy_location(inner.visit(node), node)
+   147	            return node
+   148	
+   149	    return _Scoped()
+   150	
+   151	
+   152	def apply_mutation(src: str, module_path: str, function: str,
+   153	                   op: str) -> Tuple[str, int]:
+   154	    """对 module 源码中指定函数应用机械变异，返回 (变异后源码, 作用点数)。
+   155	
+   156	    函数不存在 / op 无处落地 / 变异后源码无变化 → MutationSpecError。
+   157	    """
+   158	    try:
+   159	        tree = ast.parse(src, filename=module_path)
+   160	    except SyntaxError as exc:
+   161	        raise MutationSpecError(f"{module_path}: 源码不可解析: {exc}") from exc
+   162	
+   163	    counter = _OpCounter()
+   164	    matched = 0
+   165	    for node in ast.walk(tree):
+   166	        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
+   167	            matched += 1
+   168	            counter.visit(node)
+   169	    if matched == 0:
+   170	        raise MutationSpecError(
+   171	            f"{module_path}: 未找到目标函数 {function!r}——mutation 集与产品码脱锚")
+   172	    points = {
+   173	        "negate_return": counter.returns_with_value,
+   174	        "flip_compare": counter.flippable_compares,
+   175	        "drop_raise": counter.raises,
+   176	    }[op]
+   177	    if points == 0:
+   178	        raise MutationSpecError(
+   179	            f"{module_path}#{function}: op={op} 无处落地（产品码已变？mutation 集需同步）")
+   180	
+   181	    inner = {"negate_return": _NegateReturn, "flip_compare": _FlipCompare,
+   182	             "drop_raise": _DropRaise}[op]()
+   183	    scoped = _make_scoped(function, inner)
+   184	    baseline_unparsed = ast.unparse(tree)  # 先快照（NodeTransformer 原地改树）
+   185	    mutated = ast.fix_missing_locations(scoped.visit(tree))
+   186	    out = ast.unparse(mutated)
+   187	    if out == baseline_unparsed:
+   188	        raise MutationSpecError(
+   189	            f"{module_path}#{function}: op={op} 变异后源码无变化（无效 mutation）")
+   190	    return out, points
+   191	
+   192	
+   193	# ---------------------------------------------------------------------------
+   194	# mutation 集装载与校验
+   195	# ---------------------------------------------------------------------------
+   196	def load_mutations(path: Path) -> List[Dict[str, Any]]:
+   197	    """装载并结构校验 mutation 集（tests/p1f-mutations.json）。"""
+   198	    try:
+   199	        raw = json.loads(path.read_text(encoding="utf-8"))
+   200	    except (OSError, json.JSONDecodeError) as exc:
+
+--- acceptance P1f ---
+   370	  else
+   371	    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+   372	    AC_RC=$?
+   373	    rm -f "$AC_TMP_JSON"
+   374	    if [ $AC_RC -eq 0 ]; then
+   375	      PASS_N=$((PASS_N+1)); echo "  ✅ 131 AC 追踪矩阵校验 OK（§20 集合+§25.1 映射展开+目录完整性；只读不改受控文件）"
+   376	    else
+   377	      FAIL_N=$((FAIL_N+1)); echo "  ❌ 追踪矩阵校验失败（exit=${AC_RC}）——§20/§25.1 被篡改、evidence 目录或工具损坏"
+   378	    fi
+   379	  fi
+   380	else
+   381	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   382	fi
+   383	
+   384	echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+   385	P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+   386	P1F_COUNT=0
+   387	P1F_FAIL=0
+   388	for tf in $P1F_FILES; do
+   389	  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+   390	    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+   391	    TF_RC=$?
+   392	    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+   393	    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+   394	      P1F_COUNT=$((P1F_COUNT+NF))
+   395	    else
+   396	      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+   397	      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+   398	    fi
+   399	  else
+   400	    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+   401	  fi
+   402	done
+   403	if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+   404	  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+   405	else
+   406	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+   407	fi
+   408	
+   409	echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；G9-07 升级=mutation 真主门）=="
+   410	# 演进史：文本 grep 计数（R7）→ AST 形态门（八轮：常量真值/被测调用/失败
+   411	# 路径三指标）→ G9-07 真 mutation 门（R8-TRC-TRUTHY-ASSERT-012 根修：
+   412	# AST 形态抓不住非字面恒真 assert len(str(product_call())) >= 0 与等量
+   413	# 假测试替换——只有「产品变异必杀测试」能证明断言对行为敏感）。
+   414	# 三道闸并存，棘轮只增不减：
+   415	#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
+   416	#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
+   417	#   二闸  p1f_ast_gate.py AST 形态基线（tests/p1f-behavior-baseline.txt）；
+   418	#   三闸  文本计数旧棘轮（tests/p1f-assert-baseline.txt）。
+   419	P1F2_FAIL=0
+   420	if [ -f "$ROOT/system/tests/p1f_mutation_gate.py" ] && [ -f "$ROOT/tests/p1f-mutations.json" ]; then
+   421	  MUTJSON="$TD/p1f-mutation-report.json"
+   422	  MUT_OUT=$(python3 "$ROOT/system/tests/p1f_mutation_gate.py" --root "$ROOT" --mutations "$ROOT/tests/p1f-mutations.json" --json "$MUTJSON" 2>&1)
+   423	  MUT_RC=$?
+   424	  if [ "$MUT_RC" -eq 0 ]; then
+   425	    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 主门通过：$(echo "$MUT_OUT" | grep 'mutation score' | tail -1)"
+   426	  else
+   427	    P1F2_FAIL=1; echo "  ❌ mutation 主门失败（exit=${MUT_RC}——空壳化/恒真化/假测试替换令变异存活）"
+   428	    echo "$MUT_OUT" | tail -30 | sed 's/^/      | /'
+   429	  fi
+   430	  # 棘轮：mutation 集只增不减（≥18 条且覆盖全部八专属文件）
+   431	  MUT_GUARD=$(python3 - "$ROOT/tests/p1f-mutations.json" <<'MUTP'
+   432	import json, sys
+   433	try:
+   434	    d = json.load(open(sys.argv[1]))
+   435	    ms = d["mutations"]
+   436	    files = {tf for m in ms for tf in m["test_files"]}
+   437	    need = {"test_ac_gate_family","test_ac_state_mig","test_ac_deploy_release",
+   438	            "test_ac_station_families","test_ac_ops_families",
+   439	            "test_ac_auth_cond","test_ac_act_run","test_ac_ui_family"}
+   440	    ok = (len(ms) >= 18 and files == need and "frozen_min_mutations" in d
+   441	          and d["frozen_min_mutations"] >= 18)
+   442	    print("1" if ok else "0")
+   443	except Exception:
+   444	    print("0")
+   445	MUTP
+   446	)
+   447	  if [ "$MUT_GUARD" = "1" ]; then
+   448	    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 集棘轮（≥18 条且八文件全覆盖，只增不减）"
+   449	  else
+   450	    P1F2_FAIL=1; echo "  ❌ mutation 集棘轮失败——集缩水/覆盖门破（须≥18 条且八专属文件全被锚定）"
+   451	  fi
+   452	else
+   453	  P1F2_FAIL=1; echo "  ❌ p1f_mutation_gate.py 或 tests/p1f-mutations.json 缺失——mutation 主门被拆"
+   454	fi
+   455	if [ -f "$ROOT/system/tests/p1f_ast_gate.py" ] && [ -f "$ROOT/tests/p1f-behavior-baseline.txt" ]; then
+   456	  AST_OUT=$(python3 "$ROOT/system/tests/p1f_ast_gate.py" --root "$ROOT" --baseline "$ROOT/tests/p1f-behavior-baseline.txt" 2>&1)
+   457	  AST_RC=$?
+   458	  if [ "$AST_RC" -eq 0 ]; then
+   459	    echo "  ✅ AST 行为二闸通过：$(echo "$AST_OUT" | tail -1 | sed 's/^✅ //')"
+   460	  else
+   461	    P1F2_FAIL=1; echo "  ❌ AST 行为二闸失败（exit=${AST_RC}——空壳化/恒真化/删被测调用/删失败路径/基线缩水）"
+   462	    echo "$AST_OUT" | tail -30 | sed 's/^/      | /'
+   463	  fi
+   464	else
+   465	  P1F2_FAIL=1; echo "  ❌ p1f_ast_gate.py 或 tests/p1f-behavior-baseline.txt 缺失——AST 行为门被拆"
+   466	fi
+   467	if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
+   468	  while read -r bf bn; do
+   469	    case "$bf" in ""|\#*) continue ;; esac
+   470	    bp="$ROOT/system/tests/$bf.py"
+   471	    if [ -f "$bp" ]; then
+   472	      an=$(python3 - "$bp" <<'PYP'
+   473	import re, sys
+   474	n = 0
+   475	for line in open(sys.argv[1], encoding="utf-8"):
+   476	    if line.strip().startswith("#"):
+   477	        continue
+   478	    n += len(re.findall(r"\bassert\s+(?!,)(?!\s*(?:True|1)\b)", line))
+   479	    n += len(re.findall(r"\b(?:_ck|_ok|expect)\s*\(", line))
+   480	print(n)
+   481	PYP
+   482	)
+   483	      if [ "${an:-0}" -lt "$bn" ]; then
+   484	        # R8-TRC-DIAG-SHELL-017 残余根治（G9-07 变体验证触发）：$bn 后紧跟全角
+   485	        # （ 会被 bash 并入变量名 → unbound variable 崩溃（无结构化 RESULT）。
+   486	        # 必须 ${bn} 显式定界——红也要红得有结构。
+   487	        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 ${bn}（空壳化/恒真化）"
+   488	      fi
+   489	    else
+   490	      P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
+   491	    fi
+   492	  done < "$ROOT/tests/p1f-assert-baseline.txt"
+   493	else
+   494	  P1F2_FAIL=1; echo "  ❌ tests/p1f-assert-baseline.txt 不存在——旧文本棘轮被拆"
+   495	fi
+   496	if [ $P1F2_FAIL -eq 0 ]; then
+   497	  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（mutation 主门+集棘轮+AST 二闸+文本旧棘轮 ≥ 冻结基线）"
+   498	else
+   499	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+   500	fi
+   501	
+   502	echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+   503	if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+   504	  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+   505	  RA_RC=$?
+   506	  if [ $RA_RC -eq 0 ]; then
+   507	    PASS_N=$((PASS_N+1)); echo "  ✅ 签名/SBOM/verify 测试 8/8（篡改/换 key/重打包攻击必拒）"
+   508	  else
+   509	    FAIL_N=$((FAIL_N+1)); echo "  ❌ 签名制品测试失败（exit=${RA_RC}）"
+   510	  fi
+--- output end ---
+exit_code=0

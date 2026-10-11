@@ -1,0 +1,31 @@
+$ python3 system/tests/test_runner_daemon.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:13,804098000+08:00
+== Runner daemon 化逃逸对抗自测（5 组）==
+-- test_daemon_escape_direct_child_3_of_3
+    round 1: timed_out=True marker_exists=False
+    round 2: timed_out=True marker_exists=False
+    round 3: timed_out=True marker_exists=False
+  ✓ P0-8 daemon（直接子进程形态）marker 3/3 不落盘
+  ✓ P0-8 daemon 攻击被记 timed_out（证据不丢）
+-- test_daemon_escape_sh_wrapper_3_of_3
+    round 1: timed_out=True marker_exists=False
+    round 2: timed_out=True marker_exists=False
+    round 3: timed_out=True marker_exists=False
+  ✓ P0-8 daemon（sh 两级形态）marker 3/3 不落盘
+  ✓ P0-8 sh 两级形态同样记 timed_out
+-- test_normal_run_unaffected
+  ✓ P0-8 正常执行退出码不变
+  ✓ P0-8 正常执行不记 timed_out
+  ✓ P0-8 普通超时仍记 timed_out
+  ✓ P0-8 普通超时子进程同样被杀（marker 不落盘）
+-- test_token_injection_keeps_env_whitelist_semantics
+  ✓ P0-8 token 注入下敏感变量仍被剥除（白名单语义不破）
+  ✓ P0-8 run token 哨兵随子进程环境（扫杀锚点在位）
+  ✓ P0-8 runner 自身环境未被写入 token
+-- test_token_scan_finds_reparented_daemon
+  ✓ P0-8 token 扫描命中 reparent 后的 daemon
+  ✓ P0-8 kill 后 token 扫描收敛为空
+========================================
+RESULT: PASS=13 FAIL=0
+[exit=0]

@@ -1,0 +1,256 @@
+$ git rev-parse HEAD origin/main d571ab8
+7eeb8a13107e8b52771f5b8784af8266ed0551b9
+7eeb8a13107e8b52771f5b8784af8266ed0551b9
+d571ab858cab8024015f03a01e9eae2290015472
+rc=0
+$ git status --short --branch
+## main...origin/main
+ D dist/wenqu-dist-2bd59ab.tar.gz
+ D dist/wenqu-dist-b44b087.tar.gz
+ D dist/wenqu-dist-cf6d10e.tar.gz
+rc=0
+$ git log --oneline --decorate --no-merges d571ab8..origin/main
+1e31d88 (origin/wave10/t5-gate-frontdoor, wave10/t5-gate-frontdoor) feat(T-5): scheduler gate 刷新正门优先——WENQU_GATE_MANIFEST+VERIFY_KEY(+REGISTRY) 存在即走 gate 正门
+ebc3e3a (origin/wave10/t3-stations, wave10/t3-stations) feat(T-3): 八站生产接线+逐站分母冻结+gate 正门全链（R9 站5/6 未接线+现役单站分母根修）
+9ff9632 (origin/wave10/t1-receipt, wave10/t1-receipt) fix(T-1): receipt 冷启动旁路根治+并发竞窗关闭（R9-AUTH-RECEIPT-COLDSTART-001/CONCURRENCY-013）
+5c1a28f (origin/wave10/t2-window, wave10/t2-window) fix(test): HLT-01 写前登记闭合读写交错窗口——慢机『杂交快照』误报根修
+4efb150 fix(test): F4 两处 _record 显式传 scheduler_config_sha——跨平台密闭（ubuntu CI 红根修）
+d70f220 fix(T-2): 观察窗开窗十项前置+资格 fail-closed+收割覆盖门+invalidate 作废（R9-OBS 窗口三连）
+a741048 (origin/wave10/t4-rollback, wave10/t4-rollback) fix(T-4): 回滚信任链六段 fail-closed——与正向安装链同构（R9-REL-ROLLBACK-ROOT-BYPASS-004）
+3fe3760 (origin/wave10/t9-registry, wave10/t9-registry) feat(T-9): registry root 部署位供给器——签名快照落位+同钥拒收自检（W1 最后 1 分）
+cd351d0 (origin/wave10/t8-adjudication, wave10/t8-adjudication) evidence(T-8): 1950 裁定升级行级严格合同 v2——每行八字段（row_digest 锚原始行/独立 reason/principal/reviewed_at/HMAC signature）
+27c648c (origin/wave9/g9-02-observer, wave9/g9-02-observer) feat(G9-02/01): 观察面 O_EXCL+hash chain+动态窗口+唯一 writer（R8-OBS-NOGIT-015/COLLISION-016）
+b09ac87 (origin/wave9/g9-08-ci, wave9/g9-08-ci) fix(capacity): 自测跨平台断言 total==used+free → >=（Linux 保留块）
+ffd2b58 fix(test): HLT-01 夹具原子写——慢机读写交错半写误杀根治（ubuntu CI 实证）
+365a76f fix(G9-08): 清除跨环境必死的绝对路径 symlink（v-link/r1.txt 内容快照化）
+4f6d632 feat(G9-08): required CI 全量检查面——仓根 pytest/evidence validator/八模块自测/追踪/TLA 双配置/mutation 门（八轮 1.4-10）
+889c71f (origin/wave9/g9-12-install, wave9/g9-12-install) fix(G9-12): 安装链外部授权根+全链 fail-closed+仓外构建（R8-REL-FROZEN-ROOT-009）
+0ec079e (origin/wave9/g9-07-measure, wave9/g9-07-measure) feat(G9-07): P1f2 真 mutation 门+evidence v2 分表严格 schema+测试零污染（R8-TRC-TRUTHY-ASSERT-012/EVID-FIELDS-013/PYTEST-HISTORICAL-COLLECT-014）
+49a8e6b (origin/wave9/g9-03-tla, wave9/g9-03-tla) feat(G9-03): TLA 双配置完成级——七段全序×1 attempt + 2段×2 attempts（retry/CAS/nonce）
+95598d3 (origin/wave9/g9-04-approval, wave9/g9-04-approval) fix(G9-04): 审批 receipt 单调账本+actual-target 实算绑定+principal 强制登记（R8-AUTH-RETIRED-KEY-005/TARGET-UNBOUND-006/ACTOR-DISTINCT-007）
+5830c6e (wave9/g9-09-bak) fix(G9-09): BAK 归档实存+独立解包对账+archive 真恢复（R8-BAK-FAKE-TAR-SUCCESS-019）
+d4ec0b4 (wave9/g9-06-manifest) fix(G9-06): manifest 独立语义根——同钥双签无条件拒+purposes 分域+scope 底线+unsigned 边界（R8-GATE-LANE/TTL/SCOPE/UNSIGNED）
+17a9305 (origin/wave9/g9-11-sc05, wave9/g9-11-sc05) fix(SC-05): 分页元数据形态+自洽全量校验（八轮 R8-SC-PAGINATION-TYPE-018）
+446e10c (origin/wave9/g9-05-legacy, wave9/g9-05-legacy) fix(G9-05): legacy 升级洞 fail-closed——cutover 已记账而 digest 账本缺席=legacy_untrusted 全隔离（八轮 R8-EVENT-BACKDATE-008 升级路径）
+609740b (origin/wave9/baseline-green, wave9/baseline-green) evidence(G9-10): 1950 条 quarantine 终态裁定——全量保守 KEEP、PENDING=0、零生产写
+ed258b0 dist: b44b087 制品四件套入仓（main 尖头+current 现役存证）
+74a24d5 fix(runner): 超时证据先锁定——kill/收尸阶段异常不得翻转 timed_out
+ab9e239 (origin/wave9/sampler-repo-fallback, wave9/sampler-repo-fallback) fix(observation): 采样器 git 仓回退候选（不可变位无 .git 致 identity=None 根修）
+f93e95a (origin/wave8/final-install) fix(wave8): 终装收编——pin 根修+cf6d10e 制品+7789 切换存证
+c96794e (origin/wave8/semantics, wave8/semantics) fix(wave8): EventStore busy_timeout=30000——并发写排队不丢面（Ubuntu 百线程实测 3% 写面丢失根修）
+2a9d132 fix(wave8): 八轮 6 语义旁路+F 系收尾全清——registry 重放/审批周期/行版本/受保护根/immutable 位/AST 门
+rc=0
+$ git log --oneline --decorate --merges d571ab8..origin/main
+7eeb8a1 (HEAD -> main, origin/main) Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+bb38f70 Merge pull request #32 from AIruanchao/wave10/t3-stations
+3483d04 Merge pull request #30 from AIruanchao/wave10/t1-receipt
+2c6df3d Merge pull request #31 from AIruanchao/wave10/t2-window
+2bded63 Merge pull request #29 from AIruanchao/wave10/t4-rollback
+b07ac8c Merge pull request #28 from AIruanchao/wave10/t9-registry
+728a3a5 Merge pull request #27 from AIruanchao/wave10/t8-adjudication
+fa72947 Merge pull request #26 from AIruanchao/wave9/g9-02-observer
+d0fba96 Merge pull request #24 from AIruanchao/wave9/g9-08-ci
+91db19a Merge pull request #25 from AIruanchao/wave9/g9-12-install
+dc323c7 Merge pull request #23 from AIruanchao/wave9/g9-07-measure
+21fa416 Merge pull request #22 from AIruanchao/wave9/g9-03-tla
+657d197 Merge pull request #21 from AIruanchao/wave9/g9-04-approval
+9e2ac44 Merge pull request #18 from AIruanchao/wave9/g9-11-sc05
+06f8c83 Merge pull request #17 from AIruanchao/wave9/g9-05-legacy
+7ffcc00 Merge pull request #16 from AIruanchao/wave9/baseline-green
+b44b087 Merge pull request #15 from AIruanchao/wave9/sampler-repo-fallback
+310c1a9 (wave8/final-install) Merge pull request #14 from AIruanchao/wave8/final-install
+cf6d10e Merge pull request #13 from AIruanchao/wave8/semantics
+rc=0
+$ git diff --stat d571ab8..origin/main
+ .github/workflows/acceptance.yml                   |    34 +
+ .gitignore                                         |     3 +
+ README.md                                          |    63 +
+ dist/wenqu-dist-b44b087.manifest.json              | 20667 +++++++
+ dist/wenqu-dist-b44b087.release.sig                |    13 +
+ dist/wenqu-dist-b44b087.sbom.spdx.json             | 58892 +++++++++++++++++++
+ dist/wenqu-dist-b44b087.tar.gz                     |   Bin 0 -> 89109004 bytes
+ dist/wenqu-dist-b44b087.verify-report.json         |    61 +
+ dist/wenqu-dist-cf6d10e.manifest.json              | 20625 +++++++
+ dist/wenqu-dist-cf6d10e.release.sig                |    13 +
+ dist/wenqu-dist-cf6d10e.sbom.spdx.json             | 58772 ++++++++++++++++++
+ dist/wenqu-dist-cf6d10e.tar.gz                     |   Bin 0 -> 44635114 bytes
+ dist/wenqu-dist-cf6d10e.verify-report.json         |    61 +
+ .../reaudit-20261007/red-probes/v-link/r1.txt      |     2 +-
+ .../04-unit-property-mutation/ac-ops-families.json |    20 +-
+ .../04-unit-property-mutation/ac-state-mig.json    |     8 +-
+ .../04-unit-property-mutation/ac-ui-family.json    |    18 +-
+ .../p1f2-mutation-gate-adoption.json               |   260 +
+ .../test-zero-pollution-adoption.json              |    17 +
+ .../adjudication/adjudication-final.json           | 21670 +++++++
+ .../adjudication/adjudication-proposal.json        |  2899 +
+ .../07-migration-reconcile/adjudication/summary.md |   105 +
+ .../evidence-strict-validator-adoption.json        |    29 +
+ .../08-ci-and-branch-rules/merge-ci-d571ab8.json   |   433 +
+ evidence/10-ui-launchd-alert-backup/README.md      |     3 +-
+ ...rial-health-conservative-reverify-20261008.json |    12 +
+ ....wenqu.dashboard.plist.pre-immutable-switch.bak |    18 +
+ .../dashboard-7789-immutable-switch-20261008.json  |   117 +
+ .../dashboard-immutable-cf6d10e-20261009.json      |   134 +
+ .../runtime-immutable-switch-20261008T163305Z.log  |    15 +
+ .../runtime-three-probes-20261008T163328Z.log      |    15 +
+ evidence/11-shadow-canary/README.md                |    76 +-
+ evidence/evidence-index.json                       |  1212 +-
+ pytest.ini                                         |     6 +
+ specs/tla/mutation_probes.sh                       |   136 +
+ specs/tla/wenqu_pipeline.cfg                       |    32 -
+ specs/tla/wenqu_pipeline.tla                       |    24 +-
+ specs/tla/wenqu_pipeline_A.cfg                     |    38 +
+ specs/tla/wenqu_pipeline_B.cfg                     |    39 +
+ system/dashboard/server.py                         |   134 +-
+ system/install-release.sh                          |   555 +-
+ system/launchd/README.md                           |    34 +
+ system/launchd/com.wenqu.scheduler.plist.template  |    40 +
+ system/schemas/approval-v2.schema.json             |   631 +-
+ .../schemas/evidence-index-active-v2.schema.json   |    30 +
+ .../schemas/evidence-index-legacy-v1.schema.json   |    31 +
+ system/sentinels/backup-restore-drill.sh           |   188 +-
+ system/tests/fixtures/approval-keys.json           |    24 +-
+ system/tests/p1f_ast_gate.py                       |   634 +
+ system/tests/p1f_mutation_gate.py                  |   368 +
+ system/tests/test_ac_act_run.py                    |    71 +-
+ system/tests/test_ac_auth_cond.py                  |    35 +-
+ system/tests/test_ac_ops_families.py               |   262 +-
+ system/tests/test_ac_state_mig.py                  |    21 +-
+ system/tests/test_ac_station56.py                  |  1007 +
+ system/tests/test_ac_station_families.py           |     8 +
+ system/tests/test_ac_ui_family.py                  |   169 +-
+ system/tests/test_approval_issue.py                |   687 +-
+ system/tests/test_events_unified.py                |   332 +-
+ system/tests/test_gate_manifest_trust.py           |    70 +-
+ system/tests/test_linux_proc_path.py               |   336 +
+ system/tests/test_manifest_semantic_replay.py      |  1231 +
+ system/tests/test_observation_window.py            |  1051 +
+ system/tests/test_release_attest.py                |   330 +-
+ system/tests/test_tla_spec.py                      |    72 +-
+ system/tests/test_w4_production.py                 |    27 +-
+ system/tests/test_wenqu_adversarial.py             |   408 +-
+ system/wenqu_core/approval_issue.py                |    79 +-
+ system/wenqu_core/approval_keys.py                 |   832 +-
+ system/wenqu_core/bugscan_orchestrator.py          |  1446 +-
+ system/wenqu_core/capacity_monitor.py              |     4 +-
+ system/wenqu_core/cli.py                           |   215 +-
+ system/wenqu_core/drill_runner.py                  |    63 +-
+ system/wenqu_core/gate_aggregator.py               |   202 +-
+ system/wenqu_core/ledger_migrator.py               |   258 +
+ system/wenqu_core/runner.py                        |    40 +-
+ system/wenqu_core/scheduler.py                     |   210 +-
+ system/wenqu_core/station2_static.py               |    41 +-
+ system/wenqu_core/station5_live_fire.py            |   785 +
+ system/wenqu_core/station6_adversarial.py          |   715 +
+ system/wenqu_core/store.py                         |     3 +
+ system/wenqu_core/wenqu_pipeline.py                |   415 +-
+ tests/acceptance.sh                                |   223 +-
+ tests/p1f-assert-baseline.txt                      |     2 +-
+ tests/p1f-behavior-baseline.txt                    |    14 +
+ tests/p1f-mutations.json                           |   151 +
+ tools/evidence_validator.py                        |   284 +
+ tools/merge-ci-evidence.sh                         |   188 +
+ tools/observation_daily.py                         |  1164 +-
+ tools/provision_registry_root.py                   |    68 +
+ tools/quarantine_adjudicate.py                     |   672 +
+ tools/release_attest.py                            |   399 +-
+ tools/window_harvest.py                            |   439 +
+ tools/window_manifest.py                           |   655 +
+ 94 files changed, 203676 insertions(+), 1219 deletions(-)
+rc=0
+$ git diff --name-status d571ab8..origin/main
+M	.github/workflows/acceptance.yml
+M	.gitignore
+M	README.md
+A	dist/wenqu-dist-b44b087.manifest.json
+A	dist/wenqu-dist-b44b087.release.sig
+A	dist/wenqu-dist-b44b087.sbom.spdx.json
+A	dist/wenqu-dist-b44b087.tar.gz
+A	dist/wenqu-dist-b44b087.verify-report.json
+A	dist/wenqu-dist-cf6d10e.manifest.json
+A	dist/wenqu-dist-cf6d10e.release.sig
+A	dist/wenqu-dist-cf6d10e.sbom.spdx.json
+A	dist/wenqu-dist-cf6d10e.tar.gz
+A	dist/wenqu-dist-cf6d10e.verify-report.json
+T	evidence/00-baseline/codex-external/evidence/reaudit-20261007/red-probes/v-link/r1.txt
+M	evidence/04-unit-property-mutation/ac-ops-families.json
+M	evidence/04-unit-property-mutation/ac-state-mig.json
+M	evidence/04-unit-property-mutation/ac-ui-family.json
+A	evidence/04-unit-property-mutation/p1f2-mutation-gate-adoption.json
+A	evidence/04-unit-property-mutation/test-zero-pollution-adoption.json
+A	evidence/07-migration-reconcile/adjudication/adjudication-final.json
+A	evidence/07-migration-reconcile/adjudication/adjudication-proposal.json
+A	evidence/07-migration-reconcile/adjudication/summary.md
+A	evidence/08-ci-and-branch-rules/evidence-strict-validator-adoption.json
+A	evidence/08-ci-and-branch-rules/merge-ci-d571ab8.json
+M	evidence/10-ui-launchd-alert-backup/README.md
+A	evidence/10-ui-launchd-alert-backup/adversarial-health-conservative-reverify-20261008.json
+A	evidence/10-ui-launchd-alert-backup/com.wenqu.dashboard.plist.pre-immutable-switch.bak
+A	evidence/10-ui-launchd-alert-backup/dashboard-7789-immutable-switch-20261008.json
+A	evidence/10-ui-launchd-alert-backup/dashboard-immutable-cf6d10e-20261009.json
+A	evidence/10-ui-launchd-alert-backup/runtime-immutable-switch-20261008T163305Z.log
+A	evidence/10-ui-launchd-alert-backup/runtime-three-probes-20261008T163328Z.log
+M	evidence/11-shadow-canary/README.md
+M	evidence/evidence-index.json
+A	pytest.ini
+A	specs/tla/mutation_probes.sh
+D	specs/tla/wenqu_pipeline.cfg
+M	specs/tla/wenqu_pipeline.tla
+A	specs/tla/wenqu_pipeline_A.cfg
+A	specs/tla/wenqu_pipeline_B.cfg
+M	system/dashboard/server.py
+M	system/install-release.sh
+A	system/launchd/README.md
+A	system/launchd/com.wenqu.scheduler.plist.template
+M	system/schemas/approval-v2.schema.json
+A	system/schemas/evidence-index-active-v2.schema.json
+A	system/schemas/evidence-index-legacy-v1.schema.json
+M	system/sentinels/backup-restore-drill.sh
+M	system/tests/fixtures/approval-keys.json
+A	system/tests/p1f_ast_gate.py
+A	system/tests/p1f_mutation_gate.py
+M	system/tests/test_ac_act_run.py
+M	system/tests/test_ac_auth_cond.py
+M	system/tests/test_ac_ops_families.py
+M	system/tests/test_ac_state_mig.py
+A	system/tests/test_ac_station56.py
+M	system/tests/test_ac_station_families.py
+M	system/tests/test_ac_ui_family.py
+M	system/tests/test_approval_issue.py
+M	system/tests/test_events_unified.py
+M	system/tests/test_gate_manifest_trust.py
+A	system/tests/test_linux_proc_path.py
+A	system/tests/test_manifest_semantic_replay.py
+A	system/tests/test_observation_window.py
+M	system/tests/test_release_attest.py
+M	system/tests/test_tla_spec.py
+M	system/tests/test_w4_production.py
+M	system/tests/test_wenqu_adversarial.py
+M	system/wenqu_core/approval_issue.py
+M	system/wenqu_core/approval_keys.py
+M	system/wenqu_core/bugscan_orchestrator.py
+M	system/wenqu_core/capacity_monitor.py
+M	system/wenqu_core/cli.py
+M	system/wenqu_core/drill_runner.py
+M	system/wenqu_core/gate_aggregator.py
+M	system/wenqu_core/ledger_migrator.py
+M	system/wenqu_core/runner.py
+M	system/wenqu_core/scheduler.py
+M	system/wenqu_core/station2_static.py
+A	system/wenqu_core/station5_live_fire.py
+A	system/wenqu_core/station6_adversarial.py
+M	system/wenqu_core/store.py
+M	system/wenqu_core/wenqu_pipeline.py
+M	tests/acceptance.sh
+M	tests/p1f-assert-baseline.txt
+A	tests/p1f-behavior-baseline.txt
+A	tests/p1f-mutations.json
+A	tools/evidence_validator.py
+A	tools/merge-ci-evidence.sh
+M	tools/observation_daily.py
+A	tools/provision_registry_root.py
+A	tools/quarantine_adjudicate.py
+M	tools/release_attest.py
+A	tools/window_harvest.py
+A	tools/window_manifest.py
+rc=0

@@ -1,0 +1,66 @@
+$ readlink ~/.wenqu/current
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+[exit=0]
+derived=bb38f70163ce4a1a79f36ea66284e110eff96a95
+$ git cat-file -t derived
+commit
+[exit=0]
+$ git branch -a --contains derived
+* main
+  wave10/t5-gate-frontdoor
+  remotes/origin/main
+  remotes/origin/wave10/t5-gate-frontdoor
+[exit=0]
+$ git show -s derived
+bb38f70163ce4a1a79f36ea66284e110eff96a95 3483d04eaab4fedd55176f491b6a40d3aea508a6 ebc3e3adb55dfef5f1e6f4a06797f45a5c6d3932 Merge pull request #32 from AIruanchao/wave10/t3-stations
+[exit=0]
+$ ls current root
+lrwxr-xr-x@ 1 maccc  staff  74 Oct 11 07:34 /Users/maccc/.wenqu/current -> /Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+[exit=0]
+$ find current parent meta
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.6.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.7.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.6.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.3.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.7.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.1.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.5.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/pytest.ini
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.7.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/CHANGELOG.md
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.7.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.0.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.5.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.2.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.18.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/README.md
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/.gitignore
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v2.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/""
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/.mimosa-ignore
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.8.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.8.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.tar.gz
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/verify-report.json
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.release.sig
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.manifest.json
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.sbom.spdx.json
+[exit=0]

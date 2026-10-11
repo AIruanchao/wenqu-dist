@@ -1,0 +1,86 @@
+$ python3 system/tests/test_gate_scope_binding.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:18:42,382978000+08:00
+== F6 四洞加固回归（gate-scope/format-dup/schema-bound/trc-parser，14 组）==
+-- test_f6_format002_cli_no_false_reject_schema_legal_nesting
+  ✓ F6-FORMAT-002 镜像收 schema 合法嵌套
+  ✓ F6-FORMAT-002 正式 Draft-07 同收（复刻前提）
+  ✓ F6-FORMAT-002 CLI 不再误拒 schema 合法嵌套（rc=0 PASS）
+-- test_f6_format002_duplicate_equivalence_key
+  ✓ F6-FORMAT-002 同内容重发幂等（duplicate 不双绿不冲突）
+  ✓ F6-FORMAT-002 换 attempt_id 重发 → duplicate_conflict BLOCKED
+  ✓ F6-FORMAT-002 coverage 异分母重发 → duplicate_conflict BLOCKED
+  ✓ F6-FORMAT-002 换 artifact 摘要重发 → duplicate_conflict BLOCKED
+  ✓ F6-FORMAT-002 同 attempt 翻转裁决 → duplicate_conflict BLOCKED
+-- test_f6_format002_mirror_rfc3339_strict_datetime
+  ✓ F6-FORMAT-002 镜像拒非 RFC3339 date-time '2026-10-08'
+  ✓ F6-FORMAT-002 镜像拒非 RFC3339 date-time '2026-10-08T00:00:00'
+  ✓ F6-FORMAT-002 镜像拒非 RFC3339 date-time '2026-10-08 00:00:00Z'
+  ✓ F6-FORMAT-002 镜像拒非 RFC3339 date-time 'not-a-date'
+  ✓ F6-FORMAT-002 镜像收合法 RFC3339 '2026-10-08T00:00:00Z'
+  ✓ F6-FORMAT-002 镜像收合法 RFC3339 '2026-10-08T00:00:00+08:00'
+  ✓ F6-FORMAT-002 镜像收合法 RFC3339 '2026-10-08T00:00:00.123456Z'
+  ✓ F6-FORMAT-002 纯日期聚合 BLOCKED
+-- test_f6_schema001_mirror_unbounded_and_65_66_machine_red
+  ✓ F6-SCHEMA-001 schema const 级联 1..256（R7 生成式扩展——>256 走镜像）
+  ✓ F6-SCHEMA-001 $comment 写明 65/66 机器红 + 镜像无界等式 + 本测试为复验正本
+  ✓ F6-SCHEMA-001 镜像拒 PASS 65/66（无界等式机器红）
+  ✓ F6-SCHEMA-001 镜像拒 PASS 66/65（无界等式机器红）
+  ✓ F6-SCHEMA-001 镜像拒 PASS 255/256（无界等式机器红）
+  ✓ F6-SCHEMA-001 镜像拒 PASS 256/255（无界等式机器红）
+  ✓ F6-SCHEMA-001 镜像拒 PASS 300/299（无界等式机器红）
+  ✓ F6-SCHEMA-001 镜像收 PASS 65/65（合法全扫）
+  ✓ F6-SCHEMA-001 镜像收 PASS 256/256（合法全扫）
+  ✓ F6-SCHEMA-001 镜像收 PASS 300/300（合法全扫）
+  ✓ F6-SCHEMA-001 级联内 1..256 两侧一致性（等值两收/缩水两拒，全量）
+  ✓ F6-SCHEMA-001 schema 拒 PASS 65/66（R7 级联内分叉闭合）
+  ✓ F6-SCHEMA-001 schema 拒 PASS 255/256（R7 级联内分叉闭合）
+  ✓ F6-SCHEMA-001 schema 对 300/299 不判（声明边界，镜像兜底）
+  ✓ F6-SCHEMA-001 schema 级联内拒 3/2
+  ✓ F6-SCHEMA-001 schema 级联内拒 64/63
+  ✓ F6-SCHEMA-001 schema 级联内拒 256/255
+  ✓ F6-SCHEMA-001 schema 收 PASS 65/65
+  ✓ F6-SCHEMA-001 schema 收 PASS 300/300
+  ✓ F6-SCHEMA-001 schema 收 PASS 64/64
+  ✓ F6-SCHEMA-001 schema 收 PASS 256/256
+  ✓ F6-SCHEMA-001 65/66 PASS 聚合 BLOCKED
+-- test_f6_scope001_bare_invocation_refused_and_diagnostic
+  ✓ F6-SCOPE-001 裸调用默认拒绝 rc=3
+  ✓ F6-SCOPE-001 拒绝理由指向 --manifest/--allow-self-declared
+  ✓ F6-SCOPE-001 拒绝输出非绿（ERROR 不冒充 PASS）
+  ✓ F6-SCOPE-001 显式诊断豁免 rc=0（自报 required={0,1} 全报）
+  ✓ F6-SCOPE-001 诊断模式 scope_binding 如实标注 self_declared
+-- test_f6_scope001_legacy_result_not_manifest_bound
+  ✓ F6-SCOPE-001 legacy 结果正门下 BLOCKED
+-- test_f6_scope001_manifest_front_door_full_pass
+  ✓ F6-SCOPE-001 正门全对账 rc=0 PASS
+  ✓ F6-SCOPE-001 mode=manifest + scope_binding 就位
+  ✓ F6-SCOPE-001 manifest 证据落输出（hash/run_id/required）
+-- test_f6_scope001_missing_station_blocked
+  ✓ F6-SCOPE-001 缺站 rc=2 BLOCKED + denominator_shrinkage
+-- test_f6_scope001_scope_hash_mismatch_blocked
+  ✓ F6-SCOPE-001 scope_hash 不符 rc=2 BLOCKED + scope_hash_mismatch
+  ✓ F6-SCOPE-001 commit_sha 不符（正门）rc=2 BLOCKED
+-- test_f6_scope001_self_declared_denominator_blocked
+  ✓ F6-SCOPE-001 自报分母 rc=2 BLOCKED + self_declared_denominator
+  ✓ F6-SCOPE-001 缺 coverage（合法 FAIL 形态）→ missing_coverage_denominator
+-- test_f6_scope001_tampered_manifest_and_flag_conflicts
+  ✓ F6-SCOPE-001 篡改 manifest rc=3（hash 复核拒绝）
+  ✓ F6-SCOPE-001 --manifest 与 --allow-self-declared 互斥 rc=3
+  ✓ F6-SCOPE-001 --manifest 与自报 --required 互斥 rc=3
+  ✓ F6-SCOPE-001 --sha 与冻结 SHA 冲突 rc=3（身份以 manifest 为正源）
+-- test_f6_trc002_duplicate_and_poison_rows_detected
+  ✓ F6-TRC-002 重复相同行 → rc=2
+  ✓ F6-TRC-002 重复行计入 problems + catalog_integrity=FAIL
+  ✓ F6-TRC-002 先毒后正重复 ID 行 → rc=2（fail-open 已闭）
+  ✓ F6-TRC-002 基线方案副本 rc=0（无误报）
+-- test_f6_trc002_missing_plan_check_exit2
+  ✓ F6-TRC-002 --plan 不存在 + --check → rc=2
+  ✓ F6-TRC-002 meta.catalog_integrity=FAIL（缺失即校验失败）
+-- test_f6_trc002_plan_sha256_computed_for_real
+  ✓ F6-TRC-002 meta.plan_sha256_actual==文件实算哈希（真算非常量）
+  ✓ F6-TRC-002 空白级篡改（语义归一不报）→ sha256 实算必红 rc=2
+================================================================
+RESULT: PASS=64 FAIL=0
+ALL GREEN
+[exit=0]

@@ -1,0 +1,330 @@
+=== observation schema identity origin/main ===
+5-     5	  - 样本文件名 = UTC 纳秒紧凑串 + 随机片段（`YYYYMMDDTHHMMSSnnnnnnnnn-<hex8>.json`），
+6-     6	    创建一律 `os.open(O_CREAT|O_EXCL|O_NOFOLLOW)`——碰撞/预置 symlink
+7-     7	    fail-visible（错误记录落 errors/，进程 rc1；绝不 os.replace 覆盖、
+8-     8	    绝不跟随 symlink、绝不静默跳过）（R8-OBS-COLLISION-016）。
+9-     9	  - 每条样本记录 hash chain 字段：epoch_id / sequence / prev_sha256 /
+10:    10	    sample_sha256 / release_sha / observer_sha / scheduler_config_sha；
+11-    11	    首条 prev=GENESIS(0*64)。链头读取在 samples/.chain.lock（flock）内完成。
+12-    12	  - 动态窗口：窗口起点不再是任何硬编码日期——T0=首条合格样本时刻，
+13-    13	    登记于 <root>/windows/<window_id>.json sealed manifest（见
+14-    14	    tools/window_manifest.py）；W9 canary 锚点同为 T0。
+15:    15	  - identity fail-visible（R8-OBS-NOGIT-015）：WENQU_GIT_REPO 一经设置即
+16-    16	    权威——指向不存在/非 git 路径时拒绝静默回退，样本 qualified=false +
+17:    17	    显式 identity_error + fallback_refused=true，进程 rc1。
+18:    18	  - 进程 rc 契约：0=合格样本落盘；1=落盘但样本不合格（identity/provenance
+19-    19	    缺失）或创建碰撞/symlink 失败；3=证据环境错误（根不可写、manifest
+20-    20	    歧义等）。scheduler 侧 expected_exit_set=(0,)：rc1 → COMPLETED/FAIL →
+21-    21	    CRITICAL 通知（fail-visible 接线）。
+22-    22	  - rotation：识别新旧两代命名；当前窗口（active epoch）证据绝不删除。
+23-    23	
+24:    24	W9 shadow v2 语义（2026-10-09，八轮 identity=null 旧语义废止）不变：
+25-    25	「现役实例（7789）vs current 树新起临时实例」结构化比对，详见
+26-    26	probe_shadow/compare_health；shadow 文件同样走 O_EXCL 不可覆盖路径
+27-    27	（schema=obs-shadow-v2，携带 epoch_id/window_id 供 rotation 保护）。
+28-    28	
+29-    29	设计约束：纯标准库；单探针失败记 null/error，绝不中断整体采样；
+--
+71-    71	    WENQU_GIT_REPO 一经设置即权威（R8-OBS-NOGIT-015 remediation）：
+72-    72	      - 合法 git 仓 → 使用之（repo_source=env）；
+73-    73	      - 无效（不存在/非 git）→ 拒绝静默回退（repo_source=env_invalid，
+74-    74	        fallback_refused=True）——后续 git 探针全部显式报错。
+75-    75	    未设置：脚本所在树是 git 仓 → 用之；否则受控开发仓兜底；再否则
+76:    76	    无 git 可用（identity_error 如实记录）。"""
+77-    77	    env_repo = os.environ.get("WENQU_GIT_REPO")
+78-    78	    if env_repo:
+79-    79	        if _is_git_worktree(env_repo):
+80-    80	            return env_repo, "env", None
+81-    81	        return env_repo, "env_invalid", env_repo
+--
+238-   238	
+239-   239	def probe_repo():
+240-   240	    """git 身份探针（R7-OBS-SAMPLE-014 + G9-02 E fail-visible）。
+241-   241	
+242-   242	    身份正源 = fetch 后的 origin/main；WENQU_GIT_REPO 无效时拒绝静默回退
+243:   243	    （fallback_refused=True，identity=None + 显式 identity_error）——绝不
+244:   244	    把 identity=null 的样本混进合格分母。"""
+245-   245	    git_bin = find_bin("git")
+246-   246	    base = {
+247-   247	        "worktree_head": None, "head_error": None,
+248-   248	        "dirty": None, "dirty_files": None, "dirty_error": None,
+249-   249	    }
+250-   250	    repo_path, source, refused = resolve_repo()
+251-   251	    out = dict(base, path=repo_path, repo_source=source,
+252:   252	               identity=None, identity_error=None,
+253-   253	               fallback_refused=bool(refused))
+254-   254	    if not git_bin:
+255:   255	        out["identity_error"] = "git not found"
+256-   256	        return out
+257-   257	    if refused:
+258:   258	        out["identity_error"] = (
+259-   259	            "WENQU_GIT_REPO invalid (not a git worktree): " + refused
+260:   260	            + "；silent fallback refused (G9-02 identity fail-visible)")
+261-   261	        out["head_error"] = "repo invalid; git probes skipped"
+262-   262	        return out
+263-   263	    run_cmd([git_bin, "fetch", "origin", "main"], timeout=90, cwd=repo_path)
+264-   264	    ident_r = run_cmd([git_bin, "rev-parse", "origin/main"], timeout=15, cwd=repo_path)
+265-   265	    head_r = run_cmd([git_bin, "rev-parse", "HEAD"], timeout=15, cwd=repo_path)
+266-   266	    dirty_r = run_cmd([git_bin, "status", "--porcelain"], timeout=15, cwd=repo_path)
+267-   267	    head = head_r["stdout"] if head_r["returncode"] == 0 else None
+268:   268	    identity = ident_r["stdout"] if ident_r["returncode"] == 0 else None
+269-   269	    dirty_files = [ln for ln in dirty_r["stdout"].splitlines() if ln.strip()] \
+270-   270	        if dirty_r["returncode"] == 0 else None
+271-   271	    out.update({
+272:   272	        "identity": identity,
+273:   273	        "identity_error": None if identity else (ident_r["error"] or ident_r["stderr"][:200]),
+274-   274	        "worktree_head": head,
+275-   275	        "head_error": None if head else (head_r["error"] or head_r["stderr"][:200]),
+276-   276	        "dirty": (len(dirty_files) > 0) if dirty_files is not None else None,
+277-   277	        "dirty_files": dirty_files,
+278-   278	        "dirty_error": None if dirty_files is not None else dirty_r["error"],
+--
+427-   427	def observer_sha():
+428-   428	    """采样器自身文件 sha256（chain 的 observer_sha 正源）。"""
+429-   429	    return sha256_file(os.path.abspath(__file__)) or GENESIS_SHA
+430-   430	
+431-   431	
+432:   432	def resolve_release_sha():
+433-   433	    """release 身份：env 权威 → current symlink（releases/<sha>/tree）。"""
+434-   434	    v = os.environ.get("WENQU_RELEASE_SHA")
+435-   435	    if v:
+436-   436	        return v if SHA1_RE.match(v) else None
+437-   437	    try:
+--
+452-   452	    if not p:
+453-   453	        p = os.path.expanduser("~/Library/LaunchAgents/com.wenqu.scheduler.plist")
+454-   454	    return sha256_file(p)
+455-   455	
+456-   456	
+457:   457	def probe_live_identity():
+458-   458	    """现役 7789 实例身份（lsof→PID→ps argv→server.py sha256）。"""
+459-   459	    out = {
+460-   460	        "pid": None,
+461-   461	        "argv_script": None,
+462-   462	        "argv_script_sha256": None,
+--
+635-   635	        result["shadow_health_path"] = "/api/v1/health" if shadow_health is v1_health else "/api/health"
+636-   636	        result["shadow_health_v1_raw"] = {"status": v1_health.get("status"), "error": v1_health.get("error")}
+637-   637	        result["shadow_health_unversioned_raw"] = {"status": unversioned_health.get("status"), "error": unversioned_health.get("error")}
+638-   638	        result["live_health"] = live
+639-   639	
+640:   640	        live_ident = probe_live_identity()
+641-   641	        shadow_sha = sha256_file(CURRENT_SERVER)
+642:   642	        result["identity"] = {
+643-   643	            "live": live_ident,
+644-   644	            "shadow": {
+645-   645	                "server_py": CURRENT_SERVER,
+646-   646	                "realpath": os.path.realpath(CURRENT_SERVER),
+647-   647	                "sha256": shadow_sha,
+--
+938-   938	    """sample_sha256 = sha256(canonical(doc 除 sample_sha256 键外))。"""
+939-   939	    return hashlib.sha256(
+940-   940	        _canonical(doc_without_sample_sha).encode("utf-8")).hexdigest()
+941-   941	
+942-   942	
+943:   943	def qualify_identity(repo_info):
+944:   944	    """identity 合格判定：repo.identity 必须是 40hex（fail-visible，不猜）。
+945-   945	
+946:   946	    返回 (qualified, failures)；failures ∈ {"repo_identity_missing"}。"""
+947:   947	    identity = repo_info.get("identity") if isinstance(repo_info, dict) else None
+948:   948	    if isinstance(identity, str) and SHA1_RE.match(identity):
+949-   949	        return True, []
+950:   950	    return False, ["repo_identity_missing"]
+951-   951	
+952-   952	
+953-   953	def qualify_against_window(doc, manifest):
+954-   954	    """样本×窗口资格判定（T2 fail-closed，R9-OBS-T0-QUALIFICATION-002）。
+955-   955	
+956:   956	    在 identity/provenance 之外追加（任一不满足 → 不合格，理由入
+957-   957	    unqualified_reasons，收割器与采样器共用本单一正源）：
+958-   958	      - health 面可核：legacy_health.status==200 且 json 可解析；
+959-   959	      - health.target_sha 为 40hex 非零，且 == 窗口 sfinal（digests 正源）；
+960-   960	      - health scope 非 self_declared（scope_binding.mode / mode 双查）；
+961-   961	      - capacity gate 非 BLOCKED/CRITICAL 且必须为 OPEN（缺=不可核）；
+962:   962	      - release_sha == 窗口 sfinal；
+963-   963	      - observer_sha == 窗口 digests.observer。
+964-   964	    窗口自身缺 sfinal/observer（旧无效窗）时对应匹配项按不可核处理，
+965-   965	    绝不放行。返回 (qualified, reasons)。"""
+966-   966	    reasons = []
+967-   967	    if not isinstance(manifest, dict):
+--
+994-   994	        gate = cg.get("capacity_gate")
+995-   995	        if gate in ("BLOCKED", "CRITICAL") or cg.get("severity") == "CRITICAL":
+996-   996	            reasons.append("capacity_blocked")
+997-   997	        elif gate != "OPEN":
+998-   998	            reasons.append("capacity_not_open")
+999:   999	    if sfinal and doc.get("release_sha") != sfinal:
+1000:  1000	        reasons.append("release_sha_window_mismatch")
+1001-  1001	    if digests.get("observer") and doc.get("observer_sha") != digests["observer"]:
+1002-  1002	        reasons.append("observer_sha_window_mismatch")
+1003-  1003	    return (not reasons), reasons
+1004-  1004	
+1005-  1005	
+--
+1027-  1027	        raise wm.WindowPrereqError(
+1028-  1028	            "auto-open refused (T0 ten prerequisites): %s" % "; ".join(pfail))
+1029-  1029	    return wm.open_window(root, now=now_dt, prerequisites=prereqs)
+1030-  1030	
+1031-  1031	
+1032:  1032	def record_sample(root, core, *, identity=None, release_sha=None,
+1033-  1033	                  scheduler_config_sha=None, collected_at=None, now=None,
+1034-  1034	                  probe_mode="full"):
+1035-  1035	    """采样落盘唯一编排：manifest 解析 → 链头 → 合格判定 → O_EXCL 落盘 →
+1036-  1036	    首样回填 manifest（T0 锚定）。
+1037-  1037	
+--
+1059-  1059	                        "qualified": False,
+1060-  1060	                        "qualify_failures": ["window_manifest_error"],
+1061-  1061	                        "error": str(e)}
+1062-  1062	            head_seq, head_sha = latest_chain_head(
+1063-  1063	                sdir, manifest["epoch_id"])
+1064:  1064	            qualified, failures = qualify_identity(core.get("repo"))
+1065:  1065	            rel = (resolve_release_sha() if release_sha is None
+1066:  1066	                   else release_sha)
+1067-  1067	            scs = (resolve_scheduler_config_sha()
+1068-  1068	                   if scheduler_config_sha is None else scheduler_config_sha)
+1069-  1069	            if not (isinstance(rel, str) and SHA1_RE.match(rel)):
+1070:  1070	                failures = failures + ["release_sha_missing"]
+1071-  1071	                qualified = False
+1072-  1072	            if not (isinstance(scs, str) and SHA256_RE.match(scs)):
+1073-  1073	                failures = failures + ["scheduler_config_sha_missing"]
+1074-  1074	                qualified = False
+1075-  1075	            doc = {
+--
+1084-  1084	            }
+1085-  1085	            doc.update(core)
+1086-  1086	            doc.update({
+1087-  1087	                "sequence": head_seq + 1,
+1088-  1088	                "prev_sha256": head_sha or GENESIS_SHA,
+1089:  1089	                "release_sha": rel,
+1090-  1090	                "observer_sha": observer_sha(),
+1091-  1091	                "scheduler_config_sha": scs,
+1092-  1092	            })
+1093:  1093	            # T2 fail-closed：identity/provenance 之外追加窗口资格判定
+1094-  1094	            # （health target_sha==sfinal 非零非 self_declared / capacity
+1095-  1095	            # 非 BLOCKED / release·observer 与窗口咬合）；任一不满足=
+1096-  1096	            # qualified=false 且理由显式入 qualify_failures。
+1097-  1097	            qualified = bool(qualified)
+1098-  1098	            w_ok, w_reasons = qualify_against_window(doc, manifest)
+--
+1284-  1284	        "sequence": doc["sequence"],
+1285-  1285	        "qualified": doc["qualified"],
+1286-  1286	        "qualify_failures": doc["qualify_failures"],
+1287-  1287	        "repo_head": repo_info.get("worktree_head")
+1288-  1288	        if isinstance(repo_info, dict) else None,
+1289:  1289	        "repo_identity": repo_info.get("identity")
+1290-  1290	        if isinstance(repo_info, dict) else None,
+1291-  1291	        "repo_fallback_refused": repo_info.get("fallback_refused")
+1292-  1292	        if isinstance(repo_info, dict) else None,
+1293-  1293	        "canary_status": shadow["canary"].get("status"),
+1294-  1294	        "capacity_gate": sample_core["capacity_gate"].get("capacity_gate")
+=== sample schema file if any ===
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-exact-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-log-readonly.txt
+evidence/00-baseline/codex-external/evidence/acceptance-20261007-231333/observation-self-match-probe.txt
+evidence/00-baseline/codex-external/evidence/reaudit3-20261008-122924/02-runtime/observation-window-readonly.txt
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/09-observation-source-plist.txt
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/10-observation-launchctl-selected.txt
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/11-observation-plist-sanitized.json
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/12-observation-files-audit.json
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/13-observation-semantic-verdict.json
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/agents/trace-ci-runtime/runtime/14-observation-log-files.json
+evidence/00-baseline/codex-external/evidence/reaudit6-20261008-155511/root/09-observation/observation-snapshot.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.command
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.cwd
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.exit_code
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.finished_at
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.log
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.started_at
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.stderr
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-coverage/99-source-repo-readonly-observation.stdout
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/agent-runtime/44-observation-sample-binding.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-after.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-after.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-contract2.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-contract2.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-contract3.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-contract3.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-expand.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-expand.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-mixed.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9-mixed.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9.db
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/backups/dep9.marker.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract/flag-dep9-contract.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract2/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract2/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract2/flag-dep9-contract2.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract2/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract3/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract3/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract3/flag-dep9-contract3.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-contract3/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-down/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-down/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-down/flag-dep9-down.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-down/migrations/002_revoke.down.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-expand/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-expand/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-expand/flag-dep9-expand.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-expand/migrations/001_expand.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed/flag-dep9-mixed.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed/migrations/001_expand_ok.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-mixed/migrations/002_contract_bad.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/current
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/.deploy-lease
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/.deploy-state.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-1692ed96befc/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-1692ed96befc/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-1692ed96befc/flag-dep9-contract3.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-1692ed96befc/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-1692ed96befc/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-17761dc83265/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-17761dc83265/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-17761dc83265/flag-v1.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-17761dc83265/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-22ea9d133692/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-22ea9d133692/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-22ea9d133692/flag-dep9-contract.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-22ea9d133692/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-22ea9d133692/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-2b9a7d4c859e/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-2b9a7d4c859e/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-2b9a7d4c859e/flag-dep9-expand.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-2b9a7d4c859e/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-2b9a7d4c859e/migrations/001_expand.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/flag-dep9-mixed.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/migrations/001_expand_ok.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-461173a2be78/migrations/002_contract_bad.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-acaf8f71d1d4/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-acaf8f71d1d4/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-acaf8f71d1d4/flag-dep9-contract2.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-acaf8f71d1d4/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-acaf8f71d1d4/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-fe6667347cb3/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-fe6667347cb3/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-fe6667347cb3/flag-dep9-down.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-fe6667347cb3/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125114Z-fe6667347cb3/migrations/002_revoke.down.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125115Z-1692ed96befc/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125115Z-1692ed96befc/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125115Z-1692ed96befc/flag-dep9-contract3.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125115Z-1692ed96befc/manifest.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-root/releases/20261008T125115Z-1692ed96befc/migrations/001_contract_drop.sql
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-v1/app.py
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-v1/doctor.json
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9-v1/flag-v1.txt
+evidence/00-baseline/codex-external/evidence/reaudit7-20261008-204822/root-regression/pytest-tmp/pytest-of-maccc/pytest-0/test_DEP_09_observation_window0/dep9.mig.lock
+evidence/13-observation-window/README.md
+system/tests/test_observation_window.py
+tools/observation_daily.py
+tools/window_harvest.py
+tools/window_manifest.py

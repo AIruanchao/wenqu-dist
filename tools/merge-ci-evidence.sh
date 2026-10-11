@@ -16,6 +16,10 @@
 #      required contexts 同集合）均 status=completed + conclusion=success
 #   5. 结论 JSON（含 gh 原始输出）落
 #      evidence/08-ci-and-branch-rules/merge-ci-<shortsha>.json
+#   6. merge 身份门（R9-INFRA-CI-MERGEKIND-001 根修，九轮基建域新 P1）：
+#      父数 >= 2 的 merge commit 才可 PASS；单父/零父 push commit 的语义
+#      =「非合并证据目标」→ verdict=NOT_MERGE_COMMIT、rc1（JSON 与判定
+#      一致；gh 实查到的 run 原始数据仍如实落档供审计）
 #
 # 用法：
 #   bash tools/merge-ci-evidence.sh <SHA> [--repo DIR] [--branch main]
@@ -26,8 +30,10 @@
 #     --out-dir DIR  证据目录（默认 <repo>/evidence/08-ci-and-branch-rules）
 #     --slug O/R     gh 仓 slug（默认解析 origin remote）
 #
-# exit：0=verdict PASS（该 SHA 在 main 有 push run 且双平台 success）；
-#       1=证据不足（无 push run / 非双平台 / 非 success——如实落档）；
+# exit：0=verdict PASS（该 SHA 是父数>=2 的 merge commit，且在 main 有
+#         push run 且双平台 success）；
+#       1=证据不足或非合并目标（NOT_MERGE_COMMIT：父数<2——即使 run 全绿；
+#         或无 push run / 非双平台 / 非 success——如实落档）；
 #       2=环境/用法错（git/gh 缺失、SHA 解析失败等）。
 set -euo pipefail
 
@@ -130,7 +136,16 @@ REQUIRED = ["matrix (ubuntu-latest)", "matrix (macos-latest)"]
 push_runs = split["push_runs"]
 verdict, reason = "FAIL", ""
 primary = None
-if not push_runs:
+is_merge_flag = bool(int(is_merge))
+if not is_merge_flag:
+    # R9-INFRA-CI-MERGEKIND-001：父数<2 的 commit 不是「合并提交精确双平台
+    # CI」证据目标——即使 main 上有全绿 push run 也不得 PASS（run 原始数据
+    # 仍落档，供审计复核）
+    verdict = "NOT_MERGE_COMMIT"
+    reason = (f"commit {short_sha} 父数={len(parents.split())}"
+              f"（is_merge_commit=false）：非合并证据目标，仅父数>=2 的 "
+              f"merge commit 可判 PASS；其 push run 是否全绿不构成本工具证据")
+elif not push_runs:
     verdict = "INSUFFICIENT"
     reason = (f"--branch {branch} --commit {full_sha} 无 event=push run："
               f"该 SHA 未以 push 事件落到 {branch}（exact-SHA 实查，非推断）")

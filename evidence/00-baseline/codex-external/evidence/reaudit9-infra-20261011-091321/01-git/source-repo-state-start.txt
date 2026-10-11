@@ -1,0 +1,76 @@
+$ git remote -v
+origin	git@github.com:AIruanchao/wenqu-dist.git (fetch)
+origin	git@github.com:AIruanchao/wenqu-dist.git (push)
+[exit=0]
+$ git status --porcelain=v2 --branch
+# branch.oid 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+# branch.head main
+# branch.upstream origin/main
+# branch.ab +0 -0
+1 .D N... 100644 100644 000000 32e97a6f1cb618b85922c2590e3c20408ac17904 32e97a6f1cb618b85922c2590e3c20408ac17904 dist/wenqu-dist-2bd59ab.tar.gz
+1 .D N... 100644 100644 000000 806832956c1b5f7d57b9f12b675d10a9dd5b415f 806832956c1b5f7d57b9f12b675d10a9dd5b415f dist/wenqu-dist-b44b087.tar.gz
+1 .D N... 100644 100644 000000 835e1d75cb83d170a64c7aa6051fccbb52a42941 835e1d75cb83d170a64c7aa6051fccbb52a42941 dist/wenqu-dist-cf6d10e.tar.gz
+[exit=0]
+$ git show-ref --heads --remotes 2>/dev/null
+7eeb8a13107e8b52771f5b8784af8266ed0551b9 refs/heads/main
+9ff9632250984d8899b62e1ce478416c51fa1050 refs/heads/wave10/t1-receipt
+5c1a28f0e04850c0de8485c91b208ce19f0a9cb4 refs/heads/wave10/t2-window
+ebc3e3adb55dfef5f1e6f4a06797f45a5c6d3932 refs/heads/wave10/t3-stations
+a7410485aa7b244dceb7548ee9c78f120852bcc3 refs/heads/wave10/t4-rollback
+1e31d8800082c3bf025e33faef53afdac8fc79e5 refs/heads/wave10/t5-gate-frontdoor
+cd351d0a97fb05e0e7b14590e4635034ea1a406a refs/heads/wave10/t8-adjudication
+3fe37600c0e034b7322ab79b2d2ee1e34855d023 refs/heads/wave10/t9-registry
+c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1 refs/heads/wave4/evidence-deploy
+14600f829b6049775c6381cd1e7e7f52ec9fb460 refs/heads/wave4/p0-full-hardening
+6b859cd3915895a3a8934e746149dbe833cd18a7 refs/heads/wave5/evidence-final
+3c0b0c063be882bb54cef1975f8eb7f162aab5c5 refs/heads/wave5/one-shot
+bac7148eb54c45506ce68ec8f7edd2aadcb61a68 refs/heads/wave6/p1f-gate
+ff5de0f31679a42828dfd9e5666a712dbaed90bd refs/heads/wave7/final-artifacts
+310c1a9e11621e929650058b7c724a91840310c4 refs/heads/wave8/final-install
+12cb222ee1765dda5e917b3a2f300a53c1d4ef1d refs/heads/wave8/round8-snapshot
+c96794e2c5b44c3a2133fd6f03bdb7d5f8f62aa2 refs/heads/wave8/semantics
+609740bb108932c43e741c7bf4c29cdbafa3e753 refs/heads/wave9/baseline-green
+27c648ca63a4a83b042cbadeb199b4c885d562ad refs/heads/wave9/g9-02-observer
+49a8e6b9485126ca2c3a5ffcd1a1cc8d988c3917 refs/heads/wave9/g9-03-tla
+95598d3ddd470efd5c8ae3ca8a99102c05e9010f refs/heads/wave9/g9-04-approval
+446e10c15c05074b690943921f278bfec3cbb411 refs/heads/wave9/g9-05-legacy
+d4ec0b459d85752dcc4f3fc55fe3f78b67b1520e refs/heads/wave9/g9-06-manifest
+0ec079e374fdaa9f7f18c02d5a533fb60ded0924 refs/heads/wave9/g9-07-measure
+b09ac8787ff18f785f81b26e830d045f499fce0f refs/heads/wave9/g9-08-ci
+5830c6eb12a0c99433eaa4b0b8eb5a3d2c892ae9 refs/heads/wave9/g9-09-bak
+17a930527883b26430148f74987424a7d948c1ea refs/heads/wave9/g9-11-sc05
+889c71fe6e49fdf9a23a6592dfb8ce40096285af refs/heads/wave9/g9-12-install
+ab9e23932af14e7079c9622d65c2b34b9302a639 refs/heads/wave9/sampler-repo-fallback
+7eeb8a13107e8b52771f5b8784af8266ed0551b9 refs/remotes/origin/main
+44762fd3e8da306b197047c50e2008514e9fce90 refs/remotes/origin/release/v3.7.0
+419e778ced0894f846409c8be717a46560f898d3 refs/remotes/origin/release/v3.7.1
+288cfd3f6478f72b5513dfd917aef82e54539cc3 refs/remotes/origin/release/v3.8.0
+9ff9632250984d8899b62e1ce478416c51fa1050 refs/remotes/origin/wave10/t1-receipt
+5c1a28f0e04850c0de8485c91b208ce19f0a9cb4 refs/remotes/origin/wave10/t2-window
+ebc3e3adb55dfef5f1e6f4a06797f45a5c6d3932 refs/remotes/origin/wave10/t3-stations
+a7410485aa7b244dceb7548ee9c78f120852bcc3 refs/remotes/origin/wave10/t4-rollback
+1e31d8800082c3bf025e33faef53afdac8fc79e5 refs/remotes/origin/wave10/t5-gate-frontdoor
+cd351d0a97fb05e0e7b14590e4635034ea1a406a refs/remotes/origin/wave10/t8-adjudication
+3fe37600c0e034b7322ab79b2d2ee1e34855d023 refs/remotes/origin/wave10/t9-registry
+c345b7bbc0e79bbb1c81fb697061a95e44d3f6a1 refs/remotes/origin/wave4/evidence-deploy
+14600f829b6049775c6381cd1e7e7f52ec9fb460 refs/remotes/origin/wave4/p0-full-hardening
+6b859cd3915895a3a8934e746149dbe833cd18a7 refs/remotes/origin/wave5/evidence-final
+3c0b0c063be882bb54cef1975f8eb7f162aab5c5 refs/remotes/origin/wave5/one-shot
+bac7148eb54c45506ce68ec8f7edd2aadcb61a68 refs/remotes/origin/wave6/p1f-gate
+ff5de0f31679a42828dfd9e5666a712dbaed90bd refs/remotes/origin/wave7/final-artifacts
+f93e95ac20556905f31a3e25ec28f761be785e17 refs/remotes/origin/wave8/final-install
+12cb222ee1765dda5e917b3a2f300a53c1d4ef1d refs/remotes/origin/wave8/round8-snapshot
+c96794e2c5b44c3a2133fd6f03bdb7d5f8f62aa2 refs/remotes/origin/wave8/semantics
+609740bb108932c43e741c7bf4c29cdbafa3e753 refs/remotes/origin/wave9/baseline-green
+27c648ca63a4a83b042cbadeb199b4c885d562ad refs/remotes/origin/wave9/g9-02-observer
+49a8e6b9485126ca2c3a5ffcd1a1cc8d988c3917 refs/remotes/origin/wave9/g9-03-tla
+95598d3ddd470efd5c8ae3ca8a99102c05e9010f refs/remotes/origin/wave9/g9-04-approval
+446e10c15c05074b690943921f278bfec3cbb411 refs/remotes/origin/wave9/g9-05-legacy
+71295ec874334cd74d02c2187362e4ba22be9967 refs/remotes/origin/wave9/g9-06-manifest
+0ec079e374fdaa9f7f18c02d5a533fb60ded0924 refs/remotes/origin/wave9/g9-07-measure
+b09ac8787ff18f785f81b26e830d045f499fce0f refs/remotes/origin/wave9/g9-08-ci
+e7cd355afa4278b700562d19767def4888700556 refs/remotes/origin/wave9/g9-09-bak
+17a930527883b26430148f74987424a7d948c1ea refs/remotes/origin/wave9/g9-11-sc05
+889c71fe6e49fdf9a23a6592dfb8ce40096285af refs/remotes/origin/wave9/g9-12-install
+ab9e23932af14e7079c9622d65c2b34b9302a639 refs/remotes/origin/wave9/sampler-repo-fallback
+[exit=0]

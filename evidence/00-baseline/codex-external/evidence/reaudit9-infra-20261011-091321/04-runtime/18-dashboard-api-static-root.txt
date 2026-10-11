@@ -1,0 +1,83 @@
+=== dashboard route strings origin/main ===
+8:  - 不变量 10：dashboard 只能等于或比权威聚合器更保守——/api/v1/health 只读 gate_aggregator
+10:第一阶段（写接口关闭）：POST /api/decide → 405。
+12:P0-9/W8 残余根修（2026-10-08，health 零 SHA/self-declared 拒 PASS）：
+18:    时，health 输出 policy_verdict 拒绝 PASS：identity_missing → BLOCKED，
+24:  - R7-UI-LOG-AUTH-009：/api/v1/logs 加鉴权——WENQU_DASHBOARD_KEY 配置后须携带
+60:LOG_MAX_BYTES_DEFAULT = 1048576  # /api/v1/logs 响应字节上限默认 1MiB（R7-UI-LOG-BYTES-010）
+64:    """/api/v1/logs 响应字节上限（WENQU_LOG_MAX_BYTES 可配；非法/非正值回落默认）。"""
+236:def conservative_health_snapshot(snap):
+237:    """health 保守过滤（P0-9/W8 残余根修；纯函数，不改入参）。
+288:def _health_history_path():
+293:def health_history_writer(stop_evt):
+296:    path = _health_history_path()
+300:            # 与 /api/v1/health 同口径（P0-9/W8）：走势记录与 API 判定一致，
+302:            snap = conservative_health_snapshot(r["data"])
+344:    return {"version": ver, **out}
+465:def read_health_history():
+468:        with open(_health_history_path(), encoding="utf-8", errors="ignore") as f:
+699:    server_version = SERVER_VERSION
+700:    sys_version = ""
+701:    protocol_version = "HTTP/1.1"
+784:    # ── /api/v1/logs 鉴权（R7-UI-LOG-AUTH-009）：未配置 WENQU_DASHBOARD_KEY →
+806:    # ── GET：严格只读（零写路径；health 只读 aggregator 快照） ──
+815:        if not path.startswith("/api/"):
+817:        if not path.startswith("/api/v1/"):
+818:            return self._err(404, "API_VERSION_REQUIRED", "API 已版本化为 /api/v1/*；未版本化路径已废止")
+819:        ep = path[len("/api/v1/"):]
+842:        if ep == "health":
+848:            out = conservative_health_snapshot(r["data"])
+851:        if ep == "health-history":
+852:            return self._json(200, read_health_history())
+866:        return self._err(404, "NOT_FOUND", "未知端点：/api/v1/%s" % ep)
+886:    # ── POST：第一阶段写接口全关（/api/decide → 405）；其余路径做体量/类型校验后 404 ──
+891:        if path in ("/api/decide", "/api/v1/decide"):
+984:    ck("app.js textContent + showTab(data-t) + /api/v1/",
+985:       "textContent" in js and "dataset.t" in js and "showTab" in js and "/api/v1/" in js)
+988:       all(t in src for t in ("/api/v1/", "RateLimiter", "405", "_host_ok", "127.0.0.1", "ThreadingHTTPServer")))
+1038:        s, _, _, j = req("GET", "/api/v1/ping")
+1039:        ck("GET /api/v1/ping → 200 pong", s == 200 and isinstance(j, dict) and j.get("pong") is True)
+1040:        s, _, _, j = req("GET", "/api/v1/components")
+1041:        ck("GET /api/v1/components → 200 含 version", s == 200 and isinstance(j, dict) and "version" in j)
+1042:        s, _, _, j = req("GET", "/api/v1/health")
+1043:        ck("/api/v1/health 读 gate_aggregator（200 判定透传 或 503 结构化 ERROR，绝不 200+空集）",
+1047:        s, _, _, j = req("POST", "/api/decide", headers={"Content-Type": "application/json"},
+1049:        ck("POST /api/decide → 405（第一阶段写接口关闭）",
+1051:        s, _, _, _ = req("POST", "/api/v1/decide", headers={"Content-Type": "application/json"}, body="{}")
+1052:        ck("POST /api/v1/decide → 405", s == 405)
+1053:        s, _, _, j = req("GET", "/api/components")
+1054:        ck("未版本化 /api/* → 404 API_VERSION_REQUIRED",
+1062:        s, _, _, j = req("POST", "/api/v1/x", headers={"Content-Length": "1000000"}, body="x")
+1064:        s, _, _, j = req("POST", "/api/v1/x", headers={"Content-Type": "text/plain"}, body="hello")
+1069:        s, _, _, _ = req("OPTIONS", "/api/v1/ping")
+1075:            s, _, _, j = req("GET", "/api/v1/logs")
+1076:            ck("/api/v1/logs 未配置 key → 403 LOGS_AUTH_UNCONFIGURED（fail-closed）",
+1080:            s, _, _, j = req("GET", "/api/v1/logs")
+1081:            ck("/api/v1/logs 配置 key 但无 X-Auth-Key → 403",
+1083:            s, _, _, j = req("GET", "/api/v1/logs", headers={"X-Auth-Key": "wrong-key"})
+1084:            ck("/api/v1/logs 错误 X-Auth-Key → 403",
+1086:            s, _, _, _ = req("GET", "/api/v1/logs", headers={"X-Auth-Key": "selfcheck-log-key"})
+1087:            ck("/api/v1/logs 正确 X-Auth-Key → 200", s == 200)
+1113:                s, _, _, j = req("GET", "/api/v1/health")
+1114:                ck("零 SHA(self_declared) 快照 PASS → health 拒 PASS（BLOCKED+identity_missing+self_declared）",
+1120:                s, _, _, j = req("GET", "/api/v1/health")
+1121:                ck("真实 SHA(manifest) 快照 PASS → health 保持 PASS（不误伤正门）",
+1132:            st, _, _, _ = req("GET", "/api/v1/ping")
+1164:    writer = threading.Thread(target=health_history_writer, args=(stop_evt,), daemon=True,
+1165:                              name="health-history-writer")  # 写入与 GET 解耦：独立定时任务
+1168:    print(f"  health 正源 = gate_aggregator 快照（{os.environ.get('WENQU_GATE_AGGREGATE') or os.path.join(WQ, 'state', 'gate-aggregate.json')}）")
+=== html/js API calls ===
+50: {n:1,name:'源闸',tier:'PR 阻断',exec:'CI Fast：tsc/eslint/vitest/pytest/守卫棘轮/openapi/org-guard + verify-rebase-integrity（hook）+ typedRoutes 反证探针；涉权限/资金/租户 PR+隔离环境定向真单链',pass:'全绿+棘轮不升+探针真红（写死链探针→tsc 必红 TS2322）'},
+278:    try{d2=await api('/api/v1/bugscan-ledger?items='+encodeURIComponent(stt))}
+289:  try{d=await api('/api/v1/bugscan-ledger')}
+350:  const c=await api('/api/v1/components');
+372:  const d=await api('/api/v1/daemons');
+384:  const r=await api('/api/v1/ratchet');
+394:  const rd=await api('/api/v1/rounds');
+407:  let heat=null;try{heat=await api('/api/v1/rounds-heat')}catch(_e){heat=null}
+418:  const lg=await api('/api/v1/logs');
+437:  try{h=await api('/api/v1/health')}
+481:  let hh=null;try{hh=await api('/api/v1/health-history')}catch(_e){hh=null}
+497:  const dec=await api('/api/v1/decisions');
+518:    const hint='第一阶段写接口已关闭（POST /api/decide → 405）';
+525:  let all=null;try{all=await api('/api/v1/decisions?all=1')}catch(_e){all=null}

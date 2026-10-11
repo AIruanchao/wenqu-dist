@@ -1,0 +1,306 @@
+$ pwd
+/Users/maccc/Documents/wenqu-dist
+rc=0
+$ ls -la SNAP
+total 384
+-rw-r--r--@  1 maccc  wheel      0 Oct 11 08:53 ""
+drwxr-xr-x@ 52 maccc  wheel   1664 Oct 11 09:13 .
+drwxr-xr-x@  8 maccc  wheel    256 Oct 11 09:13 ..
+drwxr-xr-x@  3 maccc  wheel     96 Oct 11 08:53 .github
+-rw-r--r--@  1 maccc  wheel    781 Oct 11 08:53 .gitignore
+-rw-r--r--@  1 maccc  wheel     19 Oct 11 08:53 .mimosa-ignore
+-rw-r--r--@  1 maccc  wheel  34972 Oct 11 08:53 CHANGELOG.md
+-rw-r--r--@  1 maccc  wheel   7356 Oct 11 08:53 README.md
+-rw-r--r--@  1 maccc  wheel     92 Oct 11 08:53 SHA256-v1.0.18.txt
+-rw-r--r--@  1 maccc  wheel     91 Oct 11 08:53 SHA256-v1.0.6.txt
+-rw-r--r--@  1 maccc  wheel     91 Oct 11 08:53 SHA256-v1.0.7.txt
+-rw-r--r--@  1 maccc  wheel     91 Oct 11 08:53 SHA256-v1.0.8.txt
+-rw-r--r--@  1 maccc  wheel     89 Oct 11 08:53 SHA256-v2.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.0.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.1.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.2.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.3.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.1.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.2.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.3.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.4.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.4.5.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.1.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.2.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.3.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.4.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.5.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.6.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.7.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.5.8.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.6.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.6.1.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.6.2.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.6.3.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.7.0.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.7.1.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.8.1.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.8.2.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.8.3.txt
+-rw-r--r--@  1 maccc  wheel     85 Oct 11 08:53 SHA256-v3.8.4.txt
+drwxr-xr-x@  6 maccc  wheel    192 Oct 11 09:13 cli
+drwxr-xr-x@ 20 maccc  wheel    640 Oct 11 08:53 dist
+drwxr-xr-x@  5 maccc  wheel    160 Oct 11 08:53 docs
+drwxr-xr-x@ 19 maccc  wheel    608 Oct 11 08:53 evidence
+drwxr-xr-x@  3 maccc  wheel     96 Oct 11 08:53 probes
+-rw-r--r--@  1 maccc  wheel    341 Oct 11 08:53 pytest.ini
+drwxr-xr-x@  3 maccc  wheel     96 Oct 11 08:53 specs
+drwxr-xr-x@ 20 maccc  wheel    640 Oct 11 08:53 system
+drwxr-xr-x@  7 maccc  wheel    224 Oct 11 08:53 tests
+drwxr-xr-x@ 12 maccc  wheel    384 Oct 11 08:53 tools
+rc=0
+$ find SNAP -maxdepth 3 -type f | sort
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/""
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/.github/workflows/acceptance.yml
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/.gitignore
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/.mimosa-ignore
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/CHANGELOG.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v1.0.18.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v1.0.6.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v1.0.7.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v1.0.8.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v2.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.0.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.1.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.2.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.3.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.1.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.2.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.3.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.4.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.4.5.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.1.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.2.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.3.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.4.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.5.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.6.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.7.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.5.8.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.6.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.6.1.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.6.2.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.6.3.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.7.0.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.7.1.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.8.1.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.8.2.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.8.3.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/SHA256-v3.8.4.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/cli/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/cli/__pycache__/test_wenqu.cpython-313-pytest-9.1.1.pyc
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/cli/test_wenqu.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/cli/wenqu
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/SHA256-vNext-candidate-2bd59ab.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/SHA256-vNext-candidate-f2b8fc3.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-2bd59ab.manifest.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-2bd59ab.release.sig
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-2bd59ab.sbom.spdx.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-2bd59ab.tar.gz
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-2bd59ab.verify-report.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-b44b087.manifest.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-b44b087.release.sig
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-b44b087.sbom.spdx.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-b44b087.tar.gz
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-b44b087.verify-report.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-cf6d10e.manifest.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-cf6d10e.release.sig
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-cf6d10e.sbom.spdx.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-cf6d10e.tar.gz
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-dist-cf6d10e.verify-report.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/docs/条件放行声明-v1.0.18.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/docs/问渠轨道规范-发行版-v2.0.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/docs/首跑报告-market-monitor-20261003.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/00-baseline/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/01-threat-model-and-contracts/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/02-schemas-and-tla/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/02-schemas-and-tla/tla-wenqu-pipeline-run-2026-10-08.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/02-schemas-and-tla/tlc-wenqu-pipeline-2026-10-08.log
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/02-schemas-and-tla/tlc-wenqu-pipeline-mutation-probes-2026-10-08.log
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/03-red-probes-before/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-act-run.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-auth-cond.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-deploy-release.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-gate-family.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-ops-families.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-state-mig.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-station-families.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-ui-family.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/p1f2-mutation-gate-adoption.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/test-zero-pollution-adoption.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/05-concurrency-crash-chaos/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/06-scanner-goldens/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/07-migration-reconcile/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/07-migration-reconcile/migrated-events.db
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/07-migration-reconcile/migrated-events.db.migration-sidecar.jsonl
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/07-migration-reconcile/reconcile-report.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/07-migration-reconcile/summary.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/08-ci-and-branch-rules/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/08-ci-and-branch-rules/branch-protection-readback-20261008.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/08-ci-and-branch-rules/evidence-strict-validator-adoption.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/08-ci-and-branch-rules/merge-ci-d571ab8.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/08-ci-and-branch-rules/rulesets-count-20261008.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/09-release-manifest-attestation/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/09-release-manifest-attestation/release-attest-run-1620c7c.log
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/09-release-manifest-attestation/verify-report-1620c7c.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/adversarial-health-conservative-reverify-20261008.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/com.wenqu.dashboard.plist.pre-immutable-switch.bak
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/dashboard-7789-deploy-20261008.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/dashboard-7789-immutable-switch-20261008.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/dashboard-7789-modular-switch-20261008.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/dashboard-immutable-cf6d10e-20261009.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/launchd-inventory.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/runtime-immutable-switch-20261008T163305Z.log
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/10-ui-launchd-alert-backup/runtime-three-probes-20261008T163328Z.log
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/11-shadow-canary/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/12-rollback-drill/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/13-observation-window/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/evidence-index.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/traceability-matrix.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/probes/stations.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/pytest.ini
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/specs/tla/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/specs/tla/mutation_probes.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/specs/tla/wenqu_pipeline.tla
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/specs/tla/wenqu_pipeline_A.cfg
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/specs/tla/wenqu_pipeline_B.cfg
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/VERSION
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/blast-radius.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/check-openapi-compat.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/codeowners-ruleset-doctor.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/coverage-ratchet.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/cursor-auto-verify.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/deploy-preflight.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/gate-learner.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/hardening-doctor.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/iron-gate.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/relay-push.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/risk-scorer.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/same-name-census.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/spec-reconcile.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/tla2tools.jar
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/ts-to-tla.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/wenqu
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/wenqu-dashboard.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/wenqu-env.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/wenqu-scheduler
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/wenquctl
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/workorder-precheck.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/bin/zero-rework.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/ci/ci-fast.yml
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/ci/nightly.yml
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/config/wenqu.env.example
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/daemons/auto-merge.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/daemons/cdc-conservation-stream.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/daemons/conservation-daemon.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/dashboard/app.css
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/dashboard/app.js
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/dashboard/index.html
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/dashboard/server.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/db/conservation-triggers.sql
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/db/self-heal.sql
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/docs/constitution-template.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/install-release.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/install.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/launchd/README.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/launchd/com.wenqu.scheduler.plist.template
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/approval-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/evidence-index-active-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/evidence-index-legacy-v1.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/evidence-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/finding-event-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/run-event-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/schemas/station-result-v2.schema.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/sentinels/backup-restore-drill.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/sentinels/ci-event-sentinel.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/sentinels/conservation-sentinel.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/sentinels/ssl-cert-sentinel.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/sentinels/weekly-watchdog.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/specs/PaymentConservation.cfg
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/specs/PaymentConservation.tla
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/templates/adversarial.spec.ts
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/templates/user-guide-template.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/templates/work-order-template.md
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/conftest.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/p1f_ast_gate.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/p1f_mutation_gate.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_act_run.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_auth_cond.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_deploy_release.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_gate_family.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_ops_families.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_state_mig.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_station56.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_station_families.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_ac_ui_family.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_approval_issue.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_cli_install_ci.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_core_wiring.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_events_unified.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_gate_manifest_trust.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_gate_schema_hardening.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_gate_scope_binding.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_infra_hardening.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_linux_proc_path.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_manifest_semantic_replay.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_observation_window.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_release_attest.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_runner_daemon.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_tla_spec.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_w4_production.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_wenqu_adversarial.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/test_wenqu_pipeline.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/__init__.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/approval_issue.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/approval_keys.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/bugscan_orchestrator.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/capacity_monitor.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/cli.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/deploy_framework.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/ledger_migrator.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/runner.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/source_gate.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station3_contract.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station4_behavior.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station5_live_fire.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/store.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/ui_probe.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/wenqu_pipeline.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/acceptance.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/p1f-assert-baseline.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/p1f-behavior-baseline.txt
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/p1f-mutations.json
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/release-check.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/ac_traceability.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/evidence_validator.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/merge-ci-evidence.sh
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/provision_registry_root.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/quarantine_adjudicate.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/release_attest.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/w5_reconcile.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/window_harvest.py
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/window_manifest.py
+rc=0

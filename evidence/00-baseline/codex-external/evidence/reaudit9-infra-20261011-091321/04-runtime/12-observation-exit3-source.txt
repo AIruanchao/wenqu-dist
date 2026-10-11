@@ -1,0 +1,109 @@
+  1160	        return removed
+  1161	    for name in names:
+  1162	        if not name.endswith(".json"):
+  1163	            continue
+  1164	        m_new = _NEW_NAME_RE.match(name)
+  1165	        if m_new:
+  1166	            try:
+  1167	                d = datetime.strptime(m_new.group(1), "%Y%m%d").date()
+  1168	            except ValueError:
+  1169	                continue
+  1170	            cutoff = cutoff_new
+  1171	        else:
+  1172	            m_old = _LEGACY_NAME_RE.match(name)
+  1173	            if not m_old:
+  1174	                continue  # 不识别 → 保守保留
+  1175	            try:
+  1176	                d = date(int(m_old.group(1)), int(m_old.group(2)),
+  1177	                         int(m_old.group(3)))
+  1178	            except ValueError:
+  1179	                continue
+  1180	            cutoff = cutoff_legacy
+  1181	        if d >= cutoff:
+  1182	            continue
+  1183	        path = os.path.join(dirpath, name)
+  1184	        if protect_mtime_since is not None:
+  1185	            try:
+  1186	                if os.path.getmtime(path) >= protect_mtime_since:
+  1187	                    continue
+  1188	            except OSError:
+  1189	                continue
+  1190	        if protect_epoch is not None and _sample_epoch_of(path) == protect_epoch:
+  1191	            continue  # 当前窗口证据：绝不删
+  1192	        try:
+  1193	            os.remove(path)
+  1194	            removed.append(name)
+  1195	        except OSError:
+  1196	            pass
+  1197	    return removed
+  1198	
+  1199	
+  1200	# ---------------------------------------------------------------- main
+  1201	
+  1202	def main(argv=None):
+  1203	    light = os.environ.get("WENQU_OBS_PROBE_MODE") == "light"
+  1204	    root = observation_root()
+  1205	    try:
+  1206	        for d in (samples_dir(root), shadow_dir(root), LOGS_DIR,
+  1207	                  errors_dir(root), wm.manifest_dir(root)):
+  1208	            os.makedirs(d, exist_ok=True)
+  1209	    except OSError as e:
+  1210	        print(json.dumps({"ok": False, "rc": 3,
+  1211	                          "error": "observation root unwritable: %s" % e},
+  1212	                         ensure_ascii=False))
+  1213	        return 3
+  1214	    now_dt = datetime.now(timezone.utc)
+  1215	    now_iso = now_dt.isoformat()
+  1216	
+  1217	    def _skipped():
+  1218	        return {"skipped": "light-mode"}
+  1219	
+  1220	    repo_info = safe(probe_repo)
+  1221	    sample_core = {
+  1222	        "host": _skipped() if light else safe(probe_host),
+  1223	        "repo": repo_info,
+  1224	        "ci_latest_main": _skipped() if light else safe(probe_ci_latest_main),
+  1225	        "dashboard_launchd": _skipped() if light else safe(probe_dashboard_launchd),
+  1226	        "legacy_health": _skipped() if light else safe(probe_legacy_health),
+  1227	        "disk": safe(probe_disk),
+  1228	        "capacity_gate": safe(probe_capacity_gate),
+  1229	    }
+  1230	    rec = record_sample(root, sample_core, collected_at=now_iso,
+  1231	                        now=now_dt, probe_mode="light" if light else "full")
+  1232	    if rec["rc"] == 3:
+  1233	        print(json.dumps({"ok": False, "rc": 3,
+  1234	                          "error": rec.get("error"),
+  1235	                          "qualify_failures": rec.get("qualify_failures")},
+  1236	                         ensure_ascii=False))
+  1237	        return 3
+  1238	    manifest = rec["manifest"]
+  1239	    doc = rec["doc"]
+  1240	
+  1241	    # W9 shadow（同样 O_EXCL 不可覆盖；携带 epoch/window 供 rotation 保护）
+  1242	    shadow_probe = _skipped() if light else safe(probe_shadow)
+  1243	    man_doc = None
+  1244	    try:
+  1245	        man_doc = wm.load_manifest(root, manifest["window_id"])
+  1246	    except wm.WindowError:
+  1247	        man_doc = manifest
+  1248	    anchor = (man_doc or {}).get("t0")
+  1249	    canary_hours = (man_doc or {}).get("canary_hours") or CANARY_WINDOW_HOURS
+  1250	    shadow = {
+  1251	        "schema": SHADOW_SCHEMA,
+  1252	        "window": "W9-shadow-clock",
+  1253	        "window_id": manifest["window_id"],
+  1254	        "epoch_id": manifest["epoch_id"],
+  1255	        "collected_at": now_iso,
+  1256	        "shadow": shadow_probe,
+  1257	        "canary": build_canary(
+  1258	            shadow_probe.get("compare", {}).get("equal")
+  1259	            if isinstance(shadow_probe, dict) else None,
+  1260	            now_dt=now_dt, anchor_iso=anchor, window_hours=canary_hours,
+  1261	            root=root),
+  1262	    }
+  1263	    wres = write_sample_exclusive(shadow_dir(root), shadow,
+  1264	                                  kind="shadow_create_failed")
+  1265	    shadow_path = wres["path"]
+  1266	    shadow_error = wres["error"]
+  1267	
+  1268	    # rotation：当前窗口证据保护（epoch 命中绝不删）

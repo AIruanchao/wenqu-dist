@@ -1,0 +1,58 @@
+timestamp=2026-10-11T01:15:32Z
+pwd=/private/tmp/codex-test
+command=python3 '/private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/02-migration/independent_legacy_permission_probe.py'
+--- output begin ---
+{
+  "finding_family": "round8 P0-3 existing root: row-version ledger and legacy table share same SQLite write authority; trigger-only guards are removable/backfillable",
+  "isolation_root": "/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/reaudit9-migration-2naj06vl",
+  "probe": "independent legacy row-version/write-authority adversarial probe",
+  "probe_assertion_verdict": "PASS",
+  "scenario_A_gap_digest_backfill": {
+    "attacker_same_sqlite_connection": true,
+    "bypass_reproduced": true,
+    "db_mode": "0o644",
+    "digest_rows_after_backfill": 3,
+    "dropped_legacy_triggers": [
+      "events_legacy_frozen_no_insert",
+      "events_legacy_frozen_no_update",
+      "events_legacy_frozen_no_delete"
+    ],
+    "first": {
+      "cutover_max_legacy_id": 3,
+      "duplicates": 0,
+      "imported": 2,
+      "quarantined": 0,
+      "row_digests_on_record": 2
+    },
+    "malicious_payload_in_unified_chain": true,
+    "second": {
+      "duplicates": 2,
+      "imported": 1,
+      "legacy_untrusted": false,
+      "quarantined": 0,
+      "row_digests_on_record": 3
+    },
+    "unauthorized_digest_insert_succeeded": true
+  },
+  "scenario_B_forged_upgrade_baseline": {
+    "bypass_reproduced": true,
+    "first": {
+      "imported": 2,
+      "quarantined": 0,
+      "row_digests_on_record": 2
+    },
+    "forged_digest_ledger_rows": 3,
+    "forged_gap_in_unified_chain": true,
+    "forged_update_in_unified_chain": true,
+    "second": {
+      "duplicates": 1,
+      "imported": 2,
+      "legacy_untrusted": false,
+      "quarantined": 0,
+      "row_digests_on_record": 3
+    }
+  },
+  "system_verdict": "FAIL"
+}
+--- output end ---
+exit_code=0
