@@ -56,3 +56,62 @@ jobs:
       # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
       # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
       # 不再独立重跑，避免 macOS 时长翻倍。
+
+  # ---- W11-11（十轮 W2 扣分「受限容器腿缺」根治）：真实受限容器 required job ----
+  # 在「固定 digest 镜像 + 非 root + 只读 rootfs + 仓库只读挂载 + /tmp 独立
+  # tmpfs + network none + cap-drop ALL + no-new-privileges + pids/memory/cpu
+  # 限额 + 禁 Docker socket + 禁 pyc」的真容器里实测：
+  #   1) restricted_container_probe.py：全套隔离不变量（euid 非 0、rootfs/源码树
+  #      写拒、CapEff=0、NoNewPrivs=1、网络/Docker socket 不可达、cgroup 限额
+  #      可读且真实生效——pids fork 饱和、memory OOM 击杀、CPU 节流实测）；
+  #   2) W2 真腿容器内全部运行且零 SKIP：test_linux_proc_path.py（/proc environ
+  #      token 扫杀+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）、
+  #      test_runner_daemon.py（环境剥离/超时/孙进程终止）、test_infra_hardening.py
+  #      （CAS 负例：symlink swap/hardlink 预置/半写毒文件/SIGKILL 中断恢复）。
+  # 退出码合同：0=全过；1=限制可绕过；2=参数错；3=Docker//proc/cgroup 测量面
+  # 不可验证（缺环境绝不 SKIP）；外层 GNU timeout 到期=124。job 按退出码直接红。
+  restricted-container:
+    name: restricted-container   # W11-12 exact required check context 同名
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 真实受限容器（固定 digest+全套隔离+W2 真腿）
+        env:
+          # 固定 digest：python:3.11-bookworm 多架构 index（amd64=CI/arm64=本机
+          # 预验同 digest）。含 ps/timeout/bash/tar（探针与真腿依赖）。
+          WQ_IMAGE: python:3.11-bookworm@sha256:5887f265d8d44d8b4734d3658b21d668edf5aaf92e4945bc0c984afbfab105d3
+          WQ_UID: "65532"
+          WQ_GID: "65532"
+          WQ_PIDS_LIMIT: "128"
+          WQ_MEMORY: 768m
+          WQ_MEMORY_BYTES: "805306368"   # 768m 字节数（探针合同校验 memory.max）
+          WQ_CPUS: "1.5"
+          WQ_CPU_QUOTA: "150000"         # cpu.max quota(us)（1.5 CPU）
+          WQ_CPU_PERIOD: "100000"        # cpu.max period(us)
+        run: |
+          set -euo pipefail
+          echo "commit_sha=${GITHUB_SHA} image=${WQ_IMAGE}"
+          docker pull "$WQ_IMAGE"
+          docker image inspect "$WQ_IMAGE" --format 'pinned-digest={{index .RepoDigests 0}}'
+          CTR=wq-restricted-container
+          trap 'docker rm -f "$CTR" >/dev/null 2>&1 || true' EXIT
+          timeout 900 docker run --rm --name "$CTR" \
+            --user "${WQ_UID}:${WQ_GID}" \
+            --read-only \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit "$WQ_PIDS_LIMIT" \
+            --memory "$WQ_MEMORY" --memory-swap "$WQ_MEMORY" \
+            --cpus "$WQ_CPUS" \
+            --tmpfs /tmp:rw,exec,nosuid,nodev,size=512m,mode=1777 \
+            -v "${GITHUB_WORKSPACE}:/wq:ro" \
+            -e PYTHONDONTWRITEBYTECODE=1 -e HOME=/tmp -e TMPDIR=/tmp \
+            -e WQ_REPO_ROOT=/wq -e WQ_UID -e WQ_GID \
+            -e WQ_PIDS_LIMIT -e WQ_MEMORY_BYTES \
+            -e WQ_CPU_QUOTA -e WQ_CPU_PERIOD \
+            -e WQ_COMMIT_SHA="${GITHUB_SHA}" \
+            "$WQ_IMAGE" \
+            python3 /wq/system/tests/restricted_container_probe.py
+
