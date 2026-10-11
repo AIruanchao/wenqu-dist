@@ -622,7 +622,9 @@ def invalidate_active_windows(paths: "IntegrityPaths", reason: str,
 # ---------------------------------------------------------------------- #
 def audit_processes(current_tree: str,
                     services: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """按服务清单核对运行进程：argv 必须解析进 current 树且脚本字节可达。
+    """按服务清单核对运行进程（-ww 无限宽：pytest 在 C 层注入幽灵
+    COLUMNS=80，procps-ng 无 tty 时按其截断命令行——argv 匹配必断；
+    BSD/procps 双平台 -ww 语义一致，CI Linux 实证）：argv 必须解析进 current 树且脚本字节可达。
 
     语义：切换 current 后常驻进程仍持旧 release 树 inode——argv 指向旧树
     的服务（或 must_be_running 服务缺位）→ 项 False；脚本路径在树内且
@@ -632,7 +634,7 @@ def audit_processes(current_tree: str,
     result: Dict[str, Any] = {"services": [], "terms": {},
                               "pid_argv_and_script_bytes_match": None}
     try:
-        p = subprocess.run(["ps", "-axo", "pid=,command="],
+        p = subprocess.run(["ps", "-axo", "pid=,command=", "-ww"],
                            capture_output=True, text=True, timeout=15)
         lines = [l.strip() for l in (p.stdout or "").splitlines() if l.strip()]
     except (OSError, subprocess.SubprocessError):
