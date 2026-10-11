@@ -53,6 +53,10 @@ if _TOOLS_DIR not in sys.path:
 import window_manifest as wm  # noqa: E402  动态窗口 manifest 单一正源
 
 REPO = os.path.dirname(_TOOLS_DIR)  # 代码/导入正源（脚本所在树）
+# CLI 直跑时把自身注册为 import 名——防止 __main__ 与 observation_daily 双实例
+# （window_manifest 懒加载 observation_daily 时必须拿到同一实例）
+if __name__ == "__main__" and "observation_daily" not in sys.modules:
+    sys.modules["observation_daily"] = sys.modules[__name__]
 # ---------------------------------------------------------------- git 身份仓解析
 _DEV_REPO_FALLBACK = os.environ.get("WENQU_DEV_REPO_FALLBACK",
                                     "/Users/maccc/Documents/wenqu-dist")
@@ -862,7 +866,10 @@ def record_creation_error(root, kind, detail):
 
 
 class ChainLock:
-    """样本链互斥（flock samples/.chain.lock）——链头读取+落盘原子化。"""
+    """样本链互斥（flock samples/.chain.lock）——W11-05 前的旧原语。
+
+    record_sample 已改持根级 windows/.window.lock（覆盖 open/sample/anchor/
+    seal/invalidate，见 wm.window_lock）；本类保留仅为 API 兼容。"""
 
     def __init__(self, sdir):
         self._path = os.path.join(sdir, ".chain.lock")
@@ -1003,8 +1010,177 @@ def qualify_against_window(doc, manifest):
     return (not reasons), reasons
 
 
+def qualify_sample_strict(doc, manifest=None):
+    """W11-05 单一资格判定正源（sampler 锚定选择 / repair / harvest 共用；
+    不采信样本自报 qualified=true——一律从 raw 字段重判）。
+
+    = 结构面（identity/provenance 五字段/sequence/epoch_id 格式）
+    + 窗口面（qualify_against_window：health/capacity/release·observer 咬合）
+    + 自报标志一致性（qualified 标志与重判结果不符=不合格）。
+    返回 (qualified, failures)。"""
+    failures = []
+    identity = (doc.get("repo") or {}).get("identity") \
+        if isinstance(doc.get("repo"), dict) else None
+    if not (isinstance(identity, str) and SHA1_RE.match(identity)):
+        failures.append("identity_invalid")
+    for fld, pat in (("release_sha", SHA1_RE),
+                     ("observer_sha", SHA256_RE),
+                     ("scheduler_config_sha", SHA256_RE),
+                     ("prev_sha256", SHA256_RE),
+                     ("sample_sha256", SHA256_RE)):
+        v = doc.get(fld)
+        if not (isinstance(v, str) and pat.match(v)):
+            failures.append(fld + "_invalid")
+    seq = doc.get("sequence")
+    if not isinstance(seq, int) or isinstance(seq, bool) or seq < 1:
+        failures.append("sequence_invalid")
+    if not isinstance(doc.get("epoch_id"), str) or not doc.get("epoch_id"):
+        failures.append("epoch_id_invalid")
+    w_ok, w_reasons = qualify_against_window(doc, manifest)
+    if not w_ok:
+        failures.extend(w_reasons)
+    flagged = doc.get("qualified") is True
+    if not failures and not flagged:
+        failures.append("qualified_flag_inconsistent")
+    if flagged and failures:
+        failures.append("qualified_flag_inconsistent")
+    return (not failures), failures
+
+
+def strict_epoch_chain(sdir, epoch_id, *, manifest=None):
+    """W11-05 严格链验证（sampler 写前/写后、seal、repair、锚定选择共用）：
+    解析全部样本 → 重算 sample hash → 验 sequence 连续/prev 咬合/GENESIS →
+    按 sequence 重判资格 → 选最早合格样本。坏 JSON、断链、symlink 一律
+    入 failures（绝不静默跳过）；legacy 命名文件不属于链，忽略。
+
+    返回 {"failures": [...], "by_seq": {seq: (doc, path, name)},
+    "qualified": {seq: (ok, reasons)}, "first_qualified": (seq, doc)|None,
+    "n_samples": int}。"""
+    failures = []
+    by_seq = {}
+    try:
+        names = sorted(os.listdir(sdir))
+    except OSError:
+        names = []
+    for n in names:
+        if not n.endswith(".json"):
+            continue
+        p = os.path.join(sdir, n)
+        v2_named = re.match(NEW_SAMPLE_NAME_RE, n)
+        if os.path.islink(p):
+            if v2_named:
+                failures.append({"code": "symlink_sample", "file": n})
+            continue
+        try:
+            with open(p, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError) as e:
+            if v2_named:
+                failures.append({"code": "unparsable_sample", "file": n,
+                                 "error": str(e)[:120]})
+            continue
+        if not (isinstance(d, dict) and d.get("schema") == SAMPLE_SCHEMA):
+            # 可解析但非样本 schema（rotation 夹具/外来数据）：不属于链；
+            # 只有「v2 命名却不可解析」才是坏 JSON（fail-visible）
+            continue
+        if d.get("epoch_id") != epoch_id:
+            continue  # 其它窗口 epoch 的样本：不属于本链
+        seq = d.get("sequence")
+        if not isinstance(seq, int) or isinstance(seq, bool):
+            failures.append({"code": "missing_sequence", "file": n})
+            continue
+        if seq in by_seq:
+            failures.append({"code": "forked_sequence", "sequence": seq,
+                             "files": [by_seq[seq][2], n]})
+        else:
+            by_seq[seq] = (d, p, n)
+    # sample_sha256 重算
+    for seq, (d, _p, n) in by_seq.items():
+        stored = d.get("sample_sha256")
+        recomputed = compute_sample_sha256(
+            {k: v for k, v in d.items() if k != "sample_sha256"})
+        if stored != recomputed:
+            failures.append({"code": "sample_hash_mismatch", "file": n})
+    # sequence 连续性 1..N
+    if by_seq:
+        missing = sorted(set(range(1, max(by_seq) + 1)) - set(by_seq))
+        if missing:
+            failures.append({"code": "sequence_gap",
+                             "missing_sequences": missing})
+        for seq in sorted(by_seq):
+            d = by_seq[seq][0]
+            prev = d.get("prev_sha256")
+            if seq == 1:
+                if prev != GENESIS_SHA:
+                    failures.append({"code": "genesis_mismatch",
+                                     "file": by_seq[seq][2]})
+            else:
+                prev_doc = by_seq.get(seq - 1)
+                if prev_doc is not None \
+                        and prev != prev_doc[0].get("sample_sha256"):
+                    failures.append({"code": "chain_break", "sequence": seq,
+                                     "file": by_seq[seq][2]})
+    # 资格重判（单一正源）+ 最早合格样本
+    qualified = {}
+    first_qualified = None
+    for seq in sorted(by_seq):
+        d = by_seq[seq][0]
+        ok, reasons = qualify_sample_strict(d, manifest)
+        qualified[seq] = (ok, reasons)
+        if ok and first_qualified is None:
+            first_qualified = (seq, d)
+    return {"failures": failures, "by_seq": by_seq, "qualified": qualified,
+            "first_qualified": first_qualified, "n_samples": len(by_seq)}
+
+
+def try_anchor_first_qualified(root, manifest, *, now=None, sdir=None):
+    """W11-05 锚定协调（须在 window lock 内调用；本身可重入）：manifest
+    未锚定时按严格链选择【最早合格】样本并原子锚定（t0=该样本时刻，绝不
+    漂移到当前样本）。返回 {"status": anchored|already|none|chain_error|
+    not_open|invalidated, ...}。"""
+    wid = manifest["window_id"]
+    with wm.window_lock(root):
+        status, _ev = wm.effective_status(root, wid)
+        if status == "invalidated":
+            return {"status": "invalidated", "manifest": manifest}
+        man = wm.load_manifest(root, wid)
+        if man.get("first_qualified_sample_sha256") \
+                or man.get("first_sample_sha256"):
+            return {"status": "already", "manifest": man}
+        if man.get("status") != "open":
+            return {"status": "not_open", "manifest": man}
+        chain = strict_epoch_chain(sdir or samples_dir(root),
+                                   man["epoch_id"], manifest=man)
+        if chain["failures"]:
+            return {"status": "chain_error", "manifest": man,
+                    "chain_failures": chain["failures"]}
+        fq = chain["first_qualified"]
+        if fq is None:
+            return {"status": "none", "manifest": man}
+        seq, doc = fq
+        pre = []
+        for s in sorted(chain["by_seq"]):
+            if s >= seq:
+                break
+            pd = chain["by_seq"][s][0]
+            ok, reasons = chain["qualified"][s]
+            pre.append({"sequence": s,
+                        "sample_sha256": pd.get("sample_sha256"),
+                        "collected_at": pd.get("collected_at"),
+                        "qualified": ok,
+                        "unqualified_reasons": reasons})
+        man = wm.note_first_sample(
+            root, man, sample_sha256=doc["sample_sha256"],
+            t0_iso=doc.get("collected_at"), now=now,
+            sequence=seq, pre_t0_attempts=pre)
+        return {"status": "anchored", "manifest": man, "sequence": seq,
+                "t0": man.get("t0"), "pre_t0_attempts": pre}
+
+
 def _resolve_window(root, now_dt):
-    """（须持链锁）取当前活跃 manifest；过期 open 窗懒封口；无则 auto-open。
+    """（须持窗口锁）取当前活跃 manifest；过期 open 窗懒封口（含从未锚定
+    且名义到期的死锁窗——W11-05：封口后收割裁决 rc1，活跃位让给新窗）；
+    无活跃则 auto-open。
 
     T2 收紧：auto-open 必须从受管环境拿到十项前置
     （WENQU_WINDOW_PREREQS_JSON/FILE）；缺/坏 → WindowPrereqError →
@@ -1014,7 +1190,17 @@ def _resolve_window(root, now_dt):
         if m.get("status") != "open":
             continue
         end = wm.parse_iso(m.get("end_at"))
-        if end is not None and now_dt > end:
+        expired = end is not None and now_dt > end
+        if not expired and end is None and m.get("t0") is None:
+            created = wm.parse_iso(m.get("created_at"))
+            try:
+                dur = float(m.get("duration_hours") or 0.0)
+            except (TypeError, ValueError):
+                dur = 0.0
+            if created is not None and dur > 0 \
+                    and now_dt > created + timedelta(hours=dur):
+                expired = True  # 从未锚定且名义到期：懒封口（W11-05）
+        if expired:
             try:
                 wm.seal_window(root, m["window_id"], now=now_dt)
             except wm.WindowError:
@@ -1032,11 +1218,13 @@ def _resolve_window(root, now_dt):
 def record_sample(root, core, *, identity=None, release_sha=None,
                   scheduler_config_sha=None, collected_at=None, now=None,
                   probe_mode="full"):
-    """采样落盘唯一编排：manifest 解析 → 链头 → 合格判定 → O_EXCL 落盘 →
-    首样回填 manifest（T0 锚定）。
+    """采样落盘唯一编排（W11-05：全程持根级 window lock）：manifest 解析 →
+    写前严格验链（坏链 rc3 绝不扩链）→ 链头 → 合格判定 → O_EXCL 落盘 →
+    写后严格重扫 + 最早合格样本锚定（崩溃后下一 tick 自动补锚，t0 不漂移）。
 
-    返回 {"rc", "path", "doc", "manifest", "qualified", "qualify_failures"}：
-      rc=0 合格样本；rc=1 落盘但不合格/创建失败；rc=3 证据环境错误。"""
+    返回 {"rc", "path", "doc", "manifest", "qualified", "qualify_failures",
+    "chain_failures"}：rc=0 合格样本；rc=1 落盘但不合格/创建失败；
+    rc=3 链或证据环境错误。"""
     sdir = samples_dir(root)
     try:
         for d in (sdir, errors_dir(root), wm.manifest_dir(root),
@@ -1051,7 +1239,7 @@ def record_sample(root, core, *, identity=None, release_sha=None,
         now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
     collected = collected_at or now_dt.astimezone(timezone.utc).isoformat()
     try:
-        with chain_lock(sdir):
+        with wm.window_lock(root):  # W11-05：sample 与 open/anchor/seal/invalidate 同锁
             try:
                 manifest = _resolve_window(root, now_dt)
             except wm.WindowError as e:
@@ -1059,8 +1247,20 @@ def record_sample(root, core, *, identity=None, release_sha=None,
                         "qualified": False,
                         "qualify_failures": ["window_manifest_error"],
                         "error": str(e)}
-            head_seq, head_sha = latest_chain_head(
-                sdir, manifest["epoch_id"])
+            # W11-05 写前严格验链：坏 JSON/断链/symlink → rc3（绝不静默
+            # 跳过、绝不在坏链上续写）
+            pre = strict_epoch_chain(sdir, manifest["epoch_id"],
+                                     manifest=manifest)
+            if pre["failures"]:
+                return {"rc": 3, "path": None, "doc": None,
+                        "manifest": manifest, "qualified": False,
+                        "qualify_failures": ["chain_verify_error"],
+                        "chain_failures": pre["failures"],
+                        "error": "epoch chain verification failed; "
+                                 "refusing to extend chain"}
+            head_seq = max(pre["by_seq"]) if pre["by_seq"] else 0
+            head_sha = (pre["by_seq"][head_seq][0].get("sample_sha256")
+                        if head_seq else None)
             qualified, failures = qualify_identity(core.get("repo"))
             rel = (resolve_release_sha() if release_sha is None
                    else release_sha)
@@ -1109,25 +1309,35 @@ def record_sample(root, core, *, identity=None, release_sha=None,
                 return {"rc": 1, "path": None, "doc": doc,
                         "manifest": manifest, "qualified": qualified,
                         "qualify_failures": failures, "error": res["error"]}
-            # T0 只锚定首条【合格】样本（不合格样本不推进窗口起点）
-            if head_seq == 0 and qualified:
-                try:
-                    manifest = wm.note_first_sample(
-                        root, manifest,
-                        sample_sha256=doc["sample_sha256"],
-                        t0_iso=collected, now=now_dt)
-                except wm.WindowError as e:
-                    # 首样已落盘但 manifest 回填失败：如实记录（窗口起点证据缺失
-                    # 由收割器暴露），样本本身保留
-                    record_creation_error(root, "manifest_first_sample_failed",
-                                          str(e))
+            # W11-05 写后严格重扫（含本样本）+ 可恢复锚定：manifest 未锚定
+            # 即按严格链选【最早合格】样本锚定——上一 tick 崩溃遗留的合格
+            # 样本在本 tick 补锚，t0=该样本时刻（不漂移到当前样本）。
+            post = strict_epoch_chain(sdir, manifest["epoch_id"],
+                                      manifest=manifest)
+            if post["failures"]:
+                return {"rc": 3, "path": res["path"], "doc": doc,
+                        "manifest": manifest, "qualified": qualified,
+                        "qualify_failures": list(failures),
+                        "chain_failures": post["failures"],
+                        "error": "epoch chain verification failed "
+                                 "after write (evidence retained)"}
+            try:
+                anchor = try_anchor_first_qualified(root, manifest,
+                                                    now=now_dt, sdir=sdir)
+                if anchor.get("manifest"):
+                    manifest = anchor["manifest"]
+            except wm.WindowError as e:
+                # 样本已落盘但锚定失败：如实记录（下一 tick/repair 可补锚，
+                # W11-05 可恢复路径），样本本身保留
+                record_creation_error(root, "manifest_first_sample_failed",
+                                      str(e))
             return {"rc": 0 if qualified else 1, "path": res["path"],
                     "doc": doc, "manifest": manifest, "qualified": qualified,
                     "qualify_failures": failures}
     except OSError as e:
         return {"rc": 3, "path": None, "doc": None, "manifest": None,
-                "qualified": False, "qualify_failures": ["chain_lock_error"],
-                "error": "chain lock failed: %s" % e}
+                "qualified": False, "qualify_failures": ["window_lock_error"],
+                "error": "window lock failed: %s" % e}
 
 
 # ---------------------------------------------------------------- 轮转
