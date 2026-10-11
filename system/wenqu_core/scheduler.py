@@ -2040,13 +2040,18 @@ def refresh_gate_aggregate(paths: "ProductionPaths", *,
         # 时走 gate 正门（--manifest --verify-key [--registry]）——现役快照
         # 携带真实身份（target_sha 非零、非 self_declared）；任一 env 缺失
         # 才回退 --allow-self-declared 诊断模式（快照如实自标不具上绿效力）。
+        # T-7：正门 results 可指向独立目录（八站 freeze run 产物位）——避免
+        # 生产采样器逐班重写的自报站 0 结果与 manifest 冻结身份冲突污染聚合。
+        gate_results = _os.environ.get("WENQU_GATE_RESULTS", "").strip()
         gate_manifest = _os.environ.get("WENQU_GATE_MANIFEST", "").strip()
         gate_key = _os.environ.get("WENQU_GATE_VERIFY_KEY", "").strip()
         gate_registry = _os.environ.get("WENQU_GATE_REGISTRY", "").strip()
         if gate_manifest and gate_key and _os.path.isfile(gate_manifest) \
                 and _os.path.isfile(gate_key):
             argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
-                    or "python3", paths.cli_py, "gate", "--results", results_dir,
+                    or "python3", paths.cli_py, "gate", "--results",
+                    (gate_results if gate_results and _os.path.isdir(gate_results)
+                     else results_dir),
                     "--manifest", gate_manifest, "--verify-key", gate_key]
             if gate_registry and _os.path.isfile(gate_registry):
                 argv += ["--registry", gate_registry]
