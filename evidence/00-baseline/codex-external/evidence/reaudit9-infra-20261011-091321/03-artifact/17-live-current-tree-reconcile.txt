@@ -1,0 +1,15 @@
+$ independently reconcile immutable current tree to manifest (content/type/size and expected chmod a-w)
+{
+  "manifest_entries": 2964,
+  "content_type_size_hash_mismatch_count": 0,
+  "unexpected_entries": 0,
+  "immutable_mode_mismatch_count": 0,
+  "mode_transform_counts": {
+    "0o664->0o444": 2869,
+    "0o775->0o555": 65
+  },
+  "content_examples": [],
+  "mode_examples": [],
+  "extra_examples": []
+}
+rc=0

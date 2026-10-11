@@ -1,0 +1,154 @@
+timestamp=2026-10-11T01:15:01Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && { nl -ba system/tests/test_events_unified.py | sed -n '390,445p'; nl -ba system/wenqu_core/ledger_migrator.py | sed -n '669,760p'; }
+--- output begin ---
+   390	            write_lines(src, "more.jsonl",
+   391	                        ['{"status": "BLOCKED", "ts": "t2", "id": 9}'])
+   392	            r3 = LedgerMigrator(src, db).migrate()
+   393	            assert r3["conservation"]["imported"] == 1
+   394	            h3, i3 = store.append({"probe": "external", "n": 3})
+   395	            assert i3 is True
+   396	
+   397	            verify = store.verify_chain()
+   398	            assert verify["ok"] is True and verify["length"] == 7
+   399	            head, total = store.head()
+   400	            assert (head, total) == (h3, 7)
+   401	            # 链序精确：迁移行与外部行按写入顺序交错、prev 逐行咬合
+   402	            rows = unified_rows(db)
+   403	            expect_prev = "0" * 64
+   404	            kinds = []
+   405	            for _seq, _eid, payload, prev_h, ehash in rows:
+   406	                obj = json.loads(payload)
+   407	                kinds.append(obj.get("event_type") or obj.get("probe"))
+   408	                assert prev_h == expect_prev
+   409	                h = hashlib.sha256()
+   410	                h.update(prev_h.encode("ascii"))
+   411	                h.update(payload.encode("utf-8"))
+   412	                assert ehash == h.hexdigest()
+   413	                expect_prev = ehash
+   414	            assert kinds == [MIGRATION_EVENT_TYPE] * 3 + \
+   415	                ["external", "external", MIGRATION_EVENT_TYPE, "external"]
+   416	        finally:
+   417	            store.close()
+   418	    return {"mixed_chain_length": 7,
+   419	            "order": ["LEDGER_MIGRATED"] * 3 + ["external", "LEDGER_MIGRATED",
+   420	                                                "external"],
+   421	            "rerun_in_mixed_stream": {"imported": 0},
+   422	            "verify_chain": "ok"}
+   423	
+   424	
+   425	# ---------------------------------------------------------------------- #
+   426	# UE-05：旧 events 表残留一次性收编（合成旧表 fixture）
+   427	# ---------------------------------------------------------------------- #
+   428	def _build_legacy_db(db, rows):
+   429	    """合成历史库：按旧版 schema 建 events 表并插行（非生产数据）。"""
+   430	    conn = sqlite3.connect(db)
+   431	    try:
+   432	        conn.executescript(LEGACY_SCHEMA)
+   433	        for line_sha, status, source_file, source_line, payload in rows:
+   434	            conn.execute(
+   435	                "INSERT INTO events (line_sha, status, source_file, "
+   436	                "source_line, payload) VALUES (?, ?, ?, ?, ?)",
+   437	                (line_sha, status, source_file, source_line, payload))
+   438	        conn.commit()
+   439	    finally:
+   440	        conn.close()
+   441	
+   442	
+   443	def test_UE_05_legacy_events_residue_one_time_migration():
+   444	    legacy_rows = [
+   445	        (content_sha('{"status": "PASS", "ts": "2026-09-01T00:00:00Z"}'),
+   669	def _install_freeze_triggers(conn: sqlite3.Connection) -> List[str]:
+   670	    """对旧 events 表幂等安装冻结只读触发器；返回安装后实际在库的触发器名。
+   671	
+   672	    CREATE TRIGGER IF NOT EXISTS：已安装（含重跑/治愈场景）不报错、不
+   673	    重复；返回值以 sqlite_master 实查为准（不信任 IF NOT EXISTS 的静默）。
+   674	    """
+   675	    for ddl in _LEGACY_FREEZE_TRIGGER_DDL:
+   676	        conn.execute(ddl)
+   677	    present = {r[0] for r in conn.execute(
+   678	        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+   679	        (LEGACY_EVENTS_TABLE,))}
+   680	    return [name for name in LEGACY_FREEZE_TRIGGER_NAMES if name in present]
+   681	
+   682	
+   683	def _legacy_row_sha(row: Dict[str, Any]) -> str:
+   684	    """旧行「已读内容」的规范化 SHA256（行版本账本的记账单位）。
+   685	
+   686	    覆盖 :func:`migrate_legacy_events` 实际读出并决定入链/迟判的全部列
+   687	    （id/line_sha/status/source_file/source_line/payload/migrated_at）——
+   688	    收编后对这些列的任何 UPDATE（含仅改 migrated_at 元数据的伪装、含
+   689	    回填早 ts）都会使摘要失配。migrated_at 通道缺席（形状变体无该列）
+   690	    时按 None 记账：列集后来发生变化本身就会造成失配（fail-closed）。
+   691	    """
+   692	    material = json.dumps(
+   693	        [row["id"], row["line_sha"], row["status"], row["source_file"],
+   694	         row["source_line"], row["payload"], row["migrated_at"]],
+   695	        ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+   696	    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+   697	
+   698	
+   699	def _read_row_digests(conn: sqlite3.Connection) -> Dict[int, str]:
+   700	    """读已记录的行内容快照账本；表不存在/为空返回空 dict。"""
+   701	    hit = conn.execute(
+   702	        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+   703	        (LEGACY_ROW_DIGESTS_TABLE,)).fetchone()
+   704	    if hit is None:
+   705	        return {}
+   706	    return {int(r[0]): r[1] for r in conn.execute(
+   707	        f"SELECT legacy_id, row_sha FROM {LEGACY_ROW_DIGESTS_TABLE}")}
+   708	
+   709	
+   710	def _record_row_digests(conn: sqlite3.Connection,
+   711	                        legacy_rows: List[Dict[str, Any]]) -> int:
+   712	    """把首跑读到的旧行内容快照写入受保护账本；返回账本当前行数。
+   713	
+   714	    摘要按「本轮实际读入并导入的内容」计算（不是写账时刻的重读）——
+   715	    运行中途旧行被并发改动时，账本锚定的正是已入链内容，下一轮比对
+   716	    必然失配而拒收。INSERT OR IGNORE：既有 rowid 的快照永不改写（该表
+   717	    UPDATE/DELETE 已被 AFTER 触发器关死，不存在静默重基线路径）。本函数
+   718	    同时补建表与 append-only 触发器（幂等）。
+   719	
+   720	    存量库边界（G9-05 fail-closed 收口）：旧版代码只记了 cutover、没有
+   721	    快照账本的库，升级后绝不在本函数按「当下内容」补记基线——当下内容
+   722	    无法与 cutover 时刻内容对账，补记等于把升级前篡改洗白成可信基线。
+   723	    该场景由调用方检测（cutover 已记账而账本为空）并整体标记
+   724	    ``legacy_untrusted``：行全部隔离、基线不补记，需人工从可信正源重建。
+   725	    本函数只在「首次 cutover（prior_cutover is None）」这一条路径上被
+   726	    调用。
+   727	    """
+   728	    conn.execute(_DIGESTS_SCHEMA)
+   729	    for ddl in _LEGACY_DIGEST_TRIGGER_DDL:
+   730	        conn.execute(ddl)
+   731	    for row in legacy_rows:
+   732	        conn.execute(
+   733	            f"INSERT OR IGNORE INTO {LEGACY_ROW_DIGESTS_TABLE} "
+   734	            f"(legacy_id, row_sha) VALUES (?, ?)",
+   735	            (int(row["id"]), _legacy_row_sha(row)))
+   736	    return conn.execute(
+   737	        f"SELECT COUNT(*) FROM {LEGACY_ROW_DIGESTS_TABLE}").fetchone()[0]
+   738	
+   739	
+   740	def migrate_legacy_events(sqlite_path: str,
+   741	                          sidecar_path: Optional[str] = None) -> Dict[str, Any]:
+   742	    """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
+   743	
+   744	    契约：
+   745	    - 只读旧行数据：本函数绝不 INSERT/UPDATE/DELETE 旧 ``events`` 表的
+   746	      行，收编后旧表行原样留在库中，仅供对账，不再是正源；
+   747	    - 冻结只读（R7-EVENT-LEGACY-WRITABLE-007）：收编完成后对旧表安装
+   748	      三个拒绝触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）——
+   749	      ``CREATE TRIGGER IF NOT EXISTS`` 幂等安装，重跑不报错、不重复；
+   750	      触发器被绕过删除时，下一次收编运行治愈重装；
+   751	    - cutover（冻结时刻）记账：首次冻结把 cutover_ts/cutover_epoch/
+   752	      max_legacy_id 写入库内 bookkeeping 表 ``legacy_events_cutover``
+   753	      （INSERT OR IGNORE——一经记录永不推进，迟到判定永远以首次 cutover
+   754	      为准）。cutover 不写入事件链（链长不变量与「负载=旧行内容纯函数」
+   755	      幂等契约零扰动）、不额外追加 sidecar 行（sidecar 保持逐行 1:1 审计
+   756	      形状），时刻经返回报告显式回带（cutover_ts/cutover_max_legacy_id）；
+   757	    - 迟到写拒收（绝不静默吸收收编后的写入）：迁移入口对每行校验时间
+   758	      戳——行内 ts（payload JSON 的 ``ts`` 字段）或 rowid 对应元数据
+   759	      （``migrated_at`` 列 / id 序）晚于该库已记录 cutover 的行不导入，
+   760	      单独 quarantine（reason=late_write_after_cutover）并在报告告警
+--- output end ---
+exit_code=0

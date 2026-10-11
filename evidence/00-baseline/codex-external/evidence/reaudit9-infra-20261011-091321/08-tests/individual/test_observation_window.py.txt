@@ -1,0 +1,165 @@
+$ python3 system/tests/test_observation_window.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:11,978998000+08:00
+== test_32_writers_same_second_immutable ==
+  ✓ A 32 writer 零异常
+  ✓ A 32 writer 全部成功落盘
+  ✓ A 32 个不同文件名
+  ✓ A 目录中恰 32 个新样本文件
+  ✓ A 全部普通文件（无 symlink）
+  ✓ A 旧样本 hash 不变
+  ✓ A 链序完整 1..32（无覆盖丢样）
+  ✓ A prev 链逐条咬合
+  ✓ A 新命名契约（纳秒+随机）
+== test_preset_symlink_and_collision_fail_visible ==
+  ✓ A 预置 symlink → 创建失败（不跟随）
+  ✓ A symlink 仍是 symlink（未被替换）
+  ✓ A 诱饵文件内容原样
+  ✓ A 失败原因可见（symlink/exists）
+  ✓ A 预置同名文件 → 拒绝覆盖
+  ✓ A 原文件内容未被改动
+  ✓ A 错误记录可见落盘 errors/
+== test_chain_fields_and_sample_hash ==
+  ✓ B 样本记录 epoch_id
+  ✓ B 样本记录 sequence
+  ✓ B 样本记录 prev_sha256
+  ✓ B 样本记录 sample_sha256
+  ✓ B 样本记录 release_sha
+  ✓ B 样本记录 observer_sha
+  ✓ B 样本记录 scheduler_config_sha
+  ✓ B 样本记录 window_id
+  ✓ B 首条 prev=GENESIS(0*64)
+  ✓ B sequence 1→2
+  ✓ B prev 咬合
+  ✓ B 同 epoch
+  ✓ B sample_sha256 可重算
+== test_harvest_recompute_negative ==
+  ✓ B harvest 基线 NOT_DUE(rc2)
+  ✓ B 篡改样本 → rc1
+  ✓ B 篡改失败原因=sample_hash_mismatch
+  ✓ B 缺 sequence → rc1
+  ✓ B 分叉样本可落盘（收割负责暴露）
+  ✓ B 同序分叉 → rc1
+  ✓ B symlink 样本 → rc1
+  ✓ B 完整封口窗口 → rc0
+== test_no_hardcoded_window_start ==
+  ✓ C 源码无硬编码 2026-10-10
+  ✓ C 源码无硬编码 datetime(2026
+== test_manifest_lifecycle ==
+  ✓ C open_window 创建 manifest（十项前置封入 digests）
+  ✓ C t0 未定（动态起点待首样）
+  ✓ C window_id/epoch_id 非空且不同
+  ✓ C 重复 open 同 window_id 拒绝
+  ✓ C active_manifest 命中
+  ✓ C 首样合格（T0 可锚定）
+  ✓ C 首样回填 t0/first_sample_sha256
+  ✓ C 起止=duration（end-start==336h）
+  ✓ C seal_window → sealed
+  ✓ C seal 幂等
+  ✓ C sealed manifest 拒绝变更
+  ✓ C sealed 后 active_manifest=None（窗口已收）
+== test_canary_dynamic_anchor ==
+  ✓ C canary 无锚点 → NOT_DUE
+  ✓ C canary 锚后 1h → IN_WINDOW
+  ✓ C canary 锚后 49h（>48h 窗）→ CLOSED
+== test_harvest_four_states ==
+  ✓ C 四态·进行中窗口 rc2
+  ✓ C 四态·完整窗口 rc0
+  ✓ C 收割重算样本计数=2（不信累计）
+  ✓ C 窗口级 qualification 聚合（全窗合格率 1.0）
+  ✓ C identity 缺失样本 qualified=false
+  ✓ C 四态·窗口内失败 rc1
+  ✓ C 四态·无 manifest rc3
+  ✓ C 四态·manifest 损坏 rc3
+== test_rotation_new_names_and_window_protection ==
+  ✓ D rotation 删除旧命名超期
+  ✓ D rotation 识别并删除新命名超期
+  ✓ D rotation 不删当前窗口证据（epoch 保护）
+  ✓ D 无关新命名超期样本照删
+  ✓ D 当前窗口样本仍在盘
+== test_unique_writer_launchd_audit ==
+  ✓ D launchd 审计发现旧 observation 独立作业
+  ✓ D launchd 审计发现旧 observation-window 作业
+  ✓ D launchd 审计不误报唯一合法入口
+  ✓ D 干净 launchd 目录零发现
+  ✓ D 仓内存在受版本管理 launchd 模板目录
+  ✓ D 模板唯一观察入口=com.wenqu.scheduler
+  ✓ D 模板无禁止 label
+  ✓ D harvest --audit-writers 有 rogue → rc1
+  ✓ D harvest --audit-writers 干净 → rc0
+== test_scheduler_registry_single_observation_writer ==
+  ✓ D 注册表审计：唯一观察 writer=w4.observation-sample
+  ✓ D 注册表审计：第二 writer 可见
+== test_invalid_git_repo_fail_visible ==
+  ✓ E 无效仓 → 进程 rc1（fail-visible）
+  ✓ E 显式错误样本已落盘
+  ✓ E 样本 qualified=false
+  ✓ E identity_error 显式非空
+  ✓ E 拒绝静默回退（fallback_refused）
+  ✓ E identity 为 null
+  ✓ E 含 identity 缺失样本的窗口 harvest rc1
+  ✓ E 非 git 目录 → identity null + 拒绝回退
+== test_valid_local_origin_qualified ==
+  ✓ E 有效受控 clone → identity 40hex
+  ✓ E 有效仓不触发 fallback_refused
+  ✓ E qualify_identity=True
+== test_open_gate_ten_prerequisites ==
+  ✓ F1 空前置 open_window 拒开（WindowPrereqError）
+  ✓ F1 拒开后无 manifest 落盘
+  ✓ F1 拒开·缺 release/sfinal
+  ✓ F1 拒开·零占位 sfinal
+  ✓ F1 拒开·缺 roots
+  ✓ F1 拒开·缺 branch
+  ✓ F1 拒开·缺 exact CI run id
+  ✓ F1 拒开·health target != sfinal
+  ✓ F1 拒开·health scope=self_declared
+  ✓ F1 拒开·capacity=BLOCKED
+  ✓ F1 拒开·capacity=CRITICAL
+  ✓ F1 拒开·observer 零占位
+  ✓ F1 十项齐备开窗成功
+  ✓ F1 十项要素写入 digests 块
+  ✓ F1 CLI 空参 open → rc3
+  ✓ F1 CLI 拒开带缺项清单
+  ✓ F1 CLI 仅 --release → rc3（其余九项缺）
+  ✓ F1 CLI 十项齐备 → rc0
+  ✓ F1 CLI 开窗 digests 封印计数=11
+  ✓ F1 无前置环境 auto-open 拒绝（采样 fail-visible rc3）
+  ✓ F1 拒绝后未落任何样本/manifest（仅锁工件）
+  ✓ F1 旧形态无效窗（sfinal=null/digests={}）收割 rc3
+== test_bad_health_sample_unqualified ==
+  ✓ F2 坏 health 样本 qualified=false（曾 true）
+  ✓ F2 unqualified_reasons 显式（零SHA/self_declared/BLOCKED）
+  ✓ F2 health target != sfinal → 不合格
+  ✓ F2 release_sha != 窗口 sfinal → 不合格
+  ✓ F2 收割 rc1（fail-closed，曾 NOT_DUE 放行）
+  ✓ F2 逐样本 unqualified_reasons 落判词
+  ✓ F2 窗口级聚合：全窗合格率=0 + 理由直方图
+  ✓ F2 observer_sha != 窗口 digests.observer → 不合格
+  ✓ F2 observer 失配窗收割 rc1 + 直方图
+  ✓ F2 混合窗合格率聚合=0.5（1/2）
+== test_thin_window_harvest_window_fail ==
+  ✓ F3 2样本/24h 到期收割 rc1 WINDOW_FAIL（曾 rc0 PASS）
+  ✓ F3 失败码=coverage_below_threshold 且分桶数在判词
+  ✓ F3 verdict.coverage 覆盖明细
+  ✓ F3 legacy 不计分母但显式计数（legacy_ignored=3）
+  ✓ F3 覆盖失败判词携带 legacy_ignored
+  ✓ F3 min_coverage=0 → 同证据 rc0（阈值驱动）
+  ✓ F3 CLI 默认阈值 rc1
+  ✓ F3 CLI --min-coverage 0 → rc0
+== test_invalidate_auditable ==
+  ✓ F4 CLI 空 reason → rc1
+  ✓ F4 invalidate CLI rc0
+  ✓ F4 判词含 invalidated_at/原因/作废人/原窗 hash
+  ✓ F4 作废记录文件存在（不删 manifest 原文件）
+  ✓ F4 记录 schema/原窗全量/原窗 hash 咬合
+  ✓ F4 manifest 状态=invalidated + history 追加（principal 在场）
+  ✓ F4 作废后 active_manifest=None
+  ✓ F4 作废窗收割 rc3 ENV_ERROR
+  ✓ F4 list 不被作废记录污染
+  ✓ F4 重复 invalidate 幂等（返回原记录）
+  ✓ F4 作废释放后新窗可开（新 window_id）
+  ✓ F4 新窗样本合格 + T0 从新首样起算
+
+==================================================
+PASS=141 FAIL=0
+[exit=0]

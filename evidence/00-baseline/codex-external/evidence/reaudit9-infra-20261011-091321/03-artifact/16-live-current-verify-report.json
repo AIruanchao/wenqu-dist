@@ -1,0 +1,62 @@
+{
+ "checks": [
+  {
+   "check": "manifest-schema",
+   "detail": "build_id=rel-bb38f70-20261010T233440Z",
+   "ok": true
+  },
+  {
+   "check": "artifact-hash",
+   "detail": "sha256=99d061abb40c92cd… size=178429709",
+   "ok": true
+  },
+  {
+   "check": "files-reconcile",
+   "detail": "2964/2964 path+type+mode+size+sha256 全符",
+   "ok": true
+  },
+  {
+   "check": "plan-hash",
+   "detail": "evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）",
+   "ok": true
+  },
+  {
+   "check": "release-roots",
+   "detail": "/Users/maccc/.wenqu/release-roots.json allowed=2 commit=bb38f70163ce… plan+核心digest 双等值",
+   "ok": true
+  },
+  {
+   "check": "source-commit",
+   "detail": "commit=bb38f70163ce… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）",
+   "ok": true
+  },
+  {
+   "check": "signature",
+   "detail": "key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）",
+   "ok": true
+  },
+  {
+   "check": "sbom-reconcile",
+   "detail": "spdxVersion=SPDX-2.3 files=2964 root=3.8.4",
+   "ok": true
+  },
+  {
+   "check": "build-identity",
+   "detail": "commit=bb38f70163ce… built_at=2026-10-10T23:34:40Z tool=release_attest.py@1.3.0",
+   "ok": true
+  }
+ ],
+ "keyring": "/Users/maccc/.wenqu-dist-release/release-keyring.json",
+ "manifest": "/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.manifest.json",
+ "plan_pin": null,
+ "release_roots": "/Users/maccc/.wenqu/release-roots.json",
+ "repo": "/Users/maccc/Documents/wenqu-dist",
+ "result": "PASS",
+ "sbom": "/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.sbom.spdx.json",
+ "schema": "wenqu-release-verify-report/1",
+ "sig": "/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.release.sig",
+ "tar": "/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.tar.gz",
+ "tool": "release_attest.py",
+ "tool_version": "1.3.0",
+ "verified_at": "2026-10-11T01:18:11Z"
+}

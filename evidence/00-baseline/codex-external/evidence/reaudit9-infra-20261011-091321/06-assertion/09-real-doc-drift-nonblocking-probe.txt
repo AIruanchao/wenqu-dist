@@ -1,0 +1,19 @@
+timestamp=2026-10-11T09:44:19+08:00
+command=python3 /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/06-assertion/09-real-doc-drift-nonblocking-probe.py /private/tmp/codex-test/reaudit9-infra-pristine-20261011-092030
+{
+  "probe": "real documentation drift nonblocking assertion probe",
+  "readme_acceptance_claim": 66,
+  "readme_ci_claim": 64,
+  "machine_acceptance_units": 74,
+  "ck_units": 40,
+  "inline_units": 34,
+  "real_drift": true,
+  "assertions_binding_real_result": [],
+  "real_drift_only_printed": true,
+  "script_runtime_rc_from_independent_log": 0,
+  "script_runtime_result": "PASS=18 FAIL=0; emitted DOC-02 observation that §20 should block",
+  "probe_assertion_verdict": "PASS",
+  "system_verdict": "FAIL"
+}
+exit_code=0
+runtime_cross_evidence=08-tests/acceptance-tracked-evidence-pollution.txt (test_rc=0, PASS=18 FAIL=0, observation printed)

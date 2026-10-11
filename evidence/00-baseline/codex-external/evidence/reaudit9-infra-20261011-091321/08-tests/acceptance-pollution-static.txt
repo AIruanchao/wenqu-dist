@@ -1,0 +1,145 @@
+source=read-only pristine origin/main@7eeb8a1
+$ nl -ba tests/acceptance.sh | sed -n 380,455p
+   380	else
+   381	  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+   382	fi
+   383	
+   384	echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+   385	P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+   386	P1F_COUNT=0
+   387	P1F_FAIL=0
+   388	for tf in $P1F_FILES; do
+   389	  if [ -f "$ROOT/system/tests/$tf.py" ]; then
+   390	    P1F_OUT=$(python3 "$ROOT/system/tests/$tf.py" 2>&1)
+   391	    TF_RC=$?
+   392	    NF=$(grep -c "^def test_" "$ROOT/system/tests/$tf.py" || true)
+   393	    if [ $TF_RC -eq 0 ] && [ "${NF:-0}" -gt 0 ]; then
+   394	      P1F_COUNT=$((P1F_COUNT+NF))
+   395	    else
+   396	      P1F_FAIL=1; echo "  ❌ 专属文件 $tf 失败（exit=${TF_RC}，函数数=${NF:-0}）"
+   397	      echo "$P1F_OUT" | tail -25 | sed 's/^/      | /'
+   398	    fi
+   399	  else
+   400	    P1F_FAIL=1; echo "  ❌ 专属文件 $tf.py 不存在——F6-TRC-GATE-001 覆盖门被删"
+   401	  fi
+   402	done
+   403	if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+   404	  PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+   405	else
+   406	  FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+   407	fi
+   408	
+   409	echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；G9-07 升级=mutation 真主门）=="
+   410	# 演进史：文本 grep 计数（R7）→ AST 形态门（八轮：常量真值/被测调用/失败
+   411	# 路径三指标）→ G9-07 真 mutation 门（R8-TRC-TRUTHY-ASSERT-012 根修：
+   412	# AST 形态抓不住非字面恒真 assert len(str(product_call())) >= 0 与等量
+   413	# 假测试替换——只有「产品变异必杀测试」能证明断言对行为敏感）。
+   414	# 三道闸并存，棘轮只增不减：
+   415	#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
+   416	#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
+   417	#   二闸  p1f_ast_gate.py AST 形态基线（tests/p1f-behavior-baseline.txt）；
+   418	#   三闸  文本计数旧棘轮（tests/p1f-assert-baseline.txt）。
+   419	P1F2_FAIL=0
+   420	if [ -f "$ROOT/system/tests/p1f_mutation_gate.py" ] && [ -f "$ROOT/tests/p1f-mutations.json" ]; then
+   421	  MUTJSON="$TD/p1f-mutation-report.json"
+   422	  MUT_OUT=$(python3 "$ROOT/system/tests/p1f_mutation_gate.py" --root "$ROOT" --mutations "$ROOT/tests/p1f-mutations.json" --json "$MUTJSON" 2>&1)
+   423	  MUT_RC=$?
+   424	  if [ "$MUT_RC" -eq 0 ]; then
+   425	    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 主门通过：$(echo "$MUT_OUT" | grep 'mutation score' | tail -1)"
+   426	  else
+   427	    P1F2_FAIL=1; echo "  ❌ mutation 主门失败（exit=${MUT_RC}——空壳化/恒真化/假测试替换令变异存活）"
+   428	    echo "$MUT_OUT" | tail -30 | sed 's/^/      | /'
+   429	  fi
+   430	  # 棘轮：mutation 集只增不减（≥18 条且覆盖全部八专属文件）
+   431	  MUT_GUARD=$(python3 - "$ROOT/tests/p1f-mutations.json" <<'MUTP'
+   432	import json, sys
+   433	try:
+   434	    d = json.load(open(sys.argv[1]))
+   435	    ms = d["mutations"]
+   436	    files = {tf for m in ms for tf in m["test_files"]}
+   437	    need = {"test_ac_gate_family","test_ac_state_mig","test_ac_deploy_release",
+   438	            "test_ac_station_families","test_ac_ops_families",
+   439	            "test_ac_auth_cond","test_ac_act_run","test_ac_ui_family"}
+   440	    ok = (len(ms) >= 18 and files == need and "frozen_min_mutations" in d
+   441	          and d["frozen_min_mutations"] >= 18)
+   442	    print("1" if ok else "0")
+   443	except Exception:
+   444	    print("0")
+   445	MUTP
+   446	)
+   447	  if [ "$MUT_GUARD" = "1" ]; then
+   448	    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 集棘轮（≥18 条且八文件全覆盖，只增不减）"
+   449	  else
+   450	    P1F2_FAIL=1; echo "  ❌ mutation 集棘轮失败——集缩水/覆盖门破（须≥18 条且八专属文件全被锚定）"
+   451	  fi
+   452	else
+   453	  P1F2_FAIL=1; echo "  ❌ p1f_mutation_gate.py 或 tests/p1f-mutations.json 缺失——mutation 主门被拆"
+   454	fi
+   455	if [ -f "$ROOT/system/tests/p1f_ast_gate.py" ] && [ -f "$ROOT/tests/p1f-behavior-baseline.txt" ]; then
+exit_code=0
+$ nl -ba system/tests/test_ac_ops_families.py | sed -n 45,58p; 130,145p; 2028,2065p
+    45	                                     （AC-DR-RPO-RTO）：RPO=最后快照点→故障注入点
+    46	                                     实测时差（--fault-delay 已知窗口）、RTO=恢复开始→
+    47	                                     全部对账通过实测耗时，冻结目标 RPO<=300s/RTO<=60s
+    48	                                     由演练脚本内冻结；双工件 drill-<stamp>.json +
+    49	                                     .jsonl 事件日志（时间/文件/结果三要素逐事件记账）
+    50	
+    51	运行：python3 system/tests/test_ac_ops_families.py   （独立 exit 0 = 全绿）
+    52	证据：evidence/04-unit-property-mutation/ac-ops-families.json（每次运行覆写）。
+    53	
+    54	诚实边界（无法在本机沙箱真实注入、不以假绿硬凑的部分，另见证据 JSON
+    55	not_implementable 字段）：
+    56	    1. SCH-01 的「launchd 无 Documents 权限」需要真实 launchd 会话 + TCC 授权弹窗
+    57	       环境；本件以等价代码接缝注入（作业无法访问其执行环境 -> spawn 失败）覆盖
+    58	       「ERROR+告警」判定链，真实 launchd 环境标注未验证。
+   130	    enforce_capacity_gate,
+   131	    injected_sample,
+   132	    integrity_manifest,
+   133	    peak_budget_bytes,
+   134	)
+   135	
+   136	# 测试卫生：产品模块的 log.warning（如 spawn failed）不要打进测试输出
+   137	logging.disable(logging.CRITICAL)
+   138	
+   139	EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ops-families.json"
+   140	
+   141	_RESULTS: dict = {}
+   142	_NOT_IMPLEMENTABLE = [
+   143	    {
+   144	        "id": "SCH-01",
+   145	        "gap": "真实 launchd 会话 + TCC「无 Documents 权限」注入",
+  2028	            failed_names.append(name)
+  2029	            _RESULTS[tid] = {"pass": False, "detail": f"{type(exc).__name__}: {exc}"}
+  2030	            print(f"  FAIL  {tid:<8} {name}: {exc}")
+  2031	    print("-" * 72)
+  2032	    print(f"RESULT: PASS={passed} FAIL={failed}"
+  2033	          f"{'' if not failed else '  failed: ' + ', '.join(failed_names)}")
+  2034	
+  2035	    try:
+  2036	        EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+  2037	        payload = {
+  2038	            "meta": {
+  2039	                "artifact": "ac-ops-families",
+  2040	                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+  2041	                "repo_head": _git_head(),
+  2042	                "test_file": "system/tests/test_ac_ops_families.py",
+  2043	                "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
+  2044	                "scope": "SCH-01~07, ALT-01~02, BAK-01, HLT-01, DOC-01~04, CAP-01, DR-01（17 ID）",
+  2045	                "run_rc": 0 if not failed else 1,
+  2046	                "passed": passed,
+  2047	                "failed": failed,
+  2048	            },
+  2049	            "results": _RESULTS,
+  2050	            "not_implementable": _NOT_IMPLEMENTABLE,
+  2051	        }
+  2052	        EVIDENCE_PATH.write_text(
+  2053	            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+  2054	        print(f"证据工件: {EVIDENCE_PATH.relative_to(REPO)}")
+  2055	    except OSError as exc:
+  2056	        print(f"证据工件写入失败（不影响判定）: {exc}")
+  2057	    return 1 if failed else 0
+  2058	
+  2059	
+  2060	if __name__ == "__main__":
+  2061	    sys.exit(main())
+exit_code=0

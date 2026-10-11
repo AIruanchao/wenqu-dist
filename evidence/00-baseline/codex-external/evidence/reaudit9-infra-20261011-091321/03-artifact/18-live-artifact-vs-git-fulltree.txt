@@ -1,0 +1,17 @@
+[SCOPE] active immutable artifact manifest vs claimed Git commit ALL tracked blobs; original repo used read-only only as Git object DB
+[COMMAND] python3 active_artifact_git_fulltree_probe.py /Users/maccc/Documents/wenqu-dist "$M"
+source_commit=bb38f70163ce4a1a79f36ea66284e110eff96a95
+source_commit_is_40hex=True
+git_entry_count=2964
+manifest_entry_count=2964
+missing_from_manifest=0
+extra_in_manifest=0
+mode_type_mismatch=0
+blob_size_hash_mismatch=0
+FULL_TREE_MATCH=True
+[EXIT_CODE] 0
+
+[COMMAND] git merge-base --is-ancestor source_commit origin/main; git rev-list --count source_commit..origin/main
+ancestor_exit=0
+commits_behind_origin_main=2
+rev-list_exit=0

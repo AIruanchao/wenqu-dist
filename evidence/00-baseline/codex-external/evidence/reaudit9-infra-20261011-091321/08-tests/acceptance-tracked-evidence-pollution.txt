@@ -1,0 +1,80 @@
+scope=independent isolated-clone write-footprint probe
+started=2026-10-11T09:42:36+08:00
+clone=/private/tmp/codex-test/reaudit9-gitbound-20261011-092056
+HEAD=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+$ git checkout -- evidence/04-unit-property-mutation/ac-ops-families.json  # /tmp clone only
+reset_rc=0
+$ git status --short --untracked-files=no (before)
+before_status_rc=0
+$ shasum -a 256 evidence/.../ac-ops-families.json (before)
+2ce6bac4f95614c359b7c1fcf154d457d5f054beb55e70cb3dfed40b7962e079  /private/tmp/codex-test/reaudit9-gitbound-20261011-092056/evidence/04-unit-property-mutation/ac-ops-families.json
+$ PYTHONDONTWRITEBYTECODE=1 python3 system/tests/test_ac_ops_families.py
+========================================================================
+§20 验收 ID 专属测试——SCH/ALT/BAK/HLT/DOC/CAP/DR 七族 17 条（真实注入/真实断言）
+repo: /private/tmp/codex-test/reaudit9-gitbound-20261011-092056  HEAD: 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+========================================================================
+  PASS  ALT-01   test_ALT_01_provider_500_and_timeout_retry_then_dead_letter
+  PASS  ALT-02   test_ALT_02_waiting_due_zero_attempt_is_error_not_watchdog_health
+  PASS  BAK-01   test_BAK_01_backup_restore_drill_real_reconcile_and_fail_closed_success
+  PASS  BAK-02   test_BAK_02_archive_truth_five_fake_tar_negatives_all_fail_closed
+  PASS  CAP-01   test_CAP_01_peak_budget_over_margin_or_disk_full_switches_blocked
+  PASS  DOC-01   test_DOC_01_stop_type_count_and_enumeration_drift_blocks_ci
+  [DOC-02 观察项] 真实仓存在验收数量漂移（未硬凑进断言）: README 宣称 66 项，机器实测 74 检查单元（ck=40 + inline=34）——按 §20 应 CI 阻断并修文档
+  PASS  DOC-02   test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci
+  PASS  DOC-03   test_DOC_03_policy_forbidden_bypass_text_blocks_ci
+  PASS  DOC-04   test_DOC_04_doc_claims_active_pass_vs_registry_or_gate_blocks_ci
+  PASS  DR-01    test_DR_01_dr_drill_rpo_rto_measured_within_frozen_targets
+  PASS  HLT-01   test_HLT_01_input_watermark_change_invalidates_snapshot
+  PASS  SCH-01   test_SCH_01_env_permission_denied_yields_error_and_alert
+  PASS  SCH-02   test_SCH_02_fake_touch_heartbeat_after_fail_keeps_last_success
+  PASS  SCH-03   test_SCH_03_sleep_missed_period_wakes_up_and_catches_up
+  PASS  SCH-04   test_SCH_04_catchup_and_normal_race_single_logical_run
+  PASS  SCH-05   test_SCH_05_scheduler_down_independent_watchdog_still_alerts
+  PASS  SCH-06   test_SCH_06_one_shot_job_writes_only_wenqu_namespace
+  PASS  SCH-07   test_SCH_07_non_pass_stale_or_foreign_fingerprint_never_refreshes
+------------------------------------------------------------------------
+RESULT: PASS=18 FAIL=0
+证据工件: evidence/04-unit-property-mutation/ac-ops-families.json
+test_rc=0
+$ git status --short --untracked-files=no (after)
+ M evidence/04-unit-property-mutation/ac-ops-families.json
+after_status_rc=0
+$ shasum -a 256 evidence/.../ac-ops-families.json (after)
+2984e12f27727fc726c1978727d7be99de70cbb323866166b6370c93fd6dd797  /private/tmp/codex-test/reaudit9-gitbound-20261011-092056/evidence/04-unit-property-mutation/ac-ops-families.json
+$ git diff --numstat -- evidence/.../ac-ops-families.json
+6	6	evidence/04-unit-property-mutation/ac-ops-families.json
+$ git diff --unified=1 ... | head -80
+diff --git a/evidence/04-unit-property-mutation/ac-ops-families.json b/evidence/04-unit-property-mutation/ac-ops-families.json
+index 76de673..bf4f5e3 100644
+--- a/evidence/04-unit-property-mutation/ac-ops-families.json
++++ b/evidence/04-unit-property-mutation/ac-ops-families.json
+@@ -3,4 +3,4 @@
+     "artifact": "ac-ops-families",
+-    "generated_at": "2026-10-10T00:36:27+00:00",
+-    "repo_head": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
++    "generated_at": "2026-10-11T01:43:03+00:00",
++    "repo_head": "7eeb8a13107e8b52771f5b8784af8266ed0551b9",
+     "test_file": "system/tests/test_ac_ops_families.py",
+@@ -23,3 +23,3 @@
+       "pass": true,
+-      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）五步真实演练：快照 sha 与源逐文件一致→归档腿（tar 真通道+清单回读+G9-09 实存验证[非空普通文件非 symlink]+python tarfile 独立解包逐字节对账[archive sha/extract sha/逐文件 sha 全记录]）→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→从归档恢复 5 文件（restore.source=archive，非旁路 backup 复制）→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；作业身份（drill/scheduler 源 SHA）入成功报告；生产语料前后字节不变（只读）；报告 20261010T003608Z 含时间/文件/结果三要素+jsonl 事件日志32 事件（ts 单调、每文件四相+归档实存/解包事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
++      "detail": "tmp 语料 5 文件（真实 sqlite DB+4 JSON）五步真实演练：快照 sha 与源逐文件一致→归档腿（tar 真通道+清单回读+G9-09 实存验证[非空普通文件非 symlink]+python tarfile 独立解包逐字节对账[archive sha/extract sha/逐文件 sha 全记录]）→篡改三式轮转全覆盖（append/truncate/delete，实测 sha 已变防伪造）→从归档恢复 5 文件（restore.source=archive，非旁路 backup 复制）→逐文件 cmp+sha256 字节级对账全等（与源三方一致）；作业身份（drill/scheduler 源 SHA）入成功报告；生产语料前后字节不变（只读）；报告 20261011T014237Z 含时间/文件/结果三要素+jsonl 事件日志32 事件（ts 单调、每文件四相+归档实存/解包事件齐全）；失败分支（语料不可达）fail-closed：exit1+result=FAIL；R7 对抗腿：--fault enospc（ulimit -f 等价模拟磁盘满，诚实登记不可移植处）/--fault tar-broken（自注入假 tar）/外部 PATH 假 tar 注入（无 --flag）三腿全 FAIL（exit1+result=FAIL+reason 点名），既有 PASS 工件零改写=不更新 success"
+     },
+@@ -31,3 +31,3 @@
+       "pass": true,
+-      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_nlf9wqmd 所在卷，当日水位 96.42%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
++      "detail": "真实采集正例（/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/wq_cap01_7divqh3p 所在卷，当日水位 91.66%，默认 0.90 阈值判定侧=CRITICAL——与数字侧一致，水位如实记录）；注入负例四向全红（超阈值 0.95/磁盘满 free=0/峰值预算 headroom 50GiB<100GiB/配额 0.95）+临界边界（==0.90 不触发、0.901 触发）；趋势外推线性验算 18000s±1s（WARNING 早警，平盘/单样本不外推）；CRITICAL→容量闸 BLOCKED 且旧证据/current 完整性清单前后相等、零删除；绿侧→OPEN"
+     },
+@@ -51,3 +51,3 @@
+       "pass": true,
+-      "detail": "DR 模式真实演练 PASS：RPO 实测 1.537085s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.4837s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
++      "detail": "DR 模式真实演练 PASS：RPO 实测 1.541156s（>=已知窗口 1.5s，<=冻结目标 300s）、RTO 实测 0.524438s（<冻结目标 60s）；计时锚点单调（故障在快照后/对账完成在恢复后）；恢复态 5 文件字节级全等；RPO/RTO 记录进报告 dr 块+reason 与 jsonl dr_metrics 事件；零故障窗口被编排层 fail-closed 拒绝"
+     },
+@@ -55,3 +55,3 @@
+       "pass": true,
+-      "detail": "watermark 过期->503 STALE 作废；半写/缺字段->503 MALFORMED；重算新快照（BLOCKED+新 watermark）即刻生效；高频换 watermark 40 连读全部命中完整 (verdict, watermark) 对或结构化 503（观测 1 对）"
++      "detail": "watermark 过期->503 STALE 作废；半写/缺字段->503 MALFORMED；重算新快照（BLOCKED+新 watermark）即刻生效；高频换 watermark 40 连读全部命中完整 (verdict, watermark) 对或结构化 503（观测 2 对）"
+     },
+ended=2026-10-11T09:43:03+08:00
+expected=tracked status stays clean
+system_verdict=FAIL

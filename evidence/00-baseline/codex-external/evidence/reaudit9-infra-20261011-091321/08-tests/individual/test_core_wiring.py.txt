@@ -1,0 +1,14 @@
+$ python3 system/tests/test_core_wiring.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:18:32,226298000+08:00
+  ✓ test_core_modules_importable
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 8 PASS / 0 FAIL
+[exit=0]

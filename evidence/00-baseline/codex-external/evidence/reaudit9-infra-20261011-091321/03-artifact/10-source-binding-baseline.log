@@ -1,0 +1,53 @@
+$ initialize synthetic git repo in /tmp
+Initialized empty Git repository in /private/tmp/reaudit9-artifact-binding-probe-20261011-091321/repo/.git/
+rc=0
+[main (root-commit) ed25cbd] frozen source
+ 3 files changed, 2005 insertions(+)
+ create mode 100644 "evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+ create mode 100644 src/engine.py
+ create mode 100644 system/VERSION
+rc=0
+COMMIT=ed25cbdeb3daa9f02f90c0a996e6c60663ff4178
+100644 blob 4ab71d89fe06ec5f56297d3a0db33344e6a1f4ae	"evidence/00-baseline/codex-external/\346\226\271\346\241\210.md"
+100644 blob 114612df17437ce1af715519ceb458f330b4a6e7	src/engine.py
+100644 blob f174af41240077b57c88ac243a64b26f5898fbaf	system/VERSION
+rc=0
+$ build genuine release from commit
+BUILD OK  probe-ed25cbd
+  commit   : ed25cbdeb3daa9f02f90c0a996e6c60663ff4178 (frozen source)
+  version  : 9.9.9-probe  files: 3
+  plan     : evidence/00-baseline/codex-external/方案.md
+             sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306（实算=冻结，64hex）
+  tar.gz   : /private/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.tar.gz
+             sha256=32533cdb46787ff06e4682d8ffa69dd7e9d1ddc37754c9566d29ff075260f51c size=46584
+  manifest : /private/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.manifest.json
+rc=0
+MANIFEST=/tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.manifest.json
+$ sign genuine manifest
+SIGN OK  key_id=key_test_1  →  /tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.release.sig
+  signature=dd30858672d94402a15eb421c4b4923b08109b52a9543bdfd599f058ada94f6a
+rc=0
+$ generate genuine SBOM
+SBOM OK  →  /tmp/reaudit9-artifact-binding-probe-20261011-091321/out/probe-ed25cbd.sbom.spdx.json
+  spdxVersion=SPDX-2.3  root=wenqu-dist@9.9.9-probe  files=3  deps=0
+  verificationCode=7beed5c481295a54499ea40d69ca160b110823c7
+rc=0
+$ generate external roots from genuine manifest
+
+# 授权流程：核对本骨架（allowed_commit 只收录 main push CI 已绿的确切 SHA）→
+#   合并进 ~/.wenqu/release-roots.json（或 $WENQU_INSTALL_ROOT/release-roots.json）→ chmod 600。
+# 本子命令不写任何文件；install-release.sh 不调用本子命令。
+rc=0
+$ baseline verify genuine release
+  PASS  manifest-schema  build_id=rel-ed25cbd-20261011T011740Z
+  PASS  artifact-hash  sha256=32533cdb46787ff0… size=46584
+  PASS  files-reconcile  3/3 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  release-roots  /tmp/reaudit9-artifact-binding-probe-20261011-091321/roots-genuine.json allowed=1 commit=ed25cbdeb3da… plan+核心digest 双等值
+  PASS  source-commit  commit=ed25cbdeb3da… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）
+  PASS  signature  key_id=key_test_1 algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=3 root=9.9.9-probe
+  PASS  build-identity  commit=ed25cbdeb3da… built_at=2026-10-11T01:17:40Z tool=release_attest.py@1.3.0
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/03-artifact/11-source-binding-baseline-report.json
+VERIFY OK
+rc=0

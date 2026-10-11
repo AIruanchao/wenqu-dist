@@ -1,0 +1,74 @@
+source_provenance=each case independent git archive origin/main + git metadata @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+
+CASE=module_core
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/module/system/tests/test_core_wiring.py
+  ✗ test_core_modules_importable: 核心模块 wenqu_pipeline 不可导入: No module named 'wenqu_core.wenqu_pipeline'
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✓ test_schemas_exist_and_valid
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+EXIT_CODE=1
+
+CASE=module_pipeline
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/module/system/tests/test_wenqu_pipeline.py
+Traceback (most recent call last):
+  File "/private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/module/system/tests/test_wenqu_pipeline.py", line 30, in <module>
+    from wenqu_core.wenqu_pipeline import (
+    ...<5 lines>...
+    )
+ModuleNotFoundError: No module named 'wenqu_core.wenqu_pipeline'
+EXIT_CODE=1
+
+CASE=schema_core
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/schema/system/tests/test_core_wiring.py
+  ✓ test_core_modules_importable
+  ✓ test_dashboard_files_exist
+  ✓ test_gate_aggregator_blocks_empty
+  ✓ test_install_sh_installs_core
+  ✓ test_schema_rejects_p0_accepted_risk
+  ✗ test_schemas_exist_and_valid: Schema 缺失: approval-v2.schema.json
+  ✓ test_trusted_runner_produces_evidence
+  ✓ test_wenqu_core_exists
+
+P0-1 核心接线: 7 PASS / 1 FAIL
+EXIT_CODE=1
+
+CASE=schema_pipeline
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/schema/system/tests/test_wenqu_pipeline.py
+  ok  规则引擎（七段/转换/双轴/九类前置/bool 客观化）
+  ok  全流程七段 PASS → SUCCEEDED + 重放一致
+  ok  FAIL 重试 → 新 attempt_id，旧 attempt 不可变
+  ok  九类停等 raise→resume（必要且充分）
+  ok  审批拒绝路径（结构/TTL/绑定/CAS/前置/哈希/验签）
+  ok  并发双消费：恰好一个成功
+  ok  COMPLETED_CONDITIONAL 终态 + risk 授权指纹匹配
+  ok  cancel/supersede/not_found/FAILED
+  ok  与 EventStore.append 交错链完整性
+  FAIL 与 approval-v2 schema 交叉验证: FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/schema/system/schemas/approval-v2.schema.json'
+
+P0-2 状态机+审批 Broker: 9 PASS / 1 FAIL
+EXIT_CODE=1
+
+CASE=tool_missing
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/tool/tools/ac_traceability.py --check
+/opt/homebrew/Cellar/python@3.13/3.13.13_1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python: can't open file '/private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/tool/tools/ac_traceability.py': [Errno 2] No such file or directory
+EXIT_CODE=2
+
+CASE=critical_ast
+COMMAND=python3 /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/critical/system/tests/p1f_ast_gate.py --root /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/critical --baseline /private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/critical/tests/p1f-behavior-baseline.txt
+❌ test_ac_auth_cond: 源码不可读/不可解析: [Errno 2] No such file or directory: '/private/tmp/codex-test/reaudit9-ci-regular-mutants-20261011-091321-v3/critical/system/tests/test_ac_auth_cond.py'
+  test_ac_gate_family: 合格 24/24（未达标 0 个）
+  test_ac_state_mig: 合格 16/16（未达标 0 个）
+  test_ac_deploy_release: 合格 13/13（未达标 0 个）
+  test_ac_station_families: 合格 29/29（未达标 0 个）
+  test_ac_ops_families: 合格 18/18（未达标 0 个）
+  test_ac_act_run: 合格 9/9（未达标 0 个）
+  test_ac_ui_family: 合格 8/8（未达标 0 个）
+EXIT_CODE=1
+
+EXPECTED=all six cases nonzero/red

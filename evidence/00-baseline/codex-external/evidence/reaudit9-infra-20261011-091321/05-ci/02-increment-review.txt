@@ -1,0 +1,2805 @@
+$ git log --reverse --format details d571ab8..origin/main
+---
+2a9d132ab4040a2a728d2127f26c162e8fcd1804
+12cb222ee1765dda5e917b3a2f300a53c1d4ef1d
+2026-10-09T03:45:54+08:00
+fix(wave8): 八轮 6 语义旁路+F 系收尾全清——registry 重放/审批周期/行版本/受保护根/immutable 位/AST 门
+---
+c96794e2c5b44c3a2133fd6f03bdb7d5f8f62aa2
+2a9d132ab4040a2a728d2127f26c162e8fcd1804
+2026-10-09T03:55:43+08:00
+fix(wave8): EventStore busy_timeout=30000——并发写排队不丢面（Ubuntu 百线程实测 3% 写面丢失根修）
+---
+cf6d10e6f10e5369ea04c3d9f85b797d39279458
+d571ab858cab8024015f03a01e9eae2290015472 c96794e2c5b44c3a2133fd6f03bdb7d5f8f62aa2
+2026-10-09T04:09:35+08:00
+Merge pull request #13 from AIruanchao/wave8/semantics
+---
+f93e95ac20556905f31a3e25ec28f761be785e17
+c96794e2c5b44c3a2133fd6f03bdb7d5f8f62aa2
+2026-10-09T04:29:17+08:00
+fix(wave8): 终装收编——pin 根修+cf6d10e 制品+7789 切换存证
+---
+310c1a9e11621e929650058b7c724a91840310c4
+cf6d10e6f10e5369ea04c3d9f85b797d39279458 f93e95ac20556905f31a3e25ec28f761be785e17
+2026-10-09T04:43:41+08:00
+Merge pull request #14 from AIruanchao/wave8/final-install
+---
+ab9e23932af14e7079c9622d65c2b34b9302a639
+310c1a9e11621e929650058b7c724a91840310c4
+2026-10-09T09:15:26+08:00
+fix(observation): 采样器 git 仓回退候选（不可变位无 .git 致 identity=None 根修）
+---
+b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4
+310c1a9e11621e929650058b7c724a91840310c4 ab9e23932af14e7079c9622d65c2b34b9302a639
+2026-10-09T09:29:26+08:00
+Merge pull request #15 from AIruanchao/wave9/sampler-repo-fallback
+---
+74a24d5ff24eb720b29704077d3c11047d72b9e0
+b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4
+2026-10-09T10:30:23+08:00
+fix(runner): 超时证据先锁定——kill/收尸阶段异常不得翻转 timed_out
+---
+ed258b0386d50e10a48aad381f91cafec198822c
+74a24d5ff24eb720b29704077d3c11047d72b9e0
+2026-10-09T10:32:31+08:00
+dist: b44b087 制品四件套入仓（main 尖头+current 现役存证）
+---
+609740bb108932c43e741c7bf4c29cdbafa3e753
+ed258b0386d50e10a48aad381f91cafec198822c
+2026-10-09T10:47:13+08:00
+evidence(G9-10): 1950 条 quarantine 终态裁定——全量保守 KEEP、PENDING=0、零生产写
+---
+7ffcc00f776dfe3f271b3d6dd5d3f549dfce0db0
+b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4 609740bb108932c43e741c7bf4c29cdbafa3e753
+2026-10-09T11:33:18+08:00
+Merge pull request #16 from AIruanchao/wave9/baseline-green
+---
+446e10c15c05074b690943921f278bfec3cbb411
+7ffcc00f776dfe3f271b3d6dd5d3f549dfce0db0
+2026-10-09T11:32:13+08:00
+fix(G9-05): legacy 升级洞 fail-closed——cutover 已记账而 digest 账本缺席=legacy_untrusted 全隔离（八轮 R8-EVENT-BACKDATE-008 升级路径）
+---
+17a930527883b26430148f74987424a7d948c1ea
+446e10c15c05074b690943921f278bfec3cbb411
+2026-10-09T10:55:33+08:00
+fix(SC-05): 分页元数据形态+自洽全量校验（八轮 R8-SC-PAGINATION-TYPE-018）
+---
+d4ec0b459d85752dcc4f3fc55fe3f78b67b1520e
+17a930527883b26430148f74987424a7d948c1ea
+2026-10-09T12:16:41+08:00
+fix(G9-06): manifest 独立语义根——同钥双签无条件拒+purposes 分域+scope 底线+unsigned 边界（R8-GATE-LANE/TTL/SCOPE/UNSIGNED）
+---
+5830c6eb12a0c99433eaa4b0b8eb5a3d2c892ae9
+d4ec0b459d85752dcc4f3fc55fe3f78b67b1520e
+2026-10-09T12:21:23+08:00
+fix(G9-09): BAK 归档实存+独立解包对账+archive 真恢复（R8-BAK-FAKE-TAR-SUCCESS-019）
+---
+95598d3ddd470efd5c8ae3ca8a99102c05e9010f
+5830c6eb12a0c99433eaa4b0b8eb5a3d2c892ae9
+2026-10-09T12:39:56+08:00
+fix(G9-04): 审批 receipt 单调账本+actual-target 实算绑定+principal 强制登记（R8-AUTH-RETIRED-KEY-005/TARGET-UNBOUND-006/ACTOR-DISTINCT-007）
+---
+06f8c83ce48cec515efccf04044aef5e6a48a422
+7ffcc00f776dfe3f271b3d6dd5d3f549dfce0db0 446e10c15c05074b690943921f278bfec3cbb411
+2026-10-09T13:39:55+08:00
+Merge pull request #17 from AIruanchao/wave9/g9-05-legacy
+---
+9e2ac445a75695ae463ad1d8ad7e50dafa76c7b9
+06f8c83ce48cec515efccf04044aef5e6a48a422 17a930527883b26430148f74987424a7d948c1ea
+2026-10-09T13:40:06+08:00
+Merge pull request #18 from AIruanchao/wave9/g9-11-sc05
+---
+657d19738bb7e6ae2c9175dd86daec2ef82abd15
+9e2ac445a75695ae463ad1d8ad7e50dafa76c7b9 95598d3ddd470efd5c8ae3ca8a99102c05e9010f
+2026-10-09T13:40:44+08:00
+Merge pull request #21 from AIruanchao/wave9/g9-04-approval
+---
+49a8e6b9485126ca2c3a5ffcd1a1cc8d988c3917
+657d19738bb7e6ae2c9175dd86daec2ef82abd15
+2026-10-09T14:18:17+08:00
+feat(G9-03): TLA 双配置完成级——七段全序×1 attempt + 2段×2 attempts（retry/CAS/nonce）
+---
+21fa416dc8b6348f1177837181eee6eb5f71ed0f
+657d19738bb7e6ae2c9175dd86daec2ef82abd15 49a8e6b9485126ca2c3a5ffcd1a1cc8d988c3917
+2026-10-09T15:51:38+08:00
+Merge pull request #22 from AIruanchao/wave9/g9-03-tla
+---
+0ec079e374fdaa9f7f18c02d5a533fb60ded0924
+21fa416dc8b6348f1177837181eee6eb5f71ed0f
+2026-10-09T15:01:24+08:00
+feat(G9-07): P1f2 真 mutation 门+evidence v2 分表严格 schema+测试零污染（R8-TRC-TRUTHY-ASSERT-012/EVID-FIELDS-013/PYTEST-HISTORICAL-COLLECT-014）
+---
+dc323c7663701e443dbd440f831187abf8a54de1
+21fa416dc8b6348f1177837181eee6eb5f71ed0f 0ec079e374fdaa9f7f18c02d5a533fb60ded0924
+2026-10-09T16:43:20+08:00
+Merge pull request #23 from AIruanchao/wave9/g9-07-measure
+---
+889c71fe6e49fdf9a23a6592dfb8ce40096285af
+dc323c7663701e443dbd440f831187abf8a54de1
+2026-10-09T18:20:07+08:00
+fix(G9-12): 安装链外部授权根+全链 fail-closed+仓外构建（R8-REL-FROZEN-ROOT-009）
+---
+91db19ab0653b27b9c6069c32ba456e573a0a987
+dc323c7663701e443dbd440f831187abf8a54de1 889c71fe6e49fdf9a23a6592dfb8ce40096285af
+2026-10-09T20:15:49+08:00
+Merge pull request #25 from AIruanchao/wave9/g9-12-install
+---
+4f6d6327a53b3fb953f471064540e86a1575dd81
+91db19ab0653b27b9c6069c32ba456e573a0a987
+2026-10-09T16:27:57+08:00
+feat(G9-08): required CI 全量检查面——仓根 pytest/evidence validator/八模块自测/追踪/TLA 双配置/mutation 门（八轮 1.4-10）
+---
+365a76f26f7a25b2a055d079f2b98ccf68e1b70a
+4f6d6327a53b3fb953f471064540e86a1575dd81
+2026-10-09T18:09:21+08:00
+fix(G9-08): 清除跨环境必死的绝对路径 symlink（v-link/r1.txt 内容快照化）
+---
+ffd2b58e58322de477caaf40492b6504a9bfb170
+365a76f26f7a25b2a055d079f2b98ccf68e1b70a
+2026-10-09T18:39:52+08:00
+fix(test): HLT-01 夹具原子写——慢机读写交错半写误杀根治（ubuntu CI 实证）
+---
+b09ac8787ff18f785f81b26e830d045f499fce0f
+ffd2b58e58322de477caaf40492b6504a9bfb170
+2026-10-09T19:47:19+08:00
+fix(capacity): 自测跨平台断言 total==used+free → >=（Linux 保留块）
+---
+d0fba9683345f6a348b94d98ecc4dc86d9a029b4
+91db19ab0653b27b9c6069c32ba456e573a0a987 b09ac8787ff18f785f81b26e830d045f499fce0f
+2026-10-10T04:28:02+08:00
+Merge pull request #24 from AIruanchao/wave9/g9-08-ci
+---
+27c648ca63a4a83b042cbadeb199b4c885d562ad
+d0fba9683345f6a348b94d98ecc4dc86d9a029b4
+2026-10-09T18:25:22+08:00
+feat(G9-02/01): 观察面 O_EXCL+hash chain+动态窗口+唯一 writer（R8-OBS-NOGIT-015/COLLISION-016）
+---
+fa7294753894e0ced5f21029d6b4e61c9c8660bc
+d0fba9683345f6a348b94d98ecc4dc86d9a029b4 27c648ca63a4a83b042cbadeb199b4c885d562ad
+2026-10-10T05:40:26+08:00
+Merge pull request #26 from AIruanchao/wave9/g9-02-observer
+---
+cd351d0a97fb05e0e7b14590e4635034ea1a406a
+fa7294753894e0ced5f21029d6b4e61c9c8660bc
+2026-10-10T07:46:55+08:00
+evidence(T-8): 1950 裁定升级行级严格合同 v2——每行八字段（row_digest 锚原始行/独立 reason/principal/reviewed_at/HMAC signature）
+---
+728a3a5818be1050de6b02282387c1f490ec8639
+fa7294753894e0ced5f21029d6b4e61c9c8660bc cd351d0a97fb05e0e7b14590e4635034ea1a406a
+2026-10-10T08:53:08+08:00
+Merge pull request #27 from AIruanchao/wave10/t8-adjudication
+---
+3fe37600c0e034b7322ab79b2d2ee1e34855d023
+728a3a5818be1050de6b02282387c1f490ec8639
+2026-10-10T07:54:56+08:00
+feat(T-9): registry root 部署位供给器——签名快照落位+同钥拒收自检（W1 最后 1 分）
+---
+b07ac8c6dfd5074a72746c9d6d37ba46a1cab937
+728a3a5818be1050de6b02282387c1f490ec8639 3fe37600c0e034b7322ab79b2d2ee1e34855d023
+2026-10-11T00:37:44+08:00
+Merge pull request #28 from AIruanchao/wave10/t9-registry
+---
+a7410485aa7b244dceb7548ee9c78f120852bcc3
+b07ac8c6dfd5074a72746c9d6d37ba46a1cab937
+2026-10-10T08:13:53+08:00
+fix(T-4): 回滚信任链六段 fail-closed——与正向安装链同构（R9-REL-ROLLBACK-ROOT-BYPASS-004）
+---
+2bded63d1c3f8f842dd9aa447869e5f9fd38efc5
+b07ac8c6dfd5074a72746c9d6d37ba46a1cab937 a7410485aa7b244dceb7548ee9c78f120852bcc3
+2026-10-11T01:57:26+08:00
+Merge pull request #29 from AIruanchao/wave10/t4-rollback
+---
+d70f2202fdf17f337ee4c890447cd2d139d22f6b
+2bded63d1c3f8f842dd9aa447869e5f9fd38efc5
+2026-10-10T09:25:03+08:00
+fix(T-2): 观察窗开窗十项前置+资格 fail-closed+收割覆盖门+invalidate 作废（R9-OBS 窗口三连）
+---
+4efb1507a1dad83663230af15fe2a39493123563
+d70f2202fdf17f337ee4c890447cd2d139d22f6b
+2026-10-10T10:25:59+08:00
+fix(test): F4 两处 _record 显式传 scheduler_config_sha——跨平台密闭（ubuntu CI 红根修）
+---
+5c1a28f0e04850c0de8485c91b208ce19f0a9cb4
+4efb1507a1dad83663230af15fe2a39493123563
+2026-10-10T23:48:11+08:00
+fix(test): HLT-01 写前登记闭合读写交错窗口——慢机『杂交快照』误报根修
+---
+2c6df3dcf41eb31b01135f08841b07122ffc3bb3
+2bded63d1c3f8f842dd9aa447869e5f9fd38efc5 5c1a28f0e04850c0de8485c91b208ce19f0a9cb4
+2026-10-11T03:54:39+08:00
+Merge pull request #31 from AIruanchao/wave10/t2-window
+---
+9ff9632250984d8899b62e1ce478416c51fa1050
+2c6df3dcf41eb31b01135f08841b07122ffc3bb3
+2026-10-10T08:27:05+08:00
+fix(T-1): receipt 冷启动旁路根治+并发竞窗关闭（R9-AUTH-RECEIPT-COLDSTART-001/CONCURRENCY-013）
+---
+3483d04eaab4fedd55176f491b6a40d3aea508a6
+2c6df3dcf41eb31b01135f08841b07122ffc3bb3 9ff9632250984d8899b62e1ce478416c51fa1050
+2026-10-11T05:05:26+08:00
+Merge pull request #30 from AIruanchao/wave10/t1-receipt
+---
+ebc3e3adb55dfef5f1e6f4a06797f45a5c6d3932
+3483d04eaab4fedd55176f491b6a40d3aea508a6
+2026-10-10T09:28:49+08:00
+feat(T-3): 八站生产接线+逐站分母冻结+gate 正门全链（R9 站5/6 未接线+现役单站分母根修）
+---
+bb38f70163ce4a1a79f36ea66284e110eff96a95
+3483d04eaab4fedd55176f491b6a40d3aea508a6 ebc3e3adb55dfef5f1e6f4a06797f45a5c6d3932
+2026-10-11T06:09:12+08:00
+Merge pull request #32 from AIruanchao/wave10/t3-stations
+---
+1e31d8800082c3bf025e33faef53afdac8fc79e5
+bb38f70163ce4a1a79f36ea66284e110eff96a95
+2026-10-11T07:52:10+08:00
+feat(T-5): scheduler gate 刷新正门优先——WENQU_GATE_MANIFEST+VERIFY_KEY(+REGISTRY) 存在即走 gate 正门
+---
+7eeb8a13107e8b52771f5b8784af8266ed0551b9
+bb38f70163ce4a1a79f36ea66284e110eff96a95 1e31d8800082c3bf025e33faef53afdac8fc79e5
+2026-10-11T08:53:39+08:00
+Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+$ git diff -- .github/workflows/acceptance.yml tests/acceptance.sh tools/merge-ci-evidence.sh tools/evidence_validator.py tools/release_attest.py tests/p1f* system/tests/p1f*
+diff --git a/.github/workflows/acceptance.yml b/.github/workflows/acceptance.yml
+index 9628daf..afe4551 100644
+--- a/.github/workflows/acceptance.yml
++++ b/.github/workflows/acceptance.yml
+@@ -8,17 +8,51 @@ jobs:
+     runs-on: ${{ matrix.os }}
+     steps:
+       - uses: actions/checkout@v4
+       - uses: actions/setup-python@v5
+         with: { python-version: "3.11" }
++      - uses: actions/setup-java@v4
++        with: { distribution: temurin, java-version: "17" }
+       - name: release-check（版本号残留机械闸·动态版本）
+         run: |
+           V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+           DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+           echo "Checking: v$DV $V"
+           bash tests/release-check.sh v$DV $V
+       - name: acceptance
+         run: bash tests/acceptance.sh
+       - name: pytest 契约
+         run: pip install pytest && python -m pytest cli/test_wenqu.py -q
++      - name: Runner Linux /proc token 扫杀真腿（ubuntu 实测；macos 结构腿+SKIP）
++        # 八轮遗留项「Runner Linux /proc 通路未实测」：ubuntu-latest 上真跑
++        # system/tests/test_linux_proc_path.py 的两条真腿（/proc environ token
++        # 扫描命中+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）；
++        # macos-latest 上同文件跑结构腿（monkeypatch /proc 布局）+真腿 SKIP 标注。
++        run: python -m pytest system/tests/test_linux_proc_path.py -v
+       - name: selftest
+         run: python cli/wenqu selftest
++      # ---- G9-08（八轮 1.4-10）：required CI 全量检查面 ------------------
++      - name: 仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）
++        run: pip install pytest && python -m pytest -q
++      - name: 严格 evidence validator（active 全字段+实算 hash+TTL）
++        run: python tools/evidence_validator.py --root .
++      - name: 全模块自测（bugscan/station2-7/capacity 八模块 SELF-TEST）
++        run: |
++          for m in bugscan_orchestrator station2_static station3_contract \
++                   station4_behavior station5_live_fire station6_adversarial \
++                   station7_runtime capacity_monitor; do
++            PYTHONPATH=system python3 -m "wenqu_core.$m"
++          done
++      - name: 追踪矩阵（§20/§25.1 目录+方案 hash 一致性）
++        run: PYTHONPATH=system python tools/ac_traceability.py --check
++      - name: TLA 双配置 TLC 完成级（G9-03：七段全序 A + retry/CAS/nonce B）
++        # 完成级判据：输出含 "Model checking completed"；非零违例/截断=红。
++        run: |
++          pushd specs/tla >/dev/null
++          for cfg in wenqu_pipeline_A wenqu_pipeline_B; do
++            java -cp ../../system/bin/tla2tools.jar tlc2.TLC -config "$cfg.cfg" wenqu_pipeline 2>&1 | tee "/tmp/tlc-$cfg.log"
++            grep -q "Model checking completed. No error has been found." "/tmp/tlc-$cfg.log"
++          done
++          popd >/dev/null
++      # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
++      # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
++      # 不再独立重跑，避免 macOS 时长翻倍。
+diff --git a/system/tests/p1f_ast_gate.py b/system/tests/p1f_ast_gate.py
+new file mode 100644
+index 0000000..4182b51
+--- /dev/null
++++ b/system/tests/p1f_ast_gate.py
+@@ -0,0 +1,634 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""P1f2 AST 行为门——八轮 Codex P1f2 残余修复（文本 assert 计数可被绕过 → AST 行为门）。
++
++背景：旧 P1f2 用文本 grep 数 `assert`/`_ck`/`expect` 出现次数，三类绕过均不红：
++  a) 常量真值断言（assert True / assert 1）——计数照涨、行为恒过；
++  b) 删掉被测调用只留断言壳——计数不缩；
++  c) 删掉失败路径（负例/异常腿）——计数不缩。
++
++本工具对 F6-TRC-GATE-001 的八个专属测试文件做纯 ast 静态分析（零第三方依赖、
++不导入不执行任何被测体，只读源码），逐顶层 test 函数产出三指标：
++
++  trivial_asserts       assert 的测试表达式为常量真值（ast.Constant 真值 /
++                        Name 'True'）→ 计劣（恒真化绕过面）
++  has_call_into_module  函数体内在被测面上真实交互 → 良。被测面静态识别：
++                        - wenqu_core.* 导入名/别名（文件内任意层 import 收集）
++                          上的调用/取属性/下标/迭代（枚举迭代=执行产品 __iter__）；
++                        - 轻量数据流传播的实例（gate = SourceGate(...) 之后
++                          gate.execute_gate() / result["exit_code"]）；
++                        - 产品构造器/装载器助手的产物（store, mgr = _mgr(td)
++                          之后 mgr.get_run(...)；doctor = _load_doctor() 之后
++                          doctor.check(...)）——助手=体内真实触碰产品码的
++                          同文件模块级函数/类（构造 wenqu_core 对象、
++                          spec_from_file_location 装载、或 subprocess 启动
++                          产品路径常量指向的脚本）；
++                        - 产品路径常量（模块级 __file__ 派生、不含 tests/
++                          fixtures 字段的 Path 常量，如 _CONTRACT/_STATIONS）
++                          上的读（.read_text()）与 subprocess 引用
++                          （[sys.executable, str(DOCTOR), ...]）。
++  has_failure_path      存在可失败的断言通道 → 良：
++                        - expect/raises 族异常助手调用（expect/_expect_raise/
++                          _raises/pytest.raises…）；
++                        - try-except（含 except 子句）；
++                        - 断言助手（_ok/_ck 式：体内含条件 raise）且首参非
++                          常量真值（条件可判假=负例通道）；
++                        - 函数内内联条件 raise（if ...: raise ...）；
++                        - 非常量真值的 assert（可判假的真实检查）。
++
++合格函数 = trivial_asserts == 0 且 has_call_into_module 且 has_failure_path。
++汇总每文件合格函数数，与冻结基线 tests/p1f-behavior-baseline.txt 比对：
++合格数缩水、专属文件缺失、源码不可解析、基线缺项/格式非法 → exit 1（CI 红）。
++
++用法：
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --baseline <基线文件> [--verbose]
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --file test_ac_gate_family
++"""
++from __future__ import annotations
++
++import argparse
++import ast
++import sys
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Set
++
++# 与 acceptance.sh P1f 节的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
++P1F_FILES: List[str] = [
++    "test_ac_gate_family",
++    "test_ac_state_mig",
++    "test_ac_deploy_release",
++    "test_ac_station_families",
++    "test_ac_ops_families",
++    "test_ac_auth_cond",
++    "test_ac_act_run",
++    "test_ac_ui_family",
++]
++
++# importlib 动态装载产品码的标志调用名（装载器助手判定）
++_LOADER_MARKS = {"spec_from_file_location", "module_from_spec", "exec_module"}
++
++# expect/raises 族异常助手名（调用即失败通道）
++_EXPECT_NAME_MARKS = ("expect", "raises")
++
++# subprocess 家族方法名（启动子进程=可能驱动产品脚本）
++_SUBPROCESS_FUNCS = {"run", "popen", "call", "check_call", "check_output"}
++
++# 产品路径常量的排除字段（夹具路径不算被测面）
++_NON_PRODUCT_SEGMENTS = {"tests", "test", "fixtures", "fixture", "__pycache__"}
++
++
++# ---------------------------------------------------------------------------
++# 基础判定
++# ---------------------------------------------------------------------------
++def _is_truthy_const(node: ast.expr) -> bool:
++    """常量真值：ast.Constant 真值 / Name 'True'（恒真化断言的静态形态）。"""
++    if isinstance(node, ast.Constant):
++        try:
++            return bool(node.value)
++        except Exception:  # 无布尔语义的常量对象按非真值处理
++            return False
++    if isinstance(node, ast.Name) and node.id == "True":
++        return True
++    return False
++
++
++def _call_func_name(call: ast.Call) -> Optional[str]:
++    f = call.func
++    if isinstance(f, ast.Name):
++        return f.id
++    if isinstance(f, ast.Attribute):
++        return f.attr
++    return None
++
++
++def _is_expect_like(name: Optional[str]) -> bool:
++    if not name:
++        return False
++    return any(mark in name.lower() for mark in _EXPECT_NAME_MARKS)
++
++
++def _is_subprocess_call(call: ast.Call) -> bool:
++    f = call.func
++    return isinstance(f, ast.Attribute) and f.attr.lower() in _SUBPROCESS_FUNCS
++
++
++def _expr_mentions(node: ast.expr, names: Set[str]) -> bool:
++    """表达式子树是否引用了 names 中任一名字。"""
++    return any(
++        isinstance(n, ast.Name) and n.id in names for n in ast.walk(node)
++    )
++
++
++# ---------------------------------------------------------------------------
++# 文件级上下文（被测面收集）
++# ---------------------------------------------------------------------------
++class FileContext:
++    def __init__(self, tree: ast.Module) -> None:
++        self.tested_names: Set[str] = set()        # wenqu_core.* 导入名/别名
++        self.product_paths: Set[str] = set()       # 产品路径常量名（模块级）
++        self.loader_helpers: Set[str] = set()      # importlib 装载器助手
++        self.assert_helpers: Set[str] = set()      # _ok/_ck 式断言助手
++        self.product_helpers: Set[str] = set()     # 产品构造器/驱动器助手（函数）
++        self.product_classes: Set[str] = set()     # 产品驱动器类
++        self._collect(tree)
++
++    # —— 收集 ——
++    def _collect(self, tree: ast.Module) -> None:
++        # 1) wenqu_core 被测面：模块级+函数级 import 全收（同名只可能来自被测面）
++        for node in ast.walk(tree):
++            if isinstance(node, ast.ImportFrom) and node.module and (
++                node.module == "wenqu_core" or node.module.startswith("wenqu_core.")
++            ):
++                for alias in node.names:
++                    self.tested_names.add(alias.asname or alias.name)
++            elif isinstance(node, ast.Import):
++                for alias in node.names:
++                    if alias.name == "wenqu_core" or alias.name.startswith("wenqu_core."):
++                        self.tested_names.add(alias.asname or alias.name)
++        # 2) 模块级产品路径常量：__file__ 派生链（fixpoint 追链），排除夹具字段
++        self._collect_product_paths(tree)
++        # 3) 模块级函数/类分类
++        for stmt in tree.body:
++            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
++                if self._touches_product(stmt):
++                    self.product_helpers.add(stmt.name)
++                body_nodes = ast.walk(stmt)
++                if any(
++                    isinstance(n, ast.Call) and _call_func_name(n) in _LOADER_MARKS
++                    for n in body_nodes
++                ):
++                    self.loader_helpers.add(stmt.name)
++                if self._has_conditional_raise(stmt):
++                    self.assert_helpers.add(stmt.name)
++            elif isinstance(stmt, ast.ClassDef):
++                if any(
++                    self._touches_product(sub) for sub in stmt.body
++                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
++                ):
++                    self.product_classes.add(stmt.name)
++
++    def _collect_product_paths(self, tree: ast.Module) -> None:
++        """__file__ 派生的模块级 Path 常量（REPO/SYSTEM/DASH/_CONTRACT…）。
++
++        fixpoint：常量值子树含 __file__ 或已判定常量名 → 产品路径常量；
++        但链上出现 tests/fixtures 等夹具字段的除外（夹具不是被测面）。
++        """
++        for _ in range(8):  # 链深有限，几轮收敛
++            grew = False
++            for stmt in tree.body:
++                if not isinstance(stmt, ast.Assign):
++                    continue
++                value = stmt.value
++                if not _expr_mentions(value, self.product_paths) and not any(
++                    isinstance(n, ast.Name) and n.id == "__file__"
++                    for n in ast.walk(value)
++                ):
++                    continue
++                if any(
++                    isinstance(n, ast.Constant) and isinstance(n.value, str)
++                    and n.value.strip("./").strip("/") in _NON_PRODUCT_SEGMENTS
++                    for n in ast.walk(value)
++                ):
++                    continue  # 夹具路径：tests/fixtures 下不算被测面
++                for t in stmt.targets:
++                    if isinstance(t, ast.Name) and t.id not in self.product_paths:
++                        self.product_paths.add(t.id)
++                        grew = True
++            if not grew:
++                break
++
++    def _touches_product(self, fn: ast.FunctionDef) -> bool:
++        """体内真实触碰产品码：wenqu_core 根调用/产品路径常量引用/装载器标志。
++
++        注意：模块级分析环境为空（参数不预信任）——夹具助手（_git/_make_repo
++        只碰参数与字面量）不会被判为产品面。
++        """
++        for node in ast.walk(fn):
++            if isinstance(node, ast.Call):
++                fname = node.func.id if isinstance(node.func, ast.Name) else None
++                if fname in self.tested_names:
++                    return True
++                if _call_func_name(node) in _LOADER_MARKS:
++                    return True
++                if _is_subprocess_call(node) and _expr_mentions(
++                    node, self.product_paths
++                ):
++                    return True
++            elif isinstance(node, ast.Name):
++                if node.id in self.product_paths:
++                    return True
++        return False
++
++    @staticmethod
++    def _has_conditional_raise(fn: ast.FunctionDef) -> bool:
++        """_ok/_ck 式助手：if <cond>: raise ...（断言助手=条件抛错）。"""
++        for node in ast.walk(fn):
++            if isinstance(node, ast.If):
++                for sub in ast.walk(node):
++                    if isinstance(sub, ast.Raise):
++                        return True
++        return False
++
++
++# ---------------------------------------------------------------------------
++# 函数级行为分析（按语句顺序做轻量信任数据流）
++# ---------------------------------------------------------------------------
++class FunctionMetrics:
++    __slots__ = ("name", "trivial_asserts", "has_call", "has_failure")
++
++    def __init__(self, name: str) -> None:
++        self.name = name
++        self.trivial_asserts = 0
++        self.has_call = False
++        self.has_failure = False
++
++    @property
++    def qualified(self) -> bool:
++        return self.trivial_asserts == 0 and self.has_call and self.has_failure
++
++    def hint(self) -> str:
++        why = []
++        if self.trivial_asserts:
++            why.append(f"trivial_asserts={self.trivial_asserts}")
++        if not self.has_call:
++            why.append("无被测调用")
++        if not self.has_failure:
++            why.append("无失败路径")
++        return ",".join(why) if why else "合格"
++
++
++class _Env:
++    """函数内轻量信任环境：产品对象局部名 + 产品路径局部名。"""
++
++    __slots__ = ("trusted", "path_locals")
++
++    def __init__(self, trusted: Set[str], path_locals: Set[str]) -> None:
++        self.trusted = trusted      # 产品对象（可在其上调用/读属性/下标/迭代）
++        self.path_locals = path_locals  # 产品路径派生局部（subprocess 引用算被测）
++
++    def copy(self) -> "_Env":
++        return _Env(set(self.trusted), set(self.path_locals))
++
++    def merge(self, other: "_Env") -> None:
++        self.trusted |= other.trusted
++        self.path_locals |= other.path_locals
++
++
++class FunctionAnalyzer:
++    def __init__(self, ctx: FileContext) -> None:
++        self.ctx = ctx
++
++    # —— 信任根判定 ——
++    def _trusted_root(self, node: ast.expr, env: _Env) -> bool:
++        if isinstance(node, ast.Name):
++            return (
++                node.id in self.ctx.tested_names
++                or node.id in self.ctx.product_paths
++                or node.id in env.trusted
++            )
++        if isinstance(node, ast.Attribute):
++            return self._trusted_root(node.value, env)
++        if isinstance(node, ast.Subscript):  # f = rep.findings[0] 仍是被测产物
++            return self._trusted_root(node.value, env)
++        if isinstance(node, ast.Call):
++            return self._trusted_root(node.func, env)
++        if isinstance(node, ast.Await):
++            return self._trusted_root(node.value, env)
++        return False
++
++    def _producing_helper_call(self, value: ast.expr) -> bool:
++        """值是产品构造器/装载器/驱动器助手或产品类的调用 → 产物可信。"""
++        if not isinstance(value, ast.Call):
++            return False
++        f = value.func
++        if isinstance(f, ast.Name) and (
++            f.id in self.ctx.loader_helpers
++            or f.id in self.ctx.product_helpers
++            or f.id in self.ctx.product_classes
++        ):
++            return True
++        return False
++
++    def _assign_trusted(self, value: ast.expr, env: _Env) -> bool:
++        if self._trusted_root(value, env):
++            return True
++        return self._producing_helper_call(value)
++
++    # —— 表达式扫描（ Calls 全子树） ——
++    def _scan_expr(self, node: ast.expr, env: _Env, m: FunctionMetrics) -> None:
++        for sub in ast.walk(node):
++            if isinstance(sub, ast.Call):
++                self._check_call(sub, env, m)
++            elif isinstance(sub, (ast.Attribute, ast.Subscript)):
++                # 被测态读取信号：可信根上的属性读/下标（消费产品输出）
++                if self._trusted_root(sub.value, env):
++                    m.has_call = True
++            elif isinstance(sub, ast.NamedExpr):  # walrus：(x := trusted())
++                if isinstance(sub.target, ast.Name) and self._assign_trusted(
++                    sub.value, env
++                ):
++                    env.trusted.add(sub.target.id)
++
++    def _check_call(self, call: ast.Call, env: _Env, m: FunctionMetrics) -> None:
++        # 指标二：被测面上的真实调用
++        if self._trusted_root(call.func, env):
++            m.has_call = True
++        # 泛化腿：subprocess 启动产品路径（脚本/常量）= 驱动产品码
++        if _is_subprocess_call(call) and _expr_mentions(
++            call, self.ctx.product_paths | env.path_locals
++        ):
++            m.has_call = True
++        # 指标三：失败通道（expect/raises 族 + 断言助手带可判假首参）
++        fname = call.func.id if isinstance(call.func, ast.Name) else None
++        if _is_expect_like(fname):
++            m.has_failure = True
++        if fname in self.ctx.assert_helpers:
++            first = call.args[0] if call.args else None
++            if first is not None and not _is_truthy_const(first):
++                m.has_failure = True
++
++    # —— 语句遍历（顺序数据流） ——
++    def _visit_body(self, stmts: List[ast.stmt], env: _Env, m: FunctionMetrics) -> None:
++        for st in stmts:
++            self._visit_stmt(st, env, m)
++
++    def _visit_stmt(self, st: ast.stmt, env: _Env, m: FunctionMetrics) -> None:
++        if isinstance(st, ast.Assert):
++            if _is_truthy_const(st.test):
++                m.trivial_asserts += 1  # 常量真值断言——恒真化，计劣
++            else:
++                m.has_failure = True    # 可判假的真实检查=失败通道
++            self._scan_expr(st.test, env, m)
++            if st.msg is not None:
++                self._scan_expr(st.msg, env, m)
++            return
++        if isinstance(st, ast.Assign):
++            self._scan_expr(st.value, env, m)
++            self._propagate_targets(st.targets, st.value, env)
++            return
++        if isinstance(st, ast.AnnAssign):
++            if st.value is not None:
++                self._scan_expr(st.value, env, m)
++                if isinstance(st.target, ast.Name):
++                    self._propagate_targets([st.target], st.value, env)
++            return
++        if isinstance(st, ast.AugAssign):
++            self._scan_expr(st.value, env, m)
++            return
++        if isinstance(st, (ast.Expr, ast.Return, ast.Delete)):
++            expr = getattr(st, "value", None)
++            if expr is not None:
++                self._scan_expr(expr, env, m)
++            return
++        if isinstance(st, ast.If):
++            self._scan_expr(st.test, env, m)
++            # 内联条件 raise：if <cond>: raise ...（失败通道）
++            if any(isinstance(n, ast.Raise) for n in ast.walk(st)):
++                m.has_failure = True
++            env_body, env_else = env.copy(), env.copy()
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env_else, m)
++            env.merge(env_body)
++            env.merge(env_else)
++            return
++        if isinstance(st, ast.While):
++            self._scan_expr(st.test, env, m)
++            env_body = env.copy()
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env.copy(), m)
++            env.merge(env_body)
++            return
++        if isinstance(st, (ast.For, ast.AsyncFor)):
++            self._scan_expr(st.iter, env, m)
++            env_body = env.copy()
++            if self._trusted_root(st.iter, env):
++                m.has_call = True  # 迭代被测对象=执行产品 __iter__
++                self._add_targets(st.target, env_body.trusted)
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env.copy(), m)
++            env.merge(env_body)
++            return
++        if isinstance(st, (ast.With, ast.AsyncWith)):
++            for item in st.items:
++                self._scan_expr(item.context_expr, env, m)
++                if item.optional_vars is not None:
++                    if self._assign_trusted(item.context_expr, env):
++                        self._add_targets(item.optional_vars, env.trusted)
++                    if _expr_mentions(
++                        item.context_expr, self.ctx.product_paths | env.path_locals
++                    ):
++                        self._add_targets(item.optional_vars, env.path_locals)
++            self._visit_body(st.body, env, m)
++            return
++        if isinstance(st, ast.Try):
++            if st.handlers:  # except 子句存在=异常失败通道
++                m.has_failure = True
++            branches: List[_Env] = []
++            for block in (st.body, st.orelse, st.finalbody):
++                b = env.copy()
++                self._visit_body(block, b, m)
++                branches.append(b)
++            for h in st.handlers:
++                hb = env.copy()
++                self._visit_body(h.body, hb, m)
++                branches.append(hb)
++            for b in branches:
++                env.merge(b)
++            return
++        if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
++            # 嵌套函数（回调/闭包）：以当前 env 副本分析，指标并入父函数
++            self._visit_body(st.body, env.copy(), m)
++            return
++        if isinstance(st, ast.ClassDef):
++            for d in st.decorator_list:
++                self._scan_expr(d, env, m)
++            self._visit_body(st.body, env.copy(), m)
++            return
++        if isinstance(st, (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal,
++                           ast.Pass, ast.Break, ast.Continue)):
++            return
++        if isinstance(st, ast.Raise):
++            if st.exc is not None:
++                self._scan_expr(st.exc, env, m)
++            if st.cause is not None:
++                self._scan_expr(st.cause, env, m)
++            return
++        # 其余罕见语句（match 等）：保守全子树扫 Calls，不做数据流
++        for sub in ast.walk(st):
++            if isinstance(sub, ast.Call):
++                self._check_call(sub, env, m)
++            elif isinstance(sub, ast.Assert):
++                if _is_truthy_const(sub.test):
++                    m.trivial_asserts += 1
++                else:
++                    m.has_failure = True
++        return
++
++    def _propagate_targets(self, targets: List[ast.expr], value: ast.expr,
++                           env: _Env) -> None:
++        if self._assign_trusted(value, env):
++            for t in targets:
++                self._add_targets(t, env.trusted)
++        if _expr_mentions(value, self.ctx.product_paths | env.path_locals):
++            for t in targets:
++                self._add_targets(t, env.path_locals)
++
++    def _add_targets(self, target: ast.expr, names: Set[str]) -> None:
++        if isinstance(target, ast.Name):
++            names.add(target.id)
++        elif isinstance(target, (ast.Tuple, ast.List)):
++            for el in target.elts:
++                self._add_targets(el, names)
++        elif isinstance(target, ast.Starred):
++            self._add_targets(target.value, names)
++
++
++# ---------------------------------------------------------------------------
++# 文件分析
++# ---------------------------------------------------------------------------
++def analyze_file(path: Path) -> Dict[str, Any]:
++    """返回 {file, total, qualified, metrics[], error}。源码不可解析=error。"""
++    result: Dict[str, Any] = {
++        "file": path.stem, "total": 0, "qualified": 0, "metrics": [], "error": None,
++    }
++    try:
++        source = path.read_text(encoding="utf-8")
++        tree = ast.parse(source, filename=str(path))
++    except (OSError, SyntaxError, ValueError) as exc:
++        result["error"] = f"源码不可读/不可解析: {exc}"
++        return result
++    ctx = FileContext(tree)
++    analyzer = FunctionAnalyzer(ctx)
++    for stmt in tree.body:
++        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name.startswith("test_"):
++            m = FunctionMetrics(stmt.name)
++            analyzer._visit_body(stmt.body, _Env(set(), set()), m)
++            result["metrics"].append(m)
++            result["total"] += 1
++            if m.qualified:
++                result["qualified"] += 1
++    return result
++
++
++# ---------------------------------------------------------------------------
++# 基线
++# ---------------------------------------------------------------------------
++def parse_baseline(path: Path) -> Dict[str, int]:
++    """解析基线：# 注释行跳过；<文件名> <合格数>；非法行/重复条目抛错。"""
++    baseline: Dict[str, int] = {}
++    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
++        line = raw.strip()
++        if not line or line.startswith("#"):
++            continue
++        parts = line.split()
++        if len(parts) != 2 or not parts[1].isdigit():
++            raise ValueError(f"基线第 {lineno} 行格式非法: {raw!r}（应为 '<文件名> <合格数>'）")
++        if parts[0] in baseline:
++            raise ValueError(f"基线第 {lineno} 行重复条目: {parts[0]}")
++        baseline[parts[0]] = int(parts[1])
++    return baseline
++
++
++def emit_baseline(root: Path) -> int:
++    lines = [
++        "# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被",
++        "# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。",
++        "# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。",
++        "# 只允许增长，缩水即 CI 红。再生成：",
++        "#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline",
++        "#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）",
++    ]
++    for name in P1F_FILES:
++        r = analyze_file(root / "system" / "tests" / f"{name}.py")
++        if r["error"]:
++            print(f"!! {name}: {r['error']}", file=sys.stderr)
++            return 2
++        lines.append(f"{name} {r['qualified']}")
++    print("\n".join(lines))
++    return 0
++
++
++# ---------------------------------------------------------------------------
++# 主流程
++# ---------------------------------------------------------------------------
++def run_gate(root: Path, baseline_path: Path, verbose: bool = False,
++             single_file: Optional[str] = None) -> int:
++    tests_dir = root / "system" / "tests"
++    names = [single_file] if single_file else P1F_FILES
++    baseline: Optional[Dict[str, int]] = None
++    if not single_file:
++        try:
++            baseline = parse_baseline(baseline_path)
++        except (OSError, ValueError) as exc:
++            print(f"❌ 基线不可用（{baseline_path}）: {exc}")
++            return 1
++
++    fail = False
++    rows: List[str] = []
++    total_q = 0
++    for name in names:
++        path = tests_dir / f"{name}.py"
++        r = analyze_file(path)
++        if r["error"]:
++            print(f"❌ {name}: {r['error']}")
++            fail = True
++            continue
++        total_q += r["qualified"]
++        bad = sum(1 for m in r["metrics"] if not m.qualified)
++        rows.append(f"  {name}: 合格 {r['qualified']}/{r['total']}"
++                    f"（未达标 {bad} 个）")
++        if verbose or single_file:
++            for m in r["metrics"]:
++                flag = "✅" if m.qualified else "⚠️ "
++                rows.append(f"    {flag} {m.name}: {m.hint()}")
++        if baseline is not None:
++            if name not in baseline:
++                print(f"❌ {name}: 基线缺项——行为门未冻结该文件")
++                fail = True
++            elif r["qualified"] < baseline[name]:
++                print(f"❌ {name}: 合格函数 {r['qualified']} < 基线 {baseline[name]}"
++                      "（空壳化/恒真化/删被测调用/删失败路径）")
++                fail = True
++    if baseline is not None:
++        extra = set(baseline) - set(P1F_FILES)
++        if extra:
++            print(f"❌ 基线含未知条目: {sorted(extra)}")
++            fail = True
++
++    if rows:
++        print("\n".join(rows))
++    if baseline is not None and not fail:
++        print(f"✅ AST 行为门通过（八文件合格函数共 {total_q} ≥ 冻结基线）")
++    return 1 if fail else 0
++
++
++def main(argv: Optional[List[str]] = None) -> int:
++    ap = argparse.ArgumentParser(description="P1f2 AST 行为门（八专属文件断言行为质量棘轮）")
++    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
++    ap.add_argument("--baseline", help="冻结基线 tests/p1f-behavior-baseline.txt")
++    ap.add_argument("--emit-baseline", action="store_true", help="输出当前合格数基线（再冻结用）")
++    ap.add_argument("--file", help="单文件调试（输出逐函数三指标）")
++    ap.add_argument("--verbose", action="store_true", help="check 模式附逐函数明细")
++    args = ap.parse_args(argv)
++
++    root = Path(args.root).resolve()
++    if not root.is_dir():
++        print(f"❌ --root 不存在: {root}")
++        return 2
++    if args.emit_baseline:
++        return emit_baseline(root)
++    if args.file:
++        if args.file not in P1F_FILES:
++            print(f"❌ --file 须为八专属文件之一: {P1F_FILES}")
++            return 2
++        return run_gate(root, root / "tests" / "p1f-behavior-baseline.txt",
++                        verbose=True, single_file=args.file)
++    if not args.baseline:
++        print("❌ check 模式需要 --baseline（或改用 --emit-baseline）")
++        return 2
++    return run_gate(root, Path(args.baseline), verbose=args.verbose)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/system/tests/p1f_mutation_gate.py b/system/tests/p1f_mutation_gate.py
+new file mode 100644
+index 0000000..783edc4
+--- /dev/null
++++ b/system/tests/p1f_mutation_gate.py
+@@ -0,0 +1,368 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""P1f2 mutation 门——G9-07（R8-TRC-TRUTHY-ASSERT-012 根修：AST 形态门→真 mutation gate）。
++
++背景：八轮后的 AST 形态门（p1f_ast_gate.py）能抓「字面恒真/无被测调用/
++无失败路径」三类字面空壳，但两类非字面绕过仍计入合格函数数：
++  a) 非字面恒真：assert len(str(product_call())) >= 0——非常量、有调用、
++     有失败路径形态，AST 三指标全绿，但断言永不可能失败；
++  b) 与产品行为无数据流关系的等量假测试替换：_ok(1 + 1 == 2) 形假腿。
++形态计数无法区分「断言可失败」与「断言确实对产品行为敏感」。
++
++本工具把完成标准从「形态」换成「行为」：对产品函数做机械变异（三类：
++返回值取反 negate_return / 比较符翻转 flip_compare / 删关键守卫行
++drop_raise），逐 mutation 在沙箱副本树上运行其映射的专属测试文件——
++每个 mutation 必须至少杀死一个测试（对应文件 exit != 0），mutation
++score 必须 100%（于 tests/p1f-mutations.json 所选集）。空壳化/恒真化/
++假测试替换的专属测试文件将杀不死任何 mutation → 本门 rc1。
++
++与两道既有闸的关系（G9-07 定版：三道闸并存，棘轮只增不减）：
++  第一道（主）：本 mutation gate——行为敏感度；
++  第二道：tests/p1f-behavior-baseline.txt AST 形态基线（p1f_ast_gate.py）；
++  第三道：tests/p1f-assert-baseline.txt 文本计数旧棘轮。
++
++沙箱纪律：每 mutation 复制仓树到临时目录（忽略 .git/evidence/dist 等
++重目录），AST 变异只写沙箱内副本，绝不动工作树；测试产物经
++WENQU_EVIDENCE_OUT_DIR 重定向进沙箱临时目录。控制腿（未变异沙箱）先跑：
++映射文件不全绿则本门 rc2（防「测试本来就红→假 kill」空转计分）。
++
++用法：
++  python3 system/tests/p1f_mutation_gate.py --root <repo根> \
++      --mutations tests/p1f-mutations.json [--json OUT.json] [--verbose]
++"""
++from __future__ import annotations
++
++import argparse
++import ast
++import copy
++import json
++import os
++import shutil
++import subprocess
++import sys
++import tempfile
++import time
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Tuple
++
++# 与 acceptance.sh P1f 节 / p1f_ast_gate.py 的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
++P1F_FILES: List[str] = [
++    "test_ac_gate_family",
++    "test_ac_state_mig",
++    "test_ac_deploy_release",
++    "test_ac_station_families",
++    "test_ac_ops_families",
++    "test_ac_auth_cond",
++    "test_ac_act_run",
++    "test_ac_ui_family",
++]
++
++VALID_OPS = ("negate_return", "flip_compare", "drop_raise")
++
++# 沙箱复制忽略（重目录/环境残留；测试面不需要它们）
++_SANDBOX_IGNORE = shutil.ignore_patterns(
++    ".git", "evidence", "dist", ".pytest_cache", "__pycache__",
++    ".github", ".DS_Store", "._*", "*.pyc",
++)
++
++# 比较符翻转映射（机械、成对可逆）
++_FLIP = {
++    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
++    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
++    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
++    ast.In: ast.NotIn, ast.NotIn: ast.In,
++    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
++}
++
++
++class MutationSpecError(RuntimeError):
++    """mutation 集结构/定位失败（集本身损坏——rc2，与 kill 失败区分）。"""
++
++
++# ---------------------------------------------------------------------------
++# AST 机械变异
++# ---------------------------------------------------------------------------
++class _OpCounter(ast.NodeVisitor):
++    """统计目标函数体内各 op 的可作用点数（0=mutation 无法落地）。"""
++
++    def __init__(self) -> None:
++        self.returns_with_value = 0
++        self.flippable_compares = 0
++        self.raises = 0
++
++    def visit_Return(self, node: ast.Return) -> None:
++        if node.value is not None:
++            self.returns_with_value += 1
++
++    def visit_Compare(self, node: ast.Compare) -> None:
++        if node.ops and all(type(op) in _FLIP for op in node.ops):
++            self.flippable_compares += 1
++
++    def visit_Raise(self, node: ast.Raise) -> None:
++        self.raises += 1
++
++
++class _NegateReturn(ast.NodeTransformer):
++    """return V → return not (V)——返回值取反（布尔语义翻转）。"""
++
++    def visit_Return(self, node: ast.Return) -> ast.Return:
++        if node.value is None:
++            return node
++        return ast.copy_location(
++            ast.Return(value=ast.UnaryOp(op=ast.Not(), operand=copy.deepcopy(node.value))),
++            node)
++
++
++class _FlipCompare(ast.NodeTransformer):
++    """比较符翻转：<↔>=、>↔<=、==↔!=、in↔not in、is↔is not。"""
++
++    def visit_Compare(self, node: ast.Compare) -> ast.Compare:
++        new_ops = [_FLIP[type(op)]() for op in node.ops]
++        return ast.copy_location(
++            ast.Compare(left=node.left, ops=new_ops, comparators=node.comparators),
++            node)
++
++
++class _DropRaise(ast.NodeTransformer):
++    """删除函数体内第一个 Raise 语句（关键守卫行删除；后续 raise 保留）。"""
++
++    def __init__(self) -> None:
++        self.dropped = False
++
++    def visit_Raise(self, node: ast.Raise) -> ast.stmt:
++        if not self.dropped:
++            self.dropped = True
++            return ast.copy_location(ast.Pass(), node)
++        return node
++
++
++def _make_scoped(function: str, inner: ast.NodeTransformer) -> ast.NodeTransformer:
++    """构造只作用于同名函数体的变换器（其余源码不动）。"""
++
++    class _Scoped(ast.NodeTransformer):
++        def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
++            self.generic_visit(node)  # 先递归（嵌套/方法同名同治）
++            if node.name == function:
++                return ast.copy_location(inner.visit(node), node)
++            return node
++
++    return _Scoped()
++
++
++def apply_mutation(src: str, module_path: str, function: str,
++                   op: str) -> Tuple[str, int]:
++    """对 module 源码中指定函数应用机械变异，返回 (变异后源码, 作用点数)。
++
++    函数不存在 / op 无处落地 / 变异后源码无变化 → MutationSpecError。
++    """
++    try:
++        tree = ast.parse(src, filename=module_path)
++    except SyntaxError as exc:
++        raise MutationSpecError(f"{module_path}: 源码不可解析: {exc}") from exc
++
++    counter = _OpCounter()
++    matched = 0
++    for node in ast.walk(tree):
++        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
++            matched += 1
++            counter.visit(node)
++    if matched == 0:
++        raise MutationSpecError(
++            f"{module_path}: 未找到目标函数 {function!r}——mutation 集与产品码脱锚")
++    points = {
++        "negate_return": counter.returns_with_value,
++        "flip_compare": counter.flippable_compares,
++        "drop_raise": counter.raises,
++    }[op]
++    if points == 0:
++        raise MutationSpecError(
++            f"{module_path}#{function}: op={op} 无处落地（产品码已变？mutation 集需同步）")
++
++    inner = {"negate_return": _NegateReturn, "flip_compare": _FlipCompare,
++             "drop_raise": _DropRaise}[op]()
++    scoped = _make_scoped(function, inner)
++    baseline_unparsed = ast.unparse(tree)  # 先快照（NodeTransformer 原地改树）
++    mutated = ast.fix_missing_locations(scoped.visit(tree))
++    out = ast.unparse(mutated)
++    if out == baseline_unparsed:
++        raise MutationSpecError(
++            f"{module_path}#{function}: op={op} 变异后源码无变化（无效 mutation）")
++    return out, points
++
++
++# ---------------------------------------------------------------------------
++# mutation 集装载与校验
++# ---------------------------------------------------------------------------
++def load_mutations(path: Path) -> List[Dict[str, Any]]:
++    """装载并结构校验 mutation 集（tests/p1f-mutations.json）。"""
++    try:
++        raw = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError) as exc:
++        raise MutationSpecError(f"mutation 集不可读: {path}: {exc}") from exc
++    if not isinstance(raw, dict) or "mutations" not in raw:
++        raise MutationSpecError("mutation 集顶层须为 {schema_version, mutations:[...]}")
++    seen_ids: set = set()
++    seen_killer: Dict[str, set] = {name: set() for name in P1F_FILES}
++    for i, m in enumerate(raw["mutations"]):
++        for field in ("id", "module", "function", "op", "test_files", "description"):
++            if field not in m or not m[field]:
++                raise MutationSpecError(f"mutation[{i}] 缺必填字段 {field!r}")
++        if m["id"] in seen_ids:
++            raise MutationSpecError(f"mutation id 重复: {m['id']}")
++        seen_ids.add(m["id"])
++        if m["op"] not in VALID_OPS:
++            raise MutationSpecError(f"{m['id']}: 未知 op {m['op']!r}（合法: {VALID_OPS}）")
++        if not m["module"].startswith("wenqu_core/") or not m["module"].endswith(".py"):
++            raise MutationSpecError(f"{m['id']}: module 须为 wenqu_core/*.py 相对路径")
++        mod_name = m["module"][len("wenqu_core/"):]
++        if "/" in mod_name or not mod_name[:-3].isidentifier():
++            raise MutationSpecError(f"{m['id']}: module 不支持子目录/非法名: {m['module']}")
++        files = m["test_files"]
++        if not isinstance(files, list) or not files:
++            raise MutationSpecError(f"{m['id']}: test_files 须为非空数组")
++        for tf in files:
++            if tf not in P1F_FILES:
++                raise MutationSpecError(f"{m['id']}: test_files 含未知专属文件 {tf!r}")
++            seen_killer[tf].add(m["id"])
++    # 覆盖门：每个专属文件至少杀一个 mutation（防某文件完全脱离行为锚）
++    uncovered = [tf for tf, ids in seen_killer.items() if not ids]
++    if uncovered:
++        raise MutationSpecError(f"mutation 集未覆盖专属文件: {uncovered}")
++    return raw["mutations"]
++
++
++# ---------------------------------------------------------------------------
++# 沙箱执行
++# ---------------------------------------------------------------------------
++def _run_test_file(sandbox: Path, test_file: str,
++                   artifacts_dir: Path) -> Tuple[int, float]:
++    """在沙箱根运行一个专属测试文件，返回 (exit_code, 秒)。"""
++    env = dict(os.environ)
++    env["WENQU_EVIDENCE_OUT_DIR"] = str(artifacts_dir)
++    env["PYTHONDONTWRITEBYTECODE"] = "1"
++    started = time.monotonic()
++    proc = subprocess.run(
++        [sys.executable, str(sandbox / "system" / "tests" / f"{test_file}.py")],
++        cwd=str(sandbox), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
++        text=True, timeout=900,
++    )
++    return proc.returncode, time.monotonic() - started
++
++
++def run_gate(root: Path, mutations_path: Path, json_out: Optional[Path],
++             verbose: bool = False) -> int:
++    mutations = load_mutations(mutations_path)
++    needed_files = sorted({tf for m in mutations for tf in m["test_files"]})
++
++    rows: List[Dict[str, Any]] = []
++    killed = 0
++    vacuous: List[str] = []
++    t0 = time.monotonic()
++
++    with tempfile.TemporaryDirectory(prefix="p1f-mutation-gate-") as tmp:
++        tmpd = Path(tmp)
++        # —— 控制腿：未变异沙箱上全部映射文件必须绿（防假 kill 空转计分）——
++        control = _sandbox_copy(root, tmpd / "control")
++        control_art = tmpd / "control-artifacts"
++        control_rc: Dict[str, int] = {}
++        for tf in needed_files:
++            rc, _dt = _run_test_file(control, tf, control_art)
++            control_rc[tf] = rc
++            if rc != 0:
++                vacuous.append(tf)
++        if vacuous:
++            print("❌ 控制腿失败（未变异沙箱即红，kill 不可信——防空转计分）:")
++            for tf in vacuous:
++                print(f"   {tf}: exit={control_rc[tf]}")
++            shutil.rmtree(control, ignore_errors=True)
++            return 2
++        shutil.rmtree(control, ignore_errors=True)
++
++        # —— 变异腿：逐 mutation 沙箱执行 ——
++        for idx, m in enumerate(mutations, 1):
++            module_rel = m["module"]  # wenqu_core/xxx.py
++            sandbox = _sandbox_copy(root, tmpd / f"mut-{idx:02d}")
++            target = sandbox / "system" / module_rel
++            try:
++                src = target.read_text(encoding="utf-8")
++                mutated, points = apply_mutation(src, str(target), m["function"], m["op"])
++                target.write_text(mutated + "\n", encoding="utf-8")
++            except MutationSpecError as exc:
++                print(f"❌ {m['id']}: mutation 集失效——{exc}")
++                shutil.rmtree(sandbox, ignore_errors=True)
++                return 2
++            kill_rc: Optional[int] = None
++            killer: Optional[str] = None
++            for tf in m["test_files"]:
++                rc, _dt = _run_test_file(sandbox, tf, tmpd / f"art-{idx:02d}")
++                if rc != 0:
++                    kill_rc, killer = rc, tf
++                    break  # 至少一个转红即杀死
++            is_killed = kill_rc is not None
++            killed += 1 if is_killed else 0
++            rows.append({
++                "id": m["id"], "module": module_rel, "function": m["function"],
++                "op": m["op"], "points": points,
++                "killed": is_killed, "killer": killer,
++                "kill_rc": kill_rc, "test_files": m["test_files"],
++            })
++            mark = "✅ KILLED" if is_killed else "❌ SURVIVED"
++            line = (f"  [{idx}/{len(mutations)}] {mark} {m['id']} "
++                    f"{module_rel}#{m['function']} op={m['op']}"
++                    + (f" killer={killer}(exit={kill_rc})" if is_killed else ""))
++            print(line)
++            if verbose:
++                print(f"      {m['description']}")
++            shutil.rmtree(sandbox, ignore_errors=True)
++
++    total = len(mutations)
++    score = (100.0 * killed / total) if total else 0.0
++    elapsed = time.monotonic() - t0
++    print("-" * 72)
++    print(f"mutation score: {killed}/{total} = {score:.1f}%（{elapsed:.1f}s，沙箱全临时）")
++    if json_out is not None:
++        json_out.parent.mkdir(parents=True, exist_ok=True)
++        json_out.write_text(json.dumps({
++            "tool": "p1f_mutation_gate", "killed": killed, "total": total,
++            "score": round(score, 2), "control_green": {tf: 0 for tf in needed_files},
++            "rows": rows,
++        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
++        print(f"报告已写: {json_out}")
++    if killed != total:
++        survivors = [r["id"] for r in rows if not r["killed"]]
++        print(f"❌ mutation gate 失败——存活 {len(survivors)}: {survivors}")
++        print("   （专属测试空壳化/恒真化/假测试替换会杀不死 mutation——行为覆盖被掏空）")
++        return 1
++    print("✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）")
++    return 0
++
++
++def _sandbox_copy(root: Path, dest: Path) -> Path:
++    if dest.exists():
++        shutil.rmtree(dest)
++    shutil.copytree(root, dest, ignore=_SANDBOX_IGNORE, symlinks=False)
++    return dest
++
++
++def main(argv: Optional[List[str]] = None) -> int:
++    ap = argparse.ArgumentParser(description="P1f2 mutation 门（八专属文件行为敏感度棘轮）")
++    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
++    ap.add_argument("--mutations", required=True, help="mutation 集文件（tests/p1f-mutations.json）")
++    ap.add_argument("--json", help="结构化报告输出路径（临时目录，勿指向 tracked evidence）")
++    ap.add_argument("--verbose", action="store_true", help="附 mutation 描述")
++    args = ap.parse_args(argv)
++
++    root = Path(args.root).resolve()
++    if not root.is_dir():
++        print(f"❌ --root 不存在: {root}")
++        return 2
++    try:
++        return run_gate(root, Path(args.mutations), Path(args.json) if args.json else None,
++                        verbose=args.verbose)
++    except MutationSpecError as exc:
++        print(f"❌ mutation 集失效: {exc}")
++        return 2
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tests/acceptance.sh b/tests/acceptance.sh
+index d1f666c..53075f2 100644
+--- a/tests/acceptance.sh
++++ b/tests/acceptance.sh
+@@ -404,13 +404,69 @@ if [ $P1F_FAIL -eq 0 ] && [ $P1F_COUNT -ge 95 ]; then
+   PASS_N=$((PASS_N+1)); echo "  ✅ 八专属文件全绿（专属测试函数 ${P1F_COUNT} ≥95）"
+ else
+   FAIL_N=$((FAIL_N+1)); echo "  ❌ 专属覆盖门失败（函数计数=${P1F_COUNT}，阈值 95）——缩水或删件"
+ fi
+ 
+-echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红）=="
++echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；G9-07 升级=mutation 真主门）=="
++# 演进史：文本 grep 计数（R7）→ AST 形态门（八轮：常量真值/被测调用/失败
++# 路径三指标）→ G9-07 真 mutation 门（R8-TRC-TRUTHY-ASSERT-012 根修：
++# AST 形态抓不住非字面恒真 assert len(str(product_call())) >= 0 与等量
++# 假测试替换——只有「产品变异必杀测试」能证明断言对行为敏感）。
++# 三道闸并存，棘轮只增不减：
++#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
++#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
++#   二闸  p1f_ast_gate.py AST 形态基线（tests/p1f-behavior-baseline.txt）；
++#   三闸  文本计数旧棘轮（tests/p1f-assert-baseline.txt）。
++P1F2_FAIL=0
++if [ -f "$ROOT/system/tests/p1f_mutation_gate.py" ] && [ -f "$ROOT/tests/p1f-mutations.json" ]; then
++  MUTJSON="$TD/p1f-mutation-report.json"
++  MUT_OUT=$(python3 "$ROOT/system/tests/p1f_mutation_gate.py" --root "$ROOT" --mutations "$ROOT/tests/p1f-mutations.json" --json "$MUTJSON" 2>&1)
++  MUT_RC=$?
++  if [ "$MUT_RC" -eq 0 ]; then
++    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 主门通过：$(echo "$MUT_OUT" | grep 'mutation score' | tail -1)"
++  else
++    P1F2_FAIL=1; echo "  ❌ mutation 主门失败（exit=${MUT_RC}——空壳化/恒真化/假测试替换令变异存活）"
++    echo "$MUT_OUT" | tail -30 | sed 's/^/      | /'
++  fi
++  # 棘轮：mutation 集只增不减（≥18 条且覆盖全部八专属文件）
++  MUT_GUARD=$(python3 - "$ROOT/tests/p1f-mutations.json" <<'MUTP'
++import json, sys
++try:
++    d = json.load(open(sys.argv[1]))
++    ms = d["mutations"]
++    files = {tf for m in ms for tf in m["test_files"]}
++    need = {"test_ac_gate_family","test_ac_state_mig","test_ac_deploy_release",
++            "test_ac_station_families","test_ac_ops_families",
++            "test_ac_auth_cond","test_ac_act_run","test_ac_ui_family"}
++    ok = (len(ms) >= 18 and files == need and "frozen_min_mutations" in d
++          and d["frozen_min_mutations"] >= 18)
++    print("1" if ok else "0")
++except Exception:
++    print("0")
++MUTP
++)
++  if [ "$MUT_GUARD" = "1" ]; then
++    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 集棘轮（≥18 条且八文件全覆盖，只增不减）"
++  else
++    P1F2_FAIL=1; echo "  ❌ mutation 集棘轮失败——集缩水/覆盖门破（须≥18 条且八专属文件全被锚定）"
++  fi
++else
++  P1F2_FAIL=1; echo "  ❌ p1f_mutation_gate.py 或 tests/p1f-mutations.json 缺失——mutation 主门被拆"
++fi
++if [ -f "$ROOT/system/tests/p1f_ast_gate.py" ] && [ -f "$ROOT/tests/p1f-behavior-baseline.txt" ]; then
++  AST_OUT=$(python3 "$ROOT/system/tests/p1f_ast_gate.py" --root "$ROOT" --baseline "$ROOT/tests/p1f-behavior-baseline.txt" 2>&1)
++  AST_RC=$?
++  if [ "$AST_RC" -eq 0 ]; then
++    echo "  ✅ AST 行为二闸通过：$(echo "$AST_OUT" | tail -1 | sed 's/^✅ //')"
++  else
++    P1F2_FAIL=1; echo "  ❌ AST 行为二闸失败（exit=${AST_RC}——空壳化/恒真化/删被测调用/删失败路径/基线缩水）"
++    echo "$AST_OUT" | tail -30 | sed 's/^/      | /'
++  fi
++else
++  P1F2_FAIL=1; echo "  ❌ p1f_ast_gate.py 或 tests/p1f-behavior-baseline.txt 缺失——AST 行为门被拆"
++fi
+ if [ -f "$ROOT/tests/p1f-assert-baseline.txt" ]; then
+-  P1F2_FAIL=0
+   while read -r bf bn; do
+     case "$bf" in ""|\#*) continue ;; esac
+     bp="$ROOT/system/tests/$bf.py"
+     if [ -f "$bp" ]; then
+       an=$(python3 - "$bp" <<'PYP'
+@@ -423,23 +479,26 @@ for line in open(sys.argv[1], encoding="utf-8"):
+     n += len(re.findall(r"\b(?:_ck|_ok|expect)\s*\(", line))
+ print(n)
+ PYP
+ )
+       if [ "${an:-0}" -lt "$bn" ]; then
+-        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 $bn（空壳化/恒真化）"
++        # R8-TRC-DIAG-SHELL-017 残余根治（G9-07 变体验证触发）：$bn 后紧跟全角
++        # （ 会被 bash 并入变量名 → unbound variable 崩溃（无结构化 RESULT）。
++        # 必须 ${bn} 显式定界——红也要红得有结构。
++        P1F2_FAIL=1; echo "  ❌ $bf 有效断言数 ${an:-0} < 基线 ${bn}（空壳化/恒真化）"
+       fi
+     else
+       P1F2_FAIL=1; echo "  ❌ $bf.py 缺失"
+     fi
+   done < "$ROOT/tests/p1f-assert-baseline.txt"
+-  if [ $P1F2_FAIL -eq 0 ]; then
+-    PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（八文件有效断言 ≥ 冻结基线）"
+-  else
+-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+-  fi
+ else
+-  FAIL_N=$((FAIL_N+1)); echo "  ❌ tests/p1f-assert-baseline.txt 不存在——棘轮未接线"
++  P1F2_FAIL=1; echo "  ❌ tests/p1f-assert-baseline.txt 不存在——旧文本棘轮被拆"
++fi
++if [ $P1F2_FAIL -eq 0 ]; then
++  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（mutation 主门+集棘轮+AST 二闸+文本旧棘轮 ≥ 冻结基线）"
++else
++  FAIL_N=$((FAIL_N+1)); echo "  ❌ 断言语义棘轮失败——语义覆盖被掏空"
+ fi
+ 
+ echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+ if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+   python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+@@ -451,10 +510,41 @@ if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_relea
+   fi
+ else
+   FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
+ fi
+ 
++echo "== P1h. Evidence 索引严格 validator（G9-07/R8-EVID-FIELDS-013：active 禁止 null+note 冒充严格字段）=="
++# active 表逐条强制 exact 40hex commit、run_id、argv、cwd、整数 real_rc、
++# ISO 时间、仓内普通非 symlink 文件、实算 artifact_sha256、合法 TTL；
++# 历史不满足条目迁 legacy/non_scoring 分表（不进 active 分母）。
++# 负例腿（live）：篡改 hash 的索引副本必须 rc1——validator 有牙。
++if [ -f "$ROOT/tools/evidence_validator.py" ] && [ -f "$ROOT/evidence/evidence-index.json" ]; then
++  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" >/dev/null 2>&1
++  EV_RC=$?
++  if [ $EV_RC -eq 0 ]; then
++    PASS_N=$((PASS_N+1)); echo "  ✅ evidence 索引严格合同通过（active 全字段+实算 hash+普通文件+合法 TTL）"
++  else
++    FAIL_N=$((FAIL_N+1)); echo "  ❌ evidence validator 失败（exit=${EV_RC}——active 条目字段/hash/TTL 违规或索引损坏）"
++  fi
++  EV_TMP="$TD/evid-tamper.json"
++  python3 - "$ROOT" "$EV_TMP" <<'EVP'
++import json, sys
++doc = json.load(open(sys.argv[1] + "/evidence/evidence-index.json", encoding="utf-8"))
++doc["active"]["entries"][0]["artifact_sha256"] = "0" * 64  # 篡改哈希
++json.dump(doc, open(sys.argv[2], "w", encoding="utf-8"), ensure_ascii=False, indent=2)
++EVP
++  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" --index "$EV_TMP" >/dev/null 2>&1
++  EVT_RC=$?
++  if [ "$EVT_RC" -eq 1 ]; then
++    PASS_N=$((PASS_N+1)); echo "  ✅ 负例腿：篡改 hash 的索引副本被拒（rc1）"
++  else
++    FAIL_N=$((FAIL_N+1)); echo "  ❌ 负例腿失效（rc=${EVT_RC}——validator 无牙，删字段/改 hash 未红）"
++  fi
++else
++  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/evidence_validator.py 或 evidence/evidence-index.json 缺失——严格 evidence 合同被拆"
++fi
++
+ echo "== P1d. F4-CI-001：对抗自测接入 required CI（删 system/tests/test_wenqu_adversarial.py 后此节必红）=="
+ if [ -f "$ROOT/system/tests/test_wenqu_adversarial.py" ]; then
+   python3 "$ROOT/system/tests/test_wenqu_adversarial.py" >/dev/null 2>&1
+   ADV_RC=$?
+   if [ ${ADV_RC} -eq 0 ]; then
+@@ -477,8 +567,123 @@ if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
+   fi
+ else
+   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
+ fi
+ 
++echo "== BAK. G9-09 备份演练归档真实性（R8-BAK-FAKE-TAR-SUCCESS-019：五负例全 rc1+正例全绿+success 不更新）=="
++# 对 tar 的 rc 与自报清单零信任：伪 tar 五变体（双 rc0 谎报不产归档/旧归档
++# 复用/symlink 归档/截断归档/伪清单内容缺失）必须全部 exit1+FAIL 且不改写
++# 既有 PASS 工件（= 不更新 last-success）；正例（backup+dr）必须 PASS 且
++# 报告记录作业身份 SHA、archive sha、独立解包 sha、实测 RPO/RTO。
++python3 - "$ROOT" >/dev/null 2>&1 <<'BAKEOF'; ck "BAK 五负例 fail-closed+正例(backup/dr)PASS+身份/归档/RPO-RTO 合同" 0 $?
++import json, os, re, shutil, sqlite3, subprocess, sys, tempfile
++from pathlib import Path
++
++repo = Path(sys.argv[1])
++drill = repo / "system" / "sentinels" / "backup-restore-drill.sh"
++real_tar = shutil.which("tar")
++assert real_tar
++sha_re = re.compile(r"[0-9a-f]{64}")
++RELS = ["state/scheduler.db", "state/gate-aggregate.json",
++        "observation/heartbeat.json", "observation/samples/2026-10-08.json"]
++
++def build_corpus(root: Path, tag: str) -> None:
++    (root / "state").mkdir(parents=True, exist_ok=True)
++    (root / "observation" / "samples").mkdir(parents=True, exist_ok=True)
++    conn = sqlite3.connect(str(root / RELS[0]))
++    conn.execute("CREATE TABLE jobs (id TEXT PRIMARY KEY, next_due REAL)")
++    conn.execute("INSERT INTO jobs VALUES (?,?)", (f"job-{tag}", 1.0))
++    conn.commit(); conn.close()
++    (root / RELS[1]).write_text(json.dumps({"policy_verdict": "PASS", "tag": tag}))
++    (root / RELS[2]).write_text(json.dumps({"station": 1, "tag": tag}))
++    (root / RELS[3]).write_text(json.dumps({"cpu": 7.5, "tag": tag}))
++
++def run(root: Path, rdir: Path, path_prepend=None, mode="backup"):
++    env = dict(os.environ)
++    if path_prepend:
++        env["PATH"] = f"{path_prepend}:{os.environ['PATH']}"
++    p = subprocess.run(
++        ["bash", str(drill), "--wenqu-root", str(root), "--report-dir", str(rdir),
++         "--mode", mode], capture_output=True, text=True, timeout=180, env=env)
++    reps = sorted(Path(rdir).glob("drill-*.json"))
++    rep = json.loads(reps[-1].read_text(encoding="utf-8")) if reps else {}
++    return p.returncode, rep, (reps[-1] if reps else None)
++
++def fake_tar(d: Path, variant: str, canned: Path):
++    s = f"""#!/bin/sh
++d=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
++names="$d/.names"; real="{real_tar}"; canned="{canned}"
++case "$1" in
++  -czf)
++    out="$2"; shift 2
++    : > "$names"; dir=""
++    while [ $# -gt 0 ]; do
++      case "$1" in
++        -C) dir="$2"; shift 2 ;;
++        *) printf '%s\\n' "$1" >> "$names"; shift ;;
++      esac
++    done
++"""
++    body = {"lie": "    exit 0\n",
++            "stale": '    cp "$canned" "$out"\n    exit 0\n',
++            "symlink": '    ln -sf "$canned" "$out"\n    exit 0\n',
++            "truncate": ('    "$real" -czf "$out" -C "$dir" $(cat "$names") || exit 1\n'
++                         '    sz=$(wc -c < "$out"); keep=$(( sz * 40 / 100 ))\n'
++                         '    head -c "$keep" "$out" > "$out.tr" && mv "$out.tr" "$out"\n'
++                         '    exit 0\n'),
++            "short": ('    first=$(head -1 "$names")\n'
++                      '    "$real" -czf "$out" -C "$dir" "$first" || exit 1\n'
++                      '    exit 0\n')}
++    s += body[variant]
++    s += """    exit 0 ;;
++  -tzf)
++    cat "$names" 2>/dev/null
++    exit 0 ;;
++esac
++exit 0
++"""
++    (d / "tar").write_text(s); (d / "tar").chmod(0o755)
++
++markers = {"lie": "not materialized", "stale": "extract reconcile mismatch/missing",
++           "symlink": "not materialized", "truncate": "independent archive extraction failed",
++           "short": "extract reconcile mismatch/missing"}
++with tempfile.TemporaryDirectory(prefix="wq_acc_bak_") as td:
++    box = Path(td)
++    good = box / "good"; build_corpus(good, "good")
++    rc, rep, rpath = run(good, box / "good-rep")
++    assert rc == 0 and rep["result"] == "PASS", (rc, rep.get("reason"))
++    pass_bytes = rpath.read_bytes()
++    arc = rep["archive"]
++    assert arc["materialized"] and arc["size"] > 0 \
++        and sha_re.fullmatch(arc["sha256"]) and sha_re.fullmatch(arc["extract_sha256"]) \
++        and {f["rel"] for f in arc["files"]} == set(RELS), arc
++    assert sha_re.fullmatch(rep["identity"]["drill_script_sha256"]) \
++        and sha_re.fullmatch(rep["identity"]["scheduler_sha256"]), rep["identity"]
++    assert rep["steps"]["restore"]["source"] == "archive"
++    # DR 正例：RPO/RTO 实测数值入报告且在冻结目标内
++    rc_dr, rep_dr, _ = run(good, box / "dr-rep", mode="dr")
++    assert rc_dr == 0 and rep_dr["result"] == "PASS", rep_dr.get("reason")
++    dr = rep_dr["dr"]
++    assert 1.0 <= dr["rpo_seconds"] <= 300 and 0 < dr["rto_seconds"] <= 60 \
++        and dr["rpo_ok"] is True and dr["rto_ok"] is True, dr
++    # 五负例：全 rc1 + FAIL + reason 点名 + 不改写既有 PASS 工件
++    old = box / "old"
++    for rel in RELS:
++        dst = old / rel; dst.parent.mkdir(parents=True, exist_ok=True)
++        dst.write_bytes(f"STALE:{rel}".encode())
++    canned_old = box / "old.tar.gz"
++    subprocess.run([real_tar, "-czf", str(canned_old), "-C", str(old)] + RELS, check=True)
++    for variant in ("lie", "stale", "symlink", "truncate", "short"):
++        fd = box / f"fake-{variant}"; fd.mkdir()
++        fake_tar(fd, variant, canned_old)
++        leg_root = box / f"home-{variant}"; build_corpus(leg_root, variant)
++        lrc, lrep, _ = run(leg_root, box / f"rep-{variant}", path_prepend=fd)
++        assert lrc == 1 and lrep["result"] == "FAIL", (variant, lrc, lrep.get("reason"))
++        assert markers[variant] in lrep["reason"], (variant, lrep["reason"])
++        assert rpath.read_bytes() == pass_bytes, f"{variant} 改写了既有 PASS 工件"
++    print("BAK matrix ok")
++sys.exit(0)
++BAKEOF
++
+ echo "================================"
+ echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
+ [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
+diff --git a/tests/p1f-assert-baseline.txt b/tests/p1f-assert-baseline.txt
+index 1edb47c..bbceb1d 100644
+--- a/tests/p1f-assert-baseline.txt
++++ b/tests/p1f-assert-baseline.txt
+@@ -1,9 +1,9 @@
+ # P1f 断言语义棘轮基线（R7-TRC-VACUOUS-003）——只允许增长，缩水即 CI 红
+ test_ac_gate_family 141
+ test_ac_state_mig 188
+ test_ac_deploy_release 167
+ test_ac_station_families 235
+-test_ac_ops_families 225
++test_ac_ops_families 251
+ test_ac_ui_family 89
+ test_ac_auth_cond 94
+ test_ac_act_run 70
+diff --git a/tests/p1f-behavior-baseline.txt b/tests/p1f-behavior-baseline.txt
+new file mode 100644
+index 0000000..10bc0b2
+--- /dev/null
++++ b/tests/p1f-behavior-baseline.txt
+@@ -0,0 +1,14 @@
++# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被
++# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。
++# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。
++# 只允许增长，缩水即 CI 红。再生成：
++#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
++#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）
++test_ac_gate_family 24
++test_ac_state_mig 16
++test_ac_deploy_release 13
++test_ac_station_families 29
++test_ac_ops_families 18
++test_ac_auth_cond 16
++test_ac_act_run 9
++test_ac_ui_family 7
+diff --git a/tests/p1f-mutations.json b/tests/p1f-mutations.json
+new file mode 100644
+index 0000000..7dcb946
+--- /dev/null
++++ b/tests/p1f-mutations.json
+@@ -0,0 +1,151 @@
++{
++  "schema_version": "1.0.0",
++  "description": "P1f2 mutation 集冻结（G9-07：R8-TRC-TRUTHY-ASSERT-012 根修）。对 system/wenqu_core 产品函数做三类机械变异——negate_return（返回值取反）/ flip_compare（比较符翻转）/ drop_raise（删关键守卫行）——逐 mutation 在沙箱副本上运行映射的专属测试文件，必须至少杀死一个测试（mutation score 100%）。每个八专属文件至少被一条 mutation 覆盖（覆盖门）。只增不减：新增 mutation 须同步验证 100% kill 后再冻结；删减即 acceptance P1f2 节红。",
++  "frozen_min_mutations": 18,
++  "mutations": [
++    {
++      "id": "MUT-01",
++      "module": "wenqu_core/source_gate.py",
++      "function": "validate_exact_sha",
++      "op": "flip_compare",
++      "test_files": ["test_ac_gate_family"],
++      "description": "exact-SHA 原子比对翻转（!= → ==）：相等 head 反被 StaleShaError 拒、异源 SHA 放行——GATE-04/MRG-07/CI-05 腿必须红"
++    },
++    {
++      "id": "MUT-02",
++      "module": "wenqu_core/source_gate.py",
++      "function": "_is_non_behavioral",
++      "op": "negate_return",
++      "test_files": ["test_ac_gate_family"],
++      "description": "行为/非行为文件分类取反：behavioral_files 与 non_behavioral_files 互换——scope 分面测试必须红"
++    },
++    {
++      "id": "MUT-03",
++      "module": "wenqu_core/bugscan_orchestrator.py",
++      "function": "validate_station_result",
++      "op": "flip_compare",
++      "test_files": ["test_ac_gate_family"],
++      "description": "station-result 结构校验比较符翻转（station_id 值域/枚举/键集）：合法结果被拒/非法结果漏过——CI-07/CI-09 腿必须红"
++    },
++    {
++      "id": "MUT-04",
++      "module": "wenqu_core/store.py",
++      "function": "verify_chain",
++      "op": "flip_compare",
++      "test_files": ["test_ac_state_mig"],
++      "description": "哈希链校验 prev != expected 翻转为 ==：好链必报断/坏链漏检——STATE-06 链校验腿必须红"
++    },
++    {
++      "id": "MUT-05",
++      "module": "wenqu_core/ledger_migrator.py",
++      "function": "classify",
++      "op": "flip_compare",
++      "test_files": ["test_ac_state_mig"],
++      "description": "旧账行分类比较符翻转（缺字段/未知状态/project 冲突判定）：坏行进口/好行隔离——MIG-01/MIG-05 腿必须红"
++    },
++    {
++      "id": "MUT-06",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "_verify_seal",
++      "op": "negate_return",
++      "test_files": ["test_ac_state_mig"],
++      "description": "事件 seal 常量时间比对取反：真 seal 被拒/伪 seal 放行——STATE-09 重放身份不变量腿必须红"
++    },
++    {
++      "id": "MUT-07",
++      "module": "wenqu_core/deploy_framework.py",
++      "function": "verify",
++      "op": "flip_compare",
++      "test_files": ["test_ac_deploy_release"],
++      "description": "release manifest 对账比较符翻转（schema 值域/哈希漂移/签名绑定）：好发布被拒或篡改漏检——REL-01/02、DEP-04/05 腿必须红"
++    },
++    {
++      "id": "MUT-08",
++      "module": "wenqu_core/deploy_framework.py",
++      "function": "valid",
++      "op": "negate_return",
++      "test_files": ["test_ac_deploy_release"],
++      "description": "BackupProof.valid 旧版完好性预检取反：坏旧版放行回滚/好旧版被拒——RB-01 回滚先验腿必须红"
++    },
++    {
++      "id": "MUT-09",
++      "module": "wenqu_core/station2_static.py",
++      "function": "_validate_identity",
++      "op": "flip_compare",
++      "test_files": ["test_ac_station_families"],
++      "description": "站2 identity 校验比较符翻转（键集封闭/40hex/非空）：合法 identity 被拒/畸形漏检——SC/ADV 站2 腿必须红"
++    },
++    {
++      "id": "MUT-10",
++      "module": "wenqu_core/station3_contract.py",
++      "function": "derive_dynamic_denominator",
++      "op": "flip_compare",
++      "test_files": ["test_ac_station_families"],
++      "description": "动态分母正源选择翻转（is not None → is None）：分母正源错位/缺源不拒——TEN 租户分母腿必须红"
++    },
++    {
++      "id": "MUT-11",
++      "module": "wenqu_core/scheduler.py",
++      "function": "first_due_after",
++      "op": "flip_compare",
++      "test_files": ["test_ac_ops_families"],
++      "description": "调度下次触发时刻比较符翻转（interval 分派/cand > after）：触发时刻错位或搜索失败——SCH 调度腿必须红"
++    },
++    {
++      "id": "MUT-12",
++      "module": "wenqu_core/capacity_monitor.py",
++      "function": "peak_budget_bytes",
++      "op": "flip_compare",
++      "test_files": ["test_ac_ops_families"],
++      "description": "峰值预算分量校验翻转（value < 0 → >= 0）：正常分量被拒/负值漏检——CAP 分母冻结腿必须红"
++    },
++    {
++      "id": "MUT-13",
++      "module": "wenqu_core/approval_keys.py",
++      "function": "verify_envelope",
++      "op": "negate_return",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "审批信封 HMAC 验签取反：真签被拒/伪签放行——COND-01/03/04 验签腿必须红"
++    },
++    {
++      "id": "MUT-14",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "has_unexpired_risk_authorization",
++      "op": "negate_return",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "未过期 risk 授权查询取反：有授权判无/无授权判有（bool 冒充 Optional）——COND-03 在位断言与 COND-05 失效断言必须红"
++    },
++    {
++      "id": "MUT-15",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "_verify_signature",
++      "op": "flip_compare",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "ApprovalBroker 主签校验比较符翻转（actor ∈ key actors 等绑定判定）：越权签批放行/合法签批被拒——COND/APPR 绑定腿必须红"
++    },
++    {
++      "id": "MUT-16",
++      "module": "wenqu_core/runner.py",
++      "function": "_build_env",
++      "op": "flip_compare",
++      "test_files": ["test_ac_act_run"],
++      "description": "TrustedRunner env 白名单构建翻转（value is not None → is None）：白名单基础变量被剥除——RUN-01 白名单保留断言必须红"
++    },
++    {
++      "id": "MUT-17",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "reserve_action",
++      "op": "flip_compare",
++      "test_files": ["test_ac_act_run"],
++      "description": "action 预留审批门比较符翻转（_ACTION_APPROVAL_TYPE 封闭映射校验）：无审批 action 放行/有审批被拒——ACT-01 腿必须红"
++    },
++    {
++      "id": "MUT-18",
++      "module": "wenqu_core/ui_probe.py",
++      "function": "html_structural_gate",
++      "op": "negate_return",
++      "test_files": ["test_ac_ui_family"],
++      "description": "UI 静态结构门返回取反：finding 列表变布尔——UI-01/02 结构断言腿必须红"
++    }
++  ]
++}
+diff --git a/tools/evidence_validator.py b/tools/evidence_validator.py
+new file mode 100644
+index 0000000..c48c5ad
+--- /dev/null
++++ b/tools/evidence_validator.py
+@@ -0,0 +1,284 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""Evidence 索引严格 validator——G9-07（R8-EVID-FIELDS-013 根修）。
++
++缺陷形态：active evidence 索引允许 ``commit/run_id/real_rc = null + note``
++冒充严格字段（"23 条 hash 全实算，但 commit/字段合同未满足"）——
++宽松合同使 evidence 分母里混入不可复核条目。
++
++本 validator 是 evidence-index-active-v2 / evidence-index-legacy-v1 两个
++schema 的可执行等价物（零第三方依赖；不 import jsonschema——CI 无网/无
++依赖也要能跑）：
++
++active 表逐条强制：
++  - commit：exact 40 位小写 hex（短 SHA/null/note 替代一律非法）；
++  - run_id / cwd / verified_by / environment：非空字符串；
++  - argv：非空字符串数组（≥1 条、逐条非空）；
++  - real_rc：真实整数退出码（bool 冒充非法；允许非 0——诚实优先）；
++  - time：ISO 8601 带时区精确时刻（区间/口语化非法）；
++  - fresh_until：非空且合法 ISO 日期/时刻（"长期" 非法——长效证据给显式复审日）；
++  - 禁止任何 ``*_note`` 键（null+note 冒充正是缺陷形态）；
++  - evidence_path：仓内相对路径（拒绝对路径/..逃逸）、存在、普通文件、
++    非 symlink、非空；
++  - artifact_sha256：64hex 且等于 evidence_path 内容实算 sha256。
++
++legacy/non_scoring 表：不进 active 分母；逐条要求 migrated_reason 非空
++（登记降级缺口）+ entry_id/title + hash/文件存在性复核。
++
++rc：0=全过；1=任何违规（CI/acceptance 红腿）；2=索引结构损坏。
++
++用法：
++  python3 tools/evidence_validator.py --root <repo根> \
++      [--index evidence/evidence-index.json]
++"""
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import os
++import re
++import stat
++import sys
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Tuple
++
++ACTIVE_SCHEMA_ID = "evidence-index-active-v2"
++LEGACY_SCHEMA_ID = "evidence-index-legacy-v1"
++SCHEMA_FILES = {
++    ACTIVE_SCHEMA_ID: "system/schemas/evidence-index-active-v2.schema.json",
++    LEGACY_SCHEMA_ID: "system/schemas/evidence-index-legacy-v1.schema.json",
++}
++
++_RE_ENTRY_ID = re.compile(r"^EV-[A-Z0-9][A-Z0-9-]*$")
++_RE_COMMIT40 = re.compile(r"^[0-9a-f]{40}$")
++_RE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
++_RE_TIME = re.compile(
++    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
++    r"(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})$")
++_RE_TTL = re.compile(
++    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}"
++    r"(T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2}))?$")
++
++ACTIVE_REQUIRED = ("entry_id", "category", "title", "what", "commit", "run_id",
++                   "environment", "argv", "cwd", "real_rc", "time",
++                   "artifact_sha256", "evidence_path", "fresh_until",
++                   "verified_by")
++
++# 允许的完整字段集（additionalProperties: false 的等价物）
++ACTIVE_ALLOWED = set(ACTIVE_REQUIRED) | {"scope", "ruleset", "caveat"}
++LEGACY_REQUIRED = ("entry_id", "category", "title", "migrated_reason")
++LEGACY_ALLOWED = LEGACY_REQUIRED + tuple(
++    "what run_id commit environment scope ruleset time argv real_rc "
++    "artifact_sha256 evidence_path fresh_until verified_by caveat "
++    "commit_note".split())
++
++
++class IndexStructError(RuntimeError):
++    """索引结构损坏（rc2）。"""
++
++
++def _is_int_not_bool(value: Any) -> bool:
++    return isinstance(value, int) and not isinstance(value, bool)
++
++
++def _check_path(root: Path, rel: Any) -> Tuple[Optional[str], Optional[str]]:
++    """返回 (错误, 实算 sha256)。检查：字符串/相对/无 ..、存在、普通文件、
++    非 symlink、非空；通过则顺带实算内容哈希。"""
++    if not isinstance(rel, str) or not rel:
++        return "evidence_path 缺失/非字符串", None
++    if rel.startswith("/") or rel.startswith("\\") or os.path.isabs(rel):
++        return f"evidence_path 不得为绝对路径: {rel!r}", None
++    parts = PurePosixParts(rel)
++    if any(p == ".." for p in parts):
++        return f"evidence_path 不得含 ..: {rel!r}", None
++    target = root / Path(*parts)
++    try:
++        lst = os.lstat(target)
++    except OSError:
++        return f"evidence_path 不存在: {rel!r}", None
++    if stat.S_ISLNK(lst.st_mode):
++        return f"evidence_path 是 symlink（不变量 #11）: {rel!r}", None
++    if not stat.S_ISREG(lst.st_mode):
++        return f"evidence_path 不是普通文件: {rel!r}", None
++    if lst.st_size == 0:
++        return f"evidence_path 是空文件: {rel!r}", None
++    digest = hashlib.sha256(target.read_bytes()).hexdigest()
++    return None, digest
++
++
++def PurePosixParts(rel: str) -> List[str]:
++    return [p for p in rel.replace("\\", "/").split("/") if p]
++
++
++def validate_active_entry(root: Path, entry: Dict[str, Any],
++                          idx: int) -> List[str]:
++    errs: List[str] = []
++    tag = f"active[{idx}] {entry.get('entry_id', '<无 entry_id>')}"
++    for field in ACTIVE_REQUIRED:
++        if field not in entry or entry[field] is None:
++            errs.append(f"{tag}: 必填字段 {field} 缺失/为 null（null+note 冒充严格字段被禁止）")
++    extra = set(entry) - ACTIVE_ALLOWED
++    if extra:
++        errs.append(f"{tag}: 未知字段 {sorted(extra)}（additionalProperties false）")
++    note_keys = sorted(k for k in entry if k.endswith("_note"))
++    if note_keys:
++        errs.append(f"{tag}: 禁止 *_note 冒充键 {note_keys}（R8-EVID-FIELDS-013 缺陷形态）")
++    if not _RE_ENTRY_ID.match(str(entry.get("entry_id", ""))):
++        errs.append(f"{tag}: entry_id 形态非法")
++    commit = entry.get("commit")
++    if isinstance(commit, str) and not _RE_COMMIT40.match(commit):
++        errs.append(f"{tag}: commit 非 exact 40 位小写 hex: {commit!r}")
++    run_id = entry.get("run_id")
++    if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
++        errs.append(f"{tag}: run_id 非空字符串违规")
++    cwd_v = entry.get("cwd")
++    if cwd_v is not None and (not isinstance(cwd_v, str) or not cwd_v.strip()):
++        errs.append(f"{tag}: cwd 非空字符串违规")
++    argv = entry.get("argv")
++    if argv is not None:
++        if not isinstance(argv, list) or not argv:
++            errs.append(f"{tag}: argv 须为非空数组")
++        elif any(not isinstance(a, str) or not a.strip() for a in argv):
++            errs.append(f"{tag}: argv 含空串/非字符串项")
++    real_rc = entry.get("real_rc")
++    if real_rc is not None and not _is_int_not_bool(real_rc):
++        errs.append(f"{tag}: real_rc 须为整数退出码（bool/字符串冒充非法）: {real_rc!r}")
++    time_v = entry.get("time")
++    if isinstance(time_v, str) and not _RE_TIME.match(time_v):
++        errs.append(f"{tag}: time 非合法 ISO 8601 带时区时刻: {time_v!r}")
++    ttl = entry.get("fresh_until")
++    if isinstance(ttl, str) and not _RE_TTL.match(ttl):
++        errs.append(f"{tag}: fresh_until(TTL) 非空合法 ISO 日期/时刻违规: {ttl!r}")
++    for str_field in ("category", "title", "what", "environment", "verified_by"):
++        v = entry.get(str_field)
++        if v is not None and (not isinstance(v, str) or not v.strip()):
++            errs.append(f"{tag}: {str_field} 非空字符串违规")
++    sha = entry.get("artifact_sha256")
++    if isinstance(sha, str) and not _RE_SHA256.match(sha):
++        errs.append(f"{tag}: artifact_sha256 非 64hex: {sha!r}")
++    perr, actual = _check_path(root, entry.get("evidence_path"))
++    if perr:
++        errs.append(f"{tag}: {perr}")
++    elif actual is not None and sha != actual:
++        errs.append(f"{tag}: artifact_sha256 与实算不符（登记 {sha!r} ≠ 实算 {actual!r}）")
++    return errs
++
++
++def validate_legacy_entry(root: Path, entry: Dict[str, Any],
++                          idx: int) -> List[str]:
++    errs: List[str] = []
++    tag = f"legacy[{idx}] {entry.get('entry_id', '<无 entry_id>')}"
++    for field in LEGACY_REQUIRED:
++        v = entry.get(field)
++        if not isinstance(v, str) or not v.strip():
++            errs.append(f"{tag}: 必填 {field} 缺失/空（legacy 也要登记降级缺口）")
++    extra = set(entry) - set(LEGACY_ALLOWED)
++    if extra:
++        errs.append(f"{tag}: 未知字段 {sorted(extra)}")
++    sha = entry.get("artifact_sha256")
++    if isinstance(sha, str) and not _RE_SHA256.match(sha):
++        errs.append(f"{tag}: artifact_sha256 非 64hex: {sha!r}")
++    perr, actual = _check_path(root, entry.get("evidence_path"))
++    if perr:
++        errs.append(f"{tag}: {perr}")
++    elif actual is not None and sha != actual:
++        errs.append(f"{tag}: artifact_sha256 与实算不符（历史文件损坏也要红）")
++    return errs
++
++
++def run(root: Path, index_rel: str) -> int:
++    index_path = root / index_rel
++    try:
++        doc = json.loads(index_path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError) as exc:
++        print(f"❌ 索引不可读: {index_path}: {exc}")
++        return 2
++    if not isinstance(doc, dict):
++        raise IndexStructError("索引顶层须为对象")
++    # v1 单表兼容腿：旧索引（无 active/legacy_non_scoring 分表但有 entries）
++    # 一律按 active 严格合同整表校验——旧宽松条目（null+note/口语化 TTL）
++    # 必须以「违规清单」形式红（rc1），而不是结构错误蒙混。
++    if "active" not in doc and "legacy_non_scoring" not in doc \
++            and isinstance(doc.get("entries"), list):
++        print("⚠ 检测到 v1 单表索引——全部条目按 active 严格合同校验"
++              "（G9-07 迁移前状态必须红）")
++        errs: List[str] = []
++        for i, entry in enumerate(doc["entries"]):
++            if not isinstance(entry, dict):
++                raise IndexStructError(f"entries[{i}] 非对象")
++            errs.extend(validate_active_entry(root, entry, i))
++        if errs:
++            print(f"❌ evidence validator 失败——{len(errs)} 处违规（v1 宽松条目不满足严格合同）:")
++            for e in errs:
++                print(f"   - {e}")
++            return 1
++        print("✅ v1 索引条目全部满足严格合同（无需迁移）")
++        return 0
++    for key in ("index_version", "active", "legacy_non_scoring"):
++        if key not in doc:
++            raise IndexStructError(f"索引缺顶层键 {key!r}（v2 分表结构）")
++    active_tbl, legacy_tbl = doc["active"], doc["legacy_non_scoring"]
++    for name, tbl, want in (("active", active_tbl, ACTIVE_SCHEMA_ID),
++                            ("legacy_non_scoring", legacy_tbl, LEGACY_SCHEMA_ID)):
++        if not isinstance(tbl, dict) or tbl.get("schema") != want:
++            raise IndexStructError(f"{name} 表缺 schema={want!r} 标识")
++        if not isinstance(tbl.get("entries"), list):
++            raise IndexStructError(f"{name} 表缺 entries 数组")
++        schema_file = root / SCHEMA_FILES[want]
++        try:
++            json.loads(schema_file.read_text(encoding="utf-8"))
++        except (OSError, json.JSONDecodeError) as exc:
++            raise IndexStructError(f"schema 文件不可读/损坏: {schema_file}: {exc}")
++
++    errs: List[str] = []
++    seen_ids: set = set()
++    for i, entry in enumerate(active_tbl["entries"]):
++        if not isinstance(entry, dict):
++            raise IndexStructError(f"active[{i}] 非对象")
++        eid = entry.get("entry_id")
++        if eid in seen_ids:
++            errs.append(f"active[{i}]: entry_id 重复 {eid!r}")
++        seen_ids.add(eid)
++        errs.extend(validate_active_entry(root, entry, i))
++    for i, entry in enumerate(legacy_tbl["entries"]):
++        if not isinstance(entry, dict):
++            raise IndexStructError(f"legacy[{i}] 非对象")
++        eid = entry.get("entry_id")
++        if eid in seen_ids:
++            errs.append(f"legacy[{i}]: entry_id 重复 {eid!r}")
++        seen_ids.add(eid)
++        errs.extend(validate_legacy_entry(root, entry, i))
++
++    n_active = len(active_tbl["entries"])
++    n_legacy = len(legacy_tbl["entries"])
++    print(f"evidence 索引校验：active={n_active}（严格分母） "
++          f"legacy/non_scoring={n_legacy}（不计分）")
++    if errs:
++        print(f"❌ evidence validator 失败——{len(errs)} 处违规:")
++        for e in errs:
++            print(f"   - {e}")
++        return 1
++    print("✅ evidence validator 通过（active 全严格字段+实算 hash+普通文件+合法 TTL）")
++    return 0
++
++
++def main(argv: Optional[List[str]] = None) -> int:
++    ap = argparse.ArgumentParser(description="Evidence 索引严格 validator（R8-EVID-FIELDS-013）")
++    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
++    ap.add_argument("--index", default="evidence/evidence-index.json",
++                    help="索引文件相对路径（默认 evidence/evidence-index.json）")
++    args = ap.parse_args(argv)
++    root = Path(args.root).resolve()
++    if not root.is_dir():
++        print(f"❌ --root 不存在: {root}")
++        return 2
++    try:
++        return run(root, args.index)
++    except IndexStructError as exc:
++        print(f"❌ 索引结构损坏: {exc}")
++        return 2
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/merge-ci-evidence.sh b/tools/merge-ci-evidence.sh
+new file mode 100755
+index 0000000..539a334
+--- /dev/null
++++ b/tools/merge-ci-evidence.sh
+@@ -0,0 +1,188 @@
++#!/usr/bin/env bash
++# merge-ci-evidence.sh —— 精确 merge SHA 的 main CI 证据采集（R8-P0-7 残余根修）。
++#
++# 背景（Codex 第八轮 P0-7/P0-10）：「merge commit 缺精确 main CI」——此前 CI
++# 结论用分支/时间窗推断（run 列表≠该 merge SHA 本身的 push run），无法证明
++# 合流点在 main 上双平台真跑真绿。本脚本对**指定 SHA** 做精确取证：
++#
++#   1. git rev-parse 解析完整 SHA（须在本地对象库；merge 身份用 %P 双亲核验）
++#   2. `gh run list --branch main --commit <full-sha>` 实查（exact-SHA 匹配，
++#      GitHub 只返回 headSha 严格相等的 run——无子串/时间窗推断）
++#   3. 只认 event=push 的 run：merge commit 由 push 事件落到 main；PR 事件
++#      run 的 head SHA 是分支头（≠ merge SHA），不算 main 精确 CI，但如实
++#      记录在 pr_head_runs_excluded 供审计
++#   4. `gh run view <id> --json jobs`：逐 job 核验双平台
++#      matrix (ubuntu-latest) / matrix (macos-latest)（与 main 分支保护
++#      required contexts 同集合）均 status=completed + conclusion=success
++#   5. 结论 JSON（含 gh 原始输出）落
++#      evidence/08-ci-and-branch-rules/merge-ci-<shortsha>.json
++#
++# 用法：
++#   bash tools/merge-ci-evidence.sh <SHA> [--repo DIR] [--branch main]
++#        [--out-dir DIR] [--slug OWNER/REPO]
++#     <SHA>          目标 commit（merge SHA；短 SHA/分支名可解析即须完整唯一）
++#     --repo DIR     源 git 仓（默认脚本所在仓根）
++#     --branch BR    目标分支（默认 main）
++#     --out-dir DIR  证据目录（默认 <repo>/evidence/08-ci-and-branch-rules）
++#     --slug O/R     gh 仓 slug（默认解析 origin remote）
++#
++# exit：0=verdict PASS（该 SHA 在 main 有 push run 且双平台 success）；
++#       1=证据不足（无 push run / 非双平台 / 非 success——如实落档）；
++#       2=环境/用法错（git/gh 缺失、SHA 解析失败等）。
++set -euo pipefail
++
++SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
++DEFAULT_REPO=$(cd "$SCRIPT_DIR/.." && pwd)
++
++SHA=""
++REPO="$DEFAULT_REPO"
++BRANCH="main"
++OUT_DIR=""
++SLUG=""
++
++while [ $# -gt 0 ]; do
++  case "$1" in
++    --repo) REPO="${2:?--repo 缺参数}"; shift 2;;
++    --branch) BRANCH="${2:?--branch 缺参数}"; shift 2;;
++    --out-dir) OUT_DIR="${2:?--out-dir 缺参数}"; shift 2;;
++    --slug) SLUG="${2:?--slug 缺参数}"; shift 2;;
++    -h|--help) sed -n '2,32p' "$0"; exit 0;;
++    *) if [ -z "$SHA" ]; then SHA="$1"; shift;
++       else echo "merge-ci-evidence: 未知参数 $1" >&2; exit 2; fi;;
++  esac
++done
++
++[ -n "$SHA" ] || { echo "usage: bash tools/merge-ci-evidence.sh <SHA> [选项]" >&2; exit 2; }
++[ -d "$REPO/.git" ] || { echo "merge-ci-evidence: 不是 git 仓: $REPO" >&2; exit 2; }
++command -v git >/dev/null 2>&1 || { echo "merge-ci-evidence: git 不可用" >&2; exit 2; }
++command -v gh >/dev/null 2>&1 || { echo "merge-ci-evidence: gh 不可用" >&2; exit 2; }
++
++FULL_SHA=$(git -C "$REPO" rev-parse --verify "${SHA}^{commit}" 2>/dev/null) \
++  || { echo "merge-ci-evidence: SHA 解析失败: $SHA" >&2; exit 2; }
++FULL_SHA=${FULL_SHA%%[[:space:]]*}
++SHORT_SHA=$(git -C "$REPO" rev-parse --short=7 "$FULL_SHA")
++PARENTS=$(git -C "$REPO" show -s --format=%P "$FULL_SHA")
++SUBJECT=$(git -C "$REPO" show -s --format=%s "$FULL_SHA")
++IS_MERGE=0
++[ "$(printf '%s\n' "$PARENTS" | wc -w | tr -d ' ')" -ge 2 ] && IS_MERGE=1
++
++if [ -z "$SLUG" ]; then
++  REMOTE_URL=$(git -C "$REPO" remote get-url origin 2>/dev/null) \
++    || { echo "merge-ci-evidence: origin remote 缺失（或用 --slug 指定）" >&2; exit 2; }
++  SLUG=$(printf '%s\n' "$REMOTE_URL" \
++    | sed -e 's|^git@github.com:||' -e 's|^https://github.com/||' \
++          -e 's|^http://github.com/||' -e 's|\.git$||' \
++          -e 's|/$||')
++  case "$SLUG" in
++    */*) : ;;
++    *) echo "merge-ci-evidence: 无法从 remote 解析 slug: $REMOTE_URL" >&2; exit 2;;
++  esac
++fi
++[ -n "$OUT_DIR" ] || OUT_DIR="$REPO/evidence/08-ci-and-branch-rules"
++mkdir -p "$OUT_DIR"
++OUT_JSON="$OUT_DIR/merge-ci-$SHORT_SHA.json"
++
++TD=$(mktemp -d) || exit 2
++trap 'rm -rf "$TD"' EXIT
++
++# 1) exact-SHA run 列表（gh --commit 过滤 = headSha 严格相等）
++gh run list --repo "$SLUG" --branch "$BRANCH" --commit "$FULL_SHA" \
++  --limit 50 --json databaseId,event,headSha,status,conclusion,workflowName,createdAt,updatedAt,url \
++  > "$TD/runs.json" \
++  || { echo "merge-ci-evidence: gh run list 失败（auth/网络?）" >&2; exit 2; }
++
++# 2) push run 逐个取 jobs 明细
++python3 - "$TD/runs.json" "$TD" "$SLUG" "$BRANCH" > "$TD/push_runs.json" <<'PYEOF' || exit 2
++import json, subprocess, sys
++runs_path, td, slug, branch = sys.argv[1:5]
++runs = json.load(open(runs_path, encoding="utf-8"))
++push, excluded = [], []
++for r in runs:
++    if r.get("event") == "push":
++        rid = str(r["databaseId"])
++        proc = subprocess.run(
++            ["gh", "run", "view", rid, "--repo", slug,
++             "--json", "databaseId,headSha,event,status,conclusion,jobs"],
++            capture_output=True, text=True)
++        if proc.returncode != 0:
++            r["_jobs_error"] = proc.stderr.strip()[:200]
++        else:
++            r["_jobs"] = json.loads(proc.stdout).get("jobs", [])
++        push.append(r)
++    else:
++        excluded.append(r)
++json.dump({"push_runs": push, "pr_head_runs_excluded": excluded},
++          open(f"{td}/split.json", "w", encoding="utf-8"),
++          ensure_ascii=False, indent=1)
++print(json.dumps(push))
++PYEOF
++
++# 3) 判定 + 落档（required 双平台与 main 分支保护 required contexts 同集合）
++python3 - "$TD" "$OUT_JSON" "$SLUG" "$BRANCH" "$FULL_SHA" "$SHORT_SHA" \
++          "$PARENTS" "$SUBJECT" "$IS_MERGE" <<'PYEOF'
++import json, os, sys, datetime
++(td, out_json, slug, branch, full_sha, short_sha, parents, subject, is_merge) = \
++    sys.argv[1:10]
++split = json.load(open(f"{td}/split.json", encoding="utf-8"))
++runs_raw = json.load(open(f"{td}/runs.json", encoding="utf-8"))
++REQUIRED = ["matrix (ubuntu-latest)", "matrix (macos-latest)"]
++
++push_runs = split["push_runs"]
++verdict, reason = "FAIL", ""
++primary = None
++if not push_runs:
++    verdict = "INSUFFICIENT"
++    reason = (f"--branch {branch} --commit {full_sha} 无 event=push run："
++              f"该 SHA 未以 push 事件落到 {branch}（exact-SHA 实查，非推断）")
++else:
++    good = []
++    for r in push_runs:
++        jobs = {(j.get("name"), j.get("status"), j.get("conclusion"))
++                for j in r.get("_jobs", [])}
++        ok = (r.get("status") == "completed"
++              and r.get("conclusion") == "success"
++              and all((n, "completed", "success") in jobs for n in REQUIRED))
++        r["_verdict"] = "PASS" if ok else "FAIL"
++        if ok:
++            good.append(r)
++    if good:
++        primary = max(good, key=lambda r: r.get("createdAt", ""))
++        verdict = "PASS"
++        reason = (f"run {primary['databaseId']}（event=push，headSha={full_sha}）"
++                  f"双平台 {'/'.join(REQUIRED)} 均 completed/success")
++    else:
++        verdict = "FAIL"
++        reason = f"有 push run 但不满足双平台 success：{len(push_runs)} 个 push run 均未全绿"
++
++payload = {
++    "schema": "wenqu-merge-ci-evidence/1",
++    "collected_at": datetime.datetime.now(datetime.timezone.utc)
++                    .strftime("%Y-%m-%dT%H:%M:%SZ"),
++    "tool": "tools/merge-ci-evidence.sh",
++    "method": ("gh run list --repo {slug} --branch {branch} --commit <full-sha>"
++               "（exact-SHA 严格相等匹配，无子串/时间窗推断）+ event=push 过滤"
++               "+ gh run view --json jobs 双平台逐 job 核验").format(
++                   slug=slug, branch=branch),
++    "repo": slug,
++    "branch": branch,
++    "commit": full_sha,
++    "commit_short": short_sha,
++    "commit_subject": subject,
++    "commit_parents": parents.split(),
++    "is_merge_commit": bool(int(is_merge)),
++    "required_matrix_jobs": REQUIRED,
++    "gh_run_list_raw": runs_raw,
++    "push_runs": push_runs,
++    "pr_head_runs_excluded": split["pr_head_runs_excluded"],
++    "primary_run": primary,
++    "verdict": verdict,
++    "verdict_reason": reason,
++    "urls": sorted({r.get("url") for r in push_runs if r.get("url")}),
++}
++with open(out_json, "w", encoding="utf-8") as fh:
++    json.dump(payload, fh, ensure_ascii=False, indent=1, sort_keys=True)
++    fh.write("\n")
++print(f"merge-ci-evidence: {verdict}  {short_sha}  →  {out_json}")
++print(f"  {reason}")
++sys.exit(0 if verdict == "PASS" else 1)
++PYEOF
+diff --git a/tools/release_attest.py b/tools/release_attest.py
+index 5daedc3..4cf602c 100755
+--- a/tools/release_attest.py
++++ b/tools/release_attest.py
+@@ -26,20 +26,59 @@ DEP-04 全空）。本工具补齐「打包即登记、发布即签名、收货
+ - verify = tar 重算逐文件 hash 对 manifest + 验签 + SBOM 三方对账，
+   任一不符 exit 非零（fail-closed：缺件/多件/错 hash/错权限/坏路径全拒）；
+   另含 plan-hash 绑定检查（R7-REL-POLICY-HASH-011 根修）：实算 tar 内方案
+   快照 sha256 与 manifest.policy_hash.plan_sha256 等值校验 + 64hex 格式
+   强校验——截损/漂移的 policy hash 不可能通过 verify。
++- **R8-REL-PIN-ROOT（第八轮 P0-7 残余根修：自洽替换可签可验）**：旧 verify
++  的全部输入（tar/manifest/sig/sbom）都是攻击者可整套重产的——持钥者替换
++  方案快照后自洽重算四件套仍 7 PASS（八轮报告 14_self_consistent_*
++  实证）。现补两条**仓外正源**：
++  ① plan pin（受保护外部根）：``--plan-pin`` / ``$WENQU_PLAN_PIN`` /
++     ``~/.wenqu/current/plan.pin``（0600，install-release.sh 部署时自动落
++     pin 到不可变激活树）内的冻结 64hex 必须**同时等于** manifest.
++     policy_hash.plan_sha256 与 tar 内方案快照实算值；pin 缺失/不可读/
++     格式错/组其他可写/值不符 → verify 失败（fail-closed，无豁免路径）。
++  ② source commit 绑定：manifest.source_commit（build 时 git rev-parse
++     实录）必须在 ``--repo`` 的 git 对象库中存在，且该 commit **树内**
++     方案文件字节实算 sha256 == manifest.plan_sha256——制品方案与 git
++     正源漂移（自洽替换 tar 内容）即拒。
++- **R9-REL-EXTERNAL-ROOTS（第九轮 G9-12 根修：pin 自证根 → 外部授权根）**：
++  第八波的 plan pin 值由安装器从**候选源码**（tools/ac_traceability.py
++  import）自生成并写回同一 release——攻击者带 side commit 自洽改方案+
++  常量后，安装器亲手把攻击值铸成「受保护根」（红证 red2）。现改为**外部
++  授权根**模式 ``--release-roots`` / ``$WENQU_RELEASE_ROOTS``：
++  - roots 文件（生产位 ``~/.wenqu/release-roots.json``，由部署授权流程
++    **仓外预置**，安装器绝不生成/回写）含：``allowed_commit`` 列表（每项
++    ``{commit, manifest_sha256}``）+ 全局 ``plan_sha256``；
++  - 权限纪律：mode 任何组/其他位（>0600 语义，含组/其他可读）即 FAIL；
++  - verify（roots 模式）四重 fail-closed：roots 可解析且权限合规；
++    manifest.source_commit **必须在 allowed_commit 内**（side commit /
++    未授权 commit 即拒）；roots.plan_sha256 == manifest 声明 == tar 实算；
++    roots.manifest_sha256 == manifest **核心 digest**；
++  - ``manifest 核心 digest`` = sha256(canonical JSON(manifest 去除易变
++    字段 build_id/built_at/builder/argv))——授权流程与安装器异时异地
++    重建同 commit 时 digest 稳定（volatile 构建身份不参与），而任何
++    内容篡改（方案/文件/commit/版本）必然断裂；
++  - ``roots-template`` 子命令：对**已授权构建**的 manifest 打印 roots
++    骨架 JSON（stdout，不写文件）——仅部署授权流程人工取值用；安装链
++    脚本内不得调用（grep 可审计）。
+ 
+ 用法（纯标准库；仓根执行）：
+   python3 tools/release_attest.py build  [--commit HEAD] [--dist-dir dist]
++                                        [--out-dir /path/OUTSIDE-REPO]
+                                         [--prefix wenqu-dist] [--repo .]
++      # 构建输出两模式（G9-12）：--dist-dir（默认仓内 dist/，存证 PR 用）/
++      # --out-dir（仓外强制——生产安装链；路径落在仓内即拒绝）。
+   python3 tools/release_attest.py sign  --manifest PATH --keyring PATH
+                                         [--key-id ID] [--out PATH]
+   python3 tools/release_attest.py sbom  --manifest PATH [--out PATH]
++  python3 tools/release_attest.py roots-template --manifest PATH
+   python3 tools/release_attest.py verify --manifest PATH --keyring PATH
+                                         [--tar PATH] [--sig PATH] [--sbom PATH]
+                                         [--report PATH]
++                                        [--plan-pin PATH] [--repo PATH]
++                                        [--release-roots PATH]
+ 
+ 产物命名（dist/ 下四件套，<name> = <prefix>-<shortsha>）：
+   <name>.tar.gz           制品（git archive 干净树）
+   <name>.manifest.json    逐文件清单（路径/类型/权限/大小/sha256 + build identity）
+   <name>.release.sig      detached HMAC-SHA256 签名（含 key_id）
+@@ -71,14 +110,19 @@ if SYSTEM_DIR not in sys.path:
+ 
+ # 只读 import：仅使用签发/验签函数与 keyring 读取，绝不写 keyring。
+ from wenqu_core.approval_keys import ApprovalKeyring, sign_envelope  # noqa: E402
+ 
+ TOOL_NAME = "release_attest.py"
+-TOOL_VERSION = "1.1.0"
++TOOL_VERSION = "1.3.0"
+ MANIFEST_SCHEMA = "wenqu-release-manifest/1"
+ SIG_SCHEMA = "wenqu-release-sig/1"
+ SBOM_SPDX_VERSION = "SPDX-2.3"
++RELEASE_ROOTS_SCHEMA = "wenqu-release-roots/1"
++
++#: manifest 核心 digest 排除的易变字段（构建身份——同 commit 异时异地重建时
++#: 必然不同，但不参与内容绑定：核心=全部内容承载字段）。
++VOLATILE_MANIFEST_KEYS = ("build_id", "built_at", "builder", "argv")
+ 
+ #: 方案快照在归档内的成员路径（冻结正源 evidence/00-baseline/codex-external/
+ #: 方案.md 的仓内路径；git archive 干净树必含——缺件即 build fail-closed）。
+ PLAN_MEMBER = "evidence/00-baseline/codex-external/方案.md"
+ 
+@@ -216,25 +260,53 @@ def _read_member_bytes(tar_path: str, member: str,
+ 
+ 
+ # ---------------------------------------------------------------------- #
+ # build
+ # ---------------------------------------------------------------------- #
++def _is_git_repo(path: str) -> bool:
++    """git 仓探测：.git 目录（正仓）或 .git 文件（worktree 指针）均可。
++
++    （旧 isdir 检查在 git worktree 下误判「不是 git 仓」——wave9 并行修复
++    均在独立 worktree 中作业，工具必须 worktree 兼容。）
++    """
++    dotgit = os.path.join(path, ".git")
++    return os.path.isdir(dotgit) or os.path.isfile(dotgit)
++
++
+ def cmd_build(args: argparse.Namespace) -> int:
+     repo = os.path.abspath(args.repo)
+-    if not os.path.isdir(os.path.join(repo, ".git")):
++    if not _is_git_repo(repo):
+         _die(f"不是 git 仓库: {repo!r}")
+ 
++    # G9-12 构建输出两模式（互斥）：
++    #   --dist-dir（缺省仓内 dist/） = 存证模式——PR 存证/本地演练，产物入仓；
++    #   --out-dir（仓外绝对/相对路径）= 生产模式——生产安装链（install-release.sh）
++    #     一律仓外构建，不污染源码树 dist/；路径解析后落在仓内即拒绝。
++    if args.out_dir is not None and args.dist_dir != "dist":
++        _die("--out-dir 与 --dist-dir 互斥（两模式二选一：仓外生产 / 仓内存证）")
++    if args.out_dir is not None:
++        repo_real = os.path.realpath(repo)
++        out_real_parent = os.path.realpath(os.path.abspath(args.out_dir))
++        try:
++            inside = os.path.commonpath([repo_real, out_real_parent]) == repo_real
++        except ValueError:  # 跨盘符等——必在仓外
++            inside = False
++        if inside:
++            _die(f"--out-dir 必须在仓外（生产构建不落源码树）: "
++                 f"{args.out_dir!r} 位于仓 {repo!r} 内——仓内存证请用 --dist-dir")
++        dist_dir = out_real_parent
++    else:
++        dist_dir = os.path.abspath(
++            args.dist_dir if os.path.isabs(args.dist_dir)
++            else os.path.join(repo, args.dist_dir))
++    os.makedirs(dist_dir, exist_ok=True)
++
+     full = _git(repo, "rev-parse", "--verify", f"{args.commit}^{{commit}}")
+     if not re.fullmatch(r"[0-9a-f]{40}", full):
+         _die(f"rev-parse 未返回完整 commit sha: {full!r}")
+     short = _git(repo, "rev-parse", "--short=7", full)
+     subject = _git(repo, "log", "-1", "--format=%s", full)
+-
+-    dist_dir = os.path.abspath(
+-        args.dist_dir if os.path.isabs(args.dist_dir)
+-        else os.path.join(repo, args.dist_dir))
+-    os.makedirs(dist_dir, exist_ok=True)
+     name = f"{args.prefix}-{short}"
+     tar_path = os.path.join(dist_dir, f"{name}.tar.gz")
+ 
+     # git archive 导出干净树（读 commit 对象，与工作树无关）→ 确定性 gzip。
+     arch = subprocess.run(
+@@ -585,15 +657,174 @@ def _load_json(path: str, what: str) -> Dict[str, Any]:
+ 
+ class VerifyFail(Exception):
+     pass
+ 
+ 
++# ---------------------------------------------------------------------- #
++# R8-REL-PIN-ROOT：外部受保护 plan pin（第八轮 P0-7 残余根修）
++# ---------------------------------------------------------------------- #
++def _default_plan_pin_path() -> str:
++    """默认 pin 位：~/.wenqu/current/plan.pin（install-release.sh 部署时落
++    pin 到不可变激活树根；current 是 symlink → 部署树内 0600 pin）。"""
++    return os.path.expanduser(os.path.join("~", ".wenqu", "current", "plan.pin"))
++
++
++def _resolve_plan_pin(explicit: Optional[str]) -> str:
++    """解析优先级：--plan-pin > $WENQU_PLAN_PIN > ~/.wenqu/current/plan.pin。"""
++    if explicit:
++        return os.path.abspath(os.path.expanduser(explicit))
++    env = os.environ.get("WENQU_PLAN_PIN", "").strip()
++    if env:
++        return os.path.abspath(os.path.expanduser(env))
++    return _default_plan_pin_path()
++
++
++def _load_plan_pin(pin_path: str) -> str:
++    """读外部受保护 pin 文件 → 冻结 64hex。
++
++    fail-closed 面（全部按 verify FAIL 收口，exit 1）：
++    - pin 文件缺失（无 --plan-pin/env/默认位 → 拒，**无豁免路径**）；
++    - 不可读 / 超 4KiB / 非 UTF-8 可解；
++    - 内容非「恰一个 64 位小写 hex」（注释/多值/截损全拒）；
++    - 权限过宽（组/其他可写，mode & 0o022）——他人可重写的根不是受保护根
++      （部署纪律 0600；只读性是保护语义，可读性不是——pin 值是公开哈希）。
++    """
++    if not os.path.isfile(pin_path):
++        raise VerifyFail(
++            f"plan pin 缺失（fail-closed，无豁免路径）: {pin_path!r}——"
++            f"需 --plan-pin、$WENQU_PLAN_PIN 或 ~/.wenqu/current/plan.pin"
++            f"（install-release.sh 部署时自动落 pin）")
++    try:
++        st = os.stat(pin_path)  # 跟随 symlink：保护语义作用于真实文件
++        if st.st_mode & 0o022:
++            raise VerifyFail(
++                f"plan pin 权限过宽（组/其他可写）: {pin_path!r} "
++                f"mode={oct(st.st_mode & 0o7777)}——受保护根须仅属主可写（0600）")
++        with open(pin_path, "rb") as fh:
++            raw = fh.read(4096 + 1)
++    except OSError as exc:
++        raise VerifyFail(f"plan pin 不可读: {pin_path!r} ({exc})")
++    if len(raw) > 4096:
++        raise VerifyFail(f"plan pin 超 4KiB（非单值 pin 文件）: {pin_path!r}")
++    text = raw.decode("utf-8", "replace").strip()
++    if not re.fullmatch(r"[0-9a-f]{64}", text):
++        raise VerifyFail(
++            f"plan pin 内容非法（应恰一个 64 位小写 hex）: {text[:80]!r}")
++    return text
++
++
++def _git_raw(repo: str, *args: str) -> subprocess.CompletedProcess:
++    """verify 专用 git 调用：失败走 VerifyFail（exit 1）而非 _die（exit 2）。"""
++    try:
++        return subprocess.run(["git", "-C", repo, *args],
++                              capture_output=True, check=False)
++    except FileNotFoundError:
++        raise VerifyFail("git 不可用（PATH 缺失）——source_commit 无法核验")
++
++
++# ---------------------------------------------------------------------- #
++# R9-REL-EXTERNAL-ROOTS：外部授权 release roots（G9-12 根修）
++# ---------------------------------------------------------------------- #
++def _resolve_release_roots(explicit: Optional[str]) -> Optional[str]:
++    """解析优先级：--release-roots > $WENQU_RELEASE_ROOTS > 无（回落 pin 模式）。
++
++    刻意**不设默认路径**：roots 是部署授权流程仓外预置的授权文件，生产由
++    install-release.sh 显式传 `$INSTALL_ROOT/release-roots.json`——工具侧
++    缺省回落到旧 pin 模式（兼容既有测试/流程），安装链则一律 roots 模式。
++    """
++    if explicit:
++        return os.path.abspath(os.path.expanduser(explicit))
++    env = os.environ.get("WENQU_RELEASE_ROOTS", "").strip()
++    if env:
++        return os.path.abspath(os.path.expanduser(env))
++    return None
++
++
++def _manifest_core_digest(manifest: Dict[str, Any]) -> str:
++    """manifest 核心 digest：sha256(canonical JSON 去易变字段)。
++
++    核心 = 除 VOLATILE_MANIFEST_KEYS（build_id/built_at/builder/argv——构建
++    身份，同 commit 异时异地重建必变）外的全部字段（schema/commit/version/
++    policy_hash/artifact/逐文件清单……）。授权流程在授权构建上取值写入
++    roots.manifest_sha256；安装链重建后重算必须等值——方案/文件/commit/
++    版本的任何篡改都改变核心，digest 断裂。
++    """
++    core = {k: v for k, v in manifest.items() if k not in VOLATILE_MANIFEST_KEYS}
++    canonical = json.dumps(core, sort_keys=True, separators=(",", ":"),
++                           ensure_ascii=False)
++    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
++
++
++def _load_release_roots(roots_path: str) -> Dict[str, Any]:
++    """读外部授权 roots 文件（G9-12：安装器只消费，绝不生成）。
++
++    fail-closed 面（全部 VerifyFail，exit 1）：
++    - 文件缺失/不可读/非 JSON 对象；
++    - 权限过宽：mode & 0o077 != 0（组/其他**任何**位——含可读——> 0600
++      语义即拒：他人可读/可写的文件不是授权根）；
++    - schema 不符 / plan_sha256 非 64hex / allowed_commit 空或非列表；
++    - 条目 commit 非 40hex / manifest_sha256 非 64hex / commit 重复。
++
++    返回 {"plan_sha256": str, "entries": {commit: manifest_sha256}}。
++    """
++    if not os.path.isfile(roots_path):
++        raise VerifyFail(
++            f"release-roots 授权文件缺失（fail-closed，无豁免路径）: "
++            f"{roots_path!r}——由部署授权流程仓外预置（0600），安装器不生成")
++    try:
++        st = os.stat(roots_path)
++        if st.st_mode & 0o077:
++            raise VerifyFail(
++                f"release-roots 权限过宽（组/其他任何位，>0600 即拒）: "
++                f"{roots_path!r} mode={oct(st.st_mode & 0o7777)}——授权根须"
++                f" owner-only（0600），由部署授权流程 chmod 600 预置")
++        with open(roots_path, "r", encoding="utf-8") as fh:
++            data = json.load(fh)
++    except VerifyFail:
++        raise
++    except (OSError, ValueError) as exc:
++        raise VerifyFail(f"release-roots 不可读/非 JSON: {roots_path!r} ({exc})")
++    if not isinstance(data, dict) \
++            or data.get("schema") != RELEASE_ROOTS_SCHEMA:
++        raise VerifyFail(
++            f"release-roots schema 不符（期望 {RELEASE_ROOTS_SCHEMA}）: "
++            f"{roots_path!r}")
++    plan = data.get("plan_sha256")
++    if not isinstance(plan, str) or not re.fullmatch(r"[0-9a-f]{64}", plan):
++        raise VerifyFail(
++            f"release-roots.plan_sha256 非法（应 64 位小写 hex）: {plan!r}")
++    allowed = data.get("allowed_commit")
++    if not isinstance(allowed, list) or not allowed:
++        raise VerifyFail(
++            "release-roots.allowed_commit 须为非空列表（外部授权的 commit "
++            f"清单）: {type(allowed).__name__}")
++    entries: Dict[str, str] = {}
++    for i, ent in enumerate(allowed):
++        if not isinstance(ent, dict):
++            raise VerifyFail(f"allowed_commit[{i}] 非对象: {ent!r}")
++        c = ent.get("commit")
++        d = ent.get("manifest_sha256")
++        if not isinstance(c, str) or not re.fullmatch(r"[0-9a-f]{40}", c):
++            raise VerifyFail(
++                f"allowed_commit[{i}].commit 非法（应 40 位小写 hex）: {c!r}")
++        if not isinstance(d, str) or not re.fullmatch(r"[0-9a-f]{64}", d):
++            raise VerifyFail(
++                f"allowed_commit[{i}].manifest_sha256 非法（应 64hex）: {d!r}")
++        if c in entries:
++            raise VerifyFail(f"allowed_commit 重复 commit: {c}")
++        entries[c] = d
++    return {"plan_sha256": plan, "entries": entries}
++
++
+ def cmd_verify(args: argparse.Namespace) -> int:
+     manifest_path = os.path.abspath(args.manifest)
+     base_dir = os.path.dirname(manifest_path)
+     checks: List[Dict[str, Any]] = []
+     tar_path = sig_path = sbom_path = None
++    pin_path: Optional[str] = None
++    roots_path: Optional[str] = None
++    repo_path: Optional[str] = None
+ 
+     def record(ok: bool, cid: str, detail: str = "") -> None:
+         checks.append({"check": cid, "ok": bool(ok), "detail": detail[:400]})
+         mark = "PASS" if ok else "FAIL"
+         print(f"  {mark}  {cid}" + (f"  {detail[:200]}" if detail else ""))
+@@ -671,10 +902,93 @@ def cmd_verify(args: argparse.Namespace) -> int:
+                 f"方案快照 sha256 与 manifest.policy_hash.plan_sha256 不符: "
+                 f"actual={actual_plan} declared={declared_plan}")
+         record(True, "plan-hash",
+                f"{plan_member} sha256={actual_plan[:16]}…（实算等值，64hex）")
+ 
++        # --- 2c) 外部授权根（R9-REL-EXTERNAL-ROOTS）或 plan pin（R8 兼容）---
++        # G9-12：生产安装链走 --release-roots / $WENQU_RELEASE_ROOTS——外部
++        # 预置授权文件（0600）是唯一正源：allowed_commit 只含 main push CI
++        # 已绿的确切 SHA（部署授权流程预置），manifest.source_commit 不在
++        # 清单内（side commit / 未授权 commit）即拒；plan 与 manifest 核心
++        # digest 双对账——攻击者自算自洽的四件套在仓外常量处断裂。未给
++        # roots 时回落 R8 pin 模式（--plan-pin/env/默认位，兼容既有流程）。
++        sc = manifest.get("source_commit")
++        if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
++            raise VerifyFail(
++                f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
++        roots_path = _resolve_release_roots(args.release_roots)
++        if roots_path is not None:
++            roots = _load_release_roots(roots_path)  # 缺失/权限宽/坏 schema 全拒
++            if sc not in roots["entries"]:
++                raise VerifyFail(
++                    f"source_commit 不在 release-roots allowed_commit（外部"
++                    f"授权清单）: {sc}——side commit/未授权 commit（四件套"
++                    f"自洽签名也拒，G9-12 fail-closed）")
++            if roots["plan_sha256"] != declared_plan:
++                raise VerifyFail(
++                    f"release-roots.plan_sha256 与 manifest 声明不符（外部"
++                    f"授权根拦截）: roots={roots['plan_sha256']} "
++                    f"declared={declared_plan}——授权冻结面与制品断裂")
++            if roots["plan_sha256"] != actual_plan:
++                raise VerifyFail(
++                    f"release-roots.plan_sha256 与 tar 内方案实算不符: "
++                    f"roots={roots['plan_sha256']} actual={actual_plan}")
++            pinned_digest = roots["entries"][sc]
++            core_digest = _manifest_core_digest(manifest)
++            if pinned_digest != core_digest:
++                raise VerifyFail(
++                    f"release-roots.manifest_sha256 与 manifest 核心 digest "
++                    f"不符: roots={pinned_digest} actual={core_digest}——"
++                    f"内容与授权构建断裂（自洽重产/篡改即拒）")
++            record(True, "release-roots",
++                   f"{roots_path} allowed={len(roots['entries'])} commit="
++                   f"{sc[:12]}… plan+核心digest 双等值")
++        else:
++            pin_path = _resolve_plan_pin(args.plan_pin)
++            pin_value = _load_plan_pin(pin_path)  # 缺失/坏格式/权限过宽全拒
++            if pin_value != declared_plan:
++                raise VerifyFail(
++                    f"plan pin 冻结值与 manifest.policy_hash.plan_sha256 不符"
++                    f"（外部受保护根拦截）: pin={pin_value} "
++                    f"declared={declared_plan}——自洽替换的四件套在此断裂")
++            if pin_value != actual_plan:
++                raise VerifyFail(
++                    f"plan pin 冻结值与 tar 内方案快照实算不符: pin={pin_value} "
++                    f"actual={actual_plan}")
++            record(True, "plan-pin",
++                   f"{pin_path} 冻结值={pin_value[:16]}…（manifest+tar 双等值）")
++
++        # --- 2d) source commit 存在性 + 树内方案绑定（防自洽替换 tar 内容）---
++        # manifest.source_commit 是 build 期 git rev-parse 实录；verify 回到
++        # git 对象库：①commit 必须真实存在（幽灵 commit 即拒）；②该 commit
++        # **树内**方案文件字节实算 sha256 必须 == manifest.plan_sha256——
++        # 制品里的方案换成任何别的内容（哪怕全套重签）都与 git 正源断裂。
++        # （sc 格式校验已前移至 2c——roots 模式需先以 sc 查授权清单。）
++        repo_path = os.path.abspath(args.repo) if args.repo else REPO_ROOT
++        if not _is_git_repo(repo_path):
++            raise VerifyFail(
++                f"--repo 不是 git 仓库: {repo_path!r}——source_commit 无法核验")
++        probe = _git_raw(repo_path, "cat-file", "-e", f"{sc}^{{commit}}")
++        if probe.returncode != 0:
++            raise VerifyFail(
++                f"source_commit 不在 git 对象库: {sc}——幽灵 commit"
++                f"（制品身份无 git 正源，fail-closed）")
++        blob = _git_raw(repo_path, "show", f"{sc}:{plan_member}")
++        if blob.returncode != 0:
++            raise VerifyFail(
++                f"git 读树内方案失败: {sc}:{plan_member} "
++                f"({(blob.stderr or b'').decode('utf-8', 'replace').strip()[:120]})")
++        tree_plan_sha = hashlib.sha256(blob.stdout).hexdigest()
++        if tree_plan_sha != declared_plan:
++            raise VerifyFail(
++                f"source commit 树内方案 sha256 与 manifest.plan_sha256 不符: "
++                f"tree={tree_plan_sha} declared={declared_plan}——"
++                f"制品方案与 git 正源漂移（自洽替换 tar 内容被拦截）")
++        record(True, "source-commit",
++               f"commit={sc[:12]}… 在对象库；树内 {plan_member} "
++               f"sha256={tree_plan_sha[:16]}…（实算等值）")
++
+         # --- 3) detached 签名验签（keyring 只读；revoked fail-closed）---
+         sig = _load_json(sig_path, "release.sig")
+         if sig.get("schema") != SIG_SCHEMA:
+             raise VerifyFail(f"sig schema 不符: {sig.get('schema')!r}")
+         key_id = sig.get("key_id")
+@@ -723,10 +1037,13 @@ def cmd_verify(args: argparse.Namespace) -> int:
+             "manifest": manifest_path,
+             "tar": tar_path,
+             "sig": sig_path,
+             "sbom": sbom_path,
+             "keyring": os.path.abspath(args.keyring),
++            "plan_pin": pin_path,
++            "release_roots": roots_path,
++            "repo": repo_path,
+             "checks": checks,
+             "result": "PASS" if ok else "FAIL",
+         }
+         with open(args.report, "w", encoding="utf-8") as fh:
+             json.dump(payload, fh, ensure_ascii=False, indent=1, sort_keys=True)
+@@ -810,20 +1127,67 @@ def _check_sbom(sbom: Dict[str, Any], manifest: Dict[str, Any],
+                for r in rels if isinstance(r, dict)):
+         problems.append("缺 Root--CONTAINS-->File 关系")
+     return problems
+ 
+ 
++# ---------------------------------------------------------------------- #
++# roots-template（G9-12）：部署授权流程取值辅助——只打印，绝不写文件
++# ---------------------------------------------------------------------- #
++def cmd_roots_template(args: argparse.Namespace) -> int:
++    """对已授权构建的 manifest 打印 release-roots 骨架 JSON（stdout）。
++
++    纪律边界：本子命令是**部署授权流程**（人工/CI 授权步）取值用的只读辅助
++    ——产出的骨架须人工审核后由授权方落到 ~/.wenqu/release-roots.json 并
++    chmod 600。**安装链（install-release.sh）内不得调用本子命令**（安装器
++    只消费 roots，绝不生成——grep 'roots-template' system/ 可审计此边界）。
++    """
++    manifest = _load_manifest(os.path.abspath(args.manifest))
++    sc = manifest.get("source_commit")
++    if not isinstance(sc, str) or not re.fullmatch(r"[0-9a-f]{40}", sc):
++        _die(f"manifest.source_commit 非法（应 40 位小写 hex）: {sc!r}")
++    plan = ((manifest.get("policy_hash") or {}).get("plan_sha256"))
++    if not isinstance(plan, str) or not re.fullmatch(r"[0-9a-f]{64}", plan):
++        _die(f"manifest.policy_hash.plan_sha256 非法（应 64hex）: {plan!r}")
++    skeleton = {
++        "schema": RELEASE_ROOTS_SCHEMA,
++        "provisioned_at": _utc_now_iso(),
++        "provisioned_by": "部署授权流程（人工审核后落位并 chmod 600；"
++                          "安装器绝不生成/回写本文件）",
++        "plan_sha256": plan,
++        "allowed_commit": [
++            {
++                "commit": sc,
++                "manifest_sha256": _manifest_core_digest(manifest),
++            }
++        ],
++    }
++    print(json.dumps(skeleton, ensure_ascii=False, indent=1, sort_keys=True))
++    print(
++        "\n# 授权流程：核对本骨架（allowed_commit 只收录 main push CI 已绿的"
++        "确切 SHA）→\n"
++        "#   合并进 ~/.wenqu/release-roots.json（或 $WENQU_INSTALL_ROOT/"
++        "release-roots.json）→ chmod 600。\n"
++        "# 本子命令不写任何文件；install-release.sh 不调用本子命令。",
++        file=sys.stderr)
++    return 0
++
++
+ # ---------------------------------------------------------------------- #
+ def main(argv: Optional[List[str]] = None) -> int:
+     parser = argparse.ArgumentParser(
+         prog=TOOL_NAME,
+         description="release 制品 manifest/签名/SBOM/verify 独立打包工具（纯标准库）")
+     sub = parser.add_subparsers(dest="cmd", required=True)
+ 
+     p_build = sub.add_parser("build", help="git archive 干净树→tar.gz+manifest")
+     p_build.add_argument("--commit", default="HEAD")
+-    p_build.add_argument("--dist-dir", default="dist")
++    p_build.add_argument("--dist-dir", default="dist",
++                         help="存证模式：仓内输出目录（默认 dist/，PR 存证用）")
++    p_build.add_argument(
++        "--out-dir", default=None,
++        help="生产模式：仓外输出目录（G9-12——生产安装链用；路径落在仓内"
++             "即拒绝；与 --dist-dir 互斥）")
+     p_build.add_argument("--prefix", default="wenqu-dist")
+     p_build.add_argument("--repo", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+     p_build.set_defaults(func=cmd_build)
+ 
+     p_sign = sub.add_parser("sign", help="对 manifest 做 detached HMAC-SHA256 签名")
+@@ -837,17 +1201,36 @@ def main(argv: Optional[List[str]] = None) -> int:
+     p_sbom.add_argument("--manifest", required=True)
+     p_sbom.add_argument("--tar", default=None)
+     p_sbom.add_argument("--out", default=None)
+     p_sbom.set_defaults(func=cmd_sbom)
+ 
++    p_roots = sub.add_parser(
++        "roots-template", help="对外部授权构建的 manifest 打印 release-roots "
++                               "骨架（只打印，不写文件；安装链不得调用）")
++    p_roots.add_argument("--manifest", required=True)
++    p_roots.set_defaults(func=cmd_roots_template)
++
+     p_verify = sub.add_parser("verify", help="tar+manifest+sig+sbom 四件套对账")
+     p_verify.add_argument("--manifest", required=True)
+     p_verify.add_argument("--keyring", required=True)
+     p_verify.add_argument("--tar", default=None)
+     p_verify.add_argument("--sig", default=None)
+     p_verify.add_argument("--sbom", default=None)
+     p_verify.add_argument("--report", default=None)
++    p_verify.add_argument(
++        "--plan-pin", default=None,
++        help="受保护 plan pin 文件（0600，含冻结 64hex）；缺省查 "
++             "$WENQU_PLAN_PIN 或 ~/.wenqu/current/plan.pin；缺失即 FAIL")
++    p_verify.add_argument(
++        "--release-roots", default=None,
++        help="G9-12 外部授权 roots 文件（0600：allowed_commit+plan_sha256+"
++             "manifest_sha256）；优先于 --plan-pin；缺省查 "
++             "$WENQU_RELEASE_ROOTS，未给则回落 plan-pin 模式")
++    p_verify.add_argument(
++        "--repo", default=None,
++        help="核验 source_commit 的 git 仓（默认工具所在仓）：commit 须在"
++             "对象库且其树内方案 hash == manifest.plan_sha256")
+     p_verify.set_defaults(func=cmd_verify)
+ 
+     args = parser.parse_args(argv)
+     return args.func(args)
+ 
+$ git log file history relevant
+2a9d132 fix(wave8): 八轮 6 语义旁路+F 系收尾全清——registry 重放/审批周期/行版本/受保护根/immutable 位/AST 门
+4f6d632 feat(G9-08): required CI 全量检查面——仓根 pytest/evidence validator/八模块自测/追踪/TLA 双配置/mutation 门（八轮 1.4-10）
+889c71f fix(G9-12): 安装链外部授权根+全链 fail-closed+仓外构建（R8-REL-FROZEN-ROOT-009）
+0ec079e feat(G9-07): P1f2 真 mutation 门+evidence v2 分表严格 schema+测试零污染（R8-TRC-TRUTHY-ASSERT-012/EVID-FIELDS-013/PYTEST-HISTORICAL-COLLECT-014）
+5830c6e fix(G9-09): BAK 归档实存+独立解包对账+archive 真恢复（R8-BAK-FAKE-TAR-SUCCESS-019）
+2a9d132 fix(wave8): 八轮 6 语义旁路+F 系收尾全清——registry 重放/审批周期/行版本/受保护根/immutable 位/AST 门

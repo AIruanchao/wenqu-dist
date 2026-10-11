@@ -1,0 +1,30 @@
+[PURPOSE] create a fresh private pristine reference after shared snapshot parallel-test pollution; archive uses origin/main commit object, not working tree
+[COMMAND] mkdir /private/tmp/codex-test/reaudit9-infra-pristine-artifact-20261011-091321 && git -C /Users/maccc/Documents/wenqu-dist archive --format=tar origin/main | tar -xf - -C /private/tmp/codex-test/reaudit9-infra-pristine-artifact-20261011-091321
+[EXIT_CODE archive_pipeline] 0
+[COMMAND] python3 snapshot_origin_fulltree_probe.py repo pristine origin/main (pre-freeze)
+requested_ref=origin/main
+resolved_commit=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+resolved_is_40hex=True
+git_entries=2964
+snapshot_entries=2964
+missing=0
+extra=0
+content_or_exec_type_mismatch=0
+SNAPSHOT_EQUALS_ORIGIN_MAIN=True
+[EXIT_CODE prefreeze_compare] 0
+[COMMAND] chmod -R a-w pristine; find writable entries
+writable_regular_files=0
+writable_directories=0
+[EXIT_CODE chmod] 0
+[COMMAND] python3 snapshot_origin_fulltree_probe.py repo pristine origin/main (post-freeze)
+requested_ref=origin/main
+resolved_commit=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+resolved_is_40hex=True
+git_entries=2964
+snapshot_entries=2964
+missing=0
+extra=0
+content_or_exec_type_mismatch=0
+SNAPSHOT_EQUALS_ORIGIN_MAIN=True
+[EXIT_CODE postfreeze_compare] 0
+[REFERENCE] all subsequent code-object reads use this pristine path; destructive fixtures each get a fresh git archive in their own /tmp.

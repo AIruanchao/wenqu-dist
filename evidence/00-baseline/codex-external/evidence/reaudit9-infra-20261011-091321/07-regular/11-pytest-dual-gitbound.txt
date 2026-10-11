@@ -1,0 +1,177 @@
+started=2026-10-11T09:25:04+08:00
+cmd=git clone --no-hardlinks --no-checkout SOURCE TARGET
+Cloning into '/private/tmp/codex-test/reaudit9-ci-regular-pytest-gitbound-20261011-091321'...
+done.
+clone_rc=0
+cmd=git checkout --detach 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+HEAD is now at 7eeb8a1 Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+checkout_rc=0
+HEAD=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+tree=d3de6cfcbdb7b49a9ce35854604f97dc6635bc35
+origin_main_at_clone=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+status_before_count=0
+$ python3 -m pytest cli/test_wenqu.py -q
+....................                                                     [100%]
+cli_pytest_rc=0
+$ python3 -m pytest -q
+........................................................................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................ss.............................................. [ 89%]
+...................................                                      [100%]
+=============================== warnings summary ===============================
+system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_07_legacy_frozen_readonly_late_write_quarantined
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_07_legacy_frozen_readonly_late_write_quarantined returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_08_legacy_upgrade_untrusted_fail_closed
+  /opt/homebrew/lib/python3.14/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_08_legacy_upgrade_untrusted_fail_closed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+root_pytest_rc=0
+status_after:
+ended=2026-10-11T09:33:30+08:00
+aggregate_rc=0
+$ independent post-run pytest cache inventory (pytest.ini suppresses terminal summary)
+collected_nodeids= 323
+cli_nodeids= 20
+system_nodeids= 303
+cache_inventory_rc=0
+observed_progress=root 323 collected, 2 skipped markers, remaining passed; command rc0

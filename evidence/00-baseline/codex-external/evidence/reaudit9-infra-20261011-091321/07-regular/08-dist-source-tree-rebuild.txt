@@ -1,0 +1,23 @@
+source_tool_and_stored_artifact=git archive origin/main @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+source_commit=b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4
+git_object_repo=/Users/maccc/Documents/wenqu-dist (read-only)
+$ python3 FRESH/tools/release_attest.py build --commit b44b087 --repo GIT_OBJECT_REPO --out-dir TMP
+BUILD OK  wenqu-dist-b44b087
+  commit   : b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4 (Merge pull request #15 from AIruanchao/wave9/sampler-repo-fa)
+  version  : 3.8.4  files: 2942
+  plan     : evidence/00-baseline/codex-external/方案.md
+             sha256=96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306（实算=冻结，64hex）
+  tar.gz   : /private/tmp/codex-test/reaudit9-rebuild-b44b087-20261011-091321-v2/wenqu-dist-b44b087.tar.gz
+             sha256=cf21788881aa46109e26cfeafdd89cc1d52ad282db3785bfb03c98a1dd669016 size=89109004
+  manifest : /private/tmp/codex-test/reaudit9-rebuild-b44b087-20261011-091321-v2/wenqu-dist-b44b087.manifest.json
+build_exit_code=0
+$ compare rebuilt tar bytes to stored origin/main artifact
+cf21788881aa46109e26cfeafdd89cc1d52ad282db3785bfb03c98a1dd669016  /private/tmp/codex-test/reaudit9-rebuild-b44b087-20261011-091321-v2/wenqu-dist-b44b087.tar.gz
+cf21788881aa46109e26cfeafdd89cc1d52ad282db3785bfb03c98a1dd669016  /private/tmp/codex-test/reaudit9-ci-regular-fresh-20261011-091321-v2/base/dist/wenqu-dist-b44b087.tar.gz
+shasum_exit_code=0
+cmp_exit_code=0
+$ independent tar member versus git ls-tree -rz exact path set
+{'git_tracked_blob_count': 2942, 'tar_file_or_symlink_count': 2942, 'missing': [], 'extra': [], 'exact_path_set': True}
+path_compare_exit_code=0
+overall_expected=build0+sha0+cmp0+path0
+overall_observed=0/0/0/0

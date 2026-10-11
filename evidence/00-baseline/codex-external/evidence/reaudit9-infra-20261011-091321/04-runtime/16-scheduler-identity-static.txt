@@ -1,0 +1,244 @@
+## scheduler commit identity code references
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:15:  - identity fail-visible（R8-OBS-NOGIT-015）：WENQU_GIT_REPO 一经设置即
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:17:    显式 identity_error + fallback_refused=true，进程 rc1。
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:18:  - 进程 rc 契约：0=合格样本落盘；1=落盘但样本不合格（identity/provenance
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:24:W9 shadow v2 语义（2026-10-09，八轮 identity=null 旧语义废止）不变：
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:71:    WENQU_GIT_REPO 一经设置即权威（R8-OBS-NOGIT-015 remediation）：
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:76:    无 git 可用（identity_error 如实记录）。"""
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:77:    env_repo = os.environ.get("WENQU_GIT_REPO")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:242:    身份正源 = fetch 后的 origin/main；WENQU_GIT_REPO 无效时拒绝静默回退
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:243:    （fallback_refused=True，identity=None + 显式 identity_error）——绝不
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:244:    把 identity=null 的样本混进合格分母。"""
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:252:               identity=None, identity_error=None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:255:        out["identity_error"] = "git not found"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:258:        out["identity_error"] = (
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:259:            "WENQU_GIT_REPO invalid (not a git worktree): " + refused
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:260:            + "；silent fallback refused (G9-02 identity fail-visible)")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:268:    identity = ident_r["stdout"] if ident_r["returncode"] == 0 else None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:272:        "identity": identity,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:273:        "identity_error": None if identity else (ident_r["error"] or ident_r["stderr"][:200]),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:457:def probe_live_identity():
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:640:        live_ident = probe_live_identity()
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:642:        result["identity"] = {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:943:def qualify_identity(repo_info):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:944:    """identity 合格判定：repo.identity 必须是 40hex（fail-visible，不猜）。
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:946:    返回 (qualified, failures)；failures ∈ {"repo_identity_missing"}。"""
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:947:    identity = repo_info.get("identity") if isinstance(repo_info, dict) else None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:948:    if isinstance(identity, str) and SHA1_RE.match(identity):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:950:    return False, ["repo_identity_missing"]
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:956:    在 identity/provenance 之外追加（任一不满足 → 不合格，理由入
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:1032:def record_sample(root, core, *, identity=None, release_sha=None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:1064:            qualified, failures = qualify_identity(core.get("repo"))
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:1093:            # T2 fail-closed：identity/provenance 之外追加窗口资格判定
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tools/observation_daily.py:1289:        "repo_identity": repo_info.get("identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:10:                       actual_exit_code + commit_sha；run+heartbeat+outbox
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:129:    commit_sha: Optional[str] = None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:143:        "commit_sha": commit_sha or "",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:302:    commit_sha: Optional[str] = None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:337:        if self.commit_sha is not None and not _SHA_RE.match(self.commit_sha):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:338:            raise SchedulerError("commit_sha must be 40-hex or None")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:373:    commit_sha: Optional[str]
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:432:    commit_sha                  TEXT,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:456:    commit_sha          TEXT,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:600:                " commit_sha, scope_hash, ruleset_hash, data_config_hash,"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:611:                    job.watchdog.grace_seconds, job.ttl_seconds, job.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:748:            commit_sha, scope_hash, ruleset_hash, data_config_hash,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:766:            commit_sha=commit_sha, scope_hash=scope_hash,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1289:        commit_sha_provider: Optional[Callable[[], Optional[str]]] = None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1299:        self._commit_sha_provider = commit_sha_provider
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1345:        commit_sha = job.commit_sha
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1346:        if commit_sha is None and self._commit_sha_provider is not None:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1348:                commit_sha = self._commit_sha_provider() or None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1350:                warnings.append(f"commit_sha_provider failed: {exc}")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1354:            argv_digest=argv_digest, commit_sha=commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1403:                " policy_verdict, actual_exit_code, commit_sha, argv_digest,"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1410:                    verdict, rc, commit_sha, argv_digest, fingerprint,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1441:            commit_sha=commit_sha, argv_digest=argv_digest,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1476:            "actual_exit_code": row[10], "commit_sha": row[11],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1530:            "commit_sha": record.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1599:        "repo_root", "wenqu_home", "state_dir", "scheduler_db",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1605:    def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1606:        self.repo_root = repo_root
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1621:        self.observation_daily = _os.path.join(repo_root, "tools",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1623:        self.cli_py = _os.path.join(repo_root, "system", "wenqu_core",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1628:        repo_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1632:        return ProductionPaths(repo_root=repo_root, wenqu_home=wenqu_home)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1658:def _git_head(repo_root: str) -> Optional[str]:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1662:                            text=True, timeout=15, cwd=repo_root)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1964:        "identity": {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1965:            "commit_sha": run.get("commit_sha") or ("0" * 40),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2059:                                timeout=60, cwd=paths.repo_root)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2109:        cwd=paths.repo_root,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2157:            commit_sha_provider=lambda: _git_head(paths.repo_root),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:179:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:181:    identity: Dict[str, Any] = {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:183:        "commit_sha": manifest.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:190:        identity["lockfile_hash"] = manifest.lockfile_hash
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:191:    return identity
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:426:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:589:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:775:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:825:    anchor = first["identity"]
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:826:    anchor_keys = ("commit_sha", "environment", "scope_hash")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:834:            if result["identity"].get(key) != anchor.get(key):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:836:                    f"leg[{index}] identity.{key} mismatch: "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:837:                    f"{result['identity'].get(key)!r} != {anchor.get(key)!r}"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:888:        identity=dict(anchor),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:972:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:1026:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station7_runtime.py:1065:        commit_sha=sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:32:      "identity": {                        # 必填：证据身份绑定（C2/C5 的数据源）
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:33:        "commit_sha":       "<40-hex>",    #   与构造器 target_sha 比对
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:51:      "sha":         "<full-sha>",  # 亦接受 target_sha / commit_sha
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:67:       expected_denominator 给定时，逐站对账 identity.scope_hash 与
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:116:_SHA_FIELDS = ("sha", "target_sha", "commit_sha")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:159:    "execution_status", "policy_verdict", "identity", "tool", "execution",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:164:    "execution_status", "policy_verdict", "identity", "tool", "execution",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:166:_MIRROR_IDENTITY_REQUIRED = ("commit_sha", "environment", "scope_hash")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:298:    # -- identity -----------------------------------------------------------
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:299:    identity = result.get("identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:300:    if not isinstance(identity, Mapping):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:301:        _err("identity must be an object")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:304:            if key not in identity:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:305:                _err(f"identity.required: {key}")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:306:        sha = identity.get("commit_sha")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:308:            _err("identity.commit_sha must be a string matching "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:310:        if not isinstance(identity.get("environment"), str):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:311:            _err("identity.environment must be a string")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:312:        if not isinstance(identity.get("scope_hash"), str):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:313:            _err("identity.scope_hash must be a string")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:315:            if key in identity and not isinstance(identity[key], str):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:316:                _err(f"identity.{key} must be a string")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:463:                             target_sha=manifest.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:465:                             expected_scope_hash=manifest.identity.scope_hash,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:595:        identity/sha/environment 仍按现有方式尽力提取，供 C2/C5 证据绑定裁决
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:619:        identity = station_result.get("identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:623:        if isinstance(identity, Mapping):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:624:            raw_sha = identity.get("commit_sha")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:627:            env_raw = identity.get("environment")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:630:            raw_scope = identity.get("scope_hash")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:634:            # identity 缺失/非对象——schema_invalid 已记账（镜像 required:identity），
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:638:                    "reason": "missing_field:identity" if identity is None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:639:                    else "malformed_field:identity",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:694:        # R7-GATE-DUP-EQUIV-002：全语义身份原料（identity 的 ruleset/
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:699:        if isinstance(identity, Mapping):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:700:            raw_rh = identity.get("ruleset_hash")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:702:            raw_dch = identity.get("data_config_hash")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:704:        tool_identity: Optional[tuple] = None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:707:            tool_identity = (raw_tool.get("name"), raw_tool.get("version"),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:743:            "tool_identity": tool_identity,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:788:            "tool_identity": None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:800:        cas_digest 摘要序列 + identity.ruleset_hash/data_config_hash +
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:825:                and previous.get("tool_identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:826:                == entry.get("tool_identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:836:        expected_scope_hash 给定时：identity.scope_hash 必须等于冻结值；
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/gate_aggregator.py:973:                  "(F6-GATE-SCOPE-001: identity.scope_hash/coverage.denominator "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:10:                       actual_exit_code + commit_sha；run+heartbeat+outbox
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:129:    commit_sha: Optional[str] = None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:143:        "commit_sha": commit_sha or "",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:302:    commit_sha: Optional[str] = None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:337:        if self.commit_sha is not None and not _SHA_RE.match(self.commit_sha):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:338:            raise SchedulerError("commit_sha must be 40-hex or None")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:373:    commit_sha: Optional[str]
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:432:    commit_sha                  TEXT,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:456:    commit_sha          TEXT,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:600:                " commit_sha, scope_hash, ruleset_hash, data_config_hash,"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:611:                    job.watchdog.grace_seconds, job.ttl_seconds, job.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:748:            commit_sha, scope_hash, ruleset_hash, data_config_hash,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:766:            commit_sha=commit_sha, scope_hash=scope_hash,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1289:        commit_sha_provider: Optional[Callable[[], Optional[str]]] = None,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1299:        self._commit_sha_provider = commit_sha_provider
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1345:        commit_sha = job.commit_sha
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1346:        if commit_sha is None and self._commit_sha_provider is not None:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1348:                commit_sha = self._commit_sha_provider() or None
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1350:                warnings.append(f"commit_sha_provider failed: {exc}")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1354:            argv_digest=argv_digest, commit_sha=commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1403:                " policy_verdict, actual_exit_code, commit_sha, argv_digest,"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1410:                    verdict, rc, commit_sha, argv_digest, fingerprint,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1441:            commit_sha=commit_sha, argv_digest=argv_digest,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1476:            "actual_exit_code": row[10], "commit_sha": row[11],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1530:            "commit_sha": record.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1599:        "repo_root", "wenqu_home", "state_dir", "scheduler_db",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1605:    def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1606:        self.repo_root = repo_root
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1621:        self.observation_daily = _os.path.join(repo_root, "tools",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1623:        self.cli_py = _os.path.join(repo_root, "system", "wenqu_core",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1628:        repo_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1632:        return ProductionPaths(repo_root=repo_root, wenqu_home=wenqu_home)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1658:def _git_head(repo_root: str) -> Optional[str]:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1662:                            text=True, timeout=15, cwd=repo_root)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1964:        "identity": {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:1965:            "commit_sha": run.get("commit_sha") or ("0" * 40),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2059:                                timeout=60, cwd=paths.repo_root)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2109:        cwd=paths.repo_root,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/scheduler.py:2157:            commit_sha_provider=lambda: _git_head(paths.repo_root),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:55:        identity={"project_id": "acme/erp", "commit_sha": "<40hex>",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:163:    "project_id", "commit_sha", "environment", "scope_hash",
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:221:    """构造参数非法（run_id/identity/repo_dir/scanners 等）——快速失败。"""
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:333:def _validate_identity(identity: Mapping[str, Any]) -> Dict[str, Any]:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:334:    if not isinstance(identity, Mapping):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:336:            f"identity must be a mapping, got {type(identity).__name__}"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:338:    extra = set(identity) - set(_ST2_IDENTITY_KEYS)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:341:            f"identity additional properties not allowed: {sorted(extra)} "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:344:    commit_sha = identity.get("commit_sha")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:345:    if not isinstance(commit_sha, str) or not _RE_SHA40.match(commit_sha):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:347:            f"identity.commit_sha must be a 40-char lowercase hex SHA, got {commit_sha!r}"
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:350:        value = identity.get(key)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:352:            raise Station2ConfigError(f"identity.{key} must be a non-empty string")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:354:        if key in identity and not isinstance(identity[key], str):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:355:            raise Station2ConfigError(f"identity.{key} must be a string")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:356:    return dict(identity)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:609:        identity: Mapping[str, Any],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:618:        self._identity: Dict[str, Any] = dict(identity)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:695:            identity=self._identity,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2027:        identity: Mapping[str, Any],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2053:        _validate_identity(identity)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2067:        self._identity = dict(identity)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2081:            run_id=run_id, identity=self._identity, repo_dir=repo,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2182:            identity=self._identity,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2262:    identity = {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2264:        "commit_sha": "1" * 40,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2338:        base_kwargs = dict(run_id="selftest-st2-001", identity=identity, repo_dir=repo)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2481:            run_id="selftest-st2-001", identity=identity, repo_dir=empty_repo,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2498:            "selftest-st2-001", identity=identity, repo_dir=str(repo), runner=runner,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2520:            "selftest-st2-002", identity=identity, repo_dir=str(repo), runner=runner,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2539:            "selftest-st2-003", identity=identity, repo_dir=str(repo), runner=runner,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2552:            dict(run_id="bad id!", identity=identity, repo_dir=str(repo)),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2553:            dict(run_id="ok-run", identity={"commit_sha": "xyz"}, repo_dir=str(repo)),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2554:            dict(run_id="ok-run", identity=identity, repo_dir=str(tmp_path / "nope")),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2562:            "selftest-st2-004", identity=identity, repo_dir=str(repo),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station2_static.py:2571:        print("[8] config negatives OK: bad run_id/identity/repo_dir rejected; "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:17:  (a) 登记完整性——每个上下文的 source_identity/kind/captured_at/逐轴
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:21:  (c) 二审定律——零发现结论必须出自 ≥2 个 source_identity 互异的独立
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:22:  上下文（§15.7「不允许同命令换标签算异源」：同 source_identity 只计一）；
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:34:      "source_identity": "claude-code/oppo",# 异源身份：同值只计一个独立源
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:53:- 零发现 且 独立上下文（互异 source_identity）<2 → COMPLETED + FAIL
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:184:def _manifest_identity(manifest: RunManifest) -> Dict[str, Any]:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:186:    identity: Dict[str, Any] = {
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:188:        "commit_sha": manifest.commit_sha,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:195:        identity["lockfile_hash"] = manifest.lockfile_hash
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:196:    return identity
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:292:        for field in ("context_id", "kind", "source_identity"):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:350:            "source_identity": ctx["source_identity"].strip(),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:404:                identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:436:        # (c) 二审定律：独立上下文=互异 source_identity（同命令换标签只计一）。
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:437:        independent_sources = sorted({ctx["source_identity"] for ctx in live})
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:444:                        "source_identity": ctx["source_identity"],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:491:                 "source_identity": c["source_identity"],
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:520:            identity=_manifest_identity(self._manifest),
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:573:        commit_sha="2" * 40,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:584:        ctx = {"context_id": cid, "kind": kind, "source_identity": source,
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:608:                       "claude-code/oppo")],  # 同 source_identity 换标签
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/station6_adversarial.py:682:         "source_identity": "x", "captured_at": _iso_z(now), "answers": base_answers},
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:187:        identity = report.get("identity")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:188:        if not isinstance(identity, dict):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:189:            raise ValueError("PASS 报告缺 identity 块（作业身份合同）")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:191:            if key not in identity:
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:192:                raise ValueError(f"identity 块缺字段: {key}")
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:193:        if not (isinstance(identity["drill_script_sha256"], str)
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:194:                and _SHA256_RE.fullmatch(identity["drill_script_sha256"])):
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:196:                f"identity.drill_script_sha256 非 64hex: "
+/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/wenqu_core/drill_runner.py:197:                f"{identity['drill_script_sha256']!r}")
+
+[COMMAND] rg ... | head -n 240
+[EXIT_CODE] 0

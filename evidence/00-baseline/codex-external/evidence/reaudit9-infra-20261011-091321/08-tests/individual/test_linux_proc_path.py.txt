@@ -1,0 +1,12 @@
+$ python3 system/tests/test_linux_proc_path.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:08,366328000+08:00
+== Runner Linux /proc token 扫杀通路测试 ==
+  ⏭ SKIP（非 Linux 平台）：真腿仅 Linux /proc 实测（CI ubuntu-latest 执行；darwin 见结构腿）
+-- test_scan_token_pids_linux_branch_structural（结构腿）
+  ✓ 结构腿：linux 分支仅完整 NAME=value 命中（42 且仅 42）
+  ✓ 结构腿：裸名/异值/前缀撞车/不可读/非数字目录全部不误杀
+  ✓ 结构腿：异值 token 零命中
+========================================
+RESULT: PASS=3 FAIL=0
+[exit=0]

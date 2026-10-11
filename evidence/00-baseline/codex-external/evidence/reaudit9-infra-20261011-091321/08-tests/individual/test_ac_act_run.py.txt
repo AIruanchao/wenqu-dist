@@ -1,0 +1,24 @@
+$ python3 system/tests/test_ac_act_run.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:14:13,990479000+08:00
+========================================================================
+§20 ACT/RUN 族专属验收测试（实现 9 条：ACT-01~06 + RUN-01~03）
+  BOUNDARY RUN-01: 容器级隔离未实现：macOS Keychain 直读、SSH agent Unix socket 直连、任意路径生产配置文件读不在 TrustedRunner 防线内（全仓无 sandboxexec/seatbelt/文件系统边界语义）；已实现半边=env 白名单剥除——进程环境通道（SSH_AUTH_SOCK/配置路径变量）在子进程中不存在，隔离拒绝以该腿验证
+  BOUNDARY RUN-03: 输出爆量字节配额（stdout 上限截断）与网络 egress allowlist 无产品实现（TrustedRunner 只有可执行 allowlist opt-in 与超时击杀）；三条注入形态均经验证的事实是：allowlist 未列名可执行一律 PermissionError 前置阻断、零进程产生——『配额阻断』仅此腿成立
+  BOUNDARY ACT-03: 真实 GitHub check_run 发布 outbox（CI check 发布通道）不在本仓被测体（无 GitHub API client）；本地等价=ActionSaga control_outbox 事件幂等（event_id INSERT OR IGNORE）+ APPROVAL_CONSUMED/ACTION_AUTH_RESERVED 同事务原子 + 重放授权消费链守卫
+  BOUNDARY ACT-05: dispatcher/App 失联检测（heartbeat/熔断）无独立实现；本地等价=回执不可得时动作停留 STARTED/PROVISIONAL 不可 COMMITTED（BLOCKED），陈旧水印/跨 run/伪签名回执全部拒绝
+------------------------------------------------------------------------
+  PASS ACT-01  test_ACT_01_technical_pass_without_exact_authorization_controller_holds
+  PASS ACT-02  test_ACT_02_any_mismatch_fails_action_authorization_gate
+  PASS ACT-03  test_ACT_03_outbox_idempotent_recovery_no_double_green
+  PASS ACT-04  test_ACT_04_query_external_fact_committed_or_failed_unknown
+  PASS ACT-05  test_ACT_05_stale_green_or_dispatcher_loss_keeps_action_blocked
+  PASS ACT-06  test_ACT_06_wrong_discriminator_or_missing_fields_schema_rejected
+  PASS RUN-01  test_RUN_01_secret_env_channels_isolation_denied
+  PASS RUN-02  test_RUN_02_timeout_kills_all_descendants_no_orphan_writes
+  PASS RUN-03  test_RUN_03_fork_bomb_blast_network_blocked_by_allowlist
+------------------------------------------------------------------------
+结果: 9/9 passed
+逐 ID 结果已写: /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/evidence/04-unit-property-mutation/ac-act-run.json
+========================================================================
+[exit=0]

@@ -1,0 +1,193 @@
+$ date
+2026-10-11T09:17:38,985949000+08:00
+$ stat scheduler logs and heartbeats
+/Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log|size=180220|mtime=2026-10-11T09:12:38+0800
+/Users/maccc/.wenqu/observation/logs/scheduler-launchd-err.log|size=0|mtime=2026-10-08T17:16:48+0800
+/Users/maccc/.wenqu/observation/heartbeat.json|size=1980|mtime=2026-10-11T09:12:38+0800
+/Users/maccc/.wenqu/state/scheduler.db|size=483328|mtime=2026-10-11T09:12:38+0800
+/Users/maccc/.wenqu/state/gate-aggregate.json|size=951|mtime=2026-10-11T09:12:38+0800
+[exit=0]
+$ tail scheduler out
+{"tick_rc": 0, "tick_at": "2026-10-10T18:25:40Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:30:49Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:35:59Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:41:12Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:46:20Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:51:29Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T18:56:48Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:01:56Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:07:06Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:12:15Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:17:25Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:22:34Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:27:42Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:32:51Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:38:00Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:43:09Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:48:17Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:53:28Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T19:58:40Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:03:48Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:08:57Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:14:06Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:19:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:24:30Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:29:39Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:34:48Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:39:58Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:45:07Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:50:15Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T20:55:30Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:00:40Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:05:49Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:10:58Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:16:06Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:21:16Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:26:25Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:31:34Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:36:44Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:41:54Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:47:04Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:52:13Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T21:58:25Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:05:09Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:10:47Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:16:09Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:21:58Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:27:07Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:32:15Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:37:24Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:42:33Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:47:43Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:52:53Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T22:58:02Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:03:12Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:08:23Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:13:32Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:18:41Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:23:52Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:29:06Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:34:17Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:35:06Z", "gate": "PASS", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:40:08Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:45:16Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:50:22Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FRESH", "healthy": true, "severity": null}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-10T23:55:34Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:00:42Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 6, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:05:50Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:10:58Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:16:05Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:21:12Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:26:20Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:31:27Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:36:37Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:41:44Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 2, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:46:51Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:51:58Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T00:57:06Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T01:02:15Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 6, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T01:07:24Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+{"tick_rc": 0, "tick_at": "2026-10-11T01:12:31Z", "gate": "BLOCKED", "health": [{"job_id": "w4.observation-sample", "state": "FUNCTION_DEAD", "healthy": false, "severity": "CRITICAL"}], "notifications": {"sent": 0, "failed": 0, "dead_lettered": 0, "errors": []}}
+[exit=0]
+$ tail scheduler err
+[exit=0]
+$ heartbeat
+{
+  "label": "com.wenqu.scheduler",
+  "tick_at": "2026-10-11T01:12:31Z",
+  "tick_epoch": 1791681151.5836039,
+  "job_id": "w4.observation-sample",
+  "bootstrapped": false,
+  "due": [
+    {
+      "scheduled_at": 1791681131.010995,
+      "run": true,
+      "reason": "coalesced"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "job-w4.observation-sample-1791681131011",
+      "execution_status": "BLOCKED",
+      "policy_verdict": "NOT_EVALUATED",
+      "actual_exit_code": 3,
+      "refreshed_heartbeat": false,
+      "notifications_enqueued": 0
+    }
+  ],
+  "station_result": {
+    "policy_verdict": "NOT_EVALUATED",
+    "coverage": {
+      "denominator": 1,
+      "scanned": 0,
+      "exclusions": []
+    },
+    "execution_status": "BLOCKED"
+  },
+  "gate": {
+    "aggregate_outcome": "BLOCKED",
+    "policy_verdict": "BLOCKED",
+    "reason": "station_hard_failure [0]",
+    "cli_exit": 2
+  },
+  "capacity_gate": {
+    "gate": "BLOCKED",
+    "code": "CAP_USED_RATIO_EXCEEDED",
+    "severity": "CRITICAL",
+    "used_ratio": 0.9010688394980015,
+    "used_ratio_threshold": 0.9,
+    "headroom_bytes": 48910061568,
+    "violations": [
+      "CAP_USED_RATIO_EXCEEDED"
+    ],
+    "judged_at": "2026-10-11T01:12:31Z",
+    "error": null
+  },
+  "health": [
+    {
+      "job_id": "w4.observation-sample",
+      "state": "FUNCTION_DEAD",
+      "healthy": false,
+      "severity": "CRITICAL"
+    }
+  ],
+  "observation_writers": {
+    "count": 1,
+    "job_ids": [
+      "w4.observation-sample"
+    ],
+    "unique": true
+  },
+  "notifications": {
+    "dispatch": {
+      "sent": 0,
+      "failed": 0,
+      "dead_lettered": 0,
+      "errors": []
+    },
+    "outbox_stats": {
+      "SENT": 126
+    }
+  },
+  "paths": {
+    "scheduler_db": "/Users/maccc/.wenqu/state/scheduler.db",
+    "gate_aggregate": "/Users/maccc/.wenqu/state/gate-aggregate.json",
+    "heartbeat": "/Users/maccc/.wenqu/observation/heartbeat.json",
+    "alerts_dir": "/Users/maccc/.wenqu/observation/alerts"
+  },
+  "tick_rc": 0
+}
+[exit=0]
+$ launchctl selected
+	active count = 1
+	state = running
+	program = /opt/homebrew/bin/python3
+	working directory = /Users/maccc/.wenqu/current
+	runs = 549
+	last exit code = 0
+		state = active
+		active count = 1
+		state = active
+		active count = 1
+	run interval = 300 seconds
+[exit=0]

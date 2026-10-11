@@ -1,0 +1,2327 @@
+timestamp=2026-10-11T01:14:06Z
+pwd=/private/tmp/codex-test
+command=git -C '/Users/maccc/Documents/wenqu-dist' diff --stat d571ab8..origin/main -- system/wenqu_core/ledger_migrator.py tools/w5_reconcile.py system/tests/test_ac_state_mig.py system/tests/p1f_ast_gate.py system/tests/p1f_mutation_gate.py tests/p1f-assert-baseline.txt tests/p1f-behavior-baseline.txt tests/p1f-mutations.json system/tests/test_* && git -C '/Users/maccc/Documents/wenqu-dist' diff --unified=80 d571ab8..origin/main -- system/wenqu_core/ledger_migrator.py tools/w5_reconcile.py system/tests/test_ac_state_mig.py system/tests/p1f_ast_gate.py system/tests/p1f_mutation_gate.py tests/p1f-assert-baseline.txt tests/p1f-behavior-baseline.txt tests/p1f-mutations.json
+--- output begin ---
+ system/tests/p1f_ast_gate.py                  |  634 +++++++++++++
+ system/tests/p1f_mutation_gate.py             |  368 ++++++++
+ system/tests/test_ac_act_run.py               |   71 +-
+ system/tests/test_ac_auth_cond.py             |   35 +-
+ system/tests/test_ac_ops_families.py          |  262 +++++-
+ system/tests/test_ac_state_mig.py             |   21 +-
+ system/tests/test_ac_station56.py             | 1007 ++++++++++++++++++++
+ system/tests/test_ac_station_families.py      |    8 +
+ system/tests/test_ac_ui_family.py             |  169 +++-
+ system/tests/test_approval_issue.py           |  687 +++++++++++++-
+ system/tests/test_events_unified.py           |  332 ++++++-
+ system/tests/test_gate_manifest_trust.py      |   70 +-
+ system/tests/test_linux_proc_path.py          |  336 +++++++
+ system/tests/test_manifest_semantic_replay.py | 1231 +++++++++++++++++++++++++
+ system/tests/test_observation_window.py       | 1051 +++++++++++++++++++++
+ system/tests/test_release_attest.py           |  330 ++++++-
+ system/tests/test_tla_spec.py                 |   72 +-
+ system/tests/test_w4_production.py            |   27 +-
+ system/tests/test_wenqu_adversarial.py        |  408 +++++++-
+ system/wenqu_core/ledger_migrator.py          |  258 ++++++
+ tests/p1f-assert-baseline.txt                 |    2 +-
+ tests/p1f-behavior-baseline.txt               |   14 +
+ tests/p1f-mutations.json                      |  151 +++
+ 23 files changed, 7433 insertions(+), 111 deletions(-)
+diff --git a/system/tests/p1f_ast_gate.py b/system/tests/p1f_ast_gate.py
+new file mode 100644
+index 0000000..4182b51
+--- /dev/null
++++ b/system/tests/p1f_ast_gate.py
+@@ -0,0 +1,634 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""P1f2 AST 行为门——八轮 Codex P1f2 残余修复（文本 assert 计数可被绕过 → AST 行为门）。
++
++背景：旧 P1f2 用文本 grep 数 `assert`/`_ck`/`expect` 出现次数，三类绕过均不红：
++  a) 常量真值断言（assert True / assert 1）——计数照涨、行为恒过；
++  b) 删掉被测调用只留断言壳——计数不缩；
++  c) 删掉失败路径（负例/异常腿）——计数不缩。
++
++本工具对 F6-TRC-GATE-001 的八个专属测试文件做纯 ast 静态分析（零第三方依赖、
++不导入不执行任何被测体，只读源码），逐顶层 test 函数产出三指标：
++
++  trivial_asserts       assert 的测试表达式为常量真值（ast.Constant 真值 /
++                        Name 'True'）→ 计劣（恒真化绕过面）
++  has_call_into_module  函数体内在被测面上真实交互 → 良。被测面静态识别：
++                        - wenqu_core.* 导入名/别名（文件内任意层 import 收集）
++                          上的调用/取属性/下标/迭代（枚举迭代=执行产品 __iter__）；
++                        - 轻量数据流传播的实例（gate = SourceGate(...) 之后
++                          gate.execute_gate() / result["exit_code"]）；
++                        - 产品构造器/装载器助手的产物（store, mgr = _mgr(td)
++                          之后 mgr.get_run(...)；doctor = _load_doctor() 之后
++                          doctor.check(...)）——助手=体内真实触碰产品码的
++                          同文件模块级函数/类（构造 wenqu_core 对象、
++                          spec_from_file_location 装载、或 subprocess 启动
++                          产品路径常量指向的脚本）；
++                        - 产品路径常量（模块级 __file__ 派生、不含 tests/
++                          fixtures 字段的 Path 常量，如 _CONTRACT/_STATIONS）
++                          上的读（.read_text()）与 subprocess 引用
++                          （[sys.executable, str(DOCTOR), ...]）。
++  has_failure_path      存在可失败的断言通道 → 良：
++                        - expect/raises 族异常助手调用（expect/_expect_raise/
++                          _raises/pytest.raises…）；
++                        - try-except（含 except 子句）；
++                        - 断言助手（_ok/_ck 式：体内含条件 raise）且首参非
++                          常量真值（条件可判假=负例通道）；
++                        - 函数内内联条件 raise（if ...: raise ...）；
++                        - 非常量真值的 assert（可判假的真实检查）。
++
++合格函数 = trivial_asserts == 0 且 has_call_into_module 且 has_failure_path。
++汇总每文件合格函数数，与冻结基线 tests/p1f-behavior-baseline.txt 比对：
++合格数缩水、专属文件缺失、源码不可解析、基线缺项/格式非法 → exit 1（CI 红）。
++
++用法：
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --baseline <基线文件> [--verbose]
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
++  python3 system/tests/p1f_ast_gate.py --root <repo根> --file test_ac_gate_family
++"""
++from __future__ import annotations
++
++import argparse
++import ast
++import sys
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Set
++
++# 与 acceptance.sh P1f 节的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
++P1F_FILES: List[str] = [
++    "test_ac_gate_family",
++    "test_ac_state_mig",
++    "test_ac_deploy_release",
++    "test_ac_station_families",
++    "test_ac_ops_families",
++    "test_ac_auth_cond",
++    "test_ac_act_run",
++    "test_ac_ui_family",
++]
++
++# importlib 动态装载产品码的标志调用名（装载器助手判定）
++_LOADER_MARKS = {"spec_from_file_location", "module_from_spec", "exec_module"}
++
++# expect/raises 族异常助手名（调用即失败通道）
++_EXPECT_NAME_MARKS = ("expect", "raises")
++
++# subprocess 家族方法名（启动子进程=可能驱动产品脚本）
++_SUBPROCESS_FUNCS = {"run", "popen", "call", "check_call", "check_output"}
++
++# 产品路径常量的排除字段（夹具路径不算被测面）
++_NON_PRODUCT_SEGMENTS = {"tests", "test", "fixtures", "fixture", "__pycache__"}
++
++
++# ---------------------------------------------------------------------------
++# 基础判定
++# ---------------------------------------------------------------------------
++def _is_truthy_const(node: ast.expr) -> bool:
++    """常量真值：ast.Constant 真值 / Name 'True'（恒真化断言的静态形态）。"""
++    if isinstance(node, ast.Constant):
++        try:
++            return bool(node.value)
++        except Exception:  # 无布尔语义的常量对象按非真值处理
++            return False
++    if isinstance(node, ast.Name) and node.id == "True":
++        return True
++    return False
++
++
++def _call_func_name(call: ast.Call) -> Optional[str]:
++    f = call.func
++    if isinstance(f, ast.Name):
++        return f.id
++    if isinstance(f, ast.Attribute):
++        return f.attr
++    return None
++
++
++def _is_expect_like(name: Optional[str]) -> bool:
++    if not name:
++        return False
++    return any(mark in name.lower() for mark in _EXPECT_NAME_MARKS)
++
++
++def _is_subprocess_call(call: ast.Call) -> bool:
++    f = call.func
++    return isinstance(f, ast.Attribute) and f.attr.lower() in _SUBPROCESS_FUNCS
++
++
++def _expr_mentions(node: ast.expr, names: Set[str]) -> bool:
++    """表达式子树是否引用了 names 中任一名字。"""
++    return any(
++        isinstance(n, ast.Name) and n.id in names for n in ast.walk(node)
++    )
++
++
++# ---------------------------------------------------------------------------
++# 文件级上下文（被测面收集）
++# ---------------------------------------------------------------------------
++class FileContext:
++    def __init__(self, tree: ast.Module) -> None:
++        self.tested_names: Set[str] = set()        # wenqu_core.* 导入名/别名
++        self.product_paths: Set[str] = set()       # 产品路径常量名（模块级）
++        self.loader_helpers: Set[str] = set()      # importlib 装载器助手
++        self.assert_helpers: Set[str] = set()      # _ok/_ck 式断言助手
++        self.product_helpers: Set[str] = set()     # 产品构造器/驱动器助手（函数）
++        self.product_classes: Set[str] = set()     # 产品驱动器类
++        self._collect(tree)
++
++    # —— 收集 ——
++    def _collect(self, tree: ast.Module) -> None:
++        # 1) wenqu_core 被测面：模块级+函数级 import 全收（同名只可能来自被测面）
++        for node in ast.walk(tree):
++            if isinstance(node, ast.ImportFrom) and node.module and (
++                node.module == "wenqu_core" or node.module.startswith("wenqu_core.")
++            ):
++                for alias in node.names:
++                    self.tested_names.add(alias.asname or alias.name)
++            elif isinstance(node, ast.Import):
++                for alias in node.names:
++                    if alias.name == "wenqu_core" or alias.name.startswith("wenqu_core."):
++                        self.tested_names.add(alias.asname or alias.name)
++        # 2) 模块级产品路径常量：__file__ 派生链（fixpoint 追链），排除夹具字段
++        self._collect_product_paths(tree)
++        # 3) 模块级函数/类分类
++        for stmt in tree.body:
++            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
++                if self._touches_product(stmt):
++                    self.product_helpers.add(stmt.name)
++                body_nodes = ast.walk(stmt)
++                if any(
++                    isinstance(n, ast.Call) and _call_func_name(n) in _LOADER_MARKS
++                    for n in body_nodes
++                ):
++                    self.loader_helpers.add(stmt.name)
++                if self._has_conditional_raise(stmt):
++                    self.assert_helpers.add(stmt.name)
++            elif isinstance(stmt, ast.ClassDef):
++                if any(
++                    self._touches_product(sub) for sub in stmt.body
++                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
++                ):
++                    self.product_classes.add(stmt.name)
++
++    def _collect_product_paths(self, tree: ast.Module) -> None:
++        """__file__ 派生的模块级 Path 常量（REPO/SYSTEM/DASH/_CONTRACT…）。
++
++        fixpoint：常量值子树含 __file__ 或已判定常量名 → 产品路径常量；
++        但链上出现 tests/fixtures 等夹具字段的除外（夹具不是被测面）。
++        """
++        for _ in range(8):  # 链深有限，几轮收敛
++            grew = False
++            for stmt in tree.body:
++                if not isinstance(stmt, ast.Assign):
++                    continue
++                value = stmt.value
++                if not _expr_mentions(value, self.product_paths) and not any(
++                    isinstance(n, ast.Name) and n.id == "__file__"
++                    for n in ast.walk(value)
++                ):
++                    continue
++                if any(
++                    isinstance(n, ast.Constant) and isinstance(n.value, str)
++                    and n.value.strip("./").strip("/") in _NON_PRODUCT_SEGMENTS
++                    for n in ast.walk(value)
++                ):
++                    continue  # 夹具路径：tests/fixtures 下不算被测面
++                for t in stmt.targets:
++                    if isinstance(t, ast.Name) and t.id not in self.product_paths:
++                        self.product_paths.add(t.id)
++                        grew = True
++            if not grew:
++                break
++
++    def _touches_product(self, fn: ast.FunctionDef) -> bool:
++        """体内真实触碰产品码：wenqu_core 根调用/产品路径常量引用/装载器标志。
++
++        注意：模块级分析环境为空（参数不预信任）——夹具助手（_git/_make_repo
++        只碰参数与字面量）不会被判为产品面。
++        """
++        for node in ast.walk(fn):
++            if isinstance(node, ast.Call):
++                fname = node.func.id if isinstance(node.func, ast.Name) else None
++                if fname in self.tested_names:
++                    return True
++                if _call_func_name(node) in _LOADER_MARKS:
++                    return True
++                if _is_subprocess_call(node) and _expr_mentions(
++                    node, self.product_paths
++                ):
++                    return True
++            elif isinstance(node, ast.Name):
++                if node.id in self.product_paths:
++                    return True
++        return False
++
++    @staticmethod
++    def _has_conditional_raise(fn: ast.FunctionDef) -> bool:
++        """_ok/_ck 式助手：if <cond>: raise ...（断言助手=条件抛错）。"""
++        for node in ast.walk(fn):
++            if isinstance(node, ast.If):
++                for sub in ast.walk(node):
++                    if isinstance(sub, ast.Raise):
++                        return True
++        return False
++
++
++# ---------------------------------------------------------------------------
++# 函数级行为分析（按语句顺序做轻量信任数据流）
++# ---------------------------------------------------------------------------
++class FunctionMetrics:
++    __slots__ = ("name", "trivial_asserts", "has_call", "has_failure")
++
++    def __init__(self, name: str) -> None:
++        self.name = name
++        self.trivial_asserts = 0
++        self.has_call = False
++        self.has_failure = False
++
++    @property
++    def qualified(self) -> bool:
++        return self.trivial_asserts == 0 and self.has_call and self.has_failure
++
++    def hint(self) -> str:
++        why = []
++        if self.trivial_asserts:
++            why.append(f"trivial_asserts={self.trivial_asserts}")
++        if not self.has_call:
++            why.append("无被测调用")
++        if not self.has_failure:
++            why.append("无失败路径")
++        return ",".join(why) if why else "合格"
++
++
++class _Env:
++    """函数内轻量信任环境：产品对象局部名 + 产品路径局部名。"""
++
++    __slots__ = ("trusted", "path_locals")
++
++    def __init__(self, trusted: Set[str], path_locals: Set[str]) -> None:
++        self.trusted = trusted      # 产品对象（可在其上调用/读属性/下标/迭代）
++        self.path_locals = path_locals  # 产品路径派生局部（subprocess 引用算被测）
++
++    def copy(self) -> "_Env":
++        return _Env(set(self.trusted), set(self.path_locals))
++
++    def merge(self, other: "_Env") -> None:
++        self.trusted |= other.trusted
++        self.path_locals |= other.path_locals
++
++
++class FunctionAnalyzer:
++    def __init__(self, ctx: FileContext) -> None:
++        self.ctx = ctx
++
++    # —— 信任根判定 ——
++    def _trusted_root(self, node: ast.expr, env: _Env) -> bool:
++        if isinstance(node, ast.Name):
++            return (
++                node.id in self.ctx.tested_names
++                or node.id in self.ctx.product_paths
++                or node.id in env.trusted
++            )
++        if isinstance(node, ast.Attribute):
++            return self._trusted_root(node.value, env)
++        if isinstance(node, ast.Subscript):  # f = rep.findings[0] 仍是被测产物
++            return self._trusted_root(node.value, env)
++        if isinstance(node, ast.Call):
++            return self._trusted_root(node.func, env)
++        if isinstance(node, ast.Await):
++            return self._trusted_root(node.value, env)
++        return False
++
++    def _producing_helper_call(self, value: ast.expr) -> bool:
++        """值是产品构造器/装载器/驱动器助手或产品类的调用 → 产物可信。"""
++        if not isinstance(value, ast.Call):
++            return False
++        f = value.func
++        if isinstance(f, ast.Name) and (
++            f.id in self.ctx.loader_helpers
++            or f.id in self.ctx.product_helpers
++            or f.id in self.ctx.product_classes
++        ):
++            return True
++        return False
++
++    def _assign_trusted(self, value: ast.expr, env: _Env) -> bool:
++        if self._trusted_root(value, env):
++            return True
++        return self._producing_helper_call(value)
++
++    # —— 表达式扫描（ Calls 全子树） ——
++    def _scan_expr(self, node: ast.expr, env: _Env, m: FunctionMetrics) -> None:
++        for sub in ast.walk(node):
++            if isinstance(sub, ast.Call):
++                self._check_call(sub, env, m)
++            elif isinstance(sub, (ast.Attribute, ast.Subscript)):
++                # 被测态读取信号：可信根上的属性读/下标（消费产品输出）
++                if self._trusted_root(sub.value, env):
++                    m.has_call = True
++            elif isinstance(sub, ast.NamedExpr):  # walrus：(x := trusted())
++                if isinstance(sub.target, ast.Name) and self._assign_trusted(
++                    sub.value, env
++                ):
++                    env.trusted.add(sub.target.id)
++
++    def _check_call(self, call: ast.Call, env: _Env, m: FunctionMetrics) -> None:
++        # 指标二：被测面上的真实调用
++        if self._trusted_root(call.func, env):
++            m.has_call = True
++        # 泛化腿：subprocess 启动产品路径（脚本/常量）= 驱动产品码
++        if _is_subprocess_call(call) and _expr_mentions(
++            call, self.ctx.product_paths | env.path_locals
++        ):
++            m.has_call = True
++        # 指标三：失败通道（expect/raises 族 + 断言助手带可判假首参）
++        fname = call.func.id if isinstance(call.func, ast.Name) else None
++        if _is_expect_like(fname):
++            m.has_failure = True
++        if fname in self.ctx.assert_helpers:
++            first = call.args[0] if call.args else None
++            if first is not None and not _is_truthy_const(first):
++                m.has_failure = True
++
++    # —— 语句遍历（顺序数据流） ——
++    def _visit_body(self, stmts: List[ast.stmt], env: _Env, m: FunctionMetrics) -> None:
++        for st in stmts:
++            self._visit_stmt(st, env, m)
++
++    def _visit_stmt(self, st: ast.stmt, env: _Env, m: FunctionMetrics) -> None:
++        if isinstance(st, ast.Assert):
++            if _is_truthy_const(st.test):
++                m.trivial_asserts += 1  # 常量真值断言——恒真化，计劣
++            else:
++                m.has_failure = True    # 可判假的真实检查=失败通道
++            self._scan_expr(st.test, env, m)
++            if st.msg is not None:
++                self._scan_expr(st.msg, env, m)
++            return
++        if isinstance(st, ast.Assign):
++            self._scan_expr(st.value, env, m)
++            self._propagate_targets(st.targets, st.value, env)
++            return
++        if isinstance(st, ast.AnnAssign):
++            if st.value is not None:
++                self._scan_expr(st.value, env, m)
++                if isinstance(st.target, ast.Name):
++                    self._propagate_targets([st.target], st.value, env)
++            return
++        if isinstance(st, ast.AugAssign):
++            self._scan_expr(st.value, env, m)
++            return
++        if isinstance(st, (ast.Expr, ast.Return, ast.Delete)):
++            expr = getattr(st, "value", None)
++            if expr is not None:
++                self._scan_expr(expr, env, m)
++            return
++        if isinstance(st, ast.If):
++            self._scan_expr(st.test, env, m)
++            # 内联条件 raise：if <cond>: raise ...（失败通道）
++            if any(isinstance(n, ast.Raise) for n in ast.walk(st)):
++                m.has_failure = True
++            env_body, env_else = env.copy(), env.copy()
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env_else, m)
++            env.merge(env_body)
++            env.merge(env_else)
++            return
++        if isinstance(st, ast.While):
++            self._scan_expr(st.test, env, m)
++            env_body = env.copy()
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env.copy(), m)
++            env.merge(env_body)
++            return
++        if isinstance(st, (ast.For, ast.AsyncFor)):
++            self._scan_expr(st.iter, env, m)
++            env_body = env.copy()
++            if self._trusted_root(st.iter, env):
++                m.has_call = True  # 迭代被测对象=执行产品 __iter__
++                self._add_targets(st.target, env_body.trusted)
++            self._visit_body(st.body, env_body, m)
++            self._visit_body(st.orelse, env.copy(), m)
++            env.merge(env_body)
++            return
++        if isinstance(st, (ast.With, ast.AsyncWith)):
++            for item in st.items:
++                self._scan_expr(item.context_expr, env, m)
++                if item.optional_vars is not None:
++                    if self._assign_trusted(item.context_expr, env):
++                        self._add_targets(item.optional_vars, env.trusted)
++                    if _expr_mentions(
++                        item.context_expr, self.ctx.product_paths | env.path_locals
++                    ):
++                        self._add_targets(item.optional_vars, env.path_locals)
++            self._visit_body(st.body, env, m)
++            return
++        if isinstance(st, ast.Try):
++            if st.handlers:  # except 子句存在=异常失败通道
++                m.has_failure = True
++            branches: List[_Env] = []
++            for block in (st.body, st.orelse, st.finalbody):
++                b = env.copy()
++                self._visit_body(block, b, m)
++                branches.append(b)
++            for h in st.handlers:
++                hb = env.copy()
++                self._visit_body(h.body, hb, m)
++                branches.append(hb)
++            for b in branches:
++                env.merge(b)
++            return
++        if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
++            # 嵌套函数（回调/闭包）：以当前 env 副本分析，指标并入父函数
++            self._visit_body(st.body, env.copy(), m)
++            return
++        if isinstance(st, ast.ClassDef):
++            for d in st.decorator_list:
++                self._scan_expr(d, env, m)
++            self._visit_body(st.body, env.copy(), m)
++            return
++        if isinstance(st, (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal,
++                           ast.Pass, ast.Break, ast.Continue)):
++            return
++        if isinstance(st, ast.Raise):
++            if st.exc is not None:
++                self._scan_expr(st.exc, env, m)
++            if st.cause is not None:
++                self._scan_expr(st.cause, env, m)
++            return
++        # 其余罕见语句（match 等）：保守全子树扫 Calls，不做数据流
++        for sub in ast.walk(st):
++            if isinstance(sub, ast.Call):
++                self._check_call(sub, env, m)
++            elif isinstance(sub, ast.Assert):
++                if _is_truthy_const(sub.test):
++                    m.trivial_asserts += 1
++                else:
++                    m.has_failure = True
++        return
++
++    def _propagate_targets(self, targets: List[ast.expr], value: ast.expr,
++                           env: _Env) -> None:
++        if self._assign_trusted(value, env):
++            for t in targets:
++                self._add_targets(t, env.trusted)
++        if _expr_mentions(value, self.ctx.product_paths | env.path_locals):
++            for t in targets:
++                self._add_targets(t, env.path_locals)
++
++    def _add_targets(self, target: ast.expr, names: Set[str]) -> None:
++        if isinstance(target, ast.Name):
++            names.add(target.id)
++        elif isinstance(target, (ast.Tuple, ast.List)):
++            for el in target.elts:
++                self._add_targets(el, names)
++        elif isinstance(target, ast.Starred):
++            self._add_targets(target.value, names)
++
++
++# ---------------------------------------------------------------------------
++# 文件分析
++# ---------------------------------------------------------------------------
++def analyze_file(path: Path) -> Dict[str, Any]:
++    """返回 {file, total, qualified, metrics[], error}。源码不可解析=error。"""
++    result: Dict[str, Any] = {
++        "file": path.stem, "total": 0, "qualified": 0, "metrics": [], "error": None,
++    }
++    try:
++        source = path.read_text(encoding="utf-8")
++        tree = ast.parse(source, filename=str(path))
++    except (OSError, SyntaxError, ValueError) as exc:
++        result["error"] = f"源码不可读/不可解析: {exc}"
++        return result
++    ctx = FileContext(tree)
++    analyzer = FunctionAnalyzer(ctx)
++    for stmt in tree.body:
++        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name.startswith("test_"):
++            m = FunctionMetrics(stmt.name)
++            analyzer._visit_body(stmt.body, _Env(set(), set()), m)
++            result["metrics"].append(m)
++            result["total"] += 1
++            if m.qualified:
++                result["qualified"] += 1
++    return result
++
++
++# ---------------------------------------------------------------------------
++# 基线
++# ---------------------------------------------------------------------------
++def parse_baseline(path: Path) -> Dict[str, int]:
++    """解析基线：# 注释行跳过；<文件名> <合格数>；非法行/重复条目抛错。"""
++    baseline: Dict[str, int] = {}
++    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
++        line = raw.strip()
++        if not line or line.startswith("#"):
++            continue
++        parts = line.split()
++        if len(parts) != 2 or not parts[1].isdigit():
++            raise ValueError(f"基线第 {lineno} 行格式非法: {raw!r}（应为 '<文件名> <合格数>'）")
++        if parts[0] in baseline:
++            raise ValueError(f"基线第 {lineno} 行重复条目: {parts[0]}")
++        baseline[parts[0]] = int(parts[1])
++    return baseline
++
++
++def emit_baseline(root: Path) -> int:
++    lines = [
++        "# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被",
++        "# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。",
++        "# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。",
++        "# 只允许增长，缩水即 CI 红。再生成：",
++        "#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline",
++        "#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）",
++    ]
++    for name in P1F_FILES:
++        r = analyze_file(root / "system" / "tests" / f"{name}.py")
++        if r["error"]:
++            print(f"!! {name}: {r['error']}", file=sys.stderr)
++            return 2
++        lines.append(f"{name} {r['qualified']}")
++    print("\n".join(lines))
++    return 0
++
++
++# ---------------------------------------------------------------------------
++# 主流程
++# ---------------------------------------------------------------------------
++def run_gate(root: Path, baseline_path: Path, verbose: bool = False,
++             single_file: Optional[str] = None) -> int:
++    tests_dir = root / "system" / "tests"
++    names = [single_file] if single_file else P1F_FILES
++    baseline: Optional[Dict[str, int]] = None
++    if not single_file:
++        try:
++            baseline = parse_baseline(baseline_path)
++        except (OSError, ValueError) as exc:
++            print(f"❌ 基线不可用（{baseline_path}）: {exc}")
++            return 1
++
++    fail = False
++    rows: List[str] = []
++    total_q = 0
++    for name in names:
++        path = tests_dir / f"{name}.py"
++        r = analyze_file(path)
++        if r["error"]:
++            print(f"❌ {name}: {r['error']}")
++            fail = True
++            continue
++        total_q += r["qualified"]
++        bad = sum(1 for m in r["metrics"] if not m.qualified)
++        rows.append(f"  {name}: 合格 {r['qualified']}/{r['total']}"
++                    f"（未达标 {bad} 个）")
++        if verbose or single_file:
++            for m in r["metrics"]:
++                flag = "✅" if m.qualified else "⚠️ "
++                rows.append(f"    {flag} {m.name}: {m.hint()}")
++        if baseline is not None:
++            if name not in baseline:
++                print(f"❌ {name}: 基线缺项——行为门未冻结该文件")
++                fail = True
++            elif r["qualified"] < baseline[name]:
++                print(f"❌ {name}: 合格函数 {r['qualified']} < 基线 {baseline[name]}"
++                      "（空壳化/恒真化/删被测调用/删失败路径）")
++                fail = True
++    if baseline is not None:
++        extra = set(baseline) - set(P1F_FILES)
++        if extra:
++            print(f"❌ 基线含未知条目: {sorted(extra)}")
++            fail = True
++
++    if rows:
++        print("\n".join(rows))
++    if baseline is not None and not fail:
++        print(f"✅ AST 行为门通过（八文件合格函数共 {total_q} ≥ 冻结基线）")
++    return 1 if fail else 0
++
++
++def main(argv: Optional[List[str]] = None) -> int:
++    ap = argparse.ArgumentParser(description="P1f2 AST 行为门（八专属文件断言行为质量棘轮）")
++    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
++    ap.add_argument("--baseline", help="冻结基线 tests/p1f-behavior-baseline.txt")
++    ap.add_argument("--emit-baseline", action="store_true", help="输出当前合格数基线（再冻结用）")
++    ap.add_argument("--file", help="单文件调试（输出逐函数三指标）")
++    ap.add_argument("--verbose", action="store_true", help="check 模式附逐函数明细")
++    args = ap.parse_args(argv)
++
++    root = Path(args.root).resolve()
++    if not root.is_dir():
++        print(f"❌ --root 不存在: {root}")
++        return 2
++    if args.emit_baseline:
++        return emit_baseline(root)
++    if args.file:
++        if args.file not in P1F_FILES:
++            print(f"❌ --file 须为八专属文件之一: {P1F_FILES}")
++            return 2
++        return run_gate(root, root / "tests" / "p1f-behavior-baseline.txt",
++                        verbose=True, single_file=args.file)
++    if not args.baseline:
++        print("❌ check 模式需要 --baseline（或改用 --emit-baseline）")
++        return 2
++    return run_gate(root, Path(args.baseline), verbose=args.verbose)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/system/tests/p1f_mutation_gate.py b/system/tests/p1f_mutation_gate.py
+new file mode 100644
+index 0000000..783edc4
+--- /dev/null
++++ b/system/tests/p1f_mutation_gate.py
+@@ -0,0 +1,368 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""P1f2 mutation 门——G9-07（R8-TRC-TRUTHY-ASSERT-012 根修：AST 形态门→真 mutation gate）。
++
++背景：八轮后的 AST 形态门（p1f_ast_gate.py）能抓「字面恒真/无被测调用/
++无失败路径」三类字面空壳，但两类非字面绕过仍计入合格函数数：
++  a) 非字面恒真：assert len(str(product_call())) >= 0——非常量、有调用、
++     有失败路径形态，AST 三指标全绿，但断言永不可能失败；
++  b) 与产品行为无数据流关系的等量假测试替换：_ok(1 + 1 == 2) 形假腿。
++形态计数无法区分「断言可失败」与「断言确实对产品行为敏感」。
++
++本工具把完成标准从「形态」换成「行为」：对产品函数做机械变异（三类：
++返回值取反 negate_return / 比较符翻转 flip_compare / 删关键守卫行
++drop_raise），逐 mutation 在沙箱副本树上运行其映射的专属测试文件——
++每个 mutation 必须至少杀死一个测试（对应文件 exit != 0），mutation
++score 必须 100%（于 tests/p1f-mutations.json 所选集）。空壳化/恒真化/
++假测试替换的专属测试文件将杀不死任何 mutation → 本门 rc1。
++
++与两道既有闸的关系（G9-07 定版：三道闸并存，棘轮只增不减）：
++  第一道（主）：本 mutation gate——行为敏感度；
++  第二道：tests/p1f-behavior-baseline.txt AST 形态基线（p1f_ast_gate.py）；
++  第三道：tests/p1f-assert-baseline.txt 文本计数旧棘轮。
++
++沙箱纪律：每 mutation 复制仓树到临时目录（忽略 .git/evidence/dist 等
++重目录），AST 变异只写沙箱内副本，绝不动工作树；测试产物经
++WENQU_EVIDENCE_OUT_DIR 重定向进沙箱临时目录。控制腿（未变异沙箱）先跑：
++映射文件不全绿则本门 rc2（防「测试本来就红→假 kill」空转计分）。
++
++用法：
++  python3 system/tests/p1f_mutation_gate.py --root <repo根> \
++      --mutations tests/p1f-mutations.json [--json OUT.json] [--verbose]
++"""
++from __future__ import annotations
++
++import argparse
++import ast
++import copy
++import json
++import os
++import shutil
++import subprocess
++import sys
++import tempfile
++import time
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Tuple
++
++# 与 acceptance.sh P1f 节 / p1f_ast_gate.py 的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
++P1F_FILES: List[str] = [
++    "test_ac_gate_family",
++    "test_ac_state_mig",
++    "test_ac_deploy_release",
++    "test_ac_station_families",
++    "test_ac_ops_families",
++    "test_ac_auth_cond",
++    "test_ac_act_run",
++    "test_ac_ui_family",
++]
++
++VALID_OPS = ("negate_return", "flip_compare", "drop_raise")
++
++# 沙箱复制忽略（重目录/环境残留；测试面不需要它们）
++_SANDBOX_IGNORE = shutil.ignore_patterns(
++    ".git", "evidence", "dist", ".pytest_cache", "__pycache__",
++    ".github", ".DS_Store", "._*", "*.pyc",
++)
++
++# 比较符翻转映射（机械、成对可逆）
++_FLIP = {
++    ast.Lt: ast.GtE, ast.GtE: ast.Lt,
++    ast.Gt: ast.LtE, ast.LtE: ast.Gt,
++    ast.Eq: ast.NotEq, ast.NotEq: ast.Eq,
++    ast.In: ast.NotIn, ast.NotIn: ast.In,
++    ast.Is: ast.IsNot, ast.IsNot: ast.Is,
++}
++
++
++class MutationSpecError(RuntimeError):
++    """mutation 集结构/定位失败（集本身损坏——rc2，与 kill 失败区分）。"""
++
++
++# ---------------------------------------------------------------------------
++# AST 机械变异
++# ---------------------------------------------------------------------------
++class _OpCounter(ast.NodeVisitor):
++    """统计目标函数体内各 op 的可作用点数（0=mutation 无法落地）。"""
++
++    def __init__(self) -> None:
++        self.returns_with_value = 0
++        self.flippable_compares = 0
++        self.raises = 0
++
++    def visit_Return(self, node: ast.Return) -> None:
++        if node.value is not None:
++            self.returns_with_value += 1
++
++    def visit_Compare(self, node: ast.Compare) -> None:
++        if node.ops and all(type(op) in _FLIP for op in node.ops):
++            self.flippable_compares += 1
++
++    def visit_Raise(self, node: ast.Raise) -> None:
++        self.raises += 1
++
++
++class _NegateReturn(ast.NodeTransformer):
++    """return V → return not (V)——返回值取反（布尔语义翻转）。"""
++
++    def visit_Return(self, node: ast.Return) -> ast.Return:
++        if node.value is None:
++            return node
++        return ast.copy_location(
++            ast.Return(value=ast.UnaryOp(op=ast.Not(), operand=copy.deepcopy(node.value))),
++            node)
++
++
++class _FlipCompare(ast.NodeTransformer):
++    """比较符翻转：<↔>=、>↔<=、==↔!=、in↔not in、is↔is not。"""
++
++    def visit_Compare(self, node: ast.Compare) -> ast.Compare:
++        new_ops = [_FLIP[type(op)]() for op in node.ops]
++        return ast.copy_location(
++            ast.Compare(left=node.left, ops=new_ops, comparators=node.comparators),
++            node)
++
++
++class _DropRaise(ast.NodeTransformer):
++    """删除函数体内第一个 Raise 语句（关键守卫行删除；后续 raise 保留）。"""
++
++    def __init__(self) -> None:
++        self.dropped = False
++
++    def visit_Raise(self, node: ast.Raise) -> ast.stmt:
++        if not self.dropped:
++            self.dropped = True
++            return ast.copy_location(ast.Pass(), node)
++        return node
++
++
++def _make_scoped(function: str, inner: ast.NodeTransformer) -> ast.NodeTransformer:
++    """构造只作用于同名函数体的变换器（其余源码不动）。"""
++
++    class _Scoped(ast.NodeTransformer):
++        def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
++            self.generic_visit(node)  # 先递归（嵌套/方法同名同治）
++            if node.name == function:
++                return ast.copy_location(inner.visit(node), node)
++            return node
++
++    return _Scoped()
++
++
++def apply_mutation(src: str, module_path: str, function: str,
++                   op: str) -> Tuple[str, int]:
++    """对 module 源码中指定函数应用机械变异，返回 (变异后源码, 作用点数)。
++
++    函数不存在 / op 无处落地 / 变异后源码无变化 → MutationSpecError。
++    """
++    try:
++        tree = ast.parse(src, filename=module_path)
++    except SyntaxError as exc:
++        raise MutationSpecError(f"{module_path}: 源码不可解析: {exc}") from exc
++
++    counter = _OpCounter()
++    matched = 0
++    for node in ast.walk(tree):
++        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
++            matched += 1
++            counter.visit(node)
++    if matched == 0:
++        raise MutationSpecError(
++            f"{module_path}: 未找到目标函数 {function!r}——mutation 集与产品码脱锚")
++    points = {
++        "negate_return": counter.returns_with_value,
++        "flip_compare": counter.flippable_compares,
++        "drop_raise": counter.raises,
++    }[op]
++    if points == 0:
++        raise MutationSpecError(
++            f"{module_path}#{function}: op={op} 无处落地（产品码已变？mutation 集需同步）")
++
++    inner = {"negate_return": _NegateReturn, "flip_compare": _FlipCompare,
++             "drop_raise": _DropRaise}[op]()
++    scoped = _make_scoped(function, inner)
++    baseline_unparsed = ast.unparse(tree)  # 先快照（NodeTransformer 原地改树）
++    mutated = ast.fix_missing_locations(scoped.visit(tree))
++    out = ast.unparse(mutated)
++    if out == baseline_unparsed:
++        raise MutationSpecError(
++            f"{module_path}#{function}: op={op} 变异后源码无变化（无效 mutation）")
++    return out, points
++
++
++# ---------------------------------------------------------------------------
++# mutation 集装载与校验
++# ---------------------------------------------------------------------------
++def load_mutations(path: Path) -> List[Dict[str, Any]]:
++    """装载并结构校验 mutation 集（tests/p1f-mutations.json）。"""
++    try:
++        raw = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError) as exc:
++        raise MutationSpecError(f"mutation 集不可读: {path}: {exc}") from exc
++    if not isinstance(raw, dict) or "mutations" not in raw:
++        raise MutationSpecError("mutation 集顶层须为 {schema_version, mutations:[...]}")
++    seen_ids: set = set()
++    seen_killer: Dict[str, set] = {name: set() for name in P1F_FILES}
++    for i, m in enumerate(raw["mutations"]):
++        for field in ("id", "module", "function", "op", "test_files", "description"):
++            if field not in m or not m[field]:
++                raise MutationSpecError(f"mutation[{i}] 缺必填字段 {field!r}")
++        if m["id"] in seen_ids:
++            raise MutationSpecError(f"mutation id 重复: {m['id']}")
++        seen_ids.add(m["id"])
++        if m["op"] not in VALID_OPS:
++            raise MutationSpecError(f"{m['id']}: 未知 op {m['op']!r}（合法: {VALID_OPS}）")
++        if not m["module"].startswith("wenqu_core/") or not m["module"].endswith(".py"):
++            raise MutationSpecError(f"{m['id']}: module 须为 wenqu_core/*.py 相对路径")
++        mod_name = m["module"][len("wenqu_core/"):]
++        if "/" in mod_name or not mod_name[:-3].isidentifier():
++            raise MutationSpecError(f"{m['id']}: module 不支持子目录/非法名: {m['module']}")
++        files = m["test_files"]
++        if not isinstance(files, list) or not files:
++            raise MutationSpecError(f"{m['id']}: test_files 须为非空数组")
++        for tf in files:
++            if tf not in P1F_FILES:
++                raise MutationSpecError(f"{m['id']}: test_files 含未知专属文件 {tf!r}")
++            seen_killer[tf].add(m["id"])
++    # 覆盖门：每个专属文件至少杀一个 mutation（防某文件完全脱离行为锚）
++    uncovered = [tf for tf, ids in seen_killer.items() if not ids]
++    if uncovered:
++        raise MutationSpecError(f"mutation 集未覆盖专属文件: {uncovered}")
++    return raw["mutations"]
++
++
++# ---------------------------------------------------------------------------
++# 沙箱执行
++# ---------------------------------------------------------------------------
++def _run_test_file(sandbox: Path, test_file: str,
++                   artifacts_dir: Path) -> Tuple[int, float]:
++    """在沙箱根运行一个专属测试文件，返回 (exit_code, 秒)。"""
++    env = dict(os.environ)
++    env["WENQU_EVIDENCE_OUT_DIR"] = str(artifacts_dir)
++    env["PYTHONDONTWRITEBYTECODE"] = "1"
++    started = time.monotonic()
++    proc = subprocess.run(
++        [sys.executable, str(sandbox / "system" / "tests" / f"{test_file}.py")],
++        cwd=str(sandbox), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
++        text=True, timeout=900,
++    )
++    return proc.returncode, time.monotonic() - started
++
++
++def run_gate(root: Path, mutations_path: Path, json_out: Optional[Path],
++             verbose: bool = False) -> int:
++    mutations = load_mutations(mutations_path)
++    needed_files = sorted({tf for m in mutations for tf in m["test_files"]})
++
++    rows: List[Dict[str, Any]] = []
++    killed = 0
++    vacuous: List[str] = []
++    t0 = time.monotonic()
++
++    with tempfile.TemporaryDirectory(prefix="p1f-mutation-gate-") as tmp:
++        tmpd = Path(tmp)
++        # —— 控制腿：未变异沙箱上全部映射文件必须绿（防假 kill 空转计分）——
++        control = _sandbox_copy(root, tmpd / "control")
++        control_art = tmpd / "control-artifacts"
++        control_rc: Dict[str, int] = {}
++        for tf in needed_files:
++            rc, _dt = _run_test_file(control, tf, control_art)
++            control_rc[tf] = rc
++            if rc != 0:
++                vacuous.append(tf)
++        if vacuous:
++            print("❌ 控制腿失败（未变异沙箱即红，kill 不可信——防空转计分）:")
++            for tf in vacuous:
++                print(f"   {tf}: exit={control_rc[tf]}")
++            shutil.rmtree(control, ignore_errors=True)
++            return 2
++        shutil.rmtree(control, ignore_errors=True)
++
++        # —— 变异腿：逐 mutation 沙箱执行 ——
++        for idx, m in enumerate(mutations, 1):
++            module_rel = m["module"]  # wenqu_core/xxx.py
++            sandbox = _sandbox_copy(root, tmpd / f"mut-{idx:02d}")
++            target = sandbox / "system" / module_rel
++            try:
++                src = target.read_text(encoding="utf-8")
++                mutated, points = apply_mutation(src, str(target), m["function"], m["op"])
++                target.write_text(mutated + "\n", encoding="utf-8")
++            except MutationSpecError as exc:
++                print(f"❌ {m['id']}: mutation 集失效——{exc}")
++                shutil.rmtree(sandbox, ignore_errors=True)
++                return 2
++            kill_rc: Optional[int] = None
++            killer: Optional[str] = None
++            for tf in m["test_files"]:
++                rc, _dt = _run_test_file(sandbox, tf, tmpd / f"art-{idx:02d}")
++                if rc != 0:
++                    kill_rc, killer = rc, tf
++                    break  # 至少一个转红即杀死
++            is_killed = kill_rc is not None
++            killed += 1 if is_killed else 0
++            rows.append({
++                "id": m["id"], "module": module_rel, "function": m["function"],
++                "op": m["op"], "points": points,
++                "killed": is_killed, "killer": killer,
++                "kill_rc": kill_rc, "test_files": m["test_files"],
++            })
++            mark = "✅ KILLED" if is_killed else "❌ SURVIVED"
++            line = (f"  [{idx}/{len(mutations)}] {mark} {m['id']} "
++                    f"{module_rel}#{m['function']} op={m['op']}"
++                    + (f" killer={killer}(exit={kill_rc})" if is_killed else ""))
++            print(line)
++            if verbose:
++                print(f"      {m['description']}")
++            shutil.rmtree(sandbox, ignore_errors=True)
++
++    total = len(mutations)
++    score = (100.0 * killed / total) if total else 0.0
++    elapsed = time.monotonic() - t0
++    print("-" * 72)
++    print(f"mutation score: {killed}/{total} = {score:.1f}%（{elapsed:.1f}s，沙箱全临时）")
++    if json_out is not None:
++        json_out.parent.mkdir(parents=True, exist_ok=True)
++        json_out.write_text(json.dumps({
++            "tool": "p1f_mutation_gate", "killed": killed, "total": total,
++            "score": round(score, 2), "control_green": {tf: 0 for tf in needed_files},
++            "rows": rows,
++        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
++        print(f"报告已写: {json_out}")
++    if killed != total:
++        survivors = [r["id"] for r in rows if not r["killed"]]
++        print(f"❌ mutation gate 失败——存活 {len(survivors)}: {survivors}")
++        print("   （专属测试空壳化/恒真化/假测试替换会杀不死 mutation——行为覆盖被掏空）")
++        return 1
++    print("✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）")
++    return 0
++
++
++def _sandbox_copy(root: Path, dest: Path) -> Path:
++    if dest.exists():
++        shutil.rmtree(dest)
++    shutil.copytree(root, dest, ignore=_SANDBOX_IGNORE, symlinks=False)
++    return dest
++
++
++def main(argv: Optional[List[str]] = None) -> int:
++    ap = argparse.ArgumentParser(description="P1f2 mutation 门（八专属文件行为敏感度棘轮）")
++    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
++    ap.add_argument("--mutations", required=True, help="mutation 集文件（tests/p1f-mutations.json）")
++    ap.add_argument("--json", help="结构化报告输出路径（临时目录，勿指向 tracked evidence）")
++    ap.add_argument("--verbose", action="store_true", help="附 mutation 描述")
++    args = ap.parse_args(argv)
++
++    root = Path(args.root).resolve()
++    if not root.is_dir():
++        print(f"❌ --root 不存在: {root}")
++        return 2
++    try:
++        return run_gate(root, Path(args.mutations), Path(args.json) if args.json else None,
++                        verbose=args.verbose)
++    except MutationSpecError as exc:
++        print(f"❌ mutation 集失效: {exc}")
++        return 2
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/system/tests/test_ac_state_mig.py b/system/tests/test_ac_state_mig.py
+index 0ca8717..f1eff14 100644
+--- a/system/tests/test_ac_state_mig.py
++++ b/system/tests/test_ac_state_mig.py
+@@ -1,167 +1,182 @@
+ #!/usr/bin/env python3
+ # -*- coding: utf-8 -*-
+ """§20 验收 ID 专属测试——STATE-01~11 / MIG-01~05（状态、账本、迁移）。
+ 
+ 正源（逐字对齐）：
+     evidence/00-baseline/codex-external/方案.md §20.2（STATE-01~06、MIG-01~05）
+     与 §20.5（STATE-07~11）表格的「注入/期望」列。
+ 
+ 被测体（wave6/P1F 工单后为两组，A 组断言不依赖 wenqu_pipeline 行为）：
+     A. system/wenqu_core/store.py          —— EventStore（pipeline_events
+        哈希链事件正源：append-only 触发器、控制事件守卫、BEGIN IMMEDIATE
+        事务、WAL 并发、verify_chain、幂等 head）
+        + system/wenqu_core/ledger_migrator.py —— LedgerMigrator（旧 JSONL
+        账本迁移：quarantine/守恒/幂等/sidecar 审计；P0-6 第六轮统一正源
+        ——导入行经公共 EventStore.append 写入同一张 pipeline_events）
+        ——承载 STATE-01/03/04/06/07/08/10、MIG-01~05；
+     B. system/wenqu_core/wenqu_pipeline.py —— 七段状态机 RunManager/
+        ApprovalBroker（wave6 工单补齐产品面语义：STATE-02 ID/路径校验、
+        STATE-05 writer epoch fencing、STATE-09 重放侧 identity 不变量、
+        STATE-11 S7 缺授权终判）——承载 STATE-02/05/09/11。
+ 
+ 可实现性裁定（诚实优先，不硬凑、不 xfail）：
+     本文件对全部 16 个 ID 给出专属真实测试：
+         STATE-01~11、MIG-01~05
+     修正记录（2026-10-08 W5 对账轮）：MIG-05 曾登记为不可实现（当时
+     ledger_migrator 无 project 概念）；并行改写后的迁移器已落地最小实现
+     （PROJECT_FIELDS 一致性提取 + project_key_conflict 显式隔离 + project_id
+     贯通进事件负载），本文件随即以真实专属测试替换该过期登记——断言只增不减。
+     修正记录（2026-10-08 wave6/P1F 工单）：STATE-02/05/09/11 曾登记为
+     不可实现（彼时语义在 store/ledger_migrator 中不存在且本文件被禁止
+     import wenqu_pipeline）；wave6 工单在 wenqu_pipeline.py 落地对应最小
+     真实语义（run_id/finding_id 结构校验、writer epoch fencing、重放侧
+     identity 漂移拒绝、adjudicate_gate_conditional 终判口）后，四条过期
+     登记转为真实专属测试（负例必拒、断言只增不减）。
+ 
+ 覆盖边界（同样显式登记，不冒充完整验收面）：
+     STATE-06/07/08/10 的完整语义 = store 层不可变/不可伪造保证 +
+     RunManager（wenqu_pipeline）层状态机。本文件只测 store 层已实现的那一半
+     （另一 agent 正在并行改 wenqu_pipeline，本文件禁止 import 它）；
+     MIG-01 期望中的「+BLOCKED」在迁移器内的对应语义是 ERROR/BLOCKED 别名
+     归一化为 BLOCKED 状态导入 + 坏行 quarantine 绝不导入为绿；
+     整次迁移的 run 级 BLOCKED 聚合在编排层，不在本文件被测体范围内。
+ 
+ 旧账数据说明：MIG 族全部使用小型「合成旧账」fixture（本文件内
+ build_*_ledger 系列函数在临时目录生成），不是生产账本；
+ 文件名/时间戳/字段名均为合成值。
+ 
+ 独立运行：python3 system/tests/test_ac_state_mig.py  → exit 0 全绿；
+-运行后把逐 ID 结果写入 evidence/04-unit-property-mutation/ac-state-mig.json。
++逐 ID 结果默认写临时目录（G9-07 测试零污染）；设 WENQU_EVIDENCE_OUT_DIR
++可显式指定输出目录（有意更新 tracked evidence 快照时的正门）。
+ """
+ import hashlib
+ import json
+ import os
+ import random
+ import shutil
+ import sqlite3
+ import subprocess
+ import sys
+ import tempfile
+ import threading
+ import time
+ from datetime import datetime, timezone
+ 
+ HERE = os.path.dirname(os.path.abspath(__file__))
+ SYSTEM_DIR = os.path.dirname(HERE)                      # system/
+ REPO_ROOT = os.path.dirname(SYSTEM_DIR)                 # 仓根
+ sys.path.insert(0, SYSTEM_DIR)
+ 
+ # A 组用例只依赖 store / ledger_migrator（对 wenqu_pipeline 零依赖）；
+ # B 组（wave6/P1F）按新工单依赖 wenqu_pipeline——STATE-02/05/09/11 的
+ # 产品语义按工单落在该模块（本会话独占其修改权）。
+ from wenqu_core.store import (                          # noqa: E402
+     EventStore, ChainIntegrityError, GENESIS_HASH, is_control_event)
+ from wenqu_core.ledger_migrator import (                # noqa: E402
+     LedgerMigrator, ConservationError, KNOWN_STATUSES,
+     MIGRATION_EVENT_TYPE, PROJECT_FIELDS, extract_project_ids,
+     PROJECT_KEY_CONFLICT_PREFIX)
+ import wenqu_core.wenqu_pipeline as _wp                 # noqa: E402  (B 组被测体)
+ from wenqu_core.wenqu_pipeline import (                 # noqa: E402
+     RunManager, PipelineError, PipelineCorruptionError, TerminalRunError,
+     ApprovalRejected, InvalidRunIdError, FencedWriterError,
+     SevenStageStateMachine as _SM, STAGES as _PIPE_STAGES)
+ from wenqu_core.approval_keys import (                  # noqa: E402
+     ApprovalKeyring, sign_envelope)
+ 
+-ARTIFACT_PATH = os.path.join(
+-    REPO_ROOT, "evidence", "04-unit-property-mutation", "ac-state-mig.json")
++def _artifact_out_dir() -> str:
++    """证据工件输出目录（G9-07 测试零污染，R8-PYTEST-HISTORICAL-COLLECT-014）：
++
++    - 显式设 ``WENQU_EVIDENCE_OUT_DIR`` → 写该目录（需有意更新 tracked
++      evidence 快照时的正门——人工跑、复核后另行入册）；
++    - 缺省 → 独立临时目录（mkdtemp）——测试输出零污染，绝不改写仓内
++      tracked evidence（git_head/时间戳不再被每次运行覆写）。
++    """
++    env_dir = os.environ.get("WENQU_EVIDENCE_OUT_DIR")
++    if env_dir:
++        os.makedirs(env_dir, exist_ok=True)
++        return env_dir
++    return tempfile.mkdtemp(prefix="wenqu-artifact-ac-state-mig-")
++
++
++ARTIFACT_PATH = os.path.join(_artifact_out_dir(), "ac-state-mig.json")
+ 
+ # ---------------------------------------------------------------------- #
+ # 不可实现登记表（模块级；语义在被测体中不存在，非测试跳过）
+ # wave6/P1F 后为空：STATE-02/05/09/11 已在 wenqu_pipeline 落地最小真实
+ # 语义并转为专属真实测试（见下方 B 组用例）；MIG-05 已在 W5 对账轮由
+ # 并行迁移器实现面承接。登记表保留机制本身——未来再出现被测体确无语义
+ # 的 ID 时按同一格式登记，不以 skip/xfail 冒充。
+ # ---------------------------------------------------------------------- #
+ NOT_IMPLEMENTABLE_IN_SCOPE: dict = {}
+ 
+ # STATE-06/07/08/10 与 MIG-01 的覆盖边界（测的是被测体已实现的那一半）
+ COVERAGE_BOUNDARY = {
+     "STATE-01": "测 store 层 schema 边界：携带任意 stage/status 的管线控制事件（RUN_*/STAGE_*/ATTEMPT_* 等 event_type）经公共 EventStore.append 一律 ValueError；attempt 状态枚举校验在 wenqu_pipeline（禁 import，不越界）",
+     "STATE-06": "测 store 层：SUPERSEDED 属控制事件不可裸 append 伪造；WAITING 残留事件行不可 UPDATE/DELETE 静默消除，唯一出路是追加新事件。残留清扫与 SUPERSEDED 控制事件的实际签发在 RunManager（wenqu_pipeline，禁 import）",
+     "STATE-07": "测 store 层：已落账的 PASSED 证据不可 UPDATE/DELETE 回改成 RUNNING；RUNNING 类状态转移事件是控制类型，普通（裸）事件无法伪造。转移表级拒绝（InvalidTransitionError）在 wenqu_pipeline（禁 import）",
+     "STATE-08": "测 store 层：FAILED attempt 的旧证据行不可覆盖（UPDATE 拒绝），重试只能追加新事件（新 attempt 记录），旧证据逐字节不变且链可验证。attempt_id 分配与不可变（AttemptImmutabilityError）在 wenqu_pipeline（禁 import）",
+     "STATE-10": "测 store 层前半句：WAITING/FAILED attempt 直接改回 RUNNING 的两条路（UPDATE 行 / 伪造控制事件）全拒；追加新 attempt 事件成功且旧行保留。后半句 stage projection 指向新 attempt 在 RunManager（禁 import）",
+     "MIG-01": "测迁移器已实现面：坏 JSON/未知状态 → quarantine 绝不导入；ERROR/BLOCKED 别名按已知状态 BLOCKED 导入（fail-closed 归一）。『+BLOCKED』的整次迁移 run 级 BLOCKED 聚合在编排层（不在被测体）",
+     "MIG-02": "测迁移器已实现面：ACCEPTED 是未知状态——无论缺不缺审批信息一律 quarantine（不猜映射为 PASS），进 quarantine=待人工 reopen 的账，sidecar 全程留痕。『invalid 后写 reopen 事件』属 risk acceptance 子系统（FND-016，不在被测体）",
+     "MIG-04": "ConservationError 是防御性守卫：tally 与处理循环遍历同一 list，经公共 API 构造不出账目不平（已实证 + 代码通读）。本用例测同秩语义的运行时面：逐行独立对账零失联 + 统一 append-only 事件表上删行攻击被触发器直接拒绝（旧版独立 events 表删后补账的少账向量就此关闭）+ 重迁移幂等零变化 + 审计侧不可写则迁移整体失败、零部分导入、零假守恒记账",
+     "MIG-05": "测迁移器最小实现面（P0-6 第六轮 MIG-05 落地）：PROJECT_FIELDS 一致性提取 + 多 project 身份字段值不一致 → project_key_conflict 显式 quarantine（绝不静默选边/拆成假项目）+ 一致时 project_id 贯通进事件负载。§21.1 canonical repo_id（forge_host+owner/repo）冻结映射表与 fingerprint collision 表不在被测体（编排层职责），本文件不越界",
+     # ---- wave6/P1F（B 组，被测体 = wenqu_pipeline.py）---- #
+     "STATE-02": "测 wenqu_pipeline 三个调用方可控 ID 面：create_run task_id（^字母数字/-/_ 且 ≤64，既有）、register_finding finding_id（^fnd_ 且 ≤64，wave6 补长度面）、全部公开 API 的 run_id（^run_[A-Za-z0-9_-]+$ 且 ≤64，wave6 新增 _validate_run_id 闸口）。../、绝对路径、NUL、超长一律结构层拒绝。store 层 event_id 是 canonical payload 内容哈希（STATE-03/04 已实证无调用方输入面），故注入面落在管线 ID 校验；审批信封内 stop_event_id 等绑定字段属 AUTH 族（AUTH-01/COND-02 已覆盖），不在本 ID 范围",
+     "STATE-05": "fenced 写者（RunManager(writer_epoch=N)）的控制事件带 writer_epoch 扩展字段——超出冻结 run-event-v2 词表（默认/未启用模式零盖章、零比较、字节级兼容，P0-4 对抗 #9 的 schema 全绿面不受影响）——schema 升版登记为后续工作包；fencing 作用域=单 run 事件流（被接管流对旧 epoch writer 全写入拒绝，含 broker 消费路径 loader 栅栏；新流/新 run 不受旧租约牵连，本用例显式验证该边界）；epoch 唯一性由租约发放方保证（同 epoch=同租约不区分实例）",
+     "STATE-09": "测重放侧 identity 不变量：RUN_CREATED 冻结身份后，流内任何事件携带漂移 identity（SHA/scope/policy 任一变化）或缺 identity 即 PipelineCorruptionError；『强制新 run』正道（supersede 旧 run + 新 identity 新建 run，不变量 #3）以正例激活。写入侧 identity 结构校验（_validate_identity：40-hex/枚举/必填）为既有语义由正常流隐式覆盖；审批跨 SHA/scope/policy 的绑定拒绝属 COND-02/AUTH-02 面（已覆盖）",
+     "STATE-11": "complete_run 对『软终态缺可用授权』的 fail-closed 拒绝保持不变（P0-2 既有测试断言不回退）；终判 FAILED 由 wave6 专属裁决口 adjudicate_gate_conditional 承接（S7 软终态 + 无已消费/未过期/指纹匹配授权 → RUN_COMPLETED/COMPLETED/FAIL）。S7 attempt 证据保持不可变（COMPLETED_CONDITIONAL 留档），终判落在 run 层；gate_aggregator 的 technical eligibility/context failure 属 COND-01 面（已覆盖）",
+ }
+ 
+ # ---------------------------------------------------------------------- #
+ # 基础设施
+ # ---------------------------------------------------------------------- #
+ PASS_N, FAIL_N = 0, 0
+ RESULTS = []          # [(test_id, name, ok, detail_dict)]
+ 
+ 
+ class TmpDir:
+     def __init__(self, prefix):
+         self.prefix = prefix
+         self.path = None
+ 
+     def __enter__(self):
+         self.path = tempfile.mkdtemp(prefix=self.prefix)
+         return self.path
+ 
+     def __exit__(self, *exc):
+         shutil.rmtree(self.path, ignore_errors=True)
+ 
+ 
+ def expect(exc, fn):
+     try:
+         fn()
+     except exc:
+         return
+     except Exception as e:  # noqa: BLE001
+         raise AssertionError(
+             f"expected {exc.__name__}, got {type(e).__name__}: {e}")
+     raise AssertionError(f"expected {exc.__name__}, nothing raised")
+ 
+ 
+ def raw_conn(db_path):
+     """打开裸 sqlite 连接做对抗性 SQL（绕过 EventStore 侧 API）。"""
+     conn = sqlite3.connect(db_path)
+     conn.execute("PRAGMA busy_timeout=10000")
+     return conn
+ 
+ 
+ def rows_of(conn, sql, args=()):
+     return conn.execute(sql, args).fetchall()
+ 
+ 
+ # ---------------------------------------------------------------------- #
+ # P0-6 第六轮（统一事件正源）查询辅助：MIG 族断言全部落在唯一事件表
+ # pipeline_events 上（负载为 canonical JSON；位置溯源在 sidecar）
+ # ---------------------------------------------------------------------- #
+ def unified_rows(conn):
+     """统一事件表全行快照（seq/event_id/payload/prev_event_hash/event_hash）。"""
+     return rows_of(conn, "SELECT seq, event_id, payload, prev_event_hash, "
+                          "event_hash FROM pipeline_events ORDER BY seq ASC")
+ 
+ 
+diff --git a/system/wenqu_core/ledger_migrator.py b/system/wenqu_core/ledger_migrator.py
+index 7fe318c..19d6851 100644
+--- a/system/wenqu_core/ledger_migrator.py
++++ b/system/wenqu_core/ledger_migrator.py
+@@ -1,249 +1,330 @@
+ # -*- coding: utf-8 -*-
+ """旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器（Codex W5）。
+ 
+ P0-6 第六轮（统一事件正源）改写——「单一事件表 + 单一写入 API」：
+     旧版迁移器自建独立 ``events`` 表，与 ``store.EventStore`` 的
+     ``pipeline_events`` 哈希链表形成两表两正源。本轮起迁移器不再含
+     ``events`` 建表 DDL、绝不写入任何第二事件表：全部导入行经公共
+     :meth:`EventStore.append` 写入与管线控制事件/外部事件同一张
+     ``pipeline_events`` 表——迁移产物与 EventStore.append 产物同表、
+     同哈希链，混合流 ``verify_chain()`` 单链贯穿。
+ 
+ 旧 ``events`` 表（仅存在于历史库）冻结为只读兼容：
+     - 新代码绝不创建、绝不写入该表；
+     - 历史残留行由一次性函数 :func:`migrate_legacy_events` 收编进
+       ``pipeline_events``（内容寻址幂等：重跑全部计 duplicate、零重复入账）；
+     - 收编后旧表原样保留在库中，仅供只读对账，不再是事件正源；
+     - R7-EVENT-LEGACY-WRITABLE-007（P0）根修：收编完成后对旧表安装冻结
+       触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)），cutover（冻结）
+       时刻记入库内 bookkeeping 表 ``legacy_events_cutover``；晚于 cutover
+       才出现/才落账的迟到行绝不导入——一律 quarantine
+       （reason=late_write_after_cutover）并在报告告警，迁移器绝不静默
+       吸收收编后的写入（详见 :func:`migrate_legacy_events` 契约）。
+ 
++第八轮 P0-6 残余根修（backdated gap/UPDATE 仍可入链）：cutover 的
++    id/ts 双通道都是 writer 可回填的字段——旧表冻结触发器被 DROP 后，
++    UPDATE 旧行并回填早 ts（或向历史 gap 空位 INSERT 全回填行）可骗过
++    双通道二次入链。根修为「不可伪造的行版本账本」：首次收编把旧表
++    每行已读内容的 sha256 记入统一库侧 bookkeeping 表
++    ``legacy_row_digests``（rowid→快照；装 AFTER UPDATE/DELETE 拒绝
++    触发器，与事件链同库受 append-only 保护）；二次收编逐行比对——
++    内容失配即 quarantine（reason=row_mutated_after_cutover）、账本
++    缺席（gap 空位后塞入且双通道未命中）按迟到写拒收。旧表侧无论
++    怎么改（含 DROP 三触发器）都改不到统一库侧账本，比对必然失配。
++
++G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）：
++    上述行版本账本只保护「fresh cutover 后」的库——旧版代码跑过的库
++    只有 cutover 记账、没有 digest ledger。若升级时按「当前现状」补记
++    基线，则升级前已发生的 gap/UPDATE+backdate 篡改会被当成可信基线
++    收编入链。根修为 ``legacy_untrusted`` fail-closed：升级路径检测到
++    「cutover 已记账而 digest ledger 缺失/为空」时，绝不按现状补基线
++    ——本次发现的行全部 quarantine（reason=legacy_untrusted_no_baseline，
++    imported=0、主链长度不增），报告显式声明该库 legacy 历史不可验证，
++    需人工从可信正源重建基线或接受永久隔离（见
++    :func:`migrate_legacy_events` 契约）。
++
+ 约束（不可降级）：
+     M1 append-only sidecar：迁移审计只追加写入 sidecar JSONL；绝不重写、
+        绝不触碰源 JSONL 内容（源文件只读打开）；
+     M2 未知状态 / 缺字段 -> quarantine 隔离，绝不猜填字段、绝不猜归一化；
+     M3 状态归一化仅限已知别名表；FIXED 一律记为 FIXED_PENDING_VERIFY
+        （未经独立验证不承认修复完成）；
+     M4 数量守恒：源非空行数 == 有效导入 + 重复 + quarantine；不守恒即抛
+        ConservationError，绝不静默少账。
+     M5（§20.2 MIG-05）project key 冲突 -> 显式冲突 quarantine，绝不静默
+        选边、绝不拆成假项目：同一行携带多个 project 身份字段且值不一致时，
+        以 ``project_key_conflict:...`` reason 隔离待人工裁定，导入行绝不
+        归入任一冲突方；一致时按 ``PROJECT_FIELDS`` 优先级取 project_id
+        贯通进事件负载（§14.3 canonical repo_id 映射的最小实现）。
+ 
+ 每行账本契约：JSON 对象，至少含 ``status`` 与 ``ts`` 两个字段；``status``
+ 归一化后必须落在已知状态集合内。空行不计入守恒分母。
+ 
+ 重复判定（与旧版 line_sha 唯一约束语义等价）：导入事件的负载是行内容的
+ 纯函数——``event_type``/``line_sha``/``status``/``raw`` 全部由该行字节
+ 内容决定，不含 source_file/source_line 等位置信息（位置溯源只在 sidecar
+ 审计里逐行映射）。因此 ``event_id``（= canonical payload 的 SHA256，
+ 由 EventStore.append 计算）相等当且仅当行内容相同：同输入两次迁移零
+ 重复；跨文件出现的同内容行同样计为 duplicate（与旧版「按行内容 SHA256
+ 判重」一致）。
+ 
+ 提交粒度：导入行逐条经 EventStore.append 入链（每行一个 BEGIN
+ IMMEDIATE 事务，与管线事件同一写入纪律）；中途崩溃后重跑幂等续账
+ （已入链行计 duplicate），不会双记账。
+ """
+ 
+ from __future__ import annotations
+ 
+ import hashlib
+ import json
+ import os
+ import sqlite3
+ from datetime import datetime, timezone
+ from typing import Any, Dict, List, Optional
+ 
+ from .store import EventStore
+ 
+ __all__ = [
+     "LedgerMigrator", "ConservationError", "STATUS_ALIASES", "KNOWN_STATUSES",
+     "MIGRATION_EVENT_TYPE", "LEGACY_EVENTS_TABLE",
+     "LEGACY_RESIDUE_EVENT_TYPE", "migration_event", "migrate_legacy_events",
+     "PROJECT_FIELDS", "extract_project_ids",
+     "LATE_WRITE_REASON", "LEGACY_FREEZE_TRIGGER_NAMES", "LEGACY_CUTOVER_TABLE",
++    "ROW_MUTATED_REASON", "LEGACY_ROW_DIGESTS_TABLE",
++    "LEGACY_DIGEST_FREEZE_TRIGGER_NAMES",
++    "LEGACY_UNTRUSTED_REASON", "LEGACY_UNTRUSTED_ACTION_REQUIRED",
+ ]
+ 
+ # 已知状态别名归一表（键为全大写形式）
+ STATUS_ALIASES = {
+     "PASS": "PASS",
+     "PASSED": "PASS",
+     "OK": "PASS",
+     "SUCCESS": "PASS",
+     "GREEN": "PASS",
+     "FAIL": "FAIL",
+     "FAILED": "FAIL",
+     "FAILURE": "FAIL",
+     "RED": "FAIL",
+     "CONDITIONAL": "CONDITIONAL",
+     "WARN": "CONDITIONAL",
+     "WARNING": "CONDITIONAL",
+     "BLOCKED": "BLOCKED",
+     "ERROR": "BLOCKED",
+     "FIXED": "FIXED_PENDING_VERIFY",          # M3：FIXED 未验证不承认
+     "FIXED_PENDING_VERIFY": "FIXED_PENDING_VERIFY",
+ }
+ KNOWN_STATUSES = frozenset({"PASS", "FAIL", "CONDITIONAL", "BLOCKED", "FIXED_PENDING_VERIFY"})
+ REQUIRED_FIELDS = ("status", "ts")
+ 
+ #: project 身份字段（MIG-05 §14.3 canonical repo_id 映射的最小实现）：
+ #: 按序取第一个非空值作为该行 project_id；多字段同时存在且值不一致
+ #: 即 project key 冲突 -> 显式 quarantine（绝不静默选边/拆成假项目）
+ PROJECT_FIELDS = ("project_id", "project", "repo_id", "repo", "task")
+ 
+ #: MIG-05 quarantine reason 前缀（报告/对账工具按此前缀聚合冲突清单）
+ PROJECT_KEY_CONFLICT_PREFIX = "project_key_conflict:"
+ 
+ #: 导入行的统一事件类型（非控制类型——控制事件前缀/枚举之外，可经公共
+ #: EventStore.append 写入；见 store.CONTROL_EVENT_TYPE_*）
+ MIGRATION_EVENT_TYPE = "LEDGER_MIGRATED"
+ 
+ #: 旧版两正源残留表名（冻结只读；新代码绝不创建、绝不写入）
+ LEGACY_EVENTS_TABLE = "events"
+ 
+ #: 旧表残留行收编进 pipeline_events 时的事件类型（同样非控制类型）
+ LEGACY_RESIDUE_EVENT_TYPE = "LEGACY_EVENTS_ROW_MIGRATED"
+ 
+ #: run 级迁移记账表（bookkeeping，非事件正源；与事件表分离）
+ _RUNS_SCHEMA = """
+ CREATE TABLE IF NOT EXISTS migration_runs (
+     run_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+     finished_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     files_scanned INTEGER NOT NULL,
+     lines_total   INTEGER NOT NULL,
+     imported      INTEGER NOT NULL,
+     duplicates    INTEGER NOT NULL,
+     quarantined   INTEGER NOT NULL,
+     conserved     INTEGER NOT NULL
+ );
+ """
+ 
+ # ---------------------------------------------------------------------- #
+ # R7-EVENT-LEGACY-WRITABLE-007（P0）：旧表冻结只读 + cutover 记账 + 迟到写拒收
+ # ---------------------------------------------------------------------- #
+ #: 收编完成后对旧表安装的冻结触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）。
+ #: CREATE TRIGGER IF NOT EXISTS 幂等安装：重跑不报错、不重复；触发器曾被
+ #: 绕过删除时，下一次收编运行治愈重装。
+ _LEGACY_FREEZE_ACTIONS = ("insert", "update", "delete")
+ LEGACY_FREEZE_TRIGGER_NAMES = tuple(
+     f"{LEGACY_EVENTS_TABLE}_legacy_frozen_no_{action}"
+     for action in _LEGACY_FREEZE_ACTIONS)
+ _LEGACY_FREEZE_TRIGGER_DDL = tuple(
+     f"CREATE TRIGGER IF NOT EXISTS {name} "
+     f"BEFORE {action.upper()} ON {LEGACY_EVENTS_TABLE} "
+     "BEGIN "
+     f"SELECT RAISE(ABORT, 'legacy {LEGACY_EVENTS_TABLE} frozen read-only "
+     f"after cutover: {action.upper()} is forbidden'); "
+     "END;"
+     for action, name in zip(_LEGACY_FREEZE_ACTIONS, LEGACY_FREEZE_TRIGGER_NAMES))
+ 
+ #: 迟到写（cutover 之后才出现/才落账的旧行）的统一 quarantine reason
+ LATE_WRITE_REASON = "late_write_after_cutover"
+ 
+ #: cutover（冻结时刻）记账表：bookkeeping，非事件正源（与 migration_runs
+ #: 同类）。为何记在库内 bookkeeping 而不是事件链/sidecar：
+ #: - 迟到写判定必须与库同生命周期可读（sidecar 是旁路审计文件，可被独立
+ #:   删除/移动，不能承担执法凭证）；
+ #: - 往事件链追加 bookkeeping 事件会扰动「收编行数=链增量」的链长不变量，
+ #:   并混淆「事件负载=旧行内容纯函数」的幂等契约；
+ #: - sidecar 保持逐行 1:1 审计形状。cutover 时刻经迁移报告显式回带。
+ LEGACY_CUTOVER_TABLE = "legacy_events_cutover"
+ _CUTOVER_SCHEMA = (
+     f"CREATE TABLE IF NOT EXISTS {LEGACY_CUTOVER_TABLE} ("
+     " id            INTEGER PRIMARY KEY CHECK (id = 1),"
+     " cutover_ts    TEXT NOT NULL,"
+     " cutover_epoch REAL NOT NULL,"
+     " max_legacy_id INTEGER NOT NULL,"
+     " trigger_names TEXT NOT NULL)"
+ )
+ 
+ #: 旧 ``events`` 表收编时必须存在的列（缺失即形状异常，fail-closed 拒收）
+ _LEGACY_REQUIRED_COLUMNS = frozenset({
+     "id", "line_sha", "status", "source_file", "source_line", "payload"})
+ 
++# ---------------------------------------------------------------------- #
++# 第八轮 P0-6 残余根修：行内容快照账本（不可伪造的行版本记录）
++# ---------------------------------------------------------------------- #
++#: 行内容快照账本（bookkeeping，非事件正源）：首跑收编把旧表每行「已读
++#: 内容」的 sha256 记入该表（rowid -> 快照）。记在统一库侧而非旧表侧是
++#: 刻意的——旧表 writer（含 DROP 掉旧表冻结触发器的绕过者）对统一库无
++#: 写权限，改不到账本；账本自身装 AFTER UPDATE/DELETE 拒绝触发器，
++#: append-only 保护与 ``pipeline_events`` 同库同级。
++LEGACY_ROW_DIGESTS_TABLE = "legacy_row_digests"
++
++#: 快照账本自身的 append-only 守卫触发器（AFTER UPDATE/DELETE 一律 ABORT）
++LEGACY_DIGEST_FREEZE_TRIGGER_NAMES = (
++    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_update",
++    f"{LEGACY_ROW_DIGESTS_TABLE}_append_only_no_delete",
++)
++_DIGESTS_SCHEMA = (
++    f"CREATE TABLE IF NOT EXISTS {LEGACY_ROW_DIGESTS_TABLE} ("
++    " legacy_id   INTEGER PRIMARY KEY,"
++    " row_sha     TEXT NOT NULL,"
++    " recorded_at TEXT NOT NULL DEFAULT (datetime('now')))"
++)
++_LEGACY_DIGEST_TRIGGER_DDL = tuple(
++    f"CREATE TRIGGER IF NOT EXISTS {name} "
++    f"AFTER {action} ON {LEGACY_ROW_DIGESTS_TABLE} "
++    "BEGIN "
++    f"SELECT RAISE(ABORT, '{LEGACY_ROW_DIGESTS_TABLE} is append-only: "
++    f"{action} is forbidden'); "
++    "END;"
++    for action, name in zip(("update", "delete"),
++                            LEGACY_DIGEST_FREEZE_TRIGGER_NAMES))
++
++#: 行内容被 UPDATE 过（cutover 后当前内容与账本快照不符）的统一
++#: quarantine reason——含仅改 migrated_at 元数据的伪装性改动
++ROW_MUTATED_REASON = "row_mutated_after_cutover"
++
++# ---------------------------------------------------------------------- #
++# G9-05 第九轮根修（legacy 升级洞，R8-EVENT-BACKDATE-008 升级路径）
++# ---------------------------------------------------------------------- #
++#: legacy 升级 fail-closed 的统一 quarantine reason：cutover 已记账而
++#: digest ledger 缺失/为空（旧版代码跑过的库从来没有行版本账本），升级
++#: 时旧表内容不可验证——本次发现的行一律隔离，绝不按「升级时现状」补
++#: 可信基线（那会把升级前已发生的 gap/UPDATE+backdate 篡改收编入链）
++LEGACY_UNTRUSTED_REASON = "legacy_untrusted_no_baseline"
++
++#: ``legacy_untrusted`` 库的显式处置说明（进迁移报告，人工裁定正门）
++LEGACY_UNTRUSTED_ACTION_REQUIRED = (
++    "manual intervention required: rebuild the "
++    f"{LEGACY_ROW_DIGESTS_TABLE} baseline from an authoritative "
++    "pre-cutover source (人工从可信正源重建基线), or accept permanent "
++    "quarantine of all legacy rows (或接受全部旧行永久隔离). "
++    "Baselining from the current legacy table state is forbidden: "
++    "cutover was recorded without a digest ledger, so tampering that "
++    "happened before the upgrade (gap inserts / UPDATE+backdate) "
++    "cannot be distinguished from untampered rows."
++)
++
+ 
+ class ConservationError(RuntimeError):
+     """数量守恒被破坏：源非空行数 != 有效导入 + 重复 + quarantine。"""
+ 
+ 
+ def _line_sha(line: str) -> str:
+     """行内容 SHA256（剥离行尾换行，保证跨平台一致）。"""
+     return hashlib.sha256(line.rstrip("\r\n").encode("utf-8")).hexdigest()
+ 
+ 
+ def extract_project_ids(obj: Dict[str, Any]) -> Dict[str, str]:
+     """按 ``PROJECT_FIELDS`` 顺序提取行内的 project 身份字段。
+ 
+     只取标量（str/int/float）非空值；dict/list 或空串视为该字段缺席
+     （绝不把复杂值 stringify 成假 project key）。返回 ``{字段名: 规格化值}``
+     （保留字段名大小写与顺序，值做 strip）。
+     """
+     out: Dict[str, str] = {}
+     for field in PROJECT_FIELDS:
+         val = obj.get(field)
+         if val is None or isinstance(val, (dict, list, bool)):
+             continue
+         text = str(val).strip()
+         if text:
+             out[field] = text
+     return out
+ 
+ 
+ def migration_event(line_sha: str, status: str, raw: str,
+                     project_id: Optional[str] = None) -> Dict[str, Any]:
+     """构造一条导入行的统一事件（行内容的纯函数，保证内容寻址幂等）。
+ 
+     负载只含由该行字节内容决定的字段（event_type/line_sha/status/raw，
+     以及可选 project_id——同样由该行内容决定）；source_file/source_line
+     等位置溯源不进负载（进 sidecar 审计），否则同内容行在不同位置会绕过
+     判重、破坏 MIG 幂等语义。project_id 为 None（行内无 project 字段）时
+     不写入该键，负载形状与既有无 project 行逐字节一致。
+     """
+     event: Dict[str, Any] = {
+         "event_type": MIGRATION_EVENT_TYPE,
+         "line_sha": line_sha,
+         "status": status,
+         "raw": raw,
+     }
+     if project_id is not None:
+         event["project_id"] = project_id
+     return event
+ 
+ 
+ class LedgerMigrator:
+     """旧 JSONL 账本 -> SQLite EventStore(pipeline_events) 迁移器。
+ 
+     用法::
+ 
+         mig = LedgerMigrator(source_dir=".../ledgers", sqlite_path=".../events.db")
+         mig.scan()          # 可选：显式建立逐文件逐行 SHA 清单
+         report = mig.migrate()
+         assert report["conserved"] is True
+ 
+     sqlite_path 指向的库即统一事件正源库：EventStore 在该库上维护
+     ``pipeline_events`` 哈希链表；迁移行与管线事件同表同链。
+     """
+ 
+     def __init__(self, source_dir: str, sqlite_path: str,
+                  sidecar_path: Optional[str] = None) -> None:
+         self.source_dir = os.path.abspath(source_dir)
+         self.sqlite_path = os.path.abspath(sqlite_path)
+         self.sidecar_path = (
+             os.path.abspath(sidecar_path) if sidecar_path
+             else self.sqlite_path + ".migration-sidecar.jsonl"
+         )
+         self._inventory: List[Dict[str, Any]] = []
+         self._last_report: Optional[Dict[str, Any]] = None
+ 
+     # ------------------------------------------------------------------ #
+     # 扫描：逐文件逐行 SHA 清单
+     # ------------------------------------------------------------------ #
+     def scan(self, source_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+         """扫描 *.jsonl（按文件名排序），对每个非空行建立 SHA 清单。
+ 
+@@ -405,388 +486,565 @@ class LedgerMigrator:
+             # 产物链自检：迁移行与库中既有事件（管线控制事件/外部事件）
+             # 必须是同一条可验证哈希链——这是「唯一正源」的运行时证明
+             store.verify_chain()
+ 
+             conserved = (
+                 tally["lines_total"]
+                 == tally["imported"] + tally["duplicates"] + tally["quarantined"]
+             )
+             # run 级记账（bookkeeping 表；非事件正源，不参与哈希链）
+             conn = sqlite3.connect(self.sqlite_path)
+             try:
+                 conn.execute("PRAGMA busy_timeout=10000;")
+                 conn.executescript(_RUNS_SCHEMA)
+                 conn.execute(
+                     "INSERT INTO migration_runs (files_scanned, lines_total, imported, duplicates,"
+                     " quarantined, conserved) VALUES (?, ?, ?, ?, ?, ?)",
+                     (tally["files_scanned"], tally["lines_total"], tally["imported"],
+                      tally["duplicates"], tally["quarantined"], int(conserved)),
+                 )
+                 conn.commit()
+             finally:
+                 conn.close()
+         finally:
+             store.close()
+ 
+         if not conserved:
+             raise ConservationError(
+                 f"conservation violated: lines_total={tally['lines_total']} != "
+                 f"imported({tally['imported']}) + duplicates({tally['duplicates']}) + "
+                 f"quarantined({tally['quarantined']})"
+             )
+ 
+         self._last_report = self._build_report(tally, quarantine_reasons, status_counts,
+                                                per_file, conserved)
+         return self._last_report
+ 
+     # ------------------------------------------------------------------ #
+     # 报告
+     # ------------------------------------------------------------------ #
+     def report(self) -> Dict[str, Any]:
+         """返回最近一次迁移的守恒报告；尚未迁移时显式报错（不编造空账）。"""
+         if self._last_report is None:
+             raise RuntimeError("no migration report yet: run migrate() first")
+         return self._last_report
+ 
+     def _build_report(self, tally: Dict[str, int], quarantine_reasons: Dict[str, int],
+                       status_counts: Dict[str, int], per_file: Dict[str, Dict[str, Any]],
+                       conserved: bool) -> Dict[str, Any]:
+         return {
+             "source_dir": self.source_dir,
+             "sqlite_path": self.sqlite_path,
+             "sidecar_path": self.sidecar_path,
+             # P0-6 第六轮：统一事件正源的显式锚点
+             "event_table": "pipeline_events",
+             "write_api": "EventStore.append",
+             "conserved": conserved,
+             "conservation": {
+                 "equation": "lines_total == imported + duplicates + quarantined",
+                 "lines_total": tally["lines_total"],
+                 "imported": tally["imported"],
+                 "duplicates": tally["duplicates"],
+                 "quarantined": tally["quarantined"],
+             },
+             "files_scanned": tally["files_scanned"],
+             "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+             # MIG-05：project key 冲突单独聚合（仍是 quarantine 的子集，
+             # 不改变守恒等式；对账工具据此出显式冲突清单）
+             "project_key_conflicts": {
+                 k: v for k, v in sorted(quarantine_reasons.items())
+                 if k.startswith(PROJECT_KEY_CONFLICT_PREFIX)},
+             "imported_status_counts": dict(sorted(status_counts.items())),
+             "per_file": [
+                 {"file": f, **stats} for f, stats in sorted(per_file.items())
+             ],
+         }
+ 
+ 
+ # ---------------------------------------------------------------------- #
+ # 旧 events 表残留：一次性收编（P0-6 第六轮）
+ # R7-EVENT-LEGACY-WRITABLE-007：收编后冻结只读 + 迟到写拒收（第七轮 P0 修）
++# 第八轮 P0-6 残余：行内容快照账本（UPDATE+backdate / gap 空位回填拒收）
+ # ---------------------------------------------------------------------- #
+ def _parse_ts_to_epoch(value: Any) -> Optional[float]:
+     """把行内 ts / migrated_at 等时间值解析为 UTC epoch 秒；不可解析返回 None。
+ 
+     支持 ISO 8601（含 Z 后缀/无时区按 UTC）、SQLite ``datetime('now')``
+     形状、数值 epoch（秒；≥1e12 视为毫秒归一）。不可解析/空值返回
+     None——该时间通道缺席，绝不猜时间（M2 精神：缺证据不猜填）。
+     """
+     if value is None or isinstance(value, bool):
+         return None
+     if isinstance(value, (int, float)):
+         return float(value) / 1000.0 if value >= 1e12 else float(value)
+     text = str(value).strip()
+     if not text:
+         return None
+     try:
+         num = float(text)
+     except ValueError:
+         num = None
+     if num is not None:
+         return num / 1000.0 if num >= 1e12 else num
+     iso = (text[:-1] + "+00:00") if text.endswith(("Z", "z")) else text
+     parsed: Optional[datetime] = None
+     try:
+         parsed = datetime.fromisoformat(iso)
+     except ValueError:
+         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f",
+                     "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+             try:
+                 parsed = datetime.strptime(text, fmt)
+                 break
+             except ValueError:
+                 continue
+     if parsed is None:
+         return None
+     if parsed.tzinfo is None:
+         parsed = parsed.replace(tzinfo=timezone.utc)
+     return parsed.timestamp()
+ 
+ 
+ def _row_effective_epoch(payload_text: Optional[str],
+                          migrated_at: Any = None) -> Optional[float]:
+     """旧行「落账时刻」的保守估计：行内 ts（payload JSON 的 ``ts`` 字段）与
+     表元数据 ``migrated_at``（rowid 侧元数据通道）两路取可解析的最大值。
+ 
+     取最大是 fail-closed 方向：任一通道声称该行晚于 cutover，即按迟到
+     写处理。全部不可解析返回 None（时间证据缺席，由 id 通道兜底）。
+     """
+     candidates: List[float] = []
+     meta = _parse_ts_to_epoch(migrated_at)
+     if meta is not None:
+         candidates.append(meta)
+     if payload_text:
+         try:
+             obj = json.loads(payload_text)
+         except ValueError:
+             obj = None
+         if isinstance(obj, dict):
+             inner = _parse_ts_to_epoch(obj.get("ts"))
+             if inner is not None:
+                 candidates.append(inner)
+     return max(candidates) if candidates else None
+ 
+ 
+ def _read_cutover(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
+     """读该库已记录的 cutover；无记账/记账行为空返回 None。"""
+     hit = conn.execute(
+         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+         (LEGACY_CUTOVER_TABLE,)).fetchone()
+     if hit is None:
+         return None
+     row = conn.execute(
+         f"SELECT cutover_ts, cutover_epoch, max_legacy_id, trigger_names "
+         f"FROM {LEGACY_CUTOVER_TABLE} WHERE id = 1").fetchone()
+     if row is None:
+         return None
+     try:
+         names = json.loads(row[3])
+     except ValueError:
+         names = []
+     return {"cutover_ts": row[0], "cutover_epoch": row[1],
+             "max_legacy_id": row[2], "trigger_names": names}
+ 
+ 
+ def _record_cutover(conn: sqlite3.Connection, max_legacy_id: int,
+                     trigger_names: List[str]) -> None:
+     """首次冻结记账（bookkeeping，非事件正源）。
+ 
+     INSERT OR IGNORE + ``id = 1`` CHECK：单行记账，一经记录永不推进——
+     迟到判定永远以该库首次 cutover 为准，绝不因后续运行（哪怕吸收过迟到
+     行）而把门槛后移。
+     """
+     now = datetime.now(timezone.utc)
+     conn.execute(_CUTOVER_SCHEMA)
+     conn.execute(
+         f"INSERT OR IGNORE INTO {LEGACY_CUTOVER_TABLE} "
+         f"(id, cutover_ts, cutover_epoch, max_legacy_id, trigger_names) "
+         f"VALUES (1, ?, ?, ?, ?)",
+         (now.strftime("%Y-%m-%dT%H:%M:%SZ"), now.timestamp(),
+          int(max_legacy_id), json.dumps(sorted(trigger_names))))
+ 
+ 
+ def _install_freeze_triggers(conn: sqlite3.Connection) -> List[str]:
+     """对旧 events 表幂等安装冻结只读触发器；返回安装后实际在库的触发器名。
+ 
+     CREATE TRIGGER IF NOT EXISTS：已安装（含重跑/治愈场景）不报错、不
+     重复；返回值以 sqlite_master 实查为准（不信任 IF NOT EXISTS 的静默）。
+     """
+     for ddl in _LEGACY_FREEZE_TRIGGER_DDL:
+         conn.execute(ddl)
+     present = {r[0] for r in conn.execute(
+         "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+         (LEGACY_EVENTS_TABLE,))}
+     return [name for name in LEGACY_FREEZE_TRIGGER_NAMES if name in present]
+ 
+ 
++def _legacy_row_sha(row: Dict[str, Any]) -> str:
++    """旧行「已读内容」的规范化 SHA256（行版本账本的记账单位）。
++
++    覆盖 :func:`migrate_legacy_events` 实际读出并决定入链/迟判的全部列
++    （id/line_sha/status/source_file/source_line/payload/migrated_at）——
++    收编后对这些列的任何 UPDATE（含仅改 migrated_at 元数据的伪装、含
++    回填早 ts）都会使摘要失配。migrated_at 通道缺席（形状变体无该列）
++    时按 None 记账：列集后来发生变化本身就会造成失配（fail-closed）。
++    """
++    material = json.dumps(
++        [row["id"], row["line_sha"], row["status"], row["source_file"],
++         row["source_line"], row["payload"], row["migrated_at"]],
++        ensure_ascii=False, sort_keys=True, separators=(",", ":"))
++    return hashlib.sha256(material.encode("utf-8")).hexdigest()
++
++
++def _read_row_digests(conn: sqlite3.Connection) -> Dict[int, str]:
++    """读已记录的行内容快照账本；表不存在/为空返回空 dict。"""
++    hit = conn.execute(
++        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
++        (LEGACY_ROW_DIGESTS_TABLE,)).fetchone()
++    if hit is None:
++        return {}
++    return {int(r[0]): r[1] for r in conn.execute(
++        f"SELECT legacy_id, row_sha FROM {LEGACY_ROW_DIGESTS_TABLE}")}
++
++
++def _record_row_digests(conn: sqlite3.Connection,
++                        legacy_rows: List[Dict[str, Any]]) -> int:
++    """把首跑读到的旧行内容快照写入受保护账本；返回账本当前行数。
++
++    摘要按「本轮实际读入并导入的内容」计算（不是写账时刻的重读）——
++    运行中途旧行被并发改动时，账本锚定的正是已入链内容，下一轮比对
++    必然失配而拒收。INSERT OR IGNORE：既有 rowid 的快照永不改写（该表
++    UPDATE/DELETE 已被 AFTER 触发器关死，不存在静默重基线路径）。本函数
++    同时补建表与 append-only 触发器（幂等）。
++
++    存量库边界（G9-05 fail-closed 收口）：旧版代码只记了 cutover、没有
++    快照账本的库，升级后绝不在本函数按「当下内容」补记基线——当下内容
++    无法与 cutover 时刻内容对账，补记等于把升级前篡改洗白成可信基线。
++    该场景由调用方检测（cutover 已记账而账本为空）并整体标记
++    ``legacy_untrusted``：行全部隔离、基线不补记，需人工从可信正源重建。
++    本函数只在「首次 cutover（prior_cutover is None）」这一条路径上被
++    调用。
++    """
++    conn.execute(_DIGESTS_SCHEMA)
++    for ddl in _LEGACY_DIGEST_TRIGGER_DDL:
++        conn.execute(ddl)
++    for row in legacy_rows:
++        conn.execute(
++            f"INSERT OR IGNORE INTO {LEGACY_ROW_DIGESTS_TABLE} "
++            f"(legacy_id, row_sha) VALUES (?, ?)",
++            (int(row["id"]), _legacy_row_sha(row)))
++    return conn.execute(
++        f"SELECT COUNT(*) FROM {LEGACY_ROW_DIGESTS_TABLE}").fetchone()[0]
++
++
+ def migrate_legacy_events(sqlite_path: str,
+                           sidecar_path: Optional[str] = None) -> Dict[str, Any]:
+     """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
+ 
+     契约：
+     - 只读旧行数据：本函数绝不 INSERT/UPDATE/DELETE 旧 ``events`` 表的
+       行，收编后旧表行原样留在库中，仅供对账，不再是正源；
+     - 冻结只读（R7-EVENT-LEGACY-WRITABLE-007）：收编完成后对旧表安装
+       三个拒绝触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）——
+       ``CREATE TRIGGER IF NOT EXISTS`` 幂等安装，重跑不报错、不重复；
+       触发器被绕过删除时，下一次收编运行治愈重装；
+     - cutover（冻结时刻）记账：首次冻结把 cutover_ts/cutover_epoch/
+       max_legacy_id 写入库内 bookkeeping 表 ``legacy_events_cutover``
+       （INSERT OR IGNORE——一经记录永不推进，迟到判定永远以首次 cutover
+       为准）。cutover 不写入事件链（链长不变量与「负载=旧行内容纯函数」
+       幂等契约零扰动）、不额外追加 sidecar 行（sidecar 保持逐行 1:1 审计
+       形状），时刻经返回报告显式回带（cutover_ts/cutover_max_legacy_id）；
+     - 迟到写拒收（绝不静默吸收收编后的写入）：迁移入口对每行校验时间
+       戳——行内 ts（payload JSON 的 ``ts`` 字段）或 rowid 对应元数据
+       （``migrated_at`` 列 / id 序）晚于该库已记录 cutover 的行不导入，
+       单独 quarantine（reason=late_write_after_cutover）并在报告告警
+       （late_write_alert/late_write_rows）。两个独立拒收通道：
+       (a) id > cutover.max_legacy_id——cutover 后新出现的行，无论 ts
+           伪装多早；(b) 行有效时间戳 > cutover.cutover_epoch——含
+           UPDATE 渠道篡改出的迟到内容；
++    - 行内容快照账本（第八轮 P0-6 残余根修）：id/ts 双通道都是 writer
++      可回填的字段，挡不住「旧表触发器被 DROP 后 UPDATE 旧行并回填早
++      ts」与「向历史 gap 空位 INSERT 全回填行」。首跑收编把每行已读
++      内容的 sha256 记入统一库侧受保护 bookkeeping 表
++      ``legacy_row_digests``（append-only：AFTER UPDATE/DELETE 拒绝
++      触发器与事件链同库同级保护）；重跑逐行比对当前内容摘要 vs 账本
++      快照——(c) 内容失配（被 UPDATE 过，含仅改 migrated_at 元数据）->
++      quarantine（reason=row_mutated_after_cutover，报告告警
++      row_mutation_alert/row_mutation_rows）；(d) 账本缺席且 id/ts 双
++      通道未命中（gap 空位后塞入的行）-> 按迟到写拒收（evidence 标注
++      no row digest on record）。旧表三触发器被 DROP 也绕不开本通道：
++      行版本账本在统一库侧，绕过旧表触发器改不掉账本，比对必然失配；
++      快照一经记账永不改写、永不重基线（INSERT OR IGNORE + 拒绝触发
++      器），quarantine 不会推进 cutover 也不会重写快照；
++    - legacy 升级 fail-closed（G9-05 第九轮根修，R8-EVENT-BACKDATE-008
++      升级路径）：检测到「cutover 已记账而 digest ledger 缺失/为空」
++      （旧版代码跑过的存量库从来没有行版本账本）时，该库标
++      ``legacy_untrusted``——绝不按升级时现状补记基线（当下内容无法与
++      cutover 时刻对账，补记会把升级前已发生的 gap/UPDATE+backdate
++      篡改收编成可信基线）；本次发现的旧行全部 quarantine
++      （reason=legacy_untrusted_no_baseline，imported=0、主链长度不增、
++      账本保持缺席），报告显式给出 legacy_untrusted 标记与处置说明
++      （legacy_untrusted_action_required：人工从可信正源重建基线或接受
++      永久隔离）；冻结触发器照常治愈重装（表仍冻结只读），cutover
++      照常永不推进。有完整 digest ledger 的库（fresh cutover 或新版
++      升级）不受影响，走既有三通道判定；
+     - 单一写入 API：每行经 ``EventStore.append`` 以
+       ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
+       事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
+       全部计 duplicate，零重复入账（一次性、幂等）；
+     - 旧行按已入账历史记录原样收编（status 等字段原封不动）：旧表行是
+       旧制度下已落账的数据，收编时重新判定/归一会改写历史账目，故只做
+       搬运、绝不再判（迟到写拒收是「是否搬运」的守门，不是重判状态）；
+       JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
+     - 守恒：rows_seen == imported + duplicates + quarantined，否则
+       ConservationError；
+     - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
+       位置溯源；quarantine 行额外携带 reason 与迟到证据（late_evidence）。
+ 
+     旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``
+     （不装触发器、不记 cutover；但若该库历史上记录过 cutover 而旧表被
+     整表删除，cutover 记账仍在——旧表重建后迟到判定继续生效）。
+     """
+     sqlite_path = os.path.abspath(sqlite_path)
+     sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
+                     else sqlite_path + ".legacy-events-sidecar.jsonl")
+     os.makedirs(os.path.dirname(sidecar_path) or ".", exist_ok=True)
+ 
+     store = EventStore(sqlite_path)
+     try:
+         # 表名是模块常量（不可信输入不进 SQL 文本）；存在性用参数化查询
+         present = store._conn.execute(
+             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+             (LEGACY_EVENTS_TABLE,),
+         ).fetchone() is not None
+ 
+         legacy_rows: List[Dict[str, Any]] = []
+         has_migrated_at = False
+         if present:
+             cols = {r[1] for r in store._conn.execute(
+                 f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
+             missing = _LEGACY_REQUIRED_COLUMNS - cols
+             if missing:
+                 # 形状异常 fail-closed：同名表不是旧迁移器产物，绝不猜搬
+                 raise RuntimeError(
+                     f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
+                     f"missing columns: {sorted(missing)}; refusing to migrate")
+             # migrated_at 是迟到写判定的 rowid 侧元数据通道（旧 schema 自带
+             # DEFAULT datetime('now')；形状变体缺列时该通道缺席，由 id 通道
+             # 兜底）——存在则一并只读取出
+             has_migrated_at = "migrated_at" in cols
+             select_cols = ("id, line_sha, status, source_file, source_line, payload"
+                            + (", migrated_at" if has_migrated_at else ""))
+             # 只读 SELECT——旧表行数据全程零写入
+             for row in store._conn.execute(
+                 f"SELECT {select_cols} FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
+             ):
+                 legacy_rows.append({
+                     "id": row[0], "line_sha": row[1], "status": row[2],
+                     "source_file": row[3], "source_line": row[4],
+                     "payload": row[5],
+                     "migrated_at": row[6] if has_migrated_at else None,
+                 })
+ 
+         # 该库已记录的 cutover（无论旧表当前是否存在都读：旧表被整表删除
+         # 后重建的场景，迟到判定必须继续以首次 cutover 为准）
+         prior_cutover = _read_cutover(store._conn)
++        # 行内容快照账本（第八轮根修）：与 cutover 同生命周期读取——账本
++        # 非空即进入逐行比对模式；为空表示首跑或存量库待补记基线
++        prior_digests = _read_row_digests(store._conn)
++        # G9-05 legacy 升级 fail-closed（R8-EVENT-BACKDATE-008 升级路径）：
++        # cutover 已记账而 digest ledger 缺失/为空 == 旧版代码（只有
++        # cutover 通道、无行版本账本）跑过的存量库。此刻旧表内容无法与
++        # cutover 时刻内容对账——升级前已发生的 gap/UPDATE+backdate 篡改
++        # 与合法行不可区分。绝不按「升级时现状」补基线（那是把篡改收编
++        # 成可信基线）：本次发现的行全部隔离、账本保持缺席、人工处置。
++        legacy_untrusted = prior_cutover is not None and not prior_digests
+ 
+         imported = duplicates = quarantined = 0
+         quarantine_reasons: Dict[str, int] = {}
+         late_rows: List[Dict[str, Any]] = []      # 告警明细（legacy_id+证据）
++        mutated_rows: List[Dict[str, Any]] = []   # 内容失配告警明细
++        untrusted_rows: List[Dict[str, Any]] = [] # legacy_untrusted 隔离明细
+         with open(sidecar_path, "a", encoding="utf-8") as sidecar:
+             for row in legacy_rows:
++                # legacy_untrusted 优先短路一切通道：库级不可验证时逐行
++                # 判定（id/ts/摘要比对）都建立在「有可信基线」的前提上，
++                # 前提不成立即整体隔离——包括本可 duplicate 的已入链行
++                # （区分对待会泄露「哪些行可收编」的信号，且无法自证）
++                if legacy_untrusted:
++                    quarantined += 1
++                    quarantine_reasons[LEGACY_UNTRUSTED_REASON] = \
++                        quarantine_reasons.get(LEGACY_UNTRUSTED_REASON, 0) + 1
++                    untrusted_evidence = (
++                        f"cutover recorded at "
++                        f"{prior_cutover['cutover_ts']} but no "
++                        f"{LEGACY_ROW_DIGESTS_TABLE} rows on record; "
++                        f"table content at upgrade time is unverifiable")
++                    untrusted_rows.append({"legacy_id": row["id"],
++                                           "evidence": untrusted_evidence})
++                    sidecar.write(json.dumps({
++                        "decision": "quarantined",
++                        "reason": LEGACY_UNTRUSTED_REASON,
++                        "legacy_table": LEGACY_EVENTS_TABLE,
++                        "legacy_id": row["id"],
++                        "line_sha": row["line_sha"],
++                        "source_file": row["source_file"],
++                        "source_line": row["source_line"],
++                        "untrusted_evidence": untrusted_evidence,
++                    }, ensure_ascii=False, sort_keys=True) + "\n")
++                    continue
+                 # 迟到写拒收：cutover 之后才出现/才落账的行绝不入链（两个
+                 # 独立通道任一命中即拒——id 通道抓新出现的行、ts 通道抓
+                 # 篡改出的迟到内容；证据原样进 sidecar 与报告）
+                 late_evidence = None
++                mutation_evidence = None
+                 if prior_cutover is not None:
+                     if row["id"] > prior_cutover["max_legacy_id"]:
+                         late_evidence = (f"id={row['id']} > "
+                                          f"cutover_max_id="
+                                          f"{prior_cutover['max_legacy_id']}")
+                     else:
+                         eff = _row_effective_epoch(row["payload"],
+                                                    row["migrated_at"])
+                         if (eff is not None
+                                 and eff > prior_cutover["cutover_epoch"]):
+                             late_evidence = (
+                                 f"row_ts={eff:.3f} > cutover_epoch="
+                                 f"{prior_cutover['cutover_epoch']:.3f}")
++                # 第三通道（行内容快照比对，第八轮根修）：id/ts 都是 writer
++                # 可回填的字段，内容快照锚定在统一库侧受保护账本——旧表
++                # 触发器被 DROP、行被 UPDATE+backdate 也改不掉账本，比对
++                # 必然失配而拒收；账本缺席（gap 空位后塞入）同样拒收
++                if (late_evidence is None and prior_cutover is not None
++                        and prior_digests):
++                    snapshot_sha = prior_digests.get(row["id"])
++                    current_sha = _legacy_row_sha(row)
++                    if snapshot_sha is None:
++                        late_evidence = (
++                            f"id={row['id']} not present at cutover "
++                            f"(no row digest on record)")
++                    elif current_sha != snapshot_sha:
++                        mutation_evidence = (
++                            f"row_sha={current_sha[:16]} != "
++                            f"cutover_snapshot={snapshot_sha[:16]}")
+                 if late_evidence is not None:
+                     quarantined += 1
+                     quarantine_reasons[LATE_WRITE_REASON] = \
+                         quarantine_reasons.get(LATE_WRITE_REASON, 0) + 1
+                     late_rows.append({"legacy_id": row["id"],
+                                       "evidence": late_evidence})
+                     sidecar.write(json.dumps({
+                         "decision": "quarantined",
+                         "reason": LATE_WRITE_REASON,
+                         "legacy_table": LEGACY_EVENTS_TABLE,
+                         "legacy_id": row["id"],
+                         "line_sha": row["line_sha"],
+                         "source_file": row["source_file"],
+                         "source_line": row["source_line"],
+                         "late_evidence": late_evidence,
+                     }, ensure_ascii=False, sort_keys=True) + "\n")
+                     continue
++                if mutation_evidence is not None:
++                    # 内容被 UPDATE 过（cutover 后与快照失配）→ 绝不入链；
++                    # 快照不重写、cutover 不推进——下一次运行同样失配拒收
++                    quarantined += 1
++                    quarantine_reasons[ROW_MUTATED_REASON] = \
++                        quarantine_reasons.get(ROW_MUTATED_REASON, 0) + 1
++                    mutated_rows.append({"legacy_id": row["id"],
++                                         "evidence": mutation_evidence})
++                    sidecar.write(json.dumps({
++                        "decision": "quarantined",
++                        "reason": ROW_MUTATED_REASON,
++                        "legacy_table": LEGACY_EVENTS_TABLE,
++                        "legacy_id": row["id"],
++                        "line_sha": row["line_sha"],
++                        "source_file": row["source_file"],
++                        "source_line": row["source_line"],
++                        "mutation_evidence": mutation_evidence,
++                    }, ensure_ascii=False, sort_keys=True) + "\n")
++                    continue
+ 
+                 event = {
+                     "event_type": LEGACY_RESIDUE_EVENT_TYPE,
+                     "line_sha": row["line_sha"],
+                     "status": row["status"],
+                     "raw": row["payload"],
+                 }
+                 _event_hash, inserted = store.append(event)
+                 if inserted:
+                     imported += 1
+                     decision = "imported"
+                 else:
+                     duplicates += 1
+                     decision = "duplicate"
+                 sidecar.write(json.dumps({
+                     "decision": decision,
+                     "legacy_table": LEGACY_EVENTS_TABLE,
+                     "legacy_id": row["id"],
+                     "line_sha": row["line_sha"],
+                     "source_file": row["source_file"],
+                     "source_line": row["source_line"],
+                 }, ensure_ascii=False, sort_keys=True) + "\n")
+ 
+         # 收编完成 → 冻结只读：幂等安装拒绝触发器（重跑不报错；触发器曾被
+         # 绕过删除时在此治愈重装）；首次冻结即记 cutover（永不推进）
+         frozen_triggers: List[str] = []
+         if present:
+             frozen_triggers = _install_freeze_triggers(store._conn)
+             if prior_cutover is None:
+                 _record_cutover(
+                     store._conn,
+                     max_legacy_id=max((r["id"] for r in legacy_rows), default=0),
+                     trigger_names=frozen_triggers)
++            # 行内容快照记账（第八轮根修）：只在首次 cutover（本运行记账）
++            # 时建立基线；此后账本 append-only——永不改写、永不重基线，
++            # quarantine 不推进快照。G9-05：旧版存量库（cutover 已记账、
++            # 账本为空）绝不在此补记基线——当下内容不可验证，补记即把
++            # 升级前篡改洗白成可信基线（legacy_untrusted 路径已全部隔离）
++            if prior_cutover is None:
++                _record_row_digests(store._conn, legacy_rows)
+ 
+         store.verify_chain()
+         if len(legacy_rows) != imported + duplicates + quarantined:
+             raise ConservationError(
+                 f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
+                 f"imported({imported}) + duplicates({duplicates}) + "
+                 f"quarantined({quarantined})")
+ 
+         cutover = _read_cutover(store._conn)
++        digests_on_record = len(_read_row_digests(store._conn))
+         return {
+             "sqlite_path": sqlite_path,
+             "legacy_table": LEGACY_EVENTS_TABLE,
+             "legacy_table_present": present,
+             "rows_seen": len(legacy_rows),
+             "imported": imported,
+             "duplicates": duplicates,
+             "quarantined": quarantined,
+             "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+             "late_write_alert": bool(late_rows),
+             "late_write_rows": late_rows,
++            "row_digest_ledger": LEGACY_ROW_DIGESTS_TABLE,
++            "row_digests_on_record": digests_on_record,
++            "row_mutation_alert": bool(mutated_rows),
++            "row_mutation_rows": mutated_rows,
++            # G9-05 legacy 升级 fail-closed：显式标记 + 人工处置说明
++            "legacy_untrusted": legacy_untrusted,
++            "legacy_untrusted_reason": (
++                LEGACY_UNTRUSTED_REASON if legacy_untrusted else None),
++            "legacy_untrusted_rows": untrusted_rows,
++            "legacy_untrusted_action_required": (
++                LEGACY_UNTRUSTED_ACTION_REQUIRED if legacy_untrusted else None),
+             "cutover_ts": cutover["cutover_ts"] if cutover else None,
+             "cutover_max_legacy_id": (cutover["max_legacy_id"]
+                                       if cutover else None),
+             "legacy_frozen": present and len(frozen_triggers)
+             == len(LEGACY_FREEZE_TRIGGER_NAMES),
+             "frozen_triggers": frozen_triggers,
+             "event_table": "pipeline_events",
+             "write_api": "EventStore.append",
+             "sidecar_path": sidecar_path,
+             "chain_verified": True,
+         }
+     finally:
+         store.close()
+diff --git a/tests/p1f-assert-baseline.txt b/tests/p1f-assert-baseline.txt
+index 1edb47c..bbceb1d 100644
+--- a/tests/p1f-assert-baseline.txt
++++ b/tests/p1f-assert-baseline.txt
+@@ -1,9 +1,9 @@
+ # P1f 断言语义棘轮基线（R7-TRC-VACUOUS-003）——只允许增长，缩水即 CI 红
+ test_ac_gate_family 141
+ test_ac_state_mig 188
+ test_ac_deploy_release 167
+ test_ac_station_families 235
+-test_ac_ops_families 225
++test_ac_ops_families 251
+ test_ac_ui_family 89
+ test_ac_auth_cond 94
+ test_ac_act_run 70
+diff --git a/tests/p1f-behavior-baseline.txt b/tests/p1f-behavior-baseline.txt
+new file mode 100644
+index 0000000..10bc0b2
+--- /dev/null
++++ b/tests/p1f-behavior-baseline.txt
+@@ -0,0 +1,14 @@
++# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被
++# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。
++# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。
++# 只允许增长，缩水即 CI 红。再生成：
++#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
++#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）
++test_ac_gate_family 24
++test_ac_state_mig 16
++test_ac_deploy_release 13
++test_ac_station_families 29
++test_ac_ops_families 18
++test_ac_auth_cond 16
++test_ac_act_run 9
++test_ac_ui_family 7
+diff --git a/tests/p1f-mutations.json b/tests/p1f-mutations.json
+new file mode 100644
+index 0000000..7dcb946
+--- /dev/null
++++ b/tests/p1f-mutations.json
+@@ -0,0 +1,151 @@
++{
++  "schema_version": "1.0.0",
++  "description": "P1f2 mutation 集冻结（G9-07：R8-TRC-TRUTHY-ASSERT-012 根修）。对 system/wenqu_core 产品函数做三类机械变异——negate_return（返回值取反）/ flip_compare（比较符翻转）/ drop_raise（删关键守卫行）——逐 mutation 在沙箱副本上运行映射的专属测试文件，必须至少杀死一个测试（mutation score 100%）。每个八专属文件至少被一条 mutation 覆盖（覆盖门）。只增不减：新增 mutation 须同步验证 100% kill 后再冻结；删减即 acceptance P1f2 节红。",
++  "frozen_min_mutations": 18,
++  "mutations": [
++    {
++      "id": "MUT-01",
++      "module": "wenqu_core/source_gate.py",
++      "function": "validate_exact_sha",
++      "op": "flip_compare",
++      "test_files": ["test_ac_gate_family"],
++      "description": "exact-SHA 原子比对翻转（!= → ==）：相等 head 反被 StaleShaError 拒、异源 SHA 放行——GATE-04/MRG-07/CI-05 腿必须红"
++    },
++    {
++      "id": "MUT-02",
++      "module": "wenqu_core/source_gate.py",
++      "function": "_is_non_behavioral",
++      "op": "negate_return",
++      "test_files": ["test_ac_gate_family"],
++      "description": "行为/非行为文件分类取反：behavioral_files 与 non_behavioral_files 互换——scope 分面测试必须红"
++    },
++    {
++      "id": "MUT-03",
++      "module": "wenqu_core/bugscan_orchestrator.py",
++      "function": "validate_station_result",
++      "op": "flip_compare",
++      "test_files": ["test_ac_gate_family"],
++      "description": "station-result 结构校验比较符翻转（station_id 值域/枚举/键集）：合法结果被拒/非法结果漏过——CI-07/CI-09 腿必须红"
++    },
++    {
++      "id": "MUT-04",
++      "module": "wenqu_core/store.py",
++      "function": "verify_chain",
++      "op": "flip_compare",
++      "test_files": ["test_ac_state_mig"],
++      "description": "哈希链校验 prev != expected 翻转为 ==：好链必报断/坏链漏检——STATE-06 链校验腿必须红"
++    },
++    {
++      "id": "MUT-05",
++      "module": "wenqu_core/ledger_migrator.py",
++      "function": "classify",
++      "op": "flip_compare",
++      "test_files": ["test_ac_state_mig"],
++      "description": "旧账行分类比较符翻转（缺字段/未知状态/project 冲突判定）：坏行进口/好行隔离——MIG-01/MIG-05 腿必须红"
++    },
++    {
++      "id": "MUT-06",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "_verify_seal",
++      "op": "negate_return",
++      "test_files": ["test_ac_state_mig"],
++      "description": "事件 seal 常量时间比对取反：真 seal 被拒/伪 seal 放行——STATE-09 重放身份不变量腿必须红"
++    },
++    {
++      "id": "MUT-07",
++      "module": "wenqu_core/deploy_framework.py",
++      "function": "verify",
++      "op": "flip_compare",
++      "test_files": ["test_ac_deploy_release"],
++      "description": "release manifest 对账比较符翻转（schema 值域/哈希漂移/签名绑定）：好发布被拒或篡改漏检——REL-01/02、DEP-04/05 腿必须红"
++    },
++    {
++      "id": "MUT-08",
++      "module": "wenqu_core/deploy_framework.py",
++      "function": "valid",
++      "op": "negate_return",
++      "test_files": ["test_ac_deploy_release"],
++      "description": "BackupProof.valid 旧版完好性预检取反：坏旧版放行回滚/好旧版被拒——RB-01 回滚先验腿必须红"
++    },
++    {
++      "id": "MUT-09",
++      "module": "wenqu_core/station2_static.py",
++      "function": "_validate_identity",
++      "op": "flip_compare",
++      "test_files": ["test_ac_station_families"],
++      "description": "站2 identity 校验比较符翻转（键集封闭/40hex/非空）：合法 identity 被拒/畸形漏检——SC/ADV 站2 腿必须红"
++    },
++    {
++      "id": "MUT-10",
++      "module": "wenqu_core/station3_contract.py",
++      "function": "derive_dynamic_denominator",
++      "op": "flip_compare",
++      "test_files": ["test_ac_station_families"],
++      "description": "动态分母正源选择翻转（is not None → is None）：分母正源错位/缺源不拒——TEN 租户分母腿必须红"
++    },
++    {
++      "id": "MUT-11",
++      "module": "wenqu_core/scheduler.py",
++      "function": "first_due_after",
++      "op": "flip_compare",
++      "test_files": ["test_ac_ops_families"],
++      "description": "调度下次触发时刻比较符翻转（interval 分派/cand > after）：触发时刻错位或搜索失败——SCH 调度腿必须红"
++    },
++    {
++      "id": "MUT-12",
++      "module": "wenqu_core/capacity_monitor.py",
++      "function": "peak_budget_bytes",
++      "op": "flip_compare",
++      "test_files": ["test_ac_ops_families"],
++      "description": "峰值预算分量校验翻转（value < 0 → >= 0）：正常分量被拒/负值漏检——CAP 分母冻结腿必须红"
++    },
++    {
++      "id": "MUT-13",
++      "module": "wenqu_core/approval_keys.py",
++      "function": "verify_envelope",
++      "op": "negate_return",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "审批信封 HMAC 验签取反：真签被拒/伪签放行——COND-01/03/04 验签腿必须红"
++    },
++    {
++      "id": "MUT-14",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "has_unexpired_risk_authorization",
++      "op": "negate_return",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "未过期 risk 授权查询取反：有授权判无/无授权判有（bool 冒充 Optional）——COND-03 在位断言与 COND-05 失效断言必须红"
++    },
++    {
++      "id": "MUT-15",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "_verify_signature",
++      "op": "flip_compare",
++      "test_files": ["test_ac_auth_cond"],
++      "description": "ApprovalBroker 主签校验比较符翻转（actor ∈ key actors 等绑定判定）：越权签批放行/合法签批被拒——COND/APPR 绑定腿必须红"
++    },
++    {
++      "id": "MUT-16",
++      "module": "wenqu_core/runner.py",
++      "function": "_build_env",
++      "op": "flip_compare",
++      "test_files": ["test_ac_act_run"],
++      "description": "TrustedRunner env 白名单构建翻转（value is not None → is None）：白名单基础变量被剥除——RUN-01 白名单保留断言必须红"
++    },
++    {
++      "id": "MUT-17",
++      "module": "wenqu_core/wenqu_pipeline.py",
++      "function": "reserve_action",
++      "op": "flip_compare",
++      "test_files": ["test_ac_act_run"],
++      "description": "action 预留审批门比较符翻转（_ACTION_APPROVAL_TYPE 封闭映射校验）：无审批 action 放行/有审批被拒——ACT-01 腿必须红"
++    },
++    {
++      "id": "MUT-18",
++      "module": "wenqu_core/ui_probe.py",
++      "function": "html_structural_gate",
++      "op": "negate_return",
++      "test_files": ["test_ac_ui_family"],
++      "description": "UI 静态结构门返回取反：finding 列表变布尔——UI-01/02 结构断言腿必须红"
++    }
++  ]
++}
+--- output end ---
+exit_code=0

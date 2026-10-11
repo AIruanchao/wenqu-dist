@@ -1,0 +1,108 @@
+$ exact live readback + plan minimum comparison
+api_exit_code=0
+{
+  "strict": true,
+  "actual_required_contexts": [
+    "matrix (ubuntu-latest)",
+    "matrix (macos-latest)"
+  ],
+  "plan_minimum_contexts": [
+    "Fast (lint+tsc)",
+    "Bugscan Required Gate",
+    "Wenqu Required Gate",
+    "Action Authorization Gate"
+  ],
+  "missing_plan_minimum": [
+    "Action Authorization Gate",
+    "Bugscan Required Gate",
+    "Fast (lint+tsc)",
+    "Wenqu Required Gate"
+  ],
+  "unexpected_vs_plan_minimum": [
+    "matrix (macos-latest)",
+    "matrix (ubuntu-latest)"
+  ],
+  "enforce_admins": true,
+  "required_pull_request_reviews_present": false,
+  "required_conversation_resolution": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+CODEOWNERS paths: []
+comparison_exit_code=0
+$ workflow trigger/job/step inventory
+workflow_sha256= 8a2f7829ec036d1078dd2f78464da8c9108e2b8dc9c2f778cf7eb449125c6a27
+'push': True
+'pull_request': True
+'workflow_dispatch': True
+'merge_group': False
+'Bugscan Required Gate': False
+'Wenqu Required Gate': False
+'Action Authorization Gate': False
+'continue-on-error': False
+'[skip-audit]': False
+'matrix (ubuntu-latest)': False
+'matrix (macos-latest)': False
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
+        run: bash tests/acceptance.sh
+      - name: pytest 契约
+        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: Runner Linux /proc token 扫杀真腿（ubuntu 实测；macos 结构腿+SKIP）
+        # 八轮遗留项「Runner Linux /proc 通路未实测」：ubuntu-latest 上真跑
+        # system/tests/test_linux_proc_path.py 的两条真腿（/proc environ token
+        # 扫描命中+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）；
+        # macos-latest 上同文件跑结构腿（monkeypatch /proc 布局）+真腿 SKIP 标注。
+        run: python -m pytest system/tests/test_linux_proc_path.py -v
+      - name: selftest
+        run: python cli/wenqu selftest
+      # ---- G9-08（八轮 1.4-10）：required CI 全量检查面 ------------------
+      - name: 仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）
+        run: pip install pytest && python -m pytest -q
+      - name: 严格 evidence validator（active 全字段+实算 hash+TTL）
+        run: python tools/evidence_validator.py --root .
+      - name: 全模块自测（bugscan/station2-7/capacity 八模块 SELF-TEST）
+        run: |
+          for m in bugscan_orchestrator station2_static station3_contract \
+                   station4_behavior station5_live_fire station6_adversarial \
+                   station7_runtime capacity_monitor; do
+            PYTHONPATH=system python3 -m "wenqu_core.$m"
+          done
+      - name: 追踪矩阵（§20/§25.1 目录+方案 hash 一致性）
+        run: PYTHONPATH=system python tools/ac_traceability.py --check
+      - name: TLA 双配置 TLC 完成级（G9-03：七段全序 A + retry/CAS/nonce B）
+        # 完成级判据：输出含 "Model checking completed"；非零违例/截断=红。
+        run: |
+          pushd specs/tla >/dev/null
+          for cfg in wenqu_pipeline_A wenqu_pipeline_B; do
+            java -cp ../../system/bin/tla2tools.jar tlc2.TLC -config "$cfg.cfg" wenqu_pipeline 2>&1 | tee "/tmp/tlc-$cfg.log"
+            grep -q "Model checking completed. No error has been found." "/tmp/tlc-$cfg.log"
+          done
+          popd >/dev/null
+      # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
+      # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
+      # 不再独立重跑，避免 macOS 时长翻倍。
+
+workflow_inventory_exit_code=0
+$ rulesets
+[]
+rulesets_exit_code=0

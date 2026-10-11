@@ -1,0 +1,38 @@
+$ stat keyring and release roots (no content for keyring)
+path=/Users/maccc/.wenqu-dist-release/release-keyring.json mode=-rw------- uid=502 gid=20 size=354 type=Regular File mtime=2026-10-08T17:49:43+0800
+path=/Users/maccc/.wenqu/release-roots.json mode=-rw------- uid=502 gid=20 size=994 type=Regular File mtime=2026-10-11T07:34:19+0800
+MISSING /Users/maccc/.wenqu/plan.sha256
+path=/Users/maccc/.wenqu/current mode=lrwxr-xr-x uid=502 gid=20 size=74 type=Symbolic Link mtime=2026-10-11T07:34:43+0800
+exit_code=0
+$ readlink current
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+exit_code=0
+$ release roots non-secret metadata
+{
+  "keys": [
+    "allowed_commit",
+    "plan_sha256",
+    "provisioned_at",
+    "provisioned_by",
+    "provisioned_note",
+    "schema"
+  ],
+  "schema": "wenqu-release-roots/1",
+  "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "allowed_commit": [
+    {
+      "commit": "bb38f70163ce4a1a79f36ea66284e110eff96a95",
+      "manifest_sha256": "bb9a1dfa9c1ac35b9735c657f5f7433cced40e845f2a77e00fa0066dd598c13e"
+    },
+    {
+      "commit": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+      "manifest_sha256": "c17815ace2e92516ad8a26cb6bf0cbb9be96e82753fb09cb43c3a132c0f39ad0"
+    }
+  ]
+}
+exit_code=0
+$ manifest summaries
+{"artifact": {"deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致", "path": "wenqu-dist-2bd59ab.tar.gz", "sha256": "b4e3d5fce24f2cd5ccf15bdf313f4bcc7897ba5b92409274904f986bcd0bd236", "size": 33139660, "source": "git archive 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551 (clean tree from commit object)"}, "file": "wenqu-dist-2bd59ab.manifest.json", "file_count": 2886, "policy_hash": {"frozen_match": true, "plan_member": "evidence/00-baseline/codex-external/方案.md", "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"}, "schema": "wenqu-release-manifest/1", "source_commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551", "source_commit_short": "2bd59ab", "version": "3.8.4"}
+{"artifact": {"deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致", "path": "wenqu-dist-b44b087.tar.gz", "sha256": "cf21788881aa46109e26cfeafdd89cc1d52ad282db3785bfb03c98a1dd669016", "size": 89109004, "source": "git archive b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4 (clean tree from commit object)"}, "file": "wenqu-dist-b44b087.manifest.json", "file_count": 2942, "policy_hash": {"frozen_match": true, "plan_member": "evidence/00-baseline/codex-external/方案.md", "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"}, "schema": "wenqu-release-manifest/1", "source_commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4", "source_commit_short": "b44b087", "version": "3.8.4"}
+{"artifact": {"deterministic_gzip": "mtime=0, level=9 —— 同 commit 重建字节一致", "path": "wenqu-dist-cf6d10e.tar.gz", "sha256": "04a8f7dc6da7f71d6444dc7af2eb4e7203b3546e2b6a7e99ee8a78e1cb25ba29", "size": 44635114, "source": "git archive cf6d10e6f10e5369ea04c3d9f85b797d39279458 (clean tree from commit object)"}, "file": "wenqu-dist-cf6d10e.manifest.json", "file_count": 2936, "policy_hash": {"frozen_match": true, "plan_member": "evidence/00-baseline/codex-external/方案.md", "plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "plan_sha256_frozen": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306", "source": "tar 内方案快照实算（与 ac_traceability 冻结值等值）"}, "schema": "wenqu-release-manifest/1", "source_commit": "cf6d10e6f10e5369ea04c3d9f85b797d39279458", "source_commit_short": "cf6d10e", "version": "3.8.4"}
+exit_code=0

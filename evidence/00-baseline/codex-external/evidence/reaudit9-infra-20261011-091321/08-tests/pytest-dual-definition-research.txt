@@ -1,0 +1,56 @@
+=== round8 pytest mentions ===
+18-W9 48 小时投影与金丝雀、W10 十四天观察窗（10-08 起算 10-22 届满）；对称签名非不可否认/签发渠道占位/形式化模型有界/容器级隔离未实测/1950 条隔离行裁定行级合同已上/站5、6 已接生产接线
+19-
+20-## 核验口径（同历轮）
+21:三移除锚点、方案文档三类内容变更必红、关键测试文件删件必红、证据索引逐条实算、dist 制品校验、CI 真实性、分支保护回读、7789 运行身份、调度器、观察样本、验收脚本复跑、pytest 双口径
+=== repo docs mentions ===
+.github/workflows/acceptance.yml-21-      - name: acceptance
+.github/workflows/acceptance.yml-22-        run: bash tests/acceptance.sh
+.github/workflows/acceptance.yml:23:      - name: pytest 契约
+.github/workflows/acceptance.yml:24:        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+.github/workflows/acceptance.yml-25-      - name: Runner Linux /proc token 扫杀真腿（ubuntu 实测；macos 结构腿+SKIP）
+.github/workflows/acceptance.yml-26-        # 八轮遗留项「Runner Linux /proc 通路未实测」：ubuntu-latest 上真跑
+--
+.github/workflows/acceptance.yml-28-        # 扫描命中+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）；
+.github/workflows/acceptance.yml-29-        # macos-latest 上同文件跑结构腿（monkeypatch /proc 布局）+真腿 SKIP 标注。
+.github/workflows/acceptance.yml:30:        run: python -m pytest system/tests/test_linux_proc_path.py -v
+.github/workflows/acceptance.yml-31-      - name: selftest
+.github/workflows/acceptance.yml-32-        run: python cli/wenqu selftest
+.github/workflows/acceptance.yml-33-      # ---- G9-08（八轮 1.4-10）：required CI 全量检查面 ------------------
+.github/workflows/acceptance.yml:34:      - name: 仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）
+.github/workflows/acceptance.yml:35:        run: pip install pytest && python -m pytest -q
+.github/workflows/acceptance.yml-36-      - name: 严格 evidence validator（active 全字段+实算 hash+TTL）
+.github/workflows/acceptance.yml-37-        run: python tools/evidence_validator.py --root .
+--
+pytest.ini:1:[pytest]
+pytest.ini:2:# 仓根 pytest 全绿配置（R7-PYTEST-HARNESS / F1 根因收口）：
+pytest.ini-3-# evidence/ 内是各轮验收的冻结证据快照，含路径绑定旧克隆布局的测试文件副本
+pytest.ini-4-# （in-place 收集必挂）——证据是存档不是测试面，排除出收集范围。
+--
+README.md-8-wenqu-dist/
+README.md-9-├── cli/wenqu            # CLI 执行器 v0.3.0-fork24-maccc（stdlib-only 单文件；fork1-24 修复史见 CHANGELOG）
+README.md:10:├── cli/test_wenqu.py    # CLI 契约测试套件（pytest）
+README.md-11-├── cli/README.md        # CLI 用法（上游版）
+README.md-12-├── probes/stations.json # 初始三域探测器（trap-double/guard-comment-swallow/cred-cli-expose）
+--
+README.md-47-## CI（平台证据第三环境）
+README.md-48-
+README.md:49:`.github/workflows/acceptance.yml`（macOS+Ubuntu 双矩阵×release-check+64 项+pytest+selftest）已备——推送到 GitHub 即生效，永久闭掉条件放行声明的平台证据盲区（#5）；main 已开分支保护（双平台 required+strict+enforce_admins），合流走 PR 正门。
+README.md-50-
+README.md-51-## Release 构建与安装链（G9-12：外部授权根 + fail-closed 安装器）
+--
+tests/acceptance.sh-296-fi
+tests/acceptance.sh-297-
+tests/acceptance.sh:298:echo "== H. pytest 契约套件（若 pytest 可用）=="
+tests/acceptance.sh:299:if python3 -c "import pytest" 2>/dev/null; then
+tests/acceptance.sh:300:  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+tests/acceptance.sh-301-else
+tests/acceptance.sh:302:  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+tests/acceptance.sh-303-fi
+tests/acceptance.sh-304-
+--
+evidence/00-baseline/codex-external/方案.md-80-|---|---|
+evidence/00-baseline/codex-external/方案.md-81-| `/Users/maccc/Documents/wenqu-dist/tests/acceptance.sh` | 53 PASS / 0 FAIL，exit 0 |
+evidence/00-baseline/codex-external/方案.md:82:| `pytest cli/test_wenqu.py` | 20 passed，exit 0 |
+evidence/00-baseline/codex-external/方案.md-83-| `tests/release-check.sh v1.0.18 fork24` | PASS，exit 0 |
+evidence/00-baseline/codex-external/方案.md-84-

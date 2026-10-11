@@ -1,0 +1,91 @@
+$ live current four-pack metadata
+current_realpath=/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+release_dir=/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95
+manifest=/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.manifest.json
+total 353696
+dr-xr-xr-x@ 52 maccc  staff  -      1664 Oct 11 07:34 tree
+-r--r--r--@  1 maccc  staff  -      2116 Oct 11 07:34 verify-report.json
+-r--r--r--@  1 maccc  staff  -    855834 Oct 11 07:34 wenqu-dist-bb38f70.manifest.json
+-r--r--r--@  1 maccc  staff  -       620 Oct 11 07:34 wenqu-dist-bb38f70.release.sig
+-r--r--r--@  1 maccc  staff  -   1796976 Oct 11 07:34 wenqu-dist-bb38f70.sbom.spdx.json
+-r--r--r--@  1 maccc  staff  - 178429709 Oct 11 07:34 wenqu-dist-bb38f70.tar.gz
+rc=0
+$ verify live current with frozen v1.3 tool + external roots + repo
+  PASS  manifest-schema  build_id=rel-bb38f70-20261010T233440Z
+  PASS  artifact-hash  sha256=99d061abb40c92cd… size=178429709
+  PASS  files-reconcile  2964/2964 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  release-roots  /Users/maccc/.wenqu/release-roots.json allowed=2 commit=bb38f70163ce… plan+核心digest 双等值
+  PASS  source-commit  commit=bb38f70163ce… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=2964 root=3.8.4
+  PASS  build-identity  commit=bb38f70163ce… built_at=2026-10-10T23:34:40Z tool=release_attest.py@1.3.0
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/03-artifact/16-live-current-verify-report.json
+VERIFY OK
+rc=0
+$ independent plan three-equality + roots allowed commit/core digest + current tree full manifest reconciliation
+{
+  "source_commit": "bb38f70163ce4a1a79f36ea66284e110eff96a95",
+  "source_commit_is_40hex": true,
+  "root_plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "manifest_plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "tar_plan_sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+  "plan_three_equal": true,
+  "roots_allowed_commit_count": 2,
+  "source_commit_allowed": true,
+  "roots_manifest_core_sha256": "bb9a1dfa9c1ac35b9735c657f5f7433cced40e845f2a77e00fa0066dd598c13e",
+  "calculated_manifest_core_sha256": "bb9a1dfa9c1ac35b9735c657f5f7433cced40e845f2a77e00fa0066dd598c13e",
+  "core_digest_equal": true,
+  "current_tree_manifest_mismatch_count": 2964,
+  "current_tree_extra_file_count": 0,
+  "mismatch_examples": [
+    {
+      "path": "\"\"",
+      "expected": {
+        "mode": 436,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "type": "file"
+      },
+      "actual": {
+        "type": "file",
+        "mode": 292,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "path": ".github/workflows/acceptance.yml",
+      "expected": {
+        "mode": 436,
+        "sha256": "8a2f7829ec036d1078dd2f78464da8c9108e2b8dc9c2f778cf7eb449125c6a27",
+        "size": 3178,
+        "type": "file"
+      },
+      "actual": {
+        "type": "file",
+        "mode": 292,
+        "size": 3178,
+        "sha256": "8a2f7829ec036d1078dd2f78464da8c9108e2b8dc9c2f778cf7eb449125c6a27"
+      }
+    },
+    {
+      "path": ".gitignore",
+      "expected": {
+        "mode": 436,
+        "sha256": "20b925fe370685519277faaba9f9572636f932faf8047aacf0b5a01727423cb5",
+        "size": 781,
+        "type": "file"
+      },
+      "actual": {
+        "type": "file",
+        "mode": 292,
+        "size": 781,
+        "sha256": "20b925fe370685519277faaba9f9572636f932faf8047aacf0b5a01727423cb5"
+      }
+    }
+  ],
+  "extra_examples": [],
+  "git_commit_exists": true
+}
+rc=0

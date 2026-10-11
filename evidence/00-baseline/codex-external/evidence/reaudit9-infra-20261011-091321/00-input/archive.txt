@@ -1,0 +1,5 @@
+$ git archive origin/main | tar -x ...
+[exit=0]
+$ find snapshot -type f | wc -l
+    2934
+[exit=0]

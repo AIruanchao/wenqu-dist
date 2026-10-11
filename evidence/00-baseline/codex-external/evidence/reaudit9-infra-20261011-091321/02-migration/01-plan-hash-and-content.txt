@@ -1,0 +1,327 @@
+timestamp=2026-10-11T01:13:55Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && shasum -a 256 'evidence/00-baseline/codex-external/方案.md' && sed -n '1,320p' 'evidence/00-baseline/codex-external/方案.md'
+--- output begin ---
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+---
+title: 问渠与 Bug 管线生产级重构优化方案
+version: 1.0
+status: 已复审，供 ZCode 执行
+generated_at: 2026-10-07T15:05:00+08:00
+execution_lane: INCIDENT
+current_release_decision: BLOCKED
+scope: 问渠 one-shot 七段管线、Bug 八站管线、证据/账本、CI、调度、发布、7789 控制面
+---
+
+# 问渠与 Bug 管线生产级重构优化方案
+
+> 本文件是交给 ZCode 的实施总方案，不是“整改已完成”证明。  
+> 当前问渠、Bug 管线和 7789 控制面均不得用于生产放行结论；任何部署、合流、分支保护、LaunchAgent、生产 DB、外部告警或回滚动作，仍须逐项获得用户明确授权。
+
+## 0. ZCode 必读执行约束
+
+1. **先判现态为 `BLOCKED`，再施工。** 不得沿用页面的“87 分/良好”作为准入依据。
+2. **不得直接修改现役目录** `/Users/maccc/.wenqu`、`/Users/maccc/.zcode/quality-system/bin` 或 LaunchAgent 正在引用的脚本；所有实现必须在版本化正源的独立干净 worktree 中完成。
+3. **不得把本方案视为生产动作授权。** 下列动作必须停等用户逐项批准：停止/启动守护、修改 GitHub ruleset、合并、部署、生产写、DDL、真单、外部告警实发、远端备份、生产回滚。
+4. **禁止继续使用自动 `--admin` 合流、L4 直推、`force-with-lease` 回滚、文本 `[skip-audit]` 绕过。** 等待时间、runner 排队、网络抖动都不是降级安全门槛的理由。
+5. **先盘点并冻结并发写者。** 当前运行体在复审期间仍被外部过程热改、重启；未取得唯一 writer epoch 前，禁止迁移或切换。
+6. **不得覆盖或“清理”历史 JSONL。** 旧账本只读快照、逐行哈希、旁路迁移；未知字段或状态进入 quarantine，不得猜填。
+7. **同一实现者不得独自完成实现、验收和完成声明。** 守卫、CI、授权、账本、合流等 INCIDENT 级变更，末轮必须由独立上下文 S5 复核。
+8. **UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT 均是阻断态。** 任何“无法判断”都不得折算为零发现、SKIP 或 PASS。
+9. **每个工作包必须交付五件套：** 代码/配置、正反测试、证据索引、迁移或部署说明、已演练回滚报告。未演练只能写“已记录回滚路径”。
+10. **不得为让 Gate 变绿而修改 Gate 规则、阈值、基线、豁免数量或证据 TTL。** 规则变更必须独立 PR、独立批准、独立对抗验证。
+
+---
+
+# 1. 复审结论与现场快照
+
+## 1.1 有效评分
+
+| 对象 | 纸面设计 | 机器执行/可信度 | 有效综合分 | 当前状态 |
+|---|---:|---:|---:|---|
+| 问渠 one-shot 七段管线 | 82/100 | 34/100 | **46/100** | **BLOCKED** |
+| Bug 八站管线 | 82/100 | 28–55/100 | **41/100** | **BLOCKED** |
+| 7789 控制面 | — | 40/100 | **40/100** | 只可作只读汇总面 |
+
+目标不是把展示分数改成 95，而是让机器执行可信度、证据完整性和故障注入验收均达到生产级，并且消灭已知 P0/P1。
+
+## 1.2 2026-10-07 14:59 现场事实
+
+以下是带时点的复审快照。ZCode 开工前必须先执行 W0 重新采集；任何漂移以新 baseline 为准，不得把 14:59 数字当作永远当前。
+
+1. `/Users/maccc/.zcode/quality-system/bin/pipeline-gatedoctor.sh` 实跑返回 **1**：
+   - 活跃 EXM=6，超过熔断阈值 5；
+   - `exm-next-id.sh` 预期哈希 `ecf932e8…`，实测 `aa349c5…`。
+2. `http://127.0.0.1:7789/api/health` 同时返回 **87 / 良好**，本机磁盘已达 **90%**。
+3. 现役自动合流器仍运行，`/Users/maccc/.wenqu/daemons/auto-merge.sh`：
+   - 只按名称子串识别 Fast；
+   - 忽略其他失败检查；
+   - 接受 `UNSTABLE`；
+   - 使用 `gh pr merge --admin`；
+   - 日志持续出现 `cd: auto-merge-831: No such file or directory`，但无熔断。
+4. GitHub `AIruanchao/qisemi-erp` 的 `master` 分支保护实时回读仅要求：
+   - `Fast (lint+tsc)`；
+   - 完整 Gate 不是 required check。
+5. 两条 WAITING 已分别滞留约 21.67 天和 9.28 天，`notify_attempts=0`；`com.erp.pendingwatch` 已运行 82 次且最后退出 0，属于协议断裂后的假活。
+6. Bug 账本实时汇总：481 findings、24 OPEN、4 FIXING、172 FIXED、67 VERIFIED、158 CLOSED、43 ACCEPTED、13 OTHER。
+7. DB 周报把约 **至少 280 项** Prisma 结构变化判成 `19 行 / CLEAN`；且旧算法仍包含“变化行数不超过阈值即 CLEAN”的错误策略。
+8. 供应链 2026-10-05 报告显示 audit 空/解析失败、verdict FINDINGS，但脚本仍刷新成功心跳并退出 0。
+9. 租户扫描器硬编码 27 个模型；Schema 中直接含 `organizationId` 的模型约 193 个，遗漏约 172 个。
+10. 发布正源 `/Users/maccc/Documents/wenqu-dist`：
+    - `HEAD=455fa41e405c9c15b293a763e48365edf109e51a`；
+    - 工作树 clean；
+    - dashboard SHA256=`d20adef…`。
+11. 运行体 `/Users/maccc/.wenqu/bin/wenqu-dashboard.py` 在复审期间再次被外部热改并重启：
+    - 当前 SHA256=`4ace329…`；
+    - 额外存在 `html-balance-lint.py`；
+    - Git 正源仍未吸收该修复，重新部署仍可能回归。
+12. `system/install.sh` 使用 `cp -R` 原地覆盖、不会清理幽灵文件，并以 `doctor || true` 吞掉安装自检失败。
+
+## 1.3 本轮复验结果
+
+正向回归：
+
+| 验证 | 结果 |
+|---|---|
+| `/Users/maccc/Documents/wenqu-dist/tests/acceptance.sh` | 53 PASS / 0 FAIL，exit 0 |
+| `pytest cli/test_wenqu.py` | 20 passed，exit 0 |
+| `tests/release-check.sh v1.0.18 fork24` | PASS，exit 0 |
+
+这些测试不覆盖自动合流、真实状态机、授权、dashboard DOM、LaunchAgent 真环境和证据伪造，因此不能抵消以下安全负例：
+
+| 当前负例 | 现役结果 | 正确结果 |
+|---|---|---|
+| artifact `exit_code=7`，自报零发现 | verifier `ok=true` / exit 0 | BLOCKED |
+| artifact 是指向目录外的 symlink | verifier `ok=true` / exit 0 | BLOCKED |
+| 空 rounds + `--n -1` | verifier `ok=true` / exit 0 | 参数错误 |
+| 任意 `NOT_A_STAGE/COMPLETELY_FAKE` | 成功落账 | 拒绝 |
+| `task_id=../escaped` | 可写出 waiting 目录 | 拒绝 |
+| 无授权 `wait-clear ../victim` | 成功删除外层 JSON | 拒绝 |
+| Fast SUCCESS + Security FAILURE | 自动合流判断可为 yes | 禁止合流 |
+| 不存在 base ref、零测试 | Gate 可返回“全绿/可推送” | ERROR/BLOCKED |
+
+本轮证据包：`/private/tmp/codex-test/evidence/reaudit-20261007/`，索引为其 `manifest.sha256`。其中包含安全负向红探针、wenqu-dist 回归、health、branch required checks、运行/正源哈希、gatedoctor、waiting 和 launchctl 快照；它仍是本轮复审证据，不等同整改后的完整生产证据包。
+
+## 1.4 结论边界
+
+- 本轮没有停止自动合流、修改分支保护、发布、写库、点击决策、发送外部告警或触发真实生产动作。
+- 外部热改和重启不是本轮复审所做。
+- 方案验证的是**设计完备性、可执行性和可验收性**，不代表整改已经落地。
+
+---
+
+# 2. 最终目标与完成层级
+
+## 2.1 目标
+
+1. 问渠七段具备真实、可恢复、可审计的状态机和授权闸。
+2. Bug 八站由唯一 orchestrator 执行；任一 required 站非 PASS 时整线绝不为 PASS。仅 policy 允许且仍有效的低风险接受可使 aggregate=CONDITIONAL，其余 FAIL/ERROR/BLOCKED/缺失/过期一律 BLOCKED。
+3. 证据不可由调用者自报；命令、真实退出码、原始输出和工件哈希由 trusted runner 生成。
+4. 合流只接受同一 head SHA 的全部 required checks，并另需 exact action authorization；不存在 admin 自动绕闸。
+5. 账本具备事务、并发、崩溃恢复、幂等、状态约束和期限豁免。
+6. 运行体可由 manifest 证明来自唯一正源，部署和回滚均为原子操作。
+7. dashboard 只读展示权威聚合结果，永远不能比 Gate 更绿。
+8. 调度、告警、备份和心跳均表达业务结果，而不是“进程执行过”。
+
+## 2.2 四层完成语义
+
+| 层级 | 必须满足 | 禁止使用的措辞 |
+|---|---|---|
+| 候选实现完成 | 代码、测试、红探针、源树 clean；未部署 | 已上线、生产完成 |
+| CI 准入完成 | Required Gate 已实际配置并用测试 PR 验证 | 生产闭环 |
+| 受控部署完成 | 用户授权、manifest 对账、真环境 smoke、回滚演练 | 观察完成、零盲区 |
+| 发布后闭环完成 | 14 天观察、周任务两轮、强制季度演练、无假绿/漏告警/丢账 | 无限定范围的“绝对安全” |
+
+“清零声明”还要求零有效未关闭 finding、零有效豁免；存在合法 ACCEPTED 风险时只能称“条件放行”。P0/P1 不允许风险豁免。
+
+---
+
+# 3. 边界、术语与正源
+
+## 3.1 两条管线必须拆开
+
+| 名称 | 真实语义 |
+|---|---|
+| 问渠 one-shot | 需求→方案→EQS 前置→实现→递归清零→EQS 全量→Gate 的七段任务管线 |
+| Bug 管线 | 范围、源闸、静态供应链、契约数据、行为、实弹、对抗、运行时的八站扫描管线 |
+| 7789 dashboard | 两条管线的只读控制面，不是管线本身，也不能自行制造 PASS |
+
+UI 不得再用“问渠全流程”展示 Bug 八站动画；七段、八站、九类停等和各自 run 必须分开展示。
+
+## 3.2 四域物理隔离
+
+| 域 | 目标位置/所有权 | 约束 |
+|---|---|---|
+| 可执行核心/制品 | `wenqu-dist`；`releases/<release-id>` | runner/store/state/gate/dashboard/installer 唯一实现，manifest 校验，不得热改 |
+| 策略/Skill | W0/W1 必须确认的正式 quality-policy Git 正源 | 只含受保护 policy/Skill/规则包，不复制 executable core |
+| ERP 域插件 | `AIruanchao/qisemi-erp` 正源 | scanners、业务探针、CI adapter |
+| 可变状态 | SQLite event store | WAL、事务、CAS、append-only 事件 |
+| 证据 | content-addressed store `evidence/sha256/<digest>` | 原始输出、不可用路径名寻址、每次 Gate 重验哈希 |
+| 配置/秘密 | `~/.config/wenqu`、Keychain 或 0600 文件 | 不入 argv、日志、Git、证据正文 |
+
+`/Users/maccc/.zcode/quality-system` 目前把代码、账本、证据和实时状态混在一个长期脏工作树中，且尚未确认其正式 source repo。W0 必须冻结 quality-policy 的 `repo_id/default branch/owner/build入口/Skill源位置/安装位置/状态位置`；未确定前禁止在现役目录开发。拆分必须渐进进行，不能大爆炸搬迁。
+
+## 3.3 集成发布身份
+
+新增 `wenqu-release.lock.json`，至少绑定：
+
+```text
+wenqu_dist_commit
+quality_policy_commit
+one_shot_skill_sha256
+bugscan_skill_sha256
+policy_sha256
+schema_version
+release_manifest_sha256
+```
+
+任何一项未知、缺失或与运行体不一致时，release eligibility 必须是 `BLOCKED`。
+
+---
+
+# 4. 不可变安全不变量
+
+1. `UNKNOWN/MISSING/STALE/MALFORMED/EMPTY/TIMEOUT` 一律不是 PASS。
+2. 任一 required probe 的执行或策略结果非 PASS，整线不得 PASS。
+3. PASS 必须绑定：`run_id + commit_sha + environment + scope_hash + ruleset_hash + data_config_hash + artifact hashes + TTL`。
+4. run 起跑后 commit、环境、规则集或范围变化，旧证据立即失效并新建 run。
+5. 问渠七段必须顺序推进；Bug 八站中相互独立的站应继续/并行取证。任一 required 站非 PASS 时整线绝不为 PASS；仅 policy 允许且有效的低风险接受可形成 CONDITIONAL，其余非 PASS 一律 BLOCKED。禁止因早站失败而形成后续扫描盲区。
+6. WAITING 只能由规定停等事件产生；无有效一次性授权不得 resume。
+7. 审批不能复用、扩范围、跨 SHA、跨环境或跨状态版本。
+8. release/merge/prod-write 只能消费 exact-scope 的有效授权事件。
+9. 所有控制事件只追加；不得删除历史，纠错使用 supersede/reopen 事件。
+10. 相同 idempotency key 重放不得造成第二次副作用。
+11. evidence 不得是 symlink、外部路径、空文件或无哈希文件。
+12. findings 数量从解析后的 finding list 计算，不信任 `findings/content_findings` 自报数字。
+13. 只有 trusted runner 实际捕获的退出码有效。
+14. dashboard 只能等于或比权威聚合器更保守，绝不能更绿。
+15. 自动合流不拥有 admin/bypass 能力；异常时退化为关闭和人工受保护 PR，而不是绕闸。
+16. 只有同一实体身份、同一输入指纹、仍在 TTL 内的 `execution_status=COMPLETED && policy_verdict=PASS` 才能刷新该 probe/station/job 的 `last_success`；N/A、CONDITIONAL、FAIL、ERROR、BLOCKED、TIMEOUT、CANCELLED 均不得刷新。心跳必须包含结果和证据身份。
+17. P0/P1 未清、有效 required evidence 过期或 runtime 漂移时禁止生产放行。
+18. 历史迁移必须数量守恒：源非空行数 = 有效导入 + 重复说明 + quarantine。
+
+---
+
+# 5. 威胁模型与最小可信基
+
+## 5.1 保护资产
+
+- 合流与发布正确性；
+- 人类授权不可伪造、不可重放、不可扩范围；
+- 账本/证据完整性和断电耐久；
+- 租户隔离、资金/权限业务不变量；
+- 健康呈现真实性；
+- source/runtime 身份一致；
+- 告警端到端可达与可确认；
+- 回滚不丢失切换后的新事件。
+
+## 5.2 故障与攻击源
+
+- 恶意 PR 内容、伪造 check 名、旧 SHA 绿灯、PR 自改 workflow；
+- localhost 恶意网页、CSRF、日志/账本 XSS 注入；
+- 同 UID 并发 agent、人工误操作、运行体热补；
+- GitHub/npm/registry/SSH 返回空、部分数据、限流或超时；
+- launchd 的 PATH、HOME、TCC 与交互 Shell 不一致；
+- 磁盘满、只读目录、kill -9、断电、时钟跳变、PID 复用；
+- parser 未识别新格式、扫描范围静默缩小；
+- 迁移双写、两个 writer epoch、回滚覆盖新事件。
+
+不声称抵御 root/物理控制权丢失、GitHub 组织 owner 被完全攻陷或硬件级攻击；这些必须在最终风险边界中明示。
+
+## 5.3 最小可信基 TCB
+
+```text
+scanner/plugin
+  └─只产原始输出
+trusted runner
+  └─捕获 argv/cwd/真实 rc/timeout/stdout/stderr/hash
+schema normalizer
+  └─严格验证并生成 typed result
+independent gate aggregator
+  └─校验身份、TTL、required 集合、状态和证据哈希
+merge/release controller
+  └─动作前同时重验 technical_eligible 与 exact action authorization；两者缺一均不动作
+dashboard
+  └─只读展示，不写 Gate、不自算放行
+```
+
+禁止“扫描脚本自己写 PASS/心跳，再由同目录脚本统计为健康”的循环自证。Gate aggregator 必须是小型、只读、依赖最少的独立组件，并接受变异测试。
+
+---
+
+# 6. 目标数据与状态模型
+
+## 6.1 统一结果双轴
+
+```text
+execution_status = COMPLETED | ERROR | BLOCKED | TIMEOUT | CANCELLED
+policy_verdict   = PASS | FAIL | CONDITIONAL | NOT_APPLICABLE | NOT_EVALUATED
+aggregate_outcome = PASS | CONDITIONAL | BLOCKED
+```
+
+- `COMPLETED+NOT_APPLICABLE` 只能由受保护 policy 的 applicability rule 生成；人工文字不能生成 N/A。
+- FINDINGS 表示 `COMPLETED+FAIL`，不是 execution status。
+- CONDITIONAL 不等于 PASS：无独立有效 risk authorization 时 technical eligibility=false；即使 risk authorization 有效，无 exact action authorization 也不得执行受保护动作。
+- **站级语义：** required station 只有 `COMPLETED+PASS` 才是 station PASS；CONDITIONAL 不得改写成 PASS，也不得计入“全站 PASS”。
+- **内部聚合语义：** 存在 policy 允许的低风险 `ACCEPTED_RISK` 时，aggregate 仍为 CONDITIONAL；未授权时 CLI 返回 exit 4，GitHub required context 发布 failure/blocked，自动合流不得消费。
+- **机器谓词分层：** `technical_eligible := exact_sha_pass OR (aggregate=CONDITIONAL AND valid_risk_authorization AND valid_conditional_attestation)`；`action_eligible := technical_eligible AND valid_exact_action_authorization`。普通 PASS 只证明技术条件，不授予 merge/release/prod-write/DDL 权；所有受保护动作都必须额外具备 exact action authorization。
+- **唯一条件放行路径：** 所有非接受项均 PASS，且 approval broker 签发绑定完整 finding 集合和失效域的 risk authorization 后，aggregator 可铸造 `AUTHORIZED_CONDITIONAL` attestation。内部 aggregate、详情页和 dashboard 仍保持琥珀色 CONDITIONAL，不得显示 PASS；P0/P1 永不适用。risk authorization 与 action authorization 是两个判别类型；可由同一个人类批准包同时签发，但必须分别校验、分别消费。
+- **Check 映射：** PASS→`success/PASS`；未获 risk authorization 的 CONDITIONAL→`failure/CONDITIONAL_BLOCKED`；合法条件态→`success/AUTHORIZED_CONDITIONAL`；BLOCKED/ERROR/STALE→failure。任何绿色 context 只表达 technical eligibility，不等于动作授权；另一个 `Action Authorization Gate` 只在 exact action authorization 有效时对对应 SHA/action 成功。
+- **控制器消费：** merge/release controller 在动作前重新计算 `action_eligible`。CONDITIONAL 时禁用 native auto-merge；PASS 路径也只能由已经审计的人类精确 enqueue 事件或专用最小权限 App 触发。仓库角色/ruleset 必须禁止其他人或 bot 仅凭绿色 context 直接合流；break-glass 另走一次性审计路径。
+- 新 finding、finding 集合变化、证据/接受到期、SHA/scope/environment/policy/ruleset/input watermark/state_version 变化或签名密钥吊销，必须在本地立即将 authorization/attestation 判无效并写入失败更新 outbox。即使 GitHub 暂时失联而保留陈旧绿色 context，专用 App 仍会因动作前重验失败而拒绝，其他主体也无直接合流权限。
+
+跨 SQLite 与 GitHub/发布系统禁止宣称 ACID“同一事务”。必须实现 durable saga/outbox：
+
+1. 本地事务原子写入 `RISK_AUTH_CONSUMED + ATTESTATION_CREATED + CONTROL_OUTBOX`，dispatcher 用幂等键创建/更新 check，并回写外部 `check_run_id/revision`；
+2. 动作事务原子写 `ACTION_AUTH_RESERVED + ACTION_STARTED + CONTROL_OUTBOX`，随后用 expected-SHA、merge-group SHA 或 deployment fencing token 调外部动作；
+3. 收到可验证回执后写 `ACTION_COMMITTED`；超时、崩溃或回执丢失写 `ACTION_FAILED_UNKNOWN`，恢复器必须先查询 GitHub/部署事实再裁定，绝不盲重试；
+4. 若已证明外部未发生，则旧授权作废，必须重新授权；若外部已发生，则补记 COMMITTED，不产生第二次副作用；
+5. dispatcher 的 crash-before/after-publish、controller 的 crash-before/after-action 与回执丢失均须故障注入。
+
+统一退出码：
+
+| 退出码 | 含义 |
+|---:|---|
+| 0 | 执行完成且策略 PASS |
+| 1 | 执行完成但有 FINDINGS/FAIL |
+| 2 | 工具、输入、网络、格式或证据 ERROR |
+| 3 | 权限、审批或依赖 BLOCKED |
+| 4 | CONDITIONAL，必须存在合法限时风险接受 |
+| 124 | TIMEOUT |
+
+只有 `COMPLETED + PASS` 可计 **station required PASS**；`AUTHORIZED_CONDITIONAL` 是独立的显式授权出口，永远不改名为 PASS。
+
+## 6.2 问渠状态机
+
+七段：
+
+```text
+S1_REQUIREMENT → S2_SOLUTION → S3_EQS_PRE → S4_IMPLEMENT
+→ S5_CONVERGENCE → S6_EQS_FULL → S7_GATE
+```
+
+总状态：
+
+```text
+CREATED | RUNNING | WAITING | FAILED | SUCCEEDED
+| COMPLETED_CONDITIONAL | CANCELLED | SUPERSEDED
+```
+
+段状态：
+
+```text
+PENDING | RUNNING | PASSED | COMPLETED_CONDITIONAL
+| FAILED | WAITING | CANCELLED
+```
+
+整段不得用豁免伪造 PASSED。`COMPLETED_CONDITIONAL` 仅允许用于 S7，且永远不等于 PASSED。S1_REQUIREMENT、S7_GATE 和 required 安全检查永远不可整段豁免；N/A/风险接受只作用于 policy 明确允许的非关键子检查，并令整线进入 CONDITIONAL。
+
+### 6.2.1 九类停等与恢复充分条件
+
+统一前提：**九类 WAITING 的恢复都必须同时具备**（a）绑定当前 `stop_event_id/state_version/scope/SHA/environment` 的一次性人类授权，（b）下表客观前置。只有批准没有客观恢复，或只有客观恢复没有一次性批准，均不得 resume。
+
+| # | stop_type | 恢复的必要且充分条件 |
+|---:|---|---|
+| 0 | `ambiguity` | 一次性授权 + 新需求四要素与 scope hash 冻结；泛化“批准继续”不够 |
+--- output end ---
+exit_code=0

@@ -1,0 +1,48 @@
+13:    登记于 <root>/windows/<window_id>.json sealed manifest（见
+30:subprocess 一律参数列表 + shell=False；测试经 WENQU_OBSERVATION_ROOT /
+31:WENQU_OBS_PROBE_MODE=light / tmp HOME 注入，绝不写真实 ~/.wenqu。
+89:def observation_root():
+91:    return (os.environ.get("WENQU_OBSERVATION_ROOT")
+95:def samples_dir(root=None):
+96:    return os.path.join(root or observation_root(), "samples")
+99:def shadow_dir(root=None):
+100:    return os.path.join(root or observation_root(), "shadow")
+103:def errors_dir(root=None):
+104:    return os.path.join(root or observation_root(), "errors")
+107:LOGS_DIR = os.path.join(observation_root(), "logs")
+123:CANARY_WINDOW_HOURS = 48.0
+677:                 window_hours=CANARY_WINDOW_HOURS, root=None):
+682:      - 锚后 window_hours（默认 48h）内 → IN_WINDOW，扫描 shadow/ 目录既有
+688:    root = root or observation_root()
+714:    out["status"] = "IN_WINDOW" if now_dt < end else "CLOSED"
+720:        names = sorted(os.listdir(shadow_dir(root)))
+739:        path = os.path.join(shadow_dir(root), name)
+832:def record_creation_error(root, kind, detail):
+845:        edir = errors_dir(root)
+1006:def _resolve_window(root, now_dt):
+1010:    （WENQU_WINDOW_PREREQS_JSON/FILE）；缺/坏 → WindowPrereqError →
+1012:    docs, _ = wm.load_manifests(root)
+1019:                wm.seal_window(root, m["window_id"], now=now_dt)
+1022:    m = wm.active_manifest(root, now=now_dt)  # 歧义 → WindowAmbiguityError
+1029:    return wm.open_window(root, now=now_dt, prerequisites=prereqs)
+1032:def record_sample(root, core, *, identity=None, release_sha=None,
+1040:    sdir = samples_dir(root)
+1042:        for d in (sdir, errors_dir(root), wm.manifest_dir(root),
+1043:                  shadow_dir(root)):
+1047:                "qualified": False, "qualify_failures": ["obs_root_unwritable"],
+1048:                "error": "observation root unwritable: %s" % e}
+1056:                manifest = _resolve_window(root, now_dt)
+1116:                        root, manifest,
+1122:                    record_creation_error(root, "manifest_first_sample_failed",
+1203:    light = os.environ.get("WENQU_OBS_PROBE_MODE") == "light"
+1204:    root = observation_root()
+1206:        for d in (samples_dir(root), shadow_dir(root), LOGS_DIR,
+1207:                  errors_dir(root), wm.manifest_dir(root)):
+1211:                          "error": "observation root unwritable: %s" % e},
+1230:    rec = record_sample(root, sample_core, collected_at=now_iso,
+1245:        man_doc = wm.load_manifest(root, manifest["window_id"])
+1249:    canary_hours = (man_doc or {}).get("canary_hours") or CANARY_WINDOW_HOURS
+1261:            root=root),
+1263:    wres = write_sample_exclusive(shadow_dir(root), shadow,
+1269:    rotate(samples_dir(root), protect_epoch=manifest["epoch_id"])
+1270:    rotate(shadow_dir(root), protect_epoch=manifest["epoch_id"])

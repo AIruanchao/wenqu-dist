@@ -1,0 +1,432 @@
+{
+ "branch": "main",
+ "collected_at": "2026-10-11T01:22:38Z",
+ "commit": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+ "commit_parents": [
+  "e00de1449b30bc5f7f7137155fd864c323cbd658"
+ ],
+ "commit_short": "ff050bb",
+ "commit_subject": "feat(p0-2+p0-10): 七段状态机+审批 Broker（1792 行）+131 AC 追踪矩阵+证据包 14 目录",
+ "gh_run_list_raw": [
+  {
+   "conclusion": "success",
+   "createdAt": "2026-10-08T04:27:13Z",
+   "databaseId": 37727549548,
+   "event": "push",
+   "headSha": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+   "status": "completed",
+   "updatedAt": "2026-10-08T04:28:15Z",
+   "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548",
+   "workflowName": "acceptance"
+  }
+ ],
+ "is_merge_commit": false,
+ "method": "gh run list --repo AIruanchao/wenqu-dist --branch main --commit <full-sha>（exact-SHA 严格相等匹配，无子串/时间窗推断）+ event=push 过滤+ gh run view --json jobs 双平台逐 job 核验",
+ "pr_head_runs_excluded": [],
+ "primary_run": {
+  "_jobs": [
+   {
+    "completedAt": "2026-10-08T04:27:42Z",
+    "conclusion": "success",
+    "databaseId": 113149057480,
+    "name": "matrix (macos-latest)",
+    "startedAt": "2026-10-08T04:27:21Z",
+    "status": "completed",
+    "steps": [
+     {
+      "completedAt": "2026-10-08T04:27:22Z",
+      "conclusion": "success",
+      "name": "Set up job",
+      "number": 1,
+      "startedAt": "2026-10-08T04:27:21Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:24Z",
+      "conclusion": "success",
+      "name": "Run actions/checkout@v4",
+      "number": 2,
+      "startedAt": "2026-10-08T04:27:22Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:24Z",
+      "conclusion": "success",
+      "name": "Run actions/setup-python@v5",
+      "number": 3,
+      "startedAt": "2026-10-08T04:27:24Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:25Z",
+      "conclusion": "success",
+      "name": "release-check（版本号残留机械闸·动态版本）",
+      "number": 4,
+      "startedAt": "2026-10-08T04:27:24Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:34Z",
+      "conclusion": "success",
+      "name": "acceptance",
+      "number": 5,
+      "startedAt": "2026-10-08T04:27:25Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:39Z",
+      "conclusion": "success",
+      "name": "pytest 契约",
+      "number": 6,
+      "startedAt": "2026-10-08T04:27:34Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:39Z",
+      "conclusion": "success",
+      "name": "selftest",
+      "number": 7,
+      "startedAt": "2026-10-08T04:27:39Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:40Z",
+      "conclusion": "success",
+      "name": "Post Run actions/setup-python@v5",
+      "number": 13,
+      "startedAt": "2026-10-08T04:27:39Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:40Z",
+      "conclusion": "success",
+      "name": "Post Run actions/checkout@v4",
+      "number": 14,
+      "startedAt": "2026-10-08T04:27:40Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:40Z",
+      "conclusion": "success",
+      "name": "Complete job",
+      "number": 15,
+      "startedAt": "2026-10-08T04:27:40Z",
+      "status": "completed"
+     }
+    ],
+    "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548/job/113149057480"
+   },
+   {
+    "completedAt": "2026-10-08T04:28:15Z",
+    "conclusion": "success",
+    "databaseId": 113149057839,
+    "name": "matrix (ubuntu-latest)",
+    "startedAt": "2026-10-08T04:27:53Z",
+    "status": "completed",
+    "steps": [
+     {
+      "completedAt": "2026-10-08T04:27:55Z",
+      "conclusion": "success",
+      "name": "Set up job",
+      "number": 1,
+      "startedAt": "2026-10-08T04:27:54Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:56Z",
+      "conclusion": "success",
+      "name": "Run actions/checkout@v4",
+      "number": 2,
+      "startedAt": "2026-10-08T04:27:55Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:57Z",
+      "conclusion": "success",
+      "name": "Run actions/setup-python@v5",
+      "number": 3,
+      "startedAt": "2026-10-08T04:27:56Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:27:57Z",
+      "conclusion": "success",
+      "name": "release-check（版本号残留机械闸·动态版本）",
+      "number": 4,
+      "startedAt": "2026-10-08T04:27:57Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:04Z",
+      "conclusion": "success",
+      "name": "acceptance",
+      "number": 5,
+      "startedAt": "2026-10-08T04:27:57Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:11Z",
+      "conclusion": "success",
+      "name": "pytest 契约",
+      "number": 6,
+      "startedAt": "2026-10-08T04:28:04Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:11Z",
+      "conclusion": "success",
+      "name": "selftest",
+      "number": 7,
+      "startedAt": "2026-10-08T04:28:11Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:11Z",
+      "conclusion": "success",
+      "name": "Post Run actions/setup-python@v5",
+      "number": 13,
+      "startedAt": "2026-10-08T04:28:11Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:12Z",
+      "conclusion": "success",
+      "name": "Post Run actions/checkout@v4",
+      "number": 14,
+      "startedAt": "2026-10-08T04:28:11Z",
+      "status": "completed"
+     },
+     {
+      "completedAt": "2026-10-08T04:28:12Z",
+      "conclusion": "success",
+      "name": "Complete job",
+      "number": 15,
+      "startedAt": "2026-10-08T04:28:12Z",
+      "status": "completed"
+     }
+    ],
+    "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548/job/113149057839"
+   }
+  ],
+  "_verdict": "PASS",
+  "conclusion": "success",
+  "createdAt": "2026-10-08T04:27:13Z",
+  "databaseId": 37727549548,
+  "event": "push",
+  "headSha": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+  "status": "completed",
+  "updatedAt": "2026-10-08T04:28:15Z",
+  "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548",
+  "workflowName": "acceptance"
+ },
+ "push_runs": [
+  {
+   "_jobs": [
+    {
+     "completedAt": "2026-10-08T04:27:42Z",
+     "conclusion": "success",
+     "databaseId": 113149057480,
+     "name": "matrix (macos-latest)",
+     "startedAt": "2026-10-08T04:27:21Z",
+     "status": "completed",
+     "steps": [
+      {
+       "completedAt": "2026-10-08T04:27:22Z",
+       "conclusion": "success",
+       "name": "Set up job",
+       "number": 1,
+       "startedAt": "2026-10-08T04:27:21Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:24Z",
+       "conclusion": "success",
+       "name": "Run actions/checkout@v4",
+       "number": 2,
+       "startedAt": "2026-10-08T04:27:22Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:24Z",
+       "conclusion": "success",
+       "name": "Run actions/setup-python@v5",
+       "number": 3,
+       "startedAt": "2026-10-08T04:27:24Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:25Z",
+       "conclusion": "success",
+       "name": "release-check（版本号残留机械闸·动态版本）",
+       "number": 4,
+       "startedAt": "2026-10-08T04:27:24Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:34Z",
+       "conclusion": "success",
+       "name": "acceptance",
+       "number": 5,
+       "startedAt": "2026-10-08T04:27:25Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:39Z",
+       "conclusion": "success",
+       "name": "pytest 契约",
+       "number": 6,
+       "startedAt": "2026-10-08T04:27:34Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:39Z",
+       "conclusion": "success",
+       "name": "selftest",
+       "number": 7,
+       "startedAt": "2026-10-08T04:27:39Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:40Z",
+       "conclusion": "success",
+       "name": "Post Run actions/setup-python@v5",
+       "number": 13,
+       "startedAt": "2026-10-08T04:27:39Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:40Z",
+       "conclusion": "success",
+       "name": "Post Run actions/checkout@v4",
+       "number": 14,
+       "startedAt": "2026-10-08T04:27:40Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:40Z",
+       "conclusion": "success",
+       "name": "Complete job",
+       "number": 15,
+       "startedAt": "2026-10-08T04:27:40Z",
+       "status": "completed"
+      }
+     ],
+     "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548/job/113149057480"
+    },
+    {
+     "completedAt": "2026-10-08T04:28:15Z",
+     "conclusion": "success",
+     "databaseId": 113149057839,
+     "name": "matrix (ubuntu-latest)",
+     "startedAt": "2026-10-08T04:27:53Z",
+     "status": "completed",
+     "steps": [
+      {
+       "completedAt": "2026-10-08T04:27:55Z",
+       "conclusion": "success",
+       "name": "Set up job",
+       "number": 1,
+       "startedAt": "2026-10-08T04:27:54Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:56Z",
+       "conclusion": "success",
+       "name": "Run actions/checkout@v4",
+       "number": 2,
+       "startedAt": "2026-10-08T04:27:55Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:57Z",
+       "conclusion": "success",
+       "name": "Run actions/setup-python@v5",
+       "number": 3,
+       "startedAt": "2026-10-08T04:27:56Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:27:57Z",
+       "conclusion": "success",
+       "name": "release-check（版本号残留机械闸·动态版本）",
+       "number": 4,
+       "startedAt": "2026-10-08T04:27:57Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:04Z",
+       "conclusion": "success",
+       "name": "acceptance",
+       "number": 5,
+       "startedAt": "2026-10-08T04:27:57Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:11Z",
+       "conclusion": "success",
+       "name": "pytest 契约",
+       "number": 6,
+       "startedAt": "2026-10-08T04:28:04Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:11Z",
+       "conclusion": "success",
+       "name": "selftest",
+       "number": 7,
+       "startedAt": "2026-10-08T04:28:11Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:11Z",
+       "conclusion": "success",
+       "name": "Post Run actions/setup-python@v5",
+       "number": 13,
+       "startedAt": "2026-10-08T04:28:11Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:12Z",
+       "conclusion": "success",
+       "name": "Post Run actions/checkout@v4",
+       "number": 14,
+       "startedAt": "2026-10-08T04:28:11Z",
+       "status": "completed"
+      },
+      {
+       "completedAt": "2026-10-08T04:28:12Z",
+       "conclusion": "success",
+       "name": "Complete job",
+       "number": 15,
+       "startedAt": "2026-10-08T04:28:12Z",
+       "status": "completed"
+      }
+     ],
+     "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548/job/113149057839"
+    }
+   ],
+   "_verdict": "PASS",
+   "conclusion": "success",
+   "createdAt": "2026-10-08T04:27:13Z",
+   "databaseId": 37727549548,
+   "event": "push",
+   "headSha": "ff050bbb9c95c04ecb975900f5440f9bfcd1a447",
+   "status": "completed",
+   "updatedAt": "2026-10-08T04:28:15Z",
+   "url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548",
+   "workflowName": "acceptance"
+  }
+ ],
+ "repo": "AIruanchao/wenqu-dist",
+ "required_matrix_jobs": [
+  "matrix (ubuntu-latest)",
+  "matrix (macos-latest)"
+ ],
+ "schema": "wenqu-merge-ci-evidence/1",
+ "tool": "tools/merge-ci-evidence.sh",
+ "urls": [
+  "https://github.com/AIruanchao/wenqu-dist/actions/runs/37727549548"
+ ],
+ "verdict": "PASS",
+ "verdict_reason": "run 37727549548（event=push，headSha=ff050bbb9c95c04ecb975900f5440f9bfcd1a447）双平台 matrix (ubuntu-latest)/matrix (macos-latest) 均 completed/success"
+}

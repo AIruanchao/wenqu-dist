@@ -1,0 +1,46 @@
+timestamp=2026-10-11T01:16:23Z
+pwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+command=python3 system/tests/p1f_mutation_gate.py --root /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321 --mutations /private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/tests/p1f-mutations.json --json /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/06-assertion/06-mutation-gate-baseline.json --verbose
+--- output begin ---
+  [1/18] ✅ KILLED MUT-01 wenqu_core/source_gate.py#validate_exact_sha op=flip_compare killer=test_ac_gate_family(exit=1)
+      exact-SHA 原子比对翻转（!= → ==）：相等 head 反被 StaleShaError 拒、异源 SHA 放行——GATE-04/MRG-07/CI-05 腿必须红
+  [2/18] ✅ KILLED MUT-02 wenqu_core/source_gate.py#_is_non_behavioral op=negate_return killer=test_ac_gate_family(exit=1)
+      行为/非行为文件分类取反：behavioral_files 与 non_behavioral_files 互换——scope 分面测试必须红
+  [3/18] ✅ KILLED MUT-03 wenqu_core/bugscan_orchestrator.py#validate_station_result op=flip_compare killer=test_ac_gate_family(exit=1)
+      station-result 结构校验比较符翻转（station_id 值域/枚举/键集）：合法结果被拒/非法结果漏过——CI-07/CI-09 腿必须红
+  [4/18] ✅ KILLED MUT-04 wenqu_core/store.py#verify_chain op=flip_compare killer=test_ac_state_mig(exit=1)
+      哈希链校验 prev != expected 翻转为 ==：好链必报断/坏链漏检——STATE-06 链校验腿必须红
+  [5/18] ✅ KILLED MUT-05 wenqu_core/ledger_migrator.py#classify op=flip_compare killer=test_ac_state_mig(exit=1)
+      旧账行分类比较符翻转（缺字段/未知状态/project 冲突判定）：坏行进口/好行隔离——MIG-01/MIG-05 腿必须红
+  [6/18] ✅ KILLED MUT-06 wenqu_core/wenqu_pipeline.py#_verify_seal op=negate_return killer=test_ac_state_mig(exit=1)
+      事件 seal 常量时间比对取反：真 seal 被拒/伪 seal 放行——STATE-09 重放身份不变量腿必须红
+  [7/18] ✅ KILLED MUT-07 wenqu_core/deploy_framework.py#verify op=flip_compare killer=test_ac_deploy_release(exit=1)
+      release manifest 对账比较符翻转（schema 值域/哈希漂移/签名绑定）：好发布被拒或篡改漏检——REL-01/02、DEP-04/05 腿必须红
+  [8/18] ✅ KILLED MUT-08 wenqu_core/deploy_framework.py#valid op=negate_return killer=test_ac_deploy_release(exit=1)
+      BackupProof.valid 旧版完好性预检取反：坏旧版放行回滚/好旧版被拒——RB-01 回滚先验腿必须红
+  [9/18] ✅ KILLED MUT-09 wenqu_core/station2_static.py#_validate_identity op=flip_compare killer=test_ac_station_families(exit=1)
+      站2 identity 校验比较符翻转（键集封闭/40hex/非空）：合法 identity 被拒/畸形漏检——SC/ADV 站2 腿必须红
+  [10/18] ✅ KILLED MUT-10 wenqu_core/station3_contract.py#derive_dynamic_denominator op=flip_compare killer=test_ac_station_families(exit=1)
+      动态分母正源选择翻转（is not None → is None）：分母正源错位/缺源不拒——TEN 租户分母腿必须红
+  [11/18] ✅ KILLED MUT-11 wenqu_core/scheduler.py#first_due_after op=flip_compare killer=test_ac_ops_families(exit=1)
+      调度下次触发时刻比较符翻转（interval 分派/cand > after）：触发时刻错位或搜索失败——SCH 调度腿必须红
+  [12/18] ✅ KILLED MUT-12 wenqu_core/capacity_monitor.py#peak_budget_bytes op=flip_compare killer=test_ac_ops_families(exit=1)
+      峰值预算分量校验翻转（value < 0 → >= 0）：正常分量被拒/负值漏检——CAP 分母冻结腿必须红
+  [13/18] ✅ KILLED MUT-13 wenqu_core/approval_keys.py#verify_envelope op=negate_return killer=test_ac_auth_cond(exit=1)
+      审批信封 HMAC 验签取反：真签被拒/伪签放行——COND-01/03/04 验签腿必须红
+  [14/18] ✅ KILLED MUT-14 wenqu_core/wenqu_pipeline.py#has_unexpired_risk_authorization op=negate_return killer=test_ac_auth_cond(exit=1)
+      未过期 risk 授权查询取反：有授权判无/无授权判有（bool 冒充 Optional）——COND-03 在位断言与 COND-05 失效断言必须红
+  [15/18] ✅ KILLED MUT-15 wenqu_core/wenqu_pipeline.py#_verify_signature op=flip_compare killer=test_ac_auth_cond(exit=1)
+      ApprovalBroker 主签校验比较符翻转（actor ∈ key actors 等绑定判定）：越权签批放行/合法签批被拒——COND/APPR 绑定腿必须红
+  [16/18] ✅ KILLED MUT-16 wenqu_core/runner.py#_build_env op=flip_compare killer=test_ac_act_run(exit=1)
+      TrustedRunner env 白名单构建翻转（value is not None → is None）：白名单基础变量被剥除——RUN-01 白名单保留断言必须红
+  [17/18] ✅ KILLED MUT-17 wenqu_core/wenqu_pipeline.py#reserve_action op=flip_compare killer=test_ac_act_run(exit=1)
+      action 预留审批门比较符翻转（_ACTION_APPROVAL_TYPE 封闭映射校验）：无审批 action 放行/有审批被拒——ACT-01 腿必须红
+  [18/18] ✅ KILLED MUT-18 wenqu_core/ui_probe.py#html_structural_gate op=negate_return killer=test_ac_ui_family(exit=1)
+      UI 静态结构门返回取反：finding 列表变布尔——UI-01/02 结构断言腿必须红
+------------------------------------------------------------------------
+mutation score: 18/18 = 100.0%（197.3s，沙箱全临时）
+报告已写: /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/06-assertion/06-mutation-gate-baseline.json
+✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）
+--- output end ---
+exit_code=0

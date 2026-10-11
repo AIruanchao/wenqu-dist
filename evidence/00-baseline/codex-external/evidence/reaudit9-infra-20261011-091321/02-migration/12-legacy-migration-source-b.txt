@@ -1,0 +1,494 @@
+timestamp=2026-10-11T01:14:14Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && nl -ba system/wenqu_core/ledger_migrator.py | sed -n '563,1120p'
+--- output begin ---
+   563	# ---------------------------------------------------------------------- #
+   564	# 旧 events 表残留：一次性收编（P0-6 第六轮）
+   565	# R7-EVENT-LEGACY-WRITABLE-007：收编后冻结只读 + 迟到写拒收（第七轮 P0 修）
+   566	# 第八轮 P0-6 残余：行内容快照账本（UPDATE+backdate / gap 空位回填拒收）
+   567	# ---------------------------------------------------------------------- #
+   568	def _parse_ts_to_epoch(value: Any) -> Optional[float]:
+   569	    """把行内 ts / migrated_at 等时间值解析为 UTC epoch 秒；不可解析返回 None。
+   570	
+   571	    支持 ISO 8601（含 Z 后缀/无时区按 UTC）、SQLite ``datetime('now')``
+   572	    形状、数值 epoch（秒；≥1e12 视为毫秒归一）。不可解析/空值返回
+   573	    None——该时间通道缺席，绝不猜时间（M2 精神：缺证据不猜填）。
+   574	    """
+   575	    if value is None or isinstance(value, bool):
+   576	        return None
+   577	    if isinstance(value, (int, float)):
+   578	        return float(value) / 1000.0 if value >= 1e12 else float(value)
+   579	    text = str(value).strip()
+   580	    if not text:
+   581	        return None
+   582	    try:
+   583	        num = float(text)
+   584	    except ValueError:
+   585	        num = None
+   586	    if num is not None:
+   587	        return num / 1000.0 if num >= 1e12 else num
+   588	    iso = (text[:-1] + "+00:00") if text.endswith(("Z", "z")) else text
+   589	    parsed: Optional[datetime] = None
+   590	    try:
+   591	        parsed = datetime.fromisoformat(iso)
+   592	    except ValueError:
+   593	        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f",
+   594	                    "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+   595	            try:
+   596	                parsed = datetime.strptime(text, fmt)
+   597	                break
+   598	            except ValueError:
+   599	                continue
+   600	    if parsed is None:
+   601	        return None
+   602	    if parsed.tzinfo is None:
+   603	        parsed = parsed.replace(tzinfo=timezone.utc)
+   604	    return parsed.timestamp()
+   605	
+   606	
+   607	def _row_effective_epoch(payload_text: Optional[str],
+   608	                         migrated_at: Any = None) -> Optional[float]:
+   609	    """旧行「落账时刻」的保守估计：行内 ts（payload JSON 的 ``ts`` 字段）与
+   610	    表元数据 ``migrated_at``（rowid 侧元数据通道）两路取可解析的最大值。
+   611	
+   612	    取最大是 fail-closed 方向：任一通道声称该行晚于 cutover，即按迟到
+   613	    写处理。全部不可解析返回 None（时间证据缺席，由 id 通道兜底）。
+   614	    """
+   615	    candidates: List[float] = []
+   616	    meta = _parse_ts_to_epoch(migrated_at)
+   617	    if meta is not None:
+   618	        candidates.append(meta)
+   619	    if payload_text:
+   620	        try:
+   621	            obj = json.loads(payload_text)
+   622	        except ValueError:
+   623	            obj = None
+   624	        if isinstance(obj, dict):
+   625	            inner = _parse_ts_to_epoch(obj.get("ts"))
+   626	            if inner is not None:
+   627	                candidates.append(inner)
+   628	    return max(candidates) if candidates else None
+   629	
+   630	
+   631	def _read_cutover(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
+   632	    """读该库已记录的 cutover；无记账/记账行为空返回 None。"""
+   633	    hit = conn.execute(
+   634	        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+   635	        (LEGACY_CUTOVER_TABLE,)).fetchone()
+   636	    if hit is None:
+   637	        return None
+   638	    row = conn.execute(
+   639	        f"SELECT cutover_ts, cutover_epoch, max_legacy_id, trigger_names "
+   640	        f"FROM {LEGACY_CUTOVER_TABLE} WHERE id = 1").fetchone()
+   641	    if row is None:
+   642	        return None
+   643	    try:
+   644	        names = json.loads(row[3])
+   645	    except ValueError:
+   646	        names = []
+   647	    return {"cutover_ts": row[0], "cutover_epoch": row[1],
+   648	            "max_legacy_id": row[2], "trigger_names": names}
+   649	
+   650	
+   651	def _record_cutover(conn: sqlite3.Connection, max_legacy_id: int,
+   652	                    trigger_names: List[str]) -> None:
+   653	    """首次冻结记账（bookkeeping，非事件正源）。
+   654	
+   655	    INSERT OR IGNORE + ``id = 1`` CHECK：单行记账，一经记录永不推进——
+   656	    迟到判定永远以该库首次 cutover 为准，绝不因后续运行（哪怕吸收过迟到
+   657	    行）而把门槛后移。
+   658	    """
+   659	    now = datetime.now(timezone.utc)
+   660	    conn.execute(_CUTOVER_SCHEMA)
+   661	    conn.execute(
+   662	        f"INSERT OR IGNORE INTO {LEGACY_CUTOVER_TABLE} "
+   663	        f"(id, cutover_ts, cutover_epoch, max_legacy_id, trigger_names) "
+   664	        f"VALUES (1, ?, ?, ?, ?)",
+   665	        (now.strftime("%Y-%m-%dT%H:%M:%SZ"), now.timestamp(),
+   666	         int(max_legacy_id), json.dumps(sorted(trigger_names))))
+   667	
+   668	
+   669	def _install_freeze_triggers(conn: sqlite3.Connection) -> List[str]:
+   670	    """对旧 events 表幂等安装冻结只读触发器；返回安装后实际在库的触发器名。
+   671	
+   672	    CREATE TRIGGER IF NOT EXISTS：已安装（含重跑/治愈场景）不报错、不
+   673	    重复；返回值以 sqlite_master 实查为准（不信任 IF NOT EXISTS 的静默）。
+   674	    """
+   675	    for ddl in _LEGACY_FREEZE_TRIGGER_DDL:
+   676	        conn.execute(ddl)
+   677	    present = {r[0] for r in conn.execute(
+   678	        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+   679	        (LEGACY_EVENTS_TABLE,))}
+   680	    return [name for name in LEGACY_FREEZE_TRIGGER_NAMES if name in present]
+   681	
+   682	
+   683	def _legacy_row_sha(row: Dict[str, Any]) -> str:
+   684	    """旧行「已读内容」的规范化 SHA256（行版本账本的记账单位）。
+   685	
+   686	    覆盖 :func:`migrate_legacy_events` 实际读出并决定入链/迟判的全部列
+   687	    （id/line_sha/status/source_file/source_line/payload/migrated_at）——
+   688	    收编后对这些列的任何 UPDATE（含仅改 migrated_at 元数据的伪装、含
+   689	    回填早 ts）都会使摘要失配。migrated_at 通道缺席（形状变体无该列）
+   690	    时按 None 记账：列集后来发生变化本身就会造成失配（fail-closed）。
+   691	    """
+   692	    material = json.dumps(
+   693	        [row["id"], row["line_sha"], row["status"], row["source_file"],
+   694	         row["source_line"], row["payload"], row["migrated_at"]],
+   695	        ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+   696	    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+   697	
+   698	
+   699	def _read_row_digests(conn: sqlite3.Connection) -> Dict[int, str]:
+   700	    """读已记录的行内容快照账本；表不存在/为空返回空 dict。"""
+   701	    hit = conn.execute(
+   702	        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+   703	        (LEGACY_ROW_DIGESTS_TABLE,)).fetchone()
+   704	    if hit is None:
+   705	        return {}
+   706	    return {int(r[0]): r[1] for r in conn.execute(
+   707	        f"SELECT legacy_id, row_sha FROM {LEGACY_ROW_DIGESTS_TABLE}")}
+   708	
+   709	
+   710	def _record_row_digests(conn: sqlite3.Connection,
+   711	                        legacy_rows: List[Dict[str, Any]]) -> int:
+   712	    """把首跑读到的旧行内容快照写入受保护账本；返回账本当前行数。
+   713	
+   714	    摘要按「本轮实际读入并导入的内容」计算（不是写账时刻的重读）——
+   715	    运行中途旧行被并发改动时，账本锚定的正是已入链内容，下一轮比对
+   716	    必然失配而拒收。INSERT OR IGNORE：既有 rowid 的快照永不改写（该表
+   717	    UPDATE/DELETE 已被 AFTER 触发器关死，不存在静默重基线路径）。本函数
+   718	    同时补建表与 append-only 触发器（幂等）。
+   719	
+   720	    存量库边界（G9-05 fail-closed 收口）：旧版代码只记了 cutover、没有
+   721	    快照账本的库，升级后绝不在本函数按「当下内容」补记基线——当下内容
+   722	    无法与 cutover 时刻内容对账，补记等于把升级前篡改洗白成可信基线。
+   723	    该场景由调用方检测（cutover 已记账而账本为空）并整体标记
+   724	    ``legacy_untrusted``：行全部隔离、基线不补记，需人工从可信正源重建。
+   725	    本函数只在「首次 cutover（prior_cutover is None）」这一条路径上被
+   726	    调用。
+   727	    """
+   728	    conn.execute(_DIGESTS_SCHEMA)
+   729	    for ddl in _LEGACY_DIGEST_TRIGGER_DDL:
+   730	        conn.execute(ddl)
+   731	    for row in legacy_rows:
+   732	        conn.execute(
+   733	            f"INSERT OR IGNORE INTO {LEGACY_ROW_DIGESTS_TABLE} "
+   734	            f"(legacy_id, row_sha) VALUES (?, ?)",
+   735	            (int(row["id"]), _legacy_row_sha(row)))
+   736	    return conn.execute(
+   737	        f"SELECT COUNT(*) FROM {LEGACY_ROW_DIGESTS_TABLE}").fetchone()[0]
+   738	
+   739	
+   740	def migrate_legacy_events(sqlite_path: str,
+   741	                          sidecar_path: Optional[str] = None) -> Dict[str, Any]:
+   742	    """把旧版迁移器 ``events`` 表的历史残留行一次性收编进 pipeline_events。
+   743	
+   744	    契约：
+   745	    - 只读旧行数据：本函数绝不 INSERT/UPDATE/DELETE 旧 ``events`` 表的
+   746	      行，收编后旧表行原样留在库中，仅供对账，不再是正源；
+   747	    - 冻结只读（R7-EVENT-LEGACY-WRITABLE-007）：收编完成后对旧表安装
+   748	      三个拒绝触发器（INSERT/UPDATE/DELETE 一律 RAISE(ABORT)）——
+   749	      ``CREATE TRIGGER IF NOT EXISTS`` 幂等安装，重跑不报错、不重复；
+   750	      触发器被绕过删除时，下一次收编运行治愈重装；
+   751	    - cutover（冻结时刻）记账：首次冻结把 cutover_ts/cutover_epoch/
+   752	      max_legacy_id 写入库内 bookkeeping 表 ``legacy_events_cutover``
+   753	      （INSERT OR IGNORE——一经记录永不推进，迟到判定永远以首次 cutover
+   754	      为准）。cutover 不写入事件链（链长不变量与「负载=旧行内容纯函数」
+   755	      幂等契约零扰动）、不额外追加 sidecar 行（sidecar 保持逐行 1:1 审计
+   756	      形状），时刻经返回报告显式回带（cutover_ts/cutover_max_legacy_id）；
+   757	    - 迟到写拒收（绝不静默吸收收编后的写入）：迁移入口对每行校验时间
+   758	      戳——行内 ts（payload JSON 的 ``ts`` 字段）或 rowid 对应元数据
+   759	      （``migrated_at`` 列 / id 序）晚于该库已记录 cutover 的行不导入，
+   760	      单独 quarantine（reason=late_write_after_cutover）并在报告告警
+   761	      （late_write_alert/late_write_rows）。两个独立拒收通道：
+   762	      (a) id > cutover.max_legacy_id——cutover 后新出现的行，无论 ts
+   763	          伪装多早；(b) 行有效时间戳 > cutover.cutover_epoch——含
+   764	          UPDATE 渠道篡改出的迟到内容；
+   765	    - 行内容快照账本（第八轮 P0-6 残余根修）：id/ts 双通道都是 writer
+   766	      可回填的字段，挡不住「旧表触发器被 DROP 后 UPDATE 旧行并回填早
+   767	      ts」与「向历史 gap 空位 INSERT 全回填行」。首跑收编把每行已读
+   768	      内容的 sha256 记入统一库侧受保护 bookkeeping 表
+   769	      ``legacy_row_digests``（append-only：AFTER UPDATE/DELETE 拒绝
+   770	      触发器与事件链同库同级保护）；重跑逐行比对当前内容摘要 vs 账本
+   771	      快照——(c) 内容失配（被 UPDATE 过，含仅改 migrated_at 元数据）->
+   772	      quarantine（reason=row_mutated_after_cutover，报告告警
+   773	      row_mutation_alert/row_mutation_rows）；(d) 账本缺席且 id/ts 双
+   774	      通道未命中（gap 空位后塞入的行）-> 按迟到写拒收（evidence 标注
+   775	      no row digest on record）。旧表三触发器被 DROP 也绕不开本通道：
+   776	      行版本账本在统一库侧，绕过旧表触发器改不掉账本，比对必然失配；
+   777	      快照一经记账永不改写、永不重基线（INSERT OR IGNORE + 拒绝触发
+   778	      器），quarantine 不会推进 cutover 也不会重写快照；
+   779	    - legacy 升级 fail-closed（G9-05 第九轮根修，R8-EVENT-BACKDATE-008
+   780	      升级路径）：检测到「cutover 已记账而 digest ledger 缺失/为空」
+   781	      （旧版代码跑过的存量库从来没有行版本账本）时，该库标
+   782	      ``legacy_untrusted``——绝不按升级时现状补记基线（当下内容无法与
+   783	      cutover 时刻对账，补记会把升级前已发生的 gap/UPDATE+backdate
+   784	      篡改收编成可信基线）；本次发现的旧行全部 quarantine
+   785	      （reason=legacy_untrusted_no_baseline，imported=0、主链长度不增、
+   786	      账本保持缺席），报告显式给出 legacy_untrusted 标记与处置说明
+   787	      （legacy_untrusted_action_required：人工从可信正源重建基线或接受
+   788	      永久隔离）；冻结触发器照常治愈重装（表仍冻结只读），cutover
+   789	      照常永不推进。有完整 digest ledger 的库（fresh cutover 或新版
+   790	      升级）不受影响，走既有三通道判定；
+   791	    - 单一写入 API：每行经 ``EventStore.append`` 以
+   792	      ``LEGACY_EVENTS_ROW_MIGRATED`` 事件入 ``pipeline_events`` 哈希链；
+   793	      事件负载是旧行已记内容（line_sha/status/payload）的纯函数——重跑
+   794	      全部计 duplicate，零重复入账（一次性、幂等）；
+   795	    - 旧行按已入账历史记录原样收编（status 等字段原封不动）：旧表行是
+   796	      旧制度下已落账的数据，收编时重新判定/归一会改写历史账目，故只做
+   797	      搬运、绝不再判（迟到写拒收是「是否搬运」的守门，不是重判状态）；
+   798	      JSONL 源行的 quarantine 语义在 :meth:`LedgerMigrator.migrate`；
+   799	    - 守恒：rows_seen == imported + duplicates + quarantined，否则
+   800	      ConservationError；
+   801	    - 逐行 sidecar 审计（append-only），携带旧表 id/source_file/source_line
+   802	      位置溯源；quarantine 行额外携带 reason 与迟到证据（late_evidence）。
+   803	
+   804	    旧表不存在（新库/已收编库）不是错误：报告 ``legacy_table_present=False``
+   805	    （不装触发器、不记 cutover；但若该库历史上记录过 cutover 而旧表被
+   806	    整表删除，cutover 记账仍在——旧表重建后迟到判定继续生效）。
+   807	    """
+   808	    sqlite_path = os.path.abspath(sqlite_path)
+   809	    sidecar_path = (os.path.abspath(sidecar_path) if sidecar_path
+   810	                    else sqlite_path + ".legacy-events-sidecar.jsonl")
+   811	    os.makedirs(os.path.dirname(sidecar_path) or ".", exist_ok=True)
+   812	
+   813	    store = EventStore(sqlite_path)
+   814	    try:
+   815	        # 表名是模块常量（不可信输入不进 SQL 文本）；存在性用参数化查询
+   816	        present = store._conn.execute(
+   817	            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+   818	            (LEGACY_EVENTS_TABLE,),
+   819	        ).fetchone() is not None
+   820	
+   821	        legacy_rows: List[Dict[str, Any]] = []
+   822	        has_migrated_at = False
+   823	        if present:
+   824	            cols = {r[1] for r in store._conn.execute(
+   825	                f"PRAGMA table_info({LEGACY_EVENTS_TABLE})")}
+   826	            missing = _LEGACY_REQUIRED_COLUMNS - cols
+   827	            if missing:
+   828	                # 形状异常 fail-closed：同名表不是旧迁移器产物，绝不猜搬
+   829	                raise RuntimeError(
+   830	                    f"legacy table {LEGACY_EVENTS_TABLE!r} has unexpected shape; "
+   831	                    f"missing columns: {sorted(missing)}; refusing to migrate")
+   832	            # migrated_at 是迟到写判定的 rowid 侧元数据通道（旧 schema 自带
+   833	            # DEFAULT datetime('now')；形状变体缺列时该通道缺席，由 id 通道
+   834	            # 兜底）——存在则一并只读取出
+   835	            has_migrated_at = "migrated_at" in cols
+   836	            select_cols = ("id, line_sha, status, source_file, source_line, payload"
+   837	                           + (", migrated_at" if has_migrated_at else ""))
+   838	            # 只读 SELECT——旧表行数据全程零写入
+   839	            for row in store._conn.execute(
+   840	                f"SELECT {select_cols} FROM {LEGACY_EVENTS_TABLE} ORDER BY id"
+   841	            ):
+   842	                legacy_rows.append({
+   843	                    "id": row[0], "line_sha": row[1], "status": row[2],
+   844	                    "source_file": row[3], "source_line": row[4],
+   845	                    "payload": row[5],
+   846	                    "migrated_at": row[6] if has_migrated_at else None,
+   847	                })
+   848	
+   849	        # 该库已记录的 cutover（无论旧表当前是否存在都读：旧表被整表删除
+   850	        # 后重建的场景，迟到判定必须继续以首次 cutover 为准）
+   851	        prior_cutover = _read_cutover(store._conn)
+   852	        # 行内容快照账本（第八轮根修）：与 cutover 同生命周期读取——账本
+   853	        # 非空即进入逐行比对模式；为空表示首跑或存量库待补记基线
+   854	        prior_digests = _read_row_digests(store._conn)
+   855	        # G9-05 legacy 升级 fail-closed（R8-EVENT-BACKDATE-008 升级路径）：
+   856	        # cutover 已记账而 digest ledger 缺失/为空 == 旧版代码（只有
+   857	        # cutover 通道、无行版本账本）跑过的存量库。此刻旧表内容无法与
+   858	        # cutover 时刻内容对账——升级前已发生的 gap/UPDATE+backdate 篡改
+   859	        # 与合法行不可区分。绝不按「升级时现状」补基线（那是把篡改收编
+   860	        # 成可信基线）：本次发现的行全部隔离、账本保持缺席、人工处置。
+   861	        legacy_untrusted = prior_cutover is not None and not prior_digests
+   862	
+   863	        imported = duplicates = quarantined = 0
+   864	        quarantine_reasons: Dict[str, int] = {}
+   865	        late_rows: List[Dict[str, Any]] = []      # 告警明细（legacy_id+证据）
+   866	        mutated_rows: List[Dict[str, Any]] = []   # 内容失配告警明细
+   867	        untrusted_rows: List[Dict[str, Any]] = [] # legacy_untrusted 隔离明细
+   868	        with open(sidecar_path, "a", encoding="utf-8") as sidecar:
+   869	            for row in legacy_rows:
+   870	                # legacy_untrusted 优先短路一切通道：库级不可验证时逐行
+   871	                # 判定（id/ts/摘要比对）都建立在「有可信基线」的前提上，
+   872	                # 前提不成立即整体隔离——包括本可 duplicate 的已入链行
+   873	                # （区分对待会泄露「哪些行可收编」的信号，且无法自证）
+   874	                if legacy_untrusted:
+   875	                    quarantined += 1
+   876	                    quarantine_reasons[LEGACY_UNTRUSTED_REASON] = \
+   877	                        quarantine_reasons.get(LEGACY_UNTRUSTED_REASON, 0) + 1
+   878	                    untrusted_evidence = (
+   879	                        f"cutover recorded at "
+   880	                        f"{prior_cutover['cutover_ts']} but no "
+   881	                        f"{LEGACY_ROW_DIGESTS_TABLE} rows on record; "
+   882	                        f"table content at upgrade time is unverifiable")
+   883	                    untrusted_rows.append({"legacy_id": row["id"],
+   884	                                           "evidence": untrusted_evidence})
+   885	                    sidecar.write(json.dumps({
+   886	                        "decision": "quarantined",
+   887	                        "reason": LEGACY_UNTRUSTED_REASON,
+   888	                        "legacy_table": LEGACY_EVENTS_TABLE,
+   889	                        "legacy_id": row["id"],
+   890	                        "line_sha": row["line_sha"],
+   891	                        "source_file": row["source_file"],
+   892	                        "source_line": row["source_line"],
+   893	                        "untrusted_evidence": untrusted_evidence,
+   894	                    }, ensure_ascii=False, sort_keys=True) + "\n")
+   895	                    continue
+   896	                # 迟到写拒收：cutover 之后才出现/才落账的行绝不入链（两个
+   897	                # 独立通道任一命中即拒——id 通道抓新出现的行、ts 通道抓
+   898	                # 篡改出的迟到内容；证据原样进 sidecar 与报告）
+   899	                late_evidence = None
+   900	                mutation_evidence = None
+   901	                if prior_cutover is not None:
+   902	                    if row["id"] > prior_cutover["max_legacy_id"]:
+   903	                        late_evidence = (f"id={row['id']} > "
+   904	                                         f"cutover_max_id="
+   905	                                         f"{prior_cutover['max_legacy_id']}")
+   906	                    else:
+   907	                        eff = _row_effective_epoch(row["payload"],
+   908	                                                   row["migrated_at"])
+   909	                        if (eff is not None
+   910	                                and eff > prior_cutover["cutover_epoch"]):
+   911	                            late_evidence = (
+   912	                                f"row_ts={eff:.3f} > cutover_epoch="
+   913	                                f"{prior_cutover['cutover_epoch']:.3f}")
+   914	                # 第三通道（行内容快照比对，第八轮根修）：id/ts 都是 writer
+   915	                # 可回填的字段，内容快照锚定在统一库侧受保护账本——旧表
+   916	                # 触发器被 DROP、行被 UPDATE+backdate 也改不掉账本，比对
+   917	                # 必然失配而拒收；账本缺席（gap 空位后塞入）同样拒收
+   918	                if (late_evidence is None and prior_cutover is not None
+   919	                        and prior_digests):
+   920	                    snapshot_sha = prior_digests.get(row["id"])
+   921	                    current_sha = _legacy_row_sha(row)
+   922	                    if snapshot_sha is None:
+   923	                        late_evidence = (
+   924	                            f"id={row['id']} not present at cutover "
+   925	                            f"(no row digest on record)")
+   926	                    elif current_sha != snapshot_sha:
+   927	                        mutation_evidence = (
+   928	                            f"row_sha={current_sha[:16]} != "
+   929	                            f"cutover_snapshot={snapshot_sha[:16]}")
+   930	                if late_evidence is not None:
+   931	                    quarantined += 1
+   932	                    quarantine_reasons[LATE_WRITE_REASON] = \
+   933	                        quarantine_reasons.get(LATE_WRITE_REASON, 0) + 1
+   934	                    late_rows.append({"legacy_id": row["id"],
+   935	                                      "evidence": late_evidence})
+   936	                    sidecar.write(json.dumps({
+   937	                        "decision": "quarantined",
+   938	                        "reason": LATE_WRITE_REASON,
+   939	                        "legacy_table": LEGACY_EVENTS_TABLE,
+   940	                        "legacy_id": row["id"],
+   941	                        "line_sha": row["line_sha"],
+   942	                        "source_file": row["source_file"],
+   943	                        "source_line": row["source_line"],
+   944	                        "late_evidence": late_evidence,
+   945	                    }, ensure_ascii=False, sort_keys=True) + "\n")
+   946	                    continue
+   947	                if mutation_evidence is not None:
+   948	                    # 内容被 UPDATE 过（cutover 后与快照失配）→ 绝不入链；
+   949	                    # 快照不重写、cutover 不推进——下一次运行同样失配拒收
+   950	                    quarantined += 1
+   951	                    quarantine_reasons[ROW_MUTATED_REASON] = \
+   952	                        quarantine_reasons.get(ROW_MUTATED_REASON, 0) + 1
+   953	                    mutated_rows.append({"legacy_id": row["id"],
+   954	                                         "evidence": mutation_evidence})
+   955	                    sidecar.write(json.dumps({
+   956	                        "decision": "quarantined",
+   957	                        "reason": ROW_MUTATED_REASON,
+   958	                        "legacy_table": LEGACY_EVENTS_TABLE,
+   959	                        "legacy_id": row["id"],
+   960	                        "line_sha": row["line_sha"],
+   961	                        "source_file": row["source_file"],
+   962	                        "source_line": row["source_line"],
+   963	                        "mutation_evidence": mutation_evidence,
+   964	                    }, ensure_ascii=False, sort_keys=True) + "\n")
+   965	                    continue
+   966	
+   967	                event = {
+   968	                    "event_type": LEGACY_RESIDUE_EVENT_TYPE,
+   969	                    "line_sha": row["line_sha"],
+   970	                    "status": row["status"],
+   971	                    "raw": row["payload"],
+   972	                }
+   973	                _event_hash, inserted = store.append(event)
+   974	                if inserted:
+   975	                    imported += 1
+   976	                    decision = "imported"
+   977	                else:
+   978	                    duplicates += 1
+   979	                    decision = "duplicate"
+   980	                sidecar.write(json.dumps({
+   981	                    "decision": decision,
+   982	                    "legacy_table": LEGACY_EVENTS_TABLE,
+   983	                    "legacy_id": row["id"],
+   984	                    "line_sha": row["line_sha"],
+   985	                    "source_file": row["source_file"],
+   986	                    "source_line": row["source_line"],
+   987	                }, ensure_ascii=False, sort_keys=True) + "\n")
+   988	
+   989	        # 收编完成 → 冻结只读：幂等安装拒绝触发器（重跑不报错；触发器曾被
+   990	        # 绕过删除时在此治愈重装）；首次冻结即记 cutover（永不推进）
+   991	        frozen_triggers: List[str] = []
+   992	        if present:
+   993	            frozen_triggers = _install_freeze_triggers(store._conn)
+   994	            if prior_cutover is None:
+   995	                _record_cutover(
+   996	                    store._conn,
+   997	                    max_legacy_id=max((r["id"] for r in legacy_rows), default=0),
+   998	                    trigger_names=frozen_triggers)
+   999	            # 行内容快照记账（第八轮根修）：只在首次 cutover（本运行记账）
+  1000	            # 时建立基线；此后账本 append-only——永不改写、永不重基线，
+  1001	            # quarantine 不推进快照。G9-05：旧版存量库（cutover 已记账、
+  1002	            # 账本为空）绝不在此补记基线——当下内容不可验证，补记即把
+  1003	            # 升级前篡改洗白成可信基线（legacy_untrusted 路径已全部隔离）
+  1004	            if prior_cutover is None:
+  1005	                _record_row_digests(store._conn, legacy_rows)
+  1006	
+  1007	        store.verify_chain()
+  1008	        if len(legacy_rows) != imported + duplicates + quarantined:
+  1009	            raise ConservationError(
+  1010	                f"legacy residue conservation violated: rows_seen={len(legacy_rows)} != "
+  1011	                f"imported({imported}) + duplicates({duplicates}) + "
+  1012	                f"quarantined({quarantined})")
+  1013	
+  1014	        cutover = _read_cutover(store._conn)
+  1015	        digests_on_record = len(_read_row_digests(store._conn))
+  1016	        return {
+  1017	            "sqlite_path": sqlite_path,
+  1018	            "legacy_table": LEGACY_EVENTS_TABLE,
+  1019	            "legacy_table_present": present,
+  1020	            "rows_seen": len(legacy_rows),
+  1021	            "imported": imported,
+  1022	            "duplicates": duplicates,
+  1023	            "quarantined": quarantined,
+  1024	            "quarantine_reasons": dict(sorted(quarantine_reasons.items())),
+  1025	            "late_write_alert": bool(late_rows),
+  1026	            "late_write_rows": late_rows,
+  1027	            "row_digest_ledger": LEGACY_ROW_DIGESTS_TABLE,
+  1028	            "row_digests_on_record": digests_on_record,
+  1029	            "row_mutation_alert": bool(mutated_rows),
+  1030	            "row_mutation_rows": mutated_rows,
+  1031	            # G9-05 legacy 升级 fail-closed：显式标记 + 人工处置说明
+  1032	            "legacy_untrusted": legacy_untrusted,
+  1033	            "legacy_untrusted_reason": (
+  1034	                LEGACY_UNTRUSTED_REASON if legacy_untrusted else None),
+  1035	            "legacy_untrusted_rows": untrusted_rows,
+  1036	            "legacy_untrusted_action_required": (
+  1037	                LEGACY_UNTRUSTED_ACTION_REQUIRED if legacy_untrusted else None),
+  1038	            "cutover_ts": cutover["cutover_ts"] if cutover else None,
+  1039	            "cutover_max_legacy_id": (cutover["max_legacy_id"]
+  1040	                                      if cutover else None),
+  1041	            "legacy_frozen": present and len(frozen_triggers)
+  1042	            == len(LEGACY_FREEZE_TRIGGER_NAMES),
+  1043	            "frozen_triggers": frozen_triggers,
+  1044	            "event_table": "pipeline_events",
+  1045	            "write_api": "EventStore.append",
+  1046	            "sidecar_path": sidecar_path,
+  1047	            "chain_verified": True,
+  1048	        }
+  1049	    finally:
+  1050	        store.close()
+--- output end ---
+exit_code=0

@@ -1,0 +1,529 @@
+$ python3 -m pytest -q
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:13:57,610016000+08:00
+........................................................................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................ss..............................FFFFFFFFFFF..... [ 89%]
+...................................                                      [100%]
+=================================== FAILURES ===================================
+___________________ test_full_chain_green_and_deterministic ____________________
+
+    def test_full_chain_green_and_deterministic():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:164: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp_86zunx8'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+______________________ test_tamper_tar_one_byte_rejected _______________________
+
+    def test_tamper_tar_one_byte_rejected():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:213: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp8y7jr83i'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+________ test_repack_attack_selfconsistent_manifest_caught_by_signature ________
+
+    def test_repack_attack_selfconsistent_manifest_caught_by_signature():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpt6r14q48'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+___________________________ test_wrong_key_rejected ____________________________
+
+    def test_wrong_key_rejected():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:301: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpn4_qz7kr'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+__________________________ test_sbom_field_integrity ___________________________
+
+    def test_sbom_field_integrity():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:334: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpn39r_f67'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+____________________ test_tamper_manifest_and_sig_rejected _____________________
+
+    def test_tamper_manifest_and_sig_rejected():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:411: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp04gvzjhj'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+________________________ test_key_lifecycle_fail_closed ________________________
+
+    def test_key_lifecycle_fail_closed():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmppmighjmv'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+_________________________ test_verify_report_artifact __________________________
+
+    def test_verify_report_artifact():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:482: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmprxlkonzt'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+____________________________ test_plan_hash_binding ____________________________
+
+    def test_plan_hash_binding():
+        with tempfile.TemporaryDirectory() as tmp:
+>           tar, manifest, sig, sbom, v = full_chain(tmp)
+                                          ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:524: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmp5jrfo4xz'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+_____________________ test_plan_pin_and_source_commit_root _____________________
+
+    def test_plan_pin_and_source_commit_root():
+        saved_pin_env = os.environ.get("WENQU_PLAN_PIN")
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+>               tar, manifest, sig, sbom, v = full_chain(tmp)
+                                              ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:618: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpo1iw152c'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+__________________ test_release_roots_external_authorization ___________________
+
+    def test_release_roots_external_authorization():
+        saved_roots_env = os.environ.get("WENQU_RELEASE_ROOTS")
+        try:
+            import copy as _copy
+            sys.path.insert(0, os.path.join(REPO_ROOT, "tools"))
+            import release_attest as _ra  # 核心 digest 同源函数（内容绑定断言）
+    
+            with tempfile.TemporaryDirectory() as tmp:
+>               tar, manifest, sig, sbom, v = full_chain(tmp)
+                                              ^^^^^^^^^^^^^^^
+
+system/tests/test_release_attest.py:740: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+workdir = '/var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/tmpzt3ankc4'
+keyring = '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321/system/tests/fixtures/approval-keys.json'
+key_id = 'key_test_1'
+
+    def full_chain(workdir: str, keyring: str = FIXTURE_KEYRING,
+                   key_id: str = "key_test_1"
+                   ) -> Tuple[str, str, str, str, subprocess.CompletedProcess]:
+        """build+sign+sbom+verify 全链；返回 (tar, manifest, sig, sbom, verify_proc)。
+    
+        R8 起 verify 需要外部 plan pin：每链在 workdir 落一枚正确 pin 并以
+        WENQU_PLAN_PIN 传给子进程（显式 --plan-pin 的对抗用例自行覆盖）。"""
+        pin = write_pin(os.path.join(workdir, "plan.pin"))
+        os.environ["WENQU_PLAN_PIN"] = pin
+        r = run_tool("build", "--dist-dir", os.path.join(workdir, "dist"))
+>       assert r.returncode == 0, f"build 失败: {r.stderr}\n{r.stdout}"
+E       AssertionError: build 失败: [release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'
+E         
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/maccc/venvs/video-agent-kit/bin/python3', '/private/tmp/codex-test/reaudit9-infra-snaps...ut='', stderr="[release_attest] ERROR: 不是 git 仓库: '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'\n").returncode
+
+system/tests/test_release_attest.py:134: AssertionError
+=============================== warnings summary ===============================
+system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_01_arbitrary_stage_status_schema_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_03_concurrent_100x100_no_loss_no_dup returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_04_kill9_all_or_nothing returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_06_waiting_residue_superseded_not_silently_deleted returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_07_normal_event_cannot_flip_passed_to_running returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_08_failed_retry_new_attempt_old_evidence_intact returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_01_bad_json_unknown_status_quarantine returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_02_accepted_missing_approval_invalid_reopen returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_03_double_migration_idempotent returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_04_source_conservation_enforced returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_MIG_05_project_key_conflict_explicit_no_fake_split returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_02_traversal_absolute_nul_overlong_ids_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_05_dual_writer_epoch_all_writes_rejected returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_09_sha_scope_policy_change_forces_new_run returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_ac_state_mig.py::test_STATE_11_s7_conditional_missing_risk_authorization_failed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_01_single_table_single_write_api returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_02_idempotent_content_addressed_sidecar_mapping returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_03_quarantine_semantics_on_unified_table returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_04_mixed_stream_single_chain returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_05_legacy_events_residue_one_time_migration returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_06_control_event_guard_not_regressed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_07_legacy_frozen_readonly_late_write_quarantined
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_07_legacy_frozen_readonly_late_write_quarantined returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+system/tests/test_events_unified.py::test_UE_08_legacy_upgrade_untrusted_fail_closed
+  /Users/maccc/venvs/video-agent-kit/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but system/tests/test_events_unified.py::test_UE_08_legacy_upgrade_untrusted_fail_closed returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED system/tests/test_release_attest.py::test_full_chain_green_and_deterministic
+FAILED system/tests/test_release_attest.py::test_tamper_tar_one_byte_rejected
+FAILED system/tests/test_release_attest.py::test_repack_attack_selfconsistent_manifest_caught_by_signature
+FAILED system/tests/test_release_attest.py::test_wrong_key_rejected - Asserti...
+FAILED system/tests/test_release_attest.py::test_sbom_field_integrity - Asser...
+FAILED system/tests/test_release_attest.py::test_tamper_manifest_and_sig_rejected
+FAILED system/tests/test_release_attest.py::test_key_lifecycle_fail_closed - ...
+FAILED system/tests/test_release_attest.py::test_verify_report_artifact - Ass...
+FAILED system/tests/test_release_attest.py::test_plan_hash_binding - Assertio...
+FAILED system/tests/test_release_attest.py::test_plan_pin_and_source_commit_root
+FAILED system/tests/test_release_attest.py::test_release_roots_external_authorization
+[exit=1]
+2026-10-11T09:19:29,379147000+08:00

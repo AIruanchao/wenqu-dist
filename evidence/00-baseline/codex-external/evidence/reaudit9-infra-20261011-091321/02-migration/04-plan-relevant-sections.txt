@@ -1,0 +1,201 @@
+timestamp=2026-10-11T01:14:01Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && { sed -n '480,525p' evidence/00-baseline/codex-external/方案.md; sed -n '1048,1130p' evidence/00-baseline/codex-external/方案.md; sed -n '1540,1605p' evidence/00-baseline/codex-external/方案.md; }
+--- output begin ---
+## 6.6 可信证据
+
+每份证据最少绑定：
+
+```text
+evidence_id, run_id, task_id, stage/station, attempt_id,
+repo_id, commit_sha, base_sha, environment, scope_hash,
+ruleset_hash, data_config_hash, lockfile_hash,
+runner_id/version, tool_name/version/digest,
+argv_digest, cwd_digest, started_at, finished_at,
+actual_exit_code, stdout_sha256, stderr_sha256,
+artifact_sha256, artifact_size, verdict, fresh_until
+```
+
+runner 必须以 argv 数组启动命令，实际 waitpid 捕获退出码；以 `O_NOFOLLOW/lstat/realpath` 拒绝 symlink、非普通文件和根外路径；原始输出复制进 CAS 后 fsync，再写 manifest。调用者不得填写实际退出码或总 findings。
+
+`fresh_until` 由受保护 policy 按 `trusted_finished_at + policy_ttl` 计算，调用者和工件不得自行声明。Aggregator 每次读取都必须动态判断 evidence、ACCEPTED_RISK、EXM 是否过期；reopen/expiry scheduler 仅用于修正投影和通知，不能成为过期失效的唯一防线。
+
+时间证据统一 UTC aware timestamp，并记录 boot ID/clock health。检测到时钟回拨、来源不可信或偏差超策略阈值时，Gate 为 UNKNOWN/BLOCKED。
+
+负向测试必须区分：
+
+```text
+actual_exit_code     = 被测命令真实退出码
+expected_exit_set    = 该测试允许的内层退出码集合
+assertion_verdict    = 测试 harness 对行为是否符合预期的判断
+```
+
+不能粗暴规定所有内层命令都必须 exit 0；例如“越权请求应被拒绝”的负例可以有非零内层退出码，但外层断言器必须 PASS。Gate 只消费 harness 的可信判定及其原始证据。
+
+---
+
+# 7. 总体架构
+
+```text
+┌────────────────── 唯一版本化正源 ──────────────────┐
+│ wenqu-dist：唯一 executable core/安装器/dashboard/gate   │
+│ quality-policy 正式仓（W0确认）：Skill/policy/规则包       │
+│ qisemi-erp：ERP 域 scanners、CI adapter、业务探针          │
+└─────────────────────────┬──────────────────────────┘
+                          │ build + manifest + tests
+                          ▼
+                 releases/<release-id>/
+                          │ atomic current switch
+                          ▼
+┌─────────────── 可信执行与控制平面 ──────────────────┐
+- launchd 真 PATH/TCC；
+- 缺 `WENQU_REPO/WENQU_DB_SSH`；
+- 睡眠/唤醒补跑、时区/DST；
+- 网络断、provider 500、registry 部分响应；
+- 日志目录只读、磁盘满、时钟偏移；
+- 进程活但功能死、PID 复用；
+- 强制 weekly/quarterly 缩时模拟；
+- 日志轮转与弃用 warning 降噪。
+
+建议增加独立 off-host dead-man 检查本机 dashboard/aggregator/alert heartbeat；若本期不建设，最终风险边界必须明确“本机、launchd 和本机网络同时失效时无法自报”。
+
+## 13.7 回滚
+
+调度升级失败时保持旧任务停用、改为人工执行新 runner；不得重新启用 fail-open 脚本。Outbox 事件必须保留并在恢复后幂等重放。
+
+---
+
+# 14. 工作包 W5：历史账本迁移与裁定
+
+## 14.1 原则
+
+- append-only sidecar 迁移；
+- 禁止原地重写 JSONL；
+- 不伪造未知 SHA/env/scope；
+- 未知和缺字段可以完成技术导入，但以 blocker/quarantine 状态存在，发布和清零持续 BLOCKED，直至逐条裁定。
+
+## 14.2 步骤
+
+1. 对所有旧 JSONL/waiting/审批文件做逐文件和逐行 SHA 清单。
+2. 每行生成：
+   `legacy_event_id=sha256(source_file,line_no,raw_line)`。
+3. dry-run 规范化已知 alias：
+   - `ts/timestamp/time`；
+   - `env/environment`；
+   - `scope_hash/range_hash`；
+   - `rule_version/ruleset`。
+4. 未知状态、长文本状态、坏 JSON、缺身份字段进入 `legacy_quarantine`。
+5. 状态安全映射：
+   - `FIXED` → `FIXED_PENDING_VERIFY`；
+   - 无验证证据的 CLOSED → blocker，等待复核；
+   - 缺 approver/reason/expiry 的 ACCEPTED → finding 回到 `OPEN`，追加 `RISK_ACCEPTANCE_INVALIDATED` 事件并保留 invalid reason；
+   - OTHER → quarantine blocker。
+6. 单事务导入；重复运行两次结果完全相同。
+7. 输出守恒报告：源非空行数、合法 JSON 行数、事件数、候选 logical finding、fingerprint 冲突、有效导入、重复、quarantine、需重开项。481 仅是旧 dashboard 启发式折叠数，不能充当原始迁移分母。
+8. 影子 importer 对比 48 小时，要求数量守恒、全部 logical finding 可追溯、**零未解释差异**；有意状态变化必须带 `migration_decision_id`、规则和证据，不得为了零差异复刻旧错误投影。这不等同全线观察窗。
+9. 短写冻结→最终 delta import→写入 cutover watermark/writer epoch。
+10. 新写只入 v2；旧 JSONL 只读，兼容 JSONL 由 v2 exporter 生成。
+
+## 14.3 重点对账
+
+- 481 finding 的 stable fingerprint 和生命周期；
+- 24 OPEN、4 FIXING、172 FIXED、67 VERIFIED、158 CLOSED、43 ACCEPTED、13 OTHER；
+- 每项目 rounds、指纹和 evidence；
+- 两条 stale WAITING；
+- 所有豁免、审批和到期日；
+- 每个 run 的 commit/environment/scope/ruleset/data config。
+
+还必须冻结 canonical `repo_id` 映射和 fingerprint collision 表；同 fingerprint 不同项目、同旧 ID 不同内容均不得自动合并。
+
+## 14.4 出口/DoD
+
+- 数量守恒 100%；
+- 零静默丢行；
+- 任一 legacy 行可由 v2 反查原文件/行号/哈希；
+- 两次幂等迁移结果一致；
+- 无双主写、writer epoch 唯一；
+- invalid ACCEPTED 不再被算作关闭；
+- migration reconcile 报告由独立脚本复核。
+
+## 14.5 回滚
+
+切换前可废弃 v2 副本重建；切换后若有 v2 新事件，禁止旧快照覆盖。只能使用兼容 v2 的旧二进制或前向修复；必要时从 v2 生成旧格式只读投影，绝不能恢复旧 writer 造成 split-brain。
+
+---
+
+# 15. 工作包 W6：Bug 八站 Orchestrator 与扫描器重建
+
+## 15.1 通用要求
+
+- 所有 scanner 在 exact commit 的不可变源快照上运行；构建/test 写入独立 ephemeral overlay/scratch，结束后验证源快照 diff=0，禁止复用共享脏仓；
+- station registry 版本化并进入 ruleset hash；
+- 每站输出严格 `station-result.json`；
+- 空/未知格式/依赖缺失先判 ERROR；每个 adapter 版本化定义 `expected_exit_map`，例如 npm audit 的有效 JSON+exit1 可判 `COMPLETED+FAIL`，只有未定义/意外退出码才是 ERROR；
+
+才可对**限定范围、SHA、环境和观察窗**给出最终生产闭环声明。
+
+---
+
+# 20. 强制红探针与验收矩阵
+
+所有用例必须保存 before/after：旧实现先证明能产生假绿/漏拦，新实现证明正确阻断或正确通过。仅写测试、不执行红探针无效。旧版 before 复现只能在副本、mock API、测试仓、fixture 或隔离环境进行；自动合流、生产写、DDL、真实外部告警和回滚类缺陷禁止在真实系统重放，已有生产日志/审计证据可直接作为 before。
+
+## 20.1 Gate、授权、合流
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| GATE-01 | base ref 不存在/fetch 失败 | ERROR/BLOCKED |
+| GATE-02 | 零测试、scope 未证明纯文档 | BLOCKED |
+| GATE-03 | test runner/依赖缺失 | ERROR |
+| GATE-04 | 内层 exit 7、自报零 finding | assertion FAIL/BLOCKED |
+| GATE-05 | artifact symlink/hardlink/根外 | BLOCKED |
+| GATE-06 | artifact hash 篡改 | BLOCKED |
+| GATE-07 | commit/env/scope/ruleset 不符 | BLOCKED |
+| GATE-08 | evidence 过 TTL | BLOCKED |
+| GATE-09 | `N=-1/0/超上限` | 参数错误 |
+| GATE-10 | 超过 N+1 | BLOCKED 等人工裁定 |
+| GATE-11 | 同命令换 S 标签 | 不计异源轮 |
+| GATE-12 | unsigned flip/adjudication | BLOCKED |
+| AUTH-01 | 无授权 resume | 拒绝 |
+| AUTH-02 | 过期/重放/扩范围/旧 state_version | 拒绝 |
+| AUTH-03 | AI/runner 尝试自行签发高风险批准 | 拒绝 |
+| ACT-01 | technical PASS，但无 exact merge/release action authorization | context 可表技术 PASS，controller 不动作 |
+| ACT-02 | action、method、head/merge-group、artifact/env 任一不符 | `Action Authorization Gate` failure，拒绝动作 |
+| ACT-03 | check 发布前/后 crash 或回执丢失 | outbox 幂等恢复；同一 check_run 更新，不产生伪双绿 |
+| ACT-04 | merge/release 调用前/后 crash 或回执丢失 | 先查询外部事实；COMMITTED 或 FAILED_UNKNOWN；绝不盲重试 |
+| ACT-05 | 外部陈旧绿、dispatcher/App 失联 | direct merge 被角色/ruleset 拒绝；动作保持 BLOCKED |
+| ACT-06 | merge/release/DDL/prod-write payload 使用错误 discriminator 或缺专属字段 | schema 拒绝 |
+| MRG-01 | Fast 绿、Security 红 | 不合流 |
+| MRG-02 | 没有 Fast、Gate 红 | 不合流 |
+| MRG-03 | check 同名伪造/旧 SHA | 不合流 |
+| MRG-04 | pending/skipped/neutral/cancelled | 不合流 |
+| MRG-05 | head 在聚合后改变 | 旧结论失效 |
+| MRG-06 | GitHub 429/空 JSON/超时 | 断路，不合流 |
+
+## 20.2 状态、账本、迁移
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| STATE-01 | 任意 stage/status | schema 拒绝 |
+| STATE-02 | `../`、绝对路径、NUL、超长 ID | 拒绝 |
+| STATE-03 | 100×100 并发写 | 零丢失/重复 |
+| STATE-04 | 事务各点 kill -9 | 全有或全无 |
+| STATE-05 | 双 writer epoch | 所有写入拒绝 |
+| STATE-06 | WAITING 终态残留 | SUPERSEDED 事件，不静默删 |
+| MIG-01 | 坏 JSON/未知状态 | quarantine+BLOCKED |
+| MIG-02 | 缺审批信息的 ACCEPTED | invalid/reopen |
+| MIG-03 | 两次迁移 | 结果幂等一致 |
+| MIG-04 | 源行数不守恒 | 迁移失败 |
+| MIG-05 | project key 冲突 | 明确冲突，不拆成假项目 |
+
+## 20.3 Bug 扫描器
+
+| ID | 注入 | 期望 |
+|---|---|---|
+| DB-01 | `[+]`/`[-]`/`[*]` | 全识别 |
+| DB-02 | 仅一条 DROP COLUMN/删 FK | FAIL，不因数量少放行 |
+| DB-03 | 未知格式/空输出/命令非零 | ERROR |
+| DB-04 | allowlist 到期/对象 hash 变化 | FAIL |
+| SC-01 | 有效 JSON+HIGH/CRITICAL | FAIL |
+--- output end ---
+exit_code=0

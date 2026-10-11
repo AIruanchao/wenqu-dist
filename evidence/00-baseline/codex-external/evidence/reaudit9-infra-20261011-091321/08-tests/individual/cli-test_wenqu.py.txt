@@ -1,0 +1,5 @@
+$ python3 -m pytest -q cli/test_wenqu.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:19:50,359578000+08:00
+....................                                                     [100%]
+[exit=0]

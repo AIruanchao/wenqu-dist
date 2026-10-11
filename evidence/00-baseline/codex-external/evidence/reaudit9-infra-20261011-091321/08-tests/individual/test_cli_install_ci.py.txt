@@ -1,0 +1,33 @@
+$ python3 system/tests/test_cli_install_ci.py
+cwd=/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321
+2026-10-11T09:15:35,613694000+08:00
+== F4 三洞回归夹具（7 组）==
+-- test_h1_install_body_wenquctl_green_and_missing_cli_red
+  ✓ H1 隔离安装 rc=0
+  ✓ H1 安装日志含安装体 wenquctl 验证行
+  ✓ H1 安装体 <prefix>/bin/wenquctl --help rc=0（断链已修）
+  ✓ H1 删 wenqu_core/cli.py 后安装 rc!=0（安装体断链即安装失败）
+  ✓ H1 失败原因指向 wenquctl 断链
+-- test_h1_source_tree_wenquctl_runs
+  ✓ H1 源树 wenquctl --help rc=0（双布局解析不伤源树运行）
+-- test_h2_acceptance_red_when_adversarial_and_hardening_deleted
+  ✓ H2 删双测文件后 acceptance rc!=0
+  ✓ H2 P1d 红（adversarial 被删必红）
+  ✓ H2 P1e 红（infra hardening 被删必红）
+-- test_h3_gate_exit_code_map_conditional_and_error
+  ✓ H3 CONDITIONAL -> rc=1（软条件绝不上绿）
+  ✓ H3 输入不可读 -> rc=3（ERROR 与 BLOCKED 分流）
+-- test_h3_gate_malformed_result_blocked_exit_2
+  ✓ H3 残缺结果 -> rc=2
+  ✓ H3 残缺结果聚合 BLOCKED（schema violation 计入 reason）
+-- test_h3_gate_missing_required_station_blocked_exit_2
+  ✓ H3 required 站缺报（只报 2 缺 7）-> rc=2
+  ✓ H3 分母缩水 BLOCKED（denominator_shrinkage）
+-- test_h3_gate_two_legal_v2_pass_exit_0
+  ✓ H3 两合法 v2 站 -> rc=0
+  ✓ H3 聚合输出 policy_verdict=PASS
+  ✓ H3 聚合输出 aggregate_outcome=PASS 且 2 必报站齐
+  ✓ H3 dashboard 契约字段在（generated_at+policy_verdict）
+========================================
+RESULT: PASS=19 FAIL=0
+[exit=0]

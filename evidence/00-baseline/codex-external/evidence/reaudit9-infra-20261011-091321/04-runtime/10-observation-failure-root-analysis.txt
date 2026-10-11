@@ -1,0 +1,399 @@
+$ grep observation errors scheduler DB recent
+['scheduler_jobs', 'scheduler_runs', 'scheduler_heartbeats', 'scheduler_outbox', 'scheduler_skips']
+
+TABLE scheduler_jobs
+{'job_id': 'w4.observation-sample', 'owner': 'w4-production', 'argv_json': '["/opt/homebrew/bin/python3","/Users/maccc/.wenqu/current/tools/observation_daily.py"]', 'cwd': '/Users/maccc/.wenqu/current', 'environment': 'production', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'expected_exit_set_json': '[0]', 'schedule_kind': 'interval', 'interval_seconds': 300.0, 'daily_time': None, 'daily_tz': 'UTC', 'due_window_seconds': 600.0, 'catch_up': 'COALESCE', 'max_catch_up_runs': 2, 'watchdog_freshness_seconds': 1200.0, 'watchdog_grace_seconds': 1200.0, 'ttl_seconds': 900.0, 'commit_sha': None, 'scope_hash': None, 'ruleset_hash': None, 'data_config_hash': None, 'lockfile_hash': None, 'channels_json': '["macos","alertbox"]', 'enabled': 1, 'created_at': 1791451331.010995, 'next_due_at': 1791681431.010995, 'last_consumed_at': 1791681131.010995}
+
+TABLE scheduler_runs
+{'run_id': 'job-w4.observation-sample-1791681131011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791681131.010995, 'started_at': 1791681151.607305, 'finished_at': 1791681158.040865, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791680831011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791680831.010995, 'started_at': 1791680844.237561, 'finished_at': 1791680850.45077, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791680531011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791680531.010995, 'started_at': 1791680535.107125, 'finished_at': 1791680542.32753, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 2, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791679931011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791679931.010995, 'started_at': 1791680227.0080938, 'finished_at': 1791680233.879777, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791679631011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791679631.010995, 'started_at': 1791679918.937481, 'finished_at': 1791679925.938518, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791679331011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791679331.010995, 'started_at': 1791679611.6654232, 'finished_at': 1791679618.083244, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791679031011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791679031.010995, 'started_at': 1791679304.577584, 'finished_at': 1791679310.5887659, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791678731011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791678731.010995, 'started_at': 1791678997.159936, 'finished_at': 1791679003.66099, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791678431011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791678431.010995, 'started_at': 1791678687.40141, 'finished_at': 1791678696.368352, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+{'run_id': 'job-w4.observation-sample-1791678131011', 'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'environment': 'production', 'scheduled_at': 1791678131.010995, 'started_at': 1791678380.129778, 'finished_at': 1791678386.6169379, 'execution_status': 'BLOCKED', 'policy_verdict': 'NOT_EVALUATED', 'actual_exit_code': 3, 'commit_sha': None, 'argv_digest': '837a0b0af2c64e5c37e8c75971698293993bff2793b048028cd169ea3aaea13b', 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'evidence_digest': None, 'timed_out': 0, 'refreshed_heartbeat': 0, 'notifications_enqueued': 0, 'warnings_json': '[]'}
+
+TABLE scheduler_heartbeats
+{'job_id': 'w4.observation-sample', 'probe_id': 'w4-observation-sampler', 'station_id': 0, 'input_fingerprint': '89125cfc39b2cac7b8301bf9ea95645043abe0fc086132ce033793d22df136e0', 'last_success_at': 1791675257.831481, 'last_result_at': 1791681151.5836039, 'last_execution_status': 'BLOCKED', 'last_policy_verdict': 'NOT_EVALUATED', 'consecutive_failures': 19, 'updated_at': 1791681151.5836039}
+
+TABLE scheduler_outbox
+{'message_id': 'de9afe4dd8f049bc87b1c3b78b0e973c', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493067:alertbox', 'channel': 'alertbox', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 5277s（>新鲜度 1200s，连续失败 17）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791680535.0771918', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'be127850f8fe478c88dc02fa63eb538e', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493067:macos', 'channel': 'macos', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 5277s（>新鲜度 1200s，连续失败 17）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791680535.0771918', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'b476884e88af4cb5bdf691b01b863acb', 'dedup_key': 'jobstatus:w4.observation-sample:BLOCKED:NOT_EVALUATED:497689:alertbox', 'channel': 'alertbox', 'severity': 'WARNING', 'subject': '[wenqu] 作业 w4.observation-sample BLOCKED/NOT_EVALUATED', 'body': 'run_id=job-w4.observation-sample-1791680531011 exit=3 probe=w4-observation-sampler station=0 env=production', 'meta_json': '{"job_id":"w4.observation-sample","kind":"job_result","run_id":"job-w4.observation-sample-1791680531011"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'd84dd99264074226ae529fe9d6a44d49', 'dedup_key': 'jobstatus:w4.observation-sample:BLOCKED:NOT_EVALUATED:497689:macos', 'channel': 'macos', 'severity': 'WARNING', 'subject': '[wenqu] 作业 w4.observation-sample BLOCKED/NOT_EVALUATED', 'body': 'run_id=job-w4.observation-sample-1791680531011 exit=3 probe=w4-observation-sampler station=0 env=production', 'meta_json': '{"job_id":"w4.observation-sample","kind":"job_result","run_id":"job-w4.observation-sample-1791680531011"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'f12c1adee0064d9e90d428058343c6fe', 'dedup_key': 'capacitygate:497689:alertbox', 'channel': 'alertbox', 'severity': 'CRITICAL', 'subject': '[wenqu] 容量闸 BLOCKED：CAP_USED_RATIO_EXCEEDED', 'body': '容量安全边际被突破：CAP_USED_RATIO_EXCEEDED（1 项违例）\nused_ratio=0.9029742174471056 threshold=0.9 headroom=47968071680B\n观察采样继续（job=w4.observation-sample）；§22 BLOCKED 处置属迁移/发布峰值操作，本告警移交人工决策。', 'meta_json': '{"code":"CAP_USED_RATIO_EXCEEDED","job_id":"w4.observation-sample","kind":"capacity_gate","used_ratio":0.9029742174471056}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'de10c98164494e2789f110729b3767e9', 'dedup_key': 'capacitygate:497689:macos', 'channel': 'macos', 'severity': 'CRITICAL', 'subject': '[wenqu] 容量闸 BLOCKED：CAP_USED_RATIO_EXCEEDED', 'body': '容量安全边际被突破：CAP_USED_RATIO_EXCEEDED（1 项违例）\nused_ratio=0.9029742174471056 threshold=0.9 headroom=47968071680B\n观察采样继续（job=w4.observation-sample）；§22 BLOCKED 处置属迁移/发布峰值操作，本告警移交人工决策。', 'meta_json': '{"code":"CAP_USED_RATIO_EXCEEDED","job_id":"w4.observation-sample","kind":"capacity_gate","used_ratio":0.9029742174471056}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791680535.0771918, 'created_at': 1791680535.0771918, 'sent_at': 1791680535.0771918, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': '6b1b7a6241154f1aacfc91b3cff1f632', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493066:alertbox', 'channel': 'alertbox', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 4047s（>新鲜度 1200s，连续失败 13）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791679304.5586472', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791679304.5586472, 'created_at': 1791679304.5586472, 'sent_at': 1791679304.5586472, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': '6671277fd8c74f908574dca28baa9ef0', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493066:macos', 'channel': 'macos', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 4047s（>新鲜度 1200s，连续失败 13）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791679304.5586472', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791679304.5586472, 'created_at': 1791679304.5586472, 'sent_at': 1791679304.5586472, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': 'ec81ea77e9f74464a81e3f185f906e5b', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493065:alertbox', 'channel': 'alertbox', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 2815s（>新鲜度 1200s，连续失败 9）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791678072.631663', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791678072.631663, 'created_at': 1791678072.631663, 'sent_at': 1791678072.631663, 'dead_lettered_at': None, 'last_error': None}
+{'message_id': '6746cbb7368343fb92ccb903051a2738', 'dedup_key': 'heartbeat:w4.observation-sample:w4-observation-sampler:0:FUNCTION_DEAD:1493065:macos', 'channel': 'macos', 'severity': 'CRITICAL', 'subject': '[wenqu] 心跳不健康 w4.observation-sample：FUNCTION_DEAD', 'body': '持续有结果但最近成功已 2815s（>新鲜度 1200s，连续失败 9）——进程活、功能死\nprobe=w4-observation-sampler station=0 freshness=1200s last_success=1791675257.831481 last_result=1791678072.631663', 'meta_json': '{"job_id":"w4.observation-sample","kind":"heartbeat","state":"FUNCTION_DEAD"}', 'status': 'SENT', 'attempts': 1, 'max_attempts': 5, 'next_attempt_at': 1791678072.631663, 'created_at': 1791678072.631663, 'sent_at': 1791678072.631663, 'dead_lettered_at': None, 'last_error': None}
+
+TABLE scheduler_skips
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791680231.010995, 'skipped_at': 1791680535.0771918, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791671231.010995, 'skipped_at': 1791671535.708268, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791668831.010995, 'skipped_at': 1791669133.440105, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791659231.010995, 'skipped_at': 1791659535.321965, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791650831.010995, 'skipped_at': 1791651142.500878, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791649031.010995, 'skipped_at': 1791649453.1749902, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791648131.010995, 'skipped_at': 1791648578.590174, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791647231.010995, 'skipped_at': 1791647563.513132, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791644831.010995, 'skipped_at': 1791645140.31673, 'reason': 'coalesced'}
+{'job_id': 'w4.observation-sample', 'scheduled_at': 1791638831.010995, 'skipped_at': 1791639169.354295, 'reason': 'coalesced'}
+[exit=0]
+$ find newest errors
+-rw-r--r--@ 1 maccc  staff  180220 Oct 11 09:12 /Users/maccc/.wenqu/observation/logs/scheduler-launchd-out.log
+-rw-r--r--@ 1 maccc  staff  168909 Oct 11 09:12 /Users/maccc/.wenqu/observation/logs/scheduler-2026-10-11.jsonl
+-rw-r--r--@ 1 maccc  staff    1980 Oct 11 09:12 /Users/maccc/.wenqu/observation/heartbeat.json
+-rw-r--r--@ 1 maccc  staff   16982 Oct 11 09:02 /Users/maccc/.wenqu/observation/alerts/receipts.jsonl
+-rw-r--r--@ 1 maccc  staff     430 Oct 11 09:02 /Users/maccc/.wenqu/observation/alerts/20261011-090223-CRITICAL-de9afe4dd8f0.txt
+-rw-r--r--@ 1 maccc  staff     310 Oct 11 09:02 /Users/maccc/.wenqu/observation/alerts/20261011-090223-WARNING-b476884e88af.txt
+-rw-r--r--@ 1 maccc  staff     466 Oct 11 09:02 /Users/maccc/.wenqu/observation/alerts/20261011-090223-CRITICAL-f12c1adee006.txt
+-rw-r--r--@ 1 maccc  staff     430 Oct 11 08:41 /Users/maccc/.wenqu/observation/alerts/20261011-084151-CRITICAL-6b1b7a624115.txt
+-rw-r--r--@ 1 maccc  staff     428 Oct 11 08:21 /Users/maccc/.wenqu/observation/alerts/20261011-082119-CRITICAL-ec81ea77e9f7.txt
+-rw-r--r--@ 1 maccc  staff     428 Oct 11 08:00 /Users/maccc/.wenqu/observation/alerts/20261011-080050-CRITICAL-a4232f38a3f2.txt
+-rw-r--r--@ 1 maccc  staff     310 Oct 11 08:00 /Users/maccc/.wenqu/observation/alerts/20261011-080049-WARNING-cb405d4f8731.txt
+-rw-r--r--@ 1 maccc  staff     466 Oct 11 08:00 /Users/maccc/.wenqu/observation/alerts/20261011-080049-CRITICAL-6a4639e4d72a.txt
+-rw-r--r--@ 1 maccc  staff     428 Oct 11 07:55 /Users/maccc/.wenqu/observation/alerts/20261011-075542-CRITICAL-798d96e44870.txt
+-rw-r--r--@ 1 maccc  staff     310 Oct 11 07:40 /Users/maccc/.wenqu/observation/alerts/20261011-074015-WARNING-06dd8e8b1b1b.txt
+-rw-r--r--@ 1 maccc  staff    6832 Oct 11 07:36 /Users/maccc/.wenqu/observation/drills/drill-20261010T233606Z.jsonl
+-rw-r--r--@ 1 maccc  staff    4095 Oct 11 07:36 /Users/maccc/.wenqu/observation/drills/drill-20261010T233606Z.json
+-rw-r--r--@ 1 maccc  staff    1197 Oct 11 07:36 /Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.json
+-rw-r--r--@ 1 maccc  staff    1482 Oct 11 07:36 /Users/maccc/.wenqu/observation/windows/w-20261009T231625506512000-876585.invalidated.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 07:34 /Users/maccc/.wenqu/observation/shadow/20261010T233425971028000-fb248ba8.json
+-rw-r--r--@ 1 maccc  staff    5003 Oct 11 07:34 /Users/maccc/.wenqu/observation/samples/20261010T233424782388000-5906c97d.json
+-rw-r--r--@ 1 maccc  staff    7917 Oct 11 07:29 /Users/maccc/.wenqu/observation/shadow/20261010T232917206033000-ba2c0744.json
+-rw-r--r--@ 1 maccc  staff    3139 Oct 11 07:29 /Users/maccc/.wenqu/observation/logs/shadow-health-history-2026-10-11.jsonl
+-rw-r--r--@ 1 maccc  staff    5004 Oct 11 07:29 /Users/maccc/.wenqu/observation/samples/20261010T232915247496000-1a40cc31.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 07:24 /Users/maccc/.wenqu/observation/shadow/20261010T232405376345000-cecaa070.json
+-rw-r--r--@ 1 maccc  staff    5003 Oct 11 07:24 /Users/maccc/.wenqu/observation/samples/20261010T232404205407000-a39f3993.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 07:18 /Users/maccc/.wenqu/observation/shadow/20261010T231850003143000-387c05ba.json
+-rw-r--r--@ 1 maccc  staff    5004 Oct 11 07:18 /Users/maccc/.wenqu/observation/samples/20261010T231848873107000-1a382dff.json
+-rw-r--r--@ 1 maccc  staff    7915 Oct 11 07:13 /Users/maccc/.wenqu/observation/shadow/20261010T231341178236000-291ae160.json
+-rw-r--r--@ 1 maccc  staff    5004 Oct 11 07:13 /Users/maccc/.wenqu/observation/samples/20261010T231339951410000-cc7c5af1.json
+-rw-r--r--@ 1 maccc  staff    7915 Oct 11 07:08 /Users/maccc/.wenqu/observation/shadow/20261010T230832204856000-fc53b274.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 07:08 /Users/maccc/.wenqu/observation/samples/20261010T230831036764000-ec53980c.json
+-rw-r--r--@ 1 maccc  staff     466 Oct 11 07:03 /Users/maccc/.wenqu/observation/alerts/20261011-070323-CRITICAL-d871963a3416.txt
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 07:03 /Users/maccc/.wenqu/observation/shadow/20261010T230322713434000-9cd0951a.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 07:03 /Users/maccc/.wenqu/observation/samples/20261010T230320225144000-67373b78.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:58 /Users/maccc/.wenqu/observation/shadow/20261010T225812021677000-36cda4b3.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:58 /Users/maccc/.wenqu/observation/samples/20261010T225810039852000-57655461.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:53 /Users/maccc/.wenqu/observation/shadow/20261010T225302007723000-7a79b5f0.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:53 /Users/maccc/.wenqu/observation/samples/20261010T225300550283000-80dfe7f8.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:47 /Users/maccc/.wenqu/observation/shadow/20261010T224752742367000-31686e39.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:47 /Users/maccc/.wenqu/observation/samples/20261010T224751550757000-b35bc8e4.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:42 /Users/maccc/.wenqu/observation/shadow/20261010T224242535213000-e3c15c4d.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:42 /Users/maccc/.wenqu/observation/samples/20261010T224241427817000-09045691.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:37 /Users/maccc/.wenqu/observation/shadow/20261010T223733356054000-65be9610.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:37 /Users/maccc/.wenqu/observation/samples/20261010T223732016773000-a40b0c5d.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:32 /Users/maccc/.wenqu/observation/shadow/20261010T223223216278000-620eb197.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:32 /Users/maccc/.wenqu/observation/samples/20261010T223222012744000-6ac7887b.json
+-rw-r--r--@ 1 maccc  staff    7916 Oct 11 06:27 /Users/maccc/.wenqu/observation/shadow/20261010T222715098758000-0c627a78.json
+-rw-r--r--@ 1 maccc  staff    4999 Oct 11 06:27 /Users/maccc/.wenqu/observation/samples/20261010T222713945068000-aae60be6.json
+-rw-r--r--@ 1 maccc  staff    7917 Oct 11 06:22 /Users/maccc/.wenqu/observation/shadow/20261010T222206930852000-9b2eaffb.json
+-rw-r--r--@ 1 maccc  staff    4998 Oct 11 06:22 /Users/maccc/.wenqu/observation/samples/20261010T222205092681000-f362645b.json
+[exit=0]
+$ grep exact failure around recent logs
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:37:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:39:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:68:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:76:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:78:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:81:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:84:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:94:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-131007.json:120:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:8:    "identity": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:9:    "identity_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:11:    "head_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:17:    "error": "rc=1 failed to determine base repo: failed to run git: fatal: not a git repository (or any of the parent directories): .git"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:22:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:27:      "error": {
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:32:    "error": "http_404"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-021918.json:40:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:8:    "identity": "dc323c7663701e443dbd440f831187abf8a54de1",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-174948.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:12:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:17:    "dirty_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:20:    "identity": "728a3a5818be1050de6b02282387c1f490ec8639",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:21:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:36:    "error": null
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:42:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:43:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:45:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:47:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:76:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:84:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:86:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:89:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:92:    "error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:102:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T013145988343000-07271587.json:130:  "release_sha": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:12:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:17:    "dirty_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:20:    "identity": "728a3a5818be1050de6b02282387c1f490ec8639",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:21:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:36:    "error": null
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:42:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:43:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:45:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:47:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:76:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:84:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:86:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:89:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:92:    "error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:102:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T141940981128000-3bde03b3.json:130:  "release_sha": "40ac1b72d64df5da995f1ad09f221f06d5fbdc97",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:12:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:15:    "dirty_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:18:    "identity": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:19:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:34:    "error": null
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:40:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:41:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:43:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:45:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:74:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:82:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:84:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:87:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:90:    "error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:100:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T004514365633000-6cd59d3a.json:128:  "release_sha": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:8:    "identity": "657d19738bb7e6ae2c9175dd86daec2ef82abd15",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-150514.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:9:    "head_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:12:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:15:    "error": "rc=1 failed to determine base repo: failed to run git: fatal: not a git repository (or any of the parent directories): .git"
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:20:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:25:      "error": {
+/Users/maccc/.wenqu/observation/samples/2026-10-08.json:30:    "error": "http_404"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:8:    "identity": "7ffcc00f776dfe3f271b3d6dd5d3f549dfce0db0",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:28:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:34:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:35:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:37:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:39:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:68:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:76:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:78:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:81:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:84:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:94:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-122323.json:120:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:8:    "identity": "91db19ab0653b27b9c6069c32ba456e573a0a987",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:21:    "error": "rc=1 failed to get runs: Get \"https://api.github.com/repos/AIruanchao/wenqu-dist/actions/runs?per_page=1&exclude_pull_requests=true&branch=main\": dial tcp 20.205.243.168:443: connect: network is unreachabl"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:26:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:32:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:33:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:35:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:37:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:66:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:74:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:76:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:79:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:82:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:92:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-040227.json:118:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:12:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:17:    "dirty_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:20:    "identity": "728a3a5818be1050de6b02282387c1f490ec8639",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:21:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:36:    "error": null
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:42:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:43:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:45:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:47:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:76:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:84:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:86:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:89:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:92:    "error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:102:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T121308177011000-8bfa347c.json:130:  "release_sha": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:8:    "identity": "dc323c7663701e443dbd440f831187abf8a54de1",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-184828.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:8:    "identity": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:9:    "identity_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:11:    "head_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:17:    "error": "rc=1 failed to determine base repo: failed to run git: fatal: not a git repository (or any of the parent directories): .git"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:22:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:28:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:29:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:31:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:33:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:62:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:70:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:72:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:75:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:78:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:88:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-063012.json:114:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:8:    "identity": "657d19738bb7e6ae2c9175dd86daec2ef82abd15",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-142303.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:8:    "identity": "91db19ab0653b27b9c6069c32ba456e573a0a987",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-033647.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:8:    "identity": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:9:    "identity_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:11:    "head_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:17:    "error": "rc=1 failed to determine base repo: failed to run git: fatal: not a git repository (or any of the parent directories): .git"
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:22:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:27:      "error": {
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:32:    "error": "http_404"
+/Users/maccc/.wenqu/observation/samples/2026-10-08-235608.json:40:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:12:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:17:    "dirty_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:20:    "identity": "728a3a5818be1050de6b02282387c1f490ec8639",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:21:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:36:    "error": null
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:42:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:43:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:45:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:47:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:76:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:84:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:86:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:89:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:92:    "error": null,
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:102:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/20261010T011615530896000-e707dffe.json:130:  "release_sha": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:8:    "identity": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:9:    "identity_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:11:    "head_error": "fatal: not a git repository (or any of the parent directories): .git",
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:17:    "error": "rc=1 failed to determine base repo: failed to run git: fatal: not a git repository (or any of the parent directories): .git"
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:22:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:27:      "error": {
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:32:    "error": "http_404"
+/Users/maccc/.wenqu/observation/samples/2026-10-08-234330.json:40:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:8:    "identity": "91db19ab0653b27b9c6069c32ba456e573a0a987",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-231910.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:8:    "identity": "fa7294753894e0ced5f21029d6b4e61c9c8660bc",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:14:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:28:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:34:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:35:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:37:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:39:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:68:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:76:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:78:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:81:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:84:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:94:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-10-062131.json:120:  "append_note": "same-day append; identity 见 repo.identity"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:8:    "identity": "91db19ab0653b27b9c6069c32ba456e573a0a987",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:9:    "identity_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:11:    "head_error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:18:    "dirty_error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:32:    "error": null
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:38:      "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:39:      "aggregate_outcome": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:41:      "reason": "all 1 required stations PASS；dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:43:        "dashboard_conservative_downgrade: 透传 PASS 拒绝——identity_missing：target_sha 为全零占位（0*40），各站 identity.commit_sha 未绑定任何真实 commit；self_declared：gate 以 --allow-self-declared 诊断模式聚合（无 manifest 上绿效力背书）；降级为 BLOCKED"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:72:        "load_errors": 0,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:80:        "policy_verdict": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:82:          "identity_missing",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:85:        "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or self-declared aggregation mode（不变量 10 保守面）"
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:88:    "error": null,
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:98:    "capacity_gate": "BLOCKED",
+/Users/maccc/.wenqu/observation/samples/2026-10-09-230340.json:124:  "append_note": "same-day append; identity 见 repo.identity"
+[exit=0]

@@ -1,0 +1,6 @@
+$ shasum -a 256 evidence/00-baseline/codex-external/方案.md
+96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306  evidence/00-baseline/codex-external/方案.md
+[exit=0]
+$ shasum -a 256 /private/tmp/codex-test/round8-summary-neutral.md
+fb473d47483457a81cde9e8c4b5570a5bbb8552756bf367633c0cc1a2504fddd  /private/tmp/codex-test/round8-summary-neutral.md
+[exit=0]

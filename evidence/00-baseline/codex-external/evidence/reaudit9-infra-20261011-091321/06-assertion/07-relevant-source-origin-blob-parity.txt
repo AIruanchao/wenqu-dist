@@ -1,0 +1,23 @@
+timestamp=2026-10-11T01:20:37Z
+pwd=/private/tmp/codex-test
+command=set -e; SNAP='/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321'; REPO='/Users/maccc/Documents/wenqu-dist'; for f in system/wenqu_core/ledger_migrator.py system/wenqu_core/store.py system/tests/test_events_unified.py system/tests/p1f_ast_gate.py system/tests/p1f_mutation_gate.py system/tests/test_ac_gate_family.py system/tests/test_ac_state_mig.py system/tests/test_ac_deploy_release.py system/tests/test_ac_station_families.py system/tests/test_ac_ops_families.py system/tests/test_ac_auth_cond.py system/tests/test_ac_act_run.py system/tests/test_ac_ui_family.py tests/p1f-assert-baseline.txt tests/p1f-behavior-baseline.txt tests/p1f-mutations.json tests/acceptance.sh; do l=$(shasum -a 256 "$SNAP/$f" | awk '{print $1}'); g=$(git -C "$REPO" show origin/main:"$f" | shasum -a 256 | awk '{print $1}'); if [ "$l" = "$g" ]; then s=MATCH; else s=DIFF; fi; printf '%s  local=%s  origin_main_blob=%s  %s\n' "$s" "$l" "$g" "$f"; done
+--- output begin ---
+MATCH  local=7272023915a40591c4b84f07f453d4f37dae487df8818ae4990e9141eb0b8e8b  origin_main_blob=7272023915a40591c4b84f07f453d4f37dae487df8818ae4990e9141eb0b8e8b  system/wenqu_core/ledger_migrator.py
+MATCH  local=f8326338ef6e6856a8838fced19fdab7d95b768e5e1086d0440d509cbc300be3  origin_main_blob=f8326338ef6e6856a8838fced19fdab7d95b768e5e1086d0440d509cbc300be3  system/wenqu_core/store.py
+MATCH  local=18cefdf181770cbb9f0f3da2ca31643fc05082a8a5f3a67db8f6f6201c0ace64  origin_main_blob=18cefdf181770cbb9f0f3da2ca31643fc05082a8a5f3a67db8f6f6201c0ace64  system/tests/test_events_unified.py
+MATCH  local=eadd1530002248ed6341b6277b1d115e8b7f92dbb0c828926b4fd3bbc3bcc7d3  origin_main_blob=eadd1530002248ed6341b6277b1d115e8b7f92dbb0c828926b4fd3bbc3bcc7d3  system/tests/p1f_ast_gate.py
+MATCH  local=9d917d28429257799bd5357b7f054954d8257cbae14f2e11bb2eb0dc490bbb78  origin_main_blob=9d917d28429257799bd5357b7f054954d8257cbae14f2e11bb2eb0dc490bbb78  system/tests/p1f_mutation_gate.py
+MATCH  local=c2e6dc96e4f882fc3c239a787a25203b44bc93f7ae7e82c82e1ec939e278fa07  origin_main_blob=c2e6dc96e4f882fc3c239a787a25203b44bc93f7ae7e82c82e1ec939e278fa07  system/tests/test_ac_gate_family.py
+MATCH  local=f9aac8285b4a5de5c09db2f4289f54f7d62d7899cc45d16b7d644ff721710db8  origin_main_blob=f9aac8285b4a5de5c09db2f4289f54f7d62d7899cc45d16b7d644ff721710db8  system/tests/test_ac_state_mig.py
+MATCH  local=7c9e6e53f557b1fa0a1526861d128bee6775d468423f83e9c675a95acf3ae861  origin_main_blob=7c9e6e53f557b1fa0a1526861d128bee6775d468423f83e9c675a95acf3ae861  system/tests/test_ac_deploy_release.py
+MATCH  local=5c67d5d6b7f7f97eb104325efd05292bd8ac08bb4b5716906f61d755c3f40b11  origin_main_blob=5c67d5d6b7f7f97eb104325efd05292bd8ac08bb4b5716906f61d755c3f40b11  system/tests/test_ac_station_families.py
+MATCH  local=f72e5d0a9843c2b4072a8c50dbd4fb669e620d0e278cb32a0003ff1191eacb21  origin_main_blob=f72e5d0a9843c2b4072a8c50dbd4fb669e620d0e278cb32a0003ff1191eacb21  system/tests/test_ac_ops_families.py
+MATCH  local=961e74f9b9457490dc49ef27f3bb50de499c5bd451b444fe2eb1e14d7204f525  origin_main_blob=961e74f9b9457490dc49ef27f3bb50de499c5bd451b444fe2eb1e14d7204f525  system/tests/test_ac_auth_cond.py
+MATCH  local=56f401814e0a5edb1cca08649e52e728ad1b5dcb7742afa296a30d992ddac733  origin_main_blob=56f401814e0a5edb1cca08649e52e728ad1b5dcb7742afa296a30d992ddac733  system/tests/test_ac_act_run.py
+MATCH  local=eae71740457ee352c8ff40ba15dee0e66a35097fd8c140a8091b5778723df108  origin_main_blob=eae71740457ee352c8ff40ba15dee0e66a35097fd8c140a8091b5778723df108  system/tests/test_ac_ui_family.py
+MATCH  local=5b699395797491f6771852fa7c0f8579acf71466d934ef20bd7f19dd3c7e545f  origin_main_blob=5b699395797491f6771852fa7c0f8579acf71466d934ef20bd7f19dd3c7e545f  tests/p1f-assert-baseline.txt
+MATCH  local=50261bd94dd41080c6e17637aa7d92a07ab34aafc7b4e7e2ee8e0a11a0257a70  origin_main_blob=50261bd94dd41080c6e17637aa7d92a07ab34aafc7b4e7e2ee8e0a11a0257a70  tests/p1f-behavior-baseline.txt
+MATCH  local=a78e919f0333ba8bfd1dfe621eb1cbd079b5a957d54c8061f22041713fe969b5  origin_main_blob=a78e919f0333ba8bfd1dfe621eb1cbd079b5a957d54c8061f22041713fe969b5  tests/p1f-mutations.json
+MATCH  local=197c0a908573a0955f152b7688f56fa61c6188066052ab69e7ce14eee705cb5f  origin_main_blob=197c0a908573a0955f152b7688f56fa61c6188066052ab69e7ce14eee705cb5f  tests/acceptance.sh
+--- output end ---
+exit_code=0

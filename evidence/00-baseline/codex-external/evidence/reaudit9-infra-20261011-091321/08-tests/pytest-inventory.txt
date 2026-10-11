@@ -1,0 +1,39 @@
+$ cat pytest.ini
+[pytest]
+# 仓根 pytest 全绿配置（R7-PYTEST-HARNESS / F1 根因收口）：
+# evidence/ 内是各轮验收的冻结证据快照，含路径绑定旧克隆布局的测试文件副本
+# （in-place 收集必挂）——证据是存档不是测试面，排除出收集范围。
+addopts = --ignore=evidence -q
+testpaths = system/tests cli
+[exit=0]
+$ find system/tests -name test_*.py | wc -l
+      26
+[exit=0]
+$ find system/tests -name test_*.py
+system/tests/test_ac_act_run.py
+system/tests/test_ac_auth_cond.py
+system/tests/test_ac_deploy_release.py
+system/tests/test_ac_gate_family.py
+system/tests/test_ac_ops_families.py
+system/tests/test_ac_state_mig.py
+system/tests/test_ac_station56.py
+system/tests/test_ac_station_families.py
+system/tests/test_ac_ui_family.py
+system/tests/test_approval_issue.py
+system/tests/test_cli_install_ci.py
+system/tests/test_core_wiring.py
+system/tests/test_events_unified.py
+system/tests/test_gate_manifest_trust.py
+system/tests/test_gate_schema_hardening.py
+system/tests/test_gate_scope_binding.py
+system/tests/test_infra_hardening.py
+system/tests/test_linux_proc_path.py
+system/tests/test_manifest_semantic_replay.py
+system/tests/test_observation_window.py
+system/tests/test_release_attest.py
+system/tests/test_runner_daemon.py
+system/tests/test_tla_spec.py
+system/tests/test_w4_production.py
+system/tests/test_wenqu_adversarial.py
+system/tests/test_wenqu_pipeline.py
+[exit=0]

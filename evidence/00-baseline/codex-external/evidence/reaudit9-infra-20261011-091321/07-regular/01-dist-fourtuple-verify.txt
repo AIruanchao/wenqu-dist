@@ -1,0 +1,81 @@
+timestamp=2026-10-11T01:26:01Z
+source_provenance=artifacts+tool from git archive origin/main @ 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+git_object_repo=/Users/maccc/Documents/wenqu-dist (read-only object lookup; working-tree pollution excluded)
+keyring=<redacted live 0600 path; content not read>
+keyring_mode=-rw------- keyring_size=354
+plan_pin_mode=-rw------- plan_pin_size=65
+live_roots_mode=-rw------- live_roots_size=994
+$ shasum -a 256 -c FRESH/dist/SHA256-vNext-candidate-2bd59ab.txt
+dist/wenqu-dist-2bd59ab.tar.gz: OK
+dist/wenqu-dist-2bd59ab.manifest.json: OK
+dist/wenqu-dist-2bd59ab.release.sig: OK
+dist/wenqu-dist-2bd59ab.sbom.spdx.json: OK
+exit_code=0
+$ shasum -a 256 -c FRESH/dist/SHA256-vNext-candidate-f2b8fc3.txt
+dist/wenqu-vNext-candidate-f2b8fc3.tar.gz: OK
+exit_code=0
+$ python3 FRESH/tools/release_attest.py verify cf6d10e --plan-pin PUBLIC --repo GIT_OBJECT_REPO
+  PASS  manifest-schema  build_id=rel-cf6d10e-20261008T202539Z
+  PASS  artifact-hash  sha256=04a8f7dc6da7f71d… size=44635114
+  PASS  files-reconcile  2936/2936 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  plan-pin  /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/public-plan-pin.txt 冻结值=96b8646f6f08fd5f…（manifest+tar 双等值）
+  PASS  source-commit  commit=cf6d10e6f10e… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=2936 root=3.8.4
+  PASS  build-identity  commit=cf6d10e6f10e… built_at=2026-10-08T20:25:39Z tool=release_attest.py@1.2.0
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-cf6d10e-pin-verify-report.json
+VERIFY OK
+short=cf6d10e pin_exit_code=0
+$ python3 FRESH/tools/release_attest.py verify b44b087 --plan-pin PUBLIC --repo GIT_OBJECT_REPO
+  PASS  manifest-schema  build_id=rel-b44b087-20261009T013022Z
+  PASS  artifact-hash  sha256=cf21788881aa4610… size=89109004
+  PASS  files-reconcile  2942/2942 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  plan-pin  /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/public-plan-pin.txt 冻结值=96b8646f6f08fd5f…（manifest+tar 双等值）
+  PASS  source-commit  commit=b44b08797a34… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=2942 root=3.8.4
+  PASS  build-identity  commit=b44b08797a34… built_at=2026-10-09T01:30:22Z tool=release_attest.py@1.2.0
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-b44b087-pin-verify-report.json
+VERIFY OK
+short=b44b087 pin_exit_code=0
+$ python3 FRESH/tools/release_attest.py verify 2bd59ab --plan-pin PUBLIC --repo GIT_OBJECT_REPO
+  PASS  manifest-schema  build_id=rel-2bd59ab-20261008T142740Z
+  PASS  artifact-hash  sha256=b4e3d5fce24f2cd5… size=33139660
+  PASS  files-reconcile  2886/2886 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  PASS  plan-pin  /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/public-plan-pin.txt 冻结值=96b8646f6f08fd5f…（manifest+tar 双等值）
+  PASS  source-commit  commit=2bd59ab73aab… 在对象库；树内 evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值）
+  PASS  signature  key_id=key_release_w6p1f algorithm=HMAC-SHA256（HMAC 对称：tamper-evident，非非否认）
+  PASS  sbom-reconcile  spdxVersion=SPDX-2.3 files=2886 root=3.8.4
+  PASS  build-identity  commit=2bd59ab73aab… built_at=2026-10-08T14:27:40Z tool=release_attest.py@1.1.0
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-2bd59ab-pin-verify-report.json
+VERIFY OK
+short=2bd59ab pin_exit_code=0
+$ verify same three against live external release-roots (current allow-list semantics)
+  PASS  manifest-schema  build_id=rel-cf6d10e-20261008T202539Z
+  PASS  artifact-hash  sha256=04a8f7dc6da7f71d… size=44635114
+  PASS  files-reconcile  2936/2936 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  FAIL  verify  source_commit 不在 release-roots allowed_commit（外部授权清单）: cf6d10e6f10e5369ea04c3d9f85b797d39279458——side commit/未授权 commit（四件套自洽签名也拒，G9-12 fail-closed）
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-cf6d10e-live-roots-verify-report.json
+VERIFY FAILED
+short=cf6d10e live_roots_exit_code=1
+  PASS  manifest-schema  build_id=rel-b44b087-20261009T013022Z
+  PASS  artifact-hash  sha256=cf21788881aa4610… size=89109004
+  PASS  files-reconcile  2942/2942 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  FAIL  verify  source_commit 不在 release-roots allowed_commit（外部授权清单）: b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4——side commit/未授权 commit（四件套自洽签名也拒，G9-12 fail-closed）
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-b44b087-live-roots-verify-report.json
+VERIFY FAILED
+short=b44b087 live_roots_exit_code=1
+  PASS  manifest-schema  build_id=rel-2bd59ab-20261008T142740Z
+  PASS  artifact-hash  sha256=b4e3d5fce24f2cd5… size=33139660
+  PASS  files-reconcile  2886/2886 path+type+mode+size+sha256 全符
+  PASS  plan-hash  evidence/00-baseline/codex-external/方案.md sha256=96b8646f6f08fd5f…（实算等值，64hex）
+  FAIL  verify  source_commit 不在 release-roots allowed_commit（外部授权清单）: 2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551——side commit/未授权 commit（四件套自洽签名也拒，G9-12 fail-closed）
+  report → /private/tmp/codex-test/evidence/reaudit9-infra-20261011-091321/07-regular/dist-2bd59ab-live-roots-verify-report.json
+VERIFY FAILED
+short=2bd59ab live_roots_exit_code=1
+wrapper_exit=0

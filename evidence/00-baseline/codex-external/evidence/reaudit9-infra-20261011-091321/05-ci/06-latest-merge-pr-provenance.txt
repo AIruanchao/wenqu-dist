@@ -1,0 +1,14 @@
+$ git show exact merge identity
+commit=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+parents=bb38f70163ce4a1a79f36ea66284e110eff96a95 1e31d8800082c3bf025e33faef53afdac8fc79e5
+author=AIruanchao <8286900@qq.com>
+committer=GitHub <noreply@github.com>
+date=2026-10-11T08:53:39+08:00
+subject=Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+exit_code=0
+$ gh pr view 33 provenance
+{"baseRefName":"main","headRefName":"wave10/t5-gate-frontdoor","headRefOid":"1e31d8800082c3bf025e33faef53afdac8fc79e5","isDraft":false,"mergeCommit":{"oid":"7eeb8a13107e8b52771f5b8784af8266ed0551b9"},"mergedAt":"2026-10-11T00:53:39Z","mergedBy":{"id":"U_kgDOEF24_w","is_bot":false,"login":"AIruanchao","name":""},"number":33,"reviewDecision":"","reviews":[],"state":"MERGED","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-10-11T00:51:58Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/38096505108/job/114343384024","name":"matrix (macos-latest)","startedAt":"2026-10-10T23:52:29Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-11T00:53:18Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/38096501349/job/114343372694","name":"matrix (macos-latest)","startedAt":"2026-10-10T23:52:25Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-11T00:12:02Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/38096505108/job/114343383963","name":"matrix (ubuntu-latest)","startedAt":"2026-10-10T23:52:24Z","status":"COMPLETED","workflowName":"acceptance"},{"__typename":"CheckRun","completedAt":"2026-10-11T00:10:17Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/AIruanchao/wenqu-dist/actions/runs/38096501349/job/114343372881","name":"matrix (ubuntu-latest)","startedAt":"2026-10-10T23:52:19Z","status":"COMPLETED","workflowName":"acceptance"}],"url":"https://github.com/AIruanchao/wenqu-dist/pull/33"}
+exit_code=0
+$ gh api commit 7eeb...
+{"commit":{"author":{"date":"2026-10-11T00:53:39Z","email":"8286900@qq.com","name":"AIruanchao"},"committer":{"date":"2026-10-11T00:53:39Z","email":"noreply@github.com","name":"GitHub"},"message":"Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor\n\nfeat(T-5): scheduler gate 刷新正门优先（W8 现役身份最后一码）"},"html_url":"https://github.com/AIruanchao/wenqu-dist/commit/7eeb8a13107e8b52771f5b8784af8266ed0551b9","parents":["bb38f70163ce4a1a79f36ea66284e110eff96a95","1e31d8800082c3bf025e33faef53afdac8fc79e5"],"sha":"7eeb8a13107e8b52771f5b8784af8266ed0551b9","verification":null}
+exit_code=0

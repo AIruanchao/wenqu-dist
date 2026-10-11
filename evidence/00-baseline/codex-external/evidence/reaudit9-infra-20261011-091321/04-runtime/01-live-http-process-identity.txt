@@ -1,0 +1,664 @@
+# runtime wall clock
+UTC=2026-10-11T01:15:14Z
+LOCAL=2026-10-11T09:15:14+0800
+rc=0
+
+$ python urllib root/health/components/ping
+
+--- http://127.0.0.1:7789/
+status= 200
+headers= {'Server': 'wenqu-dashboard-w8/1.0 ', 'Date': 'Sun, 11 Oct 2026 01:15:14 GMT', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': '11922'}
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>问渠 wenqu · 仪表盘</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- W8 安全加固：CSP 禁内联脚本/样式；frame-ancestors 仅在服务器 CSP 响应头生效（meta 中为文档性声明） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta http-equiv="Cache-Control" content="no-store">
+<meta name="referrer" content="no-referrer">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head><body>
+<h1>问渠 wenqu <span class="badge" id="ver">…</span></h1>
+<div class="sub">本地质量工程体系 · <span id="ts"></span> · <span id="port"></span></div>
+<nav class="tabs-nav" id="tabs">
+  <button class="tab active" data-t="ov">总览</button>
+  <button class="tab" data-t="pipe">管线流程</button>
+  <button class="tab" data-t="deck">问渠全流程</button>
+  <button class="tab" data-t="bugdeck">bug 管线</button>
+</nav>
+<div id="pipe" class="hidden"><div class="pl"><h3>四轨出生制 v3.1</h3><div class="src">正源：optimal-quality-process（方案/规格/规则类自动触发；假设任何单轨不可信——任何错误至少被两层独立机制拦截）</div>
+<div class="flow">
+ <div class="frow"><div class="node"><b>S0 brief 起草</b><span>FACT 编号事实+TERM 术语表+ASSUMPTION 假设</span></div>
+ <div class="node"><b>S0.5 brief 复审</b><span>冻结前两轨异源审完备性（brief=全员上界）</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow">
+  <div class="node lane"><b>ZCode 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>Claude 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>M3 轨</b><span>盲写·隔离期禁通信</span></div>
+  <div class="node lane"><b>Codex 轨</b><span>盲写·完整性前置检查</span></div></div>
+ <div class="arrow">▼ S1 四起草 → S1.5 双格式落地（哈希校验）</div>
+ <div class="mx">
+  <div></div><div class="hd">ZCode</div><div class="hd">Claude</div><div class="hd">M3</div><div class="hd">Codex</div>
+  <div class="hd">ZCode</div><div class="self">自</div><div class="rv">审②</div><div class="rv">审③</div><div class="rv">审④</div>
+  <div class="hd">Claude</div><div class="rv">审①</div><div class="self">自</div><div class="rv">审⑤</div><div class="rv">审⑥</div>
+  <div class="hd">M3</div><div class="rv">审⑦</div><div class="rv">审⑧</div><div class="self">自</div><div class="rv">审⑨</div>
+  <div class="hd">Codex</div><div class="rv">审⑩</div><div class="rv">审⑪</div><div class="rv">审⑫</div><div class="self">自</div></div>
+ <div class="arrow">▼ S2 四方交叉盲审 = 4×3 十二份（批次封口/迟到不入批/BLOCKER 即断）</div>
+ <div class="frow"><div class="node alt"><b>S2.5 材料打包</b><span>杂交稿+处置矩阵+对质索引+BLOCKER 清单（双写校验）</span></div>
+ <div class="node alt"><b>S3 对质大会</b><span>六审齐无条件启动；异议保护：1:2 分歧不得被多数决关闭</span></div></div>
+ <div class="arrow">▼</div>
+ <div class="frow"><div class="node fin"><b>三源终审</b><span>螺旋熔断停审</span></div><div class="node fin"><b>用户终裁</b><span>发布/打回</span></div></div>
+</div></div>
+
+<div class="pl"><h3>EQS 七段开发管线</h3><div class="src">正源：eqs-dev-flow（顺序不可倒；质量关卡放激励正确的一侧——验收域在方案时冻结，实扫在完成时执行）</div>
+<div class="flow"><div class="frow">
+ <div class="node"><b>① 需求卡</b><span>范围/风险/成功条件</span></div><div class="arrow">▸</div>
+ <div class="node"><b>② 双轨方案</b><span>CC 独立
+
+--- http://127.0.0.1:7789/api/v1/ping
+status= 200
+headers= {'Server': 'wenqu-dashboard-w8/1.0 ', 'Date': 'Sun, 11 Oct 2026 01:15:14 GMT', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': '50'}
+{
+  "pong": true,
+  "server": "wenqu-dashboard-w8/1.0"
+}
+
+--- http://127.0.0.1:7789/api/v1/components
+status= 200
+headers= {'Server': 'wenqu-dashboard-w8/1.0 ', 'Date': 'Sun, 11 Oct 2026 01:15:14 GMT', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': '585'}
+{
+  "version": "3.8.4",
+  "bin": [
+    {
+      "name": "wenqu-env.sh",
+      "ok": true
+    },
+    {
+      "name": "iron-gate.sh",
+      "ok": true
+    },
+    {
+      "name": "blast-radius.py",
+      "ok": true
+    },
+    {
+      "name": "cursor-auto-verify.sh",
+      "ok": true
+    },
+    {
+      "name": "deploy-preflight.sh",
+      "ok": true
+    },
+    {
+      "name": "hardening-doctor.sh",
+      "ok": true
+    },
+    {
+      "name": "wenqu-dashboard.py",
+      "ok": true
+    }
+  ],
+  "sentinels": [
+    {
+      "name": "ci-event-sentinel.sh",
+      "ok": true
+    },
+    {
+      "name": "conservation-sentinel.sh",
+      "ok": true
+    },
+    {
+      "name": "ssl-cert-sentinel.sh",
+      "ok": true
+    }
+  ],
+  "daemons": [
+    {
+      "name": "auto-merge.sh",
+      "ok": false
+    },
+    {
+      "name": "conservation-daemon.py",
+      "ok": true
+    }
+  ]
+}
+
+--- http://127.0.0.1:7789/api/v1/health
+status= 200
+headers= {'Server': 'wenqu-dashboard-w8/1.0 ', 'Date': 'Sun, 11 Oct 2026 01:15:14 GMT', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': '800'}
+{
+  "generated_at": "2026-10-11T01:12:38Z",
+  "policy_verdict": "BLOCKED",
+  "aggregate_outcome": "BLOCKED",
+  "technical_eligible": false,
+  "reason": "station_hard_failure [0]",
+  "reasons": [
+    "station_hard_failure [0]"
+  ],
+  "counts": {
+    "required_total": 1,
+    "required_reported": 1,
+    "required_missing": 0,
+    "bypass_stations": 0,
+    "duplicates_ignored": 0,
+    "conflicts": 0,
+    "malformed": 0
+  },
+  "stations": {
+    "0": {
+      "outcome": "BLOCKED",
+      "required": true,
+      "sha_bound": true,
+      "environment_ok": true,
+      "input_version": "v2",
+      "schema_valid": true
+    }
+  },
+  "target_sha": "0000000000000000000000000000000000000000",
+  "environment": "production",
+  "scope_binding": {
+    "mode": "self_declared"
+  },
+  "inputs": {
+    "paths": 1,
+    "docs": 1,
+    "load_errors": 0,
+    "schema_invalid": 0
+  },
+  "mode": "self_declared_diagnostic",
+  "source": "wenquctl-gate",
+  "cli_exit": 2
+}
+
+--- http://127.0.0.1:7789/api/v1/health-history
+status= 200
+headers= {'Server': 'wenqu-dashboard-w8/1.0 ', 'Date': 'Sun, 11 Oct 2026 01:15:14 GMT', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': '2880'}
+[
+  {
+    "ts": "10-10T17:18",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T17:28",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T17:38",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T17:48",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T17:58",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:08",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:18",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:28",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:38",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:48",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T18:58",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:08",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:18",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:28",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:38",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:48",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T19:58",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:08",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:18",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:28",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:38",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:48",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T20:58",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:08",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:18",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:28",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:38",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:48",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T21:59",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:09",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:19",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:29",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:39",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:49",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T22:59",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T23:09",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T23:19",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T23:29",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T23:45",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-10T23:55",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:05",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:15",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:25",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:35",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:45",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T00:55",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T01:05",
+    "score": null,
+    "verdict": "BLOCKED"
+  },
+  {
+    "ts": "10-11T01:15",
+    "score": null,
+    "verdict": "BLOCKED"
+  }
+]
+rc=0
+
+$ lsof listener
+COMMAND   PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  20003 maccc    3u  IPv4 0x1225026462a6614e      0t0  TCP 127.0.0.1:7789 (LISTEN)
+rc=0
+PID=20003
+
+$ ps process
+20003     1   502 maccc Sun Oct 11 07:35:06 2026     01:40:09 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python /Users/maccc/.wenqu/current/system/dashboard/server.py --port 7789
+rc=0
+
+$ lsof cwd/txt/python/server/current
+Python  20003 maccc  cwd    DIR               1,16     1664           489229871 /Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+Python  20003 maccc  txt    REG               1,16    33568           405770174 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+Python  20003 maccc  txt    REG               1,16    80448           405771087 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hashlib.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    72912           405771093 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_json.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16   128864           405771089 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_hmac.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    53120           405771130 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/fcntl.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    54784           405771101 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_posixsubprocess.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    74992           405771137 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/select.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    54416           405771128 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/binascii.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16  2374000 1152921500312573277 /usr/lib/dyld
+Python  20003 maccc  txt    REG               1,16    77888           405771113 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_struct.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    93456           405771132 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/math.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16  5468144           405770167 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Python
+Python  20003 maccc  txt    REG               1,16    76192           405771144 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/zlib.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16   115872           405771109 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_socket.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    55056           405771072 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_bz2.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16    74624           405771095 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_lzma.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16   205312           405771111 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_ssl.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16   167520           405757828 /opt/homebrew/Cellar/xz/5.8.4/lib/liblzma.5.dylib
+Python  20003 maccc  txt    REG               1,16    96752           405771126 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/_zstd.cpython-314-darwin.so
+Python  20003 maccc  txt    REG               1,16   890256           405759450 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libssl.3.dylib
+Python  20003 maccc  txt    REG               1,16  4874336           405759443 /opt/homebrew/Cellar/openssl@3/3.6.5/lib/libcrypto.3.dylib
+Python  20003 maccc  txt    REG               1,16   653328             4836761 /opt/homebrew/Cellar/zstd/1.5.7_1/lib/libzstd.1.5.7.dylib
+Python  20003 maccc  txt    REG               1,16   783632           405771140 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/lib/python3.14/lib-dynload/unicodedata.cpython-314-darwin.so
+Python  20003 maccc    1u   REG               1,16     8052           467734306 /Users/maccc/.wenqu/logs/dashboard-modular.out.log
+Python  20003 maccc    2u   REG               1,16   186645           467734307 /Users/maccc/.wenqu/logs/dashboard-modular.err.log
+pipeline_rcs=0 0 0
+
+$ current release links
+--- /Users/maccc/.wenqu/current
+lrwxr-xr-x@ 1 maccc  staff  74 Oct 11 07:34 /Users/maccc/.wenqu/current -> /Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+ls_rc=0
+mode=lrwxr-xr-x octal=755 uid=502 gid=20 size=74 mtime=2026-10-11T07:34:43+0800 inode=489233565
+stat_rc=0
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+readlink_rc=0
+realpath=/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree
+--- /Users/maccc/.wenqu/releases
+drwxr-xr-x@ 6 maccc  staff  192 Oct 11 08:54 /Users/maccc/.wenqu/releases
+ls_rc=0
+mode=drwxr-xr-x octal=755 uid=502 gid=20 size=192 mtime=2026-10-11T08:54:50+0800 inode=469224511
+stat_rc=0
+readlink_rc=1
+realpath=/Users/maccc/.wenqu/releases
+--- /Users/maccc/.wenqu/release-roots.json
+-rw-------@ 1 maccc  staff  994 Oct 11 07:34 /Users/maccc/.wenqu/release-roots.json
+ls_rc=0
+mode=-rw------- octal=600 uid=502 gid=20 size=994 mtime=2026-10-11T07:34:19+0800 inode=483530996
+stat_rc=0
+readlink_rc=1
+realpath=/Users/maccc/.wenqu/release-roots.json
+--- /Users/maccc/.wenqu/current/plan.pin
+ls: /Users/maccc/.wenqu/current/plan.pin: No such file or directory
+ls_rc=1
+stat: /Users/maccc/.wenqu/current/plan.pin: stat: No such file or directory
+stat_rc=1
+readlink_rc=1
+realpath=/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/plan.pin
+
+$ release inventory
+/Users/maccc/.wenqu/releases/.last-current
+/Users/maccc/.wenqu/releases/.staging-r32/""
+/Users/maccc/.wenqu/releases/.staging-r32/.gitignore
+/Users/maccc/.wenqu/releases/.staging-r32/.mimosa-ignore
+/Users/maccc/.wenqu/releases/.staging-r32/CHANGELOG.md
+/Users/maccc/.wenqu/releases/.staging-r32/README.md
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v1.0.18.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v1.0.6.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v1.0.7.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v1.0.8.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v2.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.0.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.1.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.2.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.3.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.1.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.2.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.3.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.4.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.4.5.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.1.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.2.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.3.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.4.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.5.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.6.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.7.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.5.8.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.6.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.6.1.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.6.2.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.6.3.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.7.0.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.7.1.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.8.1.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.8.2.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.8.3.txt
+/Users/maccc/.wenqu/releases/.staging-r32/SHA256-v3.8.4.txt
+/Users/maccc/.wenqu/releases/.staging-r32/cli/README.md
+/Users/maccc/.wenqu/releases/.staging-r32/cli/test_wenqu.py
+/Users/maccc/.wenqu/releases/.staging-r32/cli/wenqu
+/Users/maccc/.wenqu/releases/.staging-r32/dist/SHA256-vNext-candidate-2bd59ab.txt
+/Users/maccc/.wenqu/releases/.staging-r32/dist/SHA256-vNext-candidate-f2b8fc3.txt
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-2bd59ab.manifest.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-2bd59ab.release.sig
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-2bd59ab.sbom.spdx.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-2bd59ab.tar.gz
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-2bd59ab.verify-report.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-cf6d10e.manifest.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-cf6d10e.release.sig
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-cf6d10e.sbom.spdx.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-cf6d10e.tar.gz
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-dist-cf6d10e.verify-report.json
+/Users/maccc/.wenqu/releases/.staging-r32/dist/wenqu-vNext-candidate-f2b8fc3.tar.gz
+/Users/maccc/.wenqu/releases/.staging-r32/docs/条件放行声明-v1.0.18.md
+/Users/maccc/.wenqu/releases/.staging-r32/docs/问渠轨道规范-发行版-v2.0.md
+/Users/maccc/.wenqu/releases/.staging-r32/docs/首跑报告-market-monitor-20261003.md
+/Users/maccc/.wenqu/releases/.staging-r32/evidence/README.md
+/Users/maccc/.wenqu/releases/.staging-r32/evidence/evidence-index.json
+/Users/maccc/.wenqu/releases/.staging-r32/evidence/traceability-matrix.json
+/Users/maccc/.wenqu/releases/.staging-r32/plan.pin
+/Users/maccc/.wenqu/releases/.staging-r32/probes/stations.json
+/Users/maccc/.wenqu/releases/.staging-r32/pytest.ini
+/Users/maccc/.wenqu/releases/.staging-r32/system/README.md
+/Users/maccc/.wenqu/releases/.staging-r32/system/VERSION
+/Users/maccc/.wenqu/releases/.staging-r32/system/install-release.sh
+/Users/maccc/.wenqu/releases/.staging-r32/system/install.sh
+/Users/maccc/.wenqu/releases/.staging-r32/tests/acceptance.sh
+/Users/maccc/.wenqu/releases/.staging-r32/tests/p1f-assert-baseline.txt
+/Users/maccc/.wenqu/releases/.staging-r32/tests/p1f-behavior-baseline.txt
+/Users/maccc/.wenqu/releases/.staging-r32/tests/release-check.sh
+/Users/maccc/.wenqu/releases/.staging-r32/tools/ac_traceability.py
+/Users/maccc/.wenqu/releases/.staging-r32/tools/merge-ci-evidence.sh
+/Users/maccc/.wenqu/releases/.staging-r32/tools/observation_daily.py
+/Users/maccc/.wenqu/releases/.staging-r32/tools/quarantine_adjudicate.py
+/Users/maccc/.wenqu/releases/.staging-r32/tools/release_attest.py
+/Users/maccc/.wenqu/releases/.staging-r32/tools/w5_reconcile.py
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/""
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/.gitignore
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/.mimosa-ignore
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/CHANGELOG.md
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/README.md
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.18.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.6.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.7.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v1.0.8.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v2.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.0.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.1.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.2.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.3.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.4.5.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.5.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.6.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.7.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.5.8.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.6.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.7.0.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.7.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.1.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.2.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.3.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/SHA256-v3.8.4.txt
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/tree/pytest.ini
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/verify-report.json
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.manifest.json
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.release.sig
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.sbom.spdx.json
+/Users/maccc/.wenqu/releases/bb38f70163ce4a1a79f36ea66284e110eff96a95/wenqu-dist-bb38f70.tar.gz
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/""
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/.gitignore
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/.mimosa-ignore
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/CHANGELOG.md
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/README.md
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v1.0.18.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v1.0.6.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v1.0.7.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v1.0.8.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v2.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.0.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.1.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.2.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.3.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.1.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.2.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.3.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.4.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.4.5.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.1.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.2.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.3.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.4.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.5.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.6.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.7.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.5.8.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.6.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.6.1.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.6.2.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.6.3.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.7.0.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.7.1.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.8.1.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.8.2.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.8.3.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/SHA256-v3.8.4.txt
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/tree/pytest.ini
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/verify-report.json
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/wenqu-dist-fa72947.manifest.json
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/wenqu-dist-fa72947.release.sig
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/wenqu-dist-fa72947.sbom.spdx.json
+/Users/maccc/.wenqu/releases/fa7294753894e0ced5f21029d6b4e61c9c8660bc/wenqu-dist-fa72947.tar.gz
+pipeline_rcs=0 0 0

@@ -1,0 +1,13 @@
+[COMMAND] python3 snapshot_origin_fulltree_probe.py /Users/maccc/Documents/wenqu-dist frozen_snapshot origin/main
+requested_ref=origin/main
+resolved_commit=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+resolved_is_40hex=True
+git_entries=2964
+snapshot_entries=3026
+missing=0
+extra=62
+content_or_exec_type_mismatch=1
+extra_examples=['.pytest_cache/.gitignore', '.pytest_cache/CACHEDIR.TAG', '.pytest_cache/README.md']
+mismatch_examples=[('evidence/04-unit-property-mutation/ac-ops-families.json', '100644', '100644', '2ce6bac4f95614c359b7c1fcf154d457d5f054beb55e70cb3dfed40b7962e079', '3133658885c971b527fcffe38bc64608e0f76965b6059c284a43ba96e9150e26')]
+SNAPSHOT_EQUALS_ORIGIN_MAIN=False
+[EXIT_CODE] 1

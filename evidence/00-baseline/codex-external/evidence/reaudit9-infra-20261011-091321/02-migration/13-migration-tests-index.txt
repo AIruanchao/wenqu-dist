@@ -1,0 +1,62 @@
+timestamp=2026-10-11T01:14:29Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && rg -n '^def test_|ROW_MUTATED|row_digest|legacy_untrusted|backdate|gap|trigger|permission|chmod|read.only|readonly|writer' system/tests/test_ac_state_mig.py
+--- output begin ---
+19:       STATE-05 writer epoch fencing、STATE-09 重放侧 identity 不变量、
+32:    真实语义（run_id/finding_id 结构校验、writer epoch fencing、重放侧
+126:    "STATE-05": "fenced 写者（RunManager(writer_epoch=N)）的控制事件带 writer_epoch 扩展字段——超出冻结 run-event-v2 词表（默认/未启用模式零盖章、零比较、字节级兼容，P0-4 对抗 #9 的 schema 全绿面不受影响）——schema 升版登记为后续工作包；fencing 作用域=单 run 事件流（被接管流对旧 epoch writer 全写入拒绝，含 broker 消费路径 loader 栅栏；新流/新 run 不受旧租约牵连，本用例显式验证该边界）；epoch 唯一性由租约发放方保证（同 epoch=同租约不区分实例）",
+228:def test_STATE_01_arbitrary_stage_status_schema_rejected():
+279:def test_STATE_03_concurrent_100x100_no_loss_no_dup():
+280:    """注入：100 个并发 writer × 各 100 条不同事件（真实多连接 WAL 并发）。
+284:    附加子场景：20 个 writer 并发追加同一内容 → 恰好 1 行（幂等不双入账）。
+293:        def writer(w):
+298:                        _, ins = s.append({"kind": "load", "writer": w, "i": i})
+304:                errors.append(f"writer{w}:{type(e).__name__}:{e}")
+306:        threads = [threading.Thread(target=writer, args=(w,))
+335:        def idem_writer():
+345:        threads = [threading.Thread(target=idem_writer) for _ in range(20)]
+358:    return {"writers": WRITERS, "per_writer": PER_WRITER,
+422:def test_STATE_04_kill9_all_or_nothing():
+488:def test_STATE_06_waiting_residue_superseded_not_silently_deleted():
+534:    return {"silent_delete": "rejected (append-only trigger)",
+535:            "silent_update": "rejected (append-only trigger)",
+544:def test_STATE_07_normal_event_cannot_flip_passed_to_running():
+594:def test_STATE_08_failed_retry_new_attempt_old_evidence_intact():
+648:def test_STATE_10_terminal_attempt_no_direct_running_new_attempt_ok():
+728:def test_MIG_01_bad_json_unknown_status_quarantine():
+840:def test_MIG_02_accepted_missing_approval_invalid_reopen():
+898:def test_MIG_03_double_migration_idempotent():
+973:def test_MIG_04_source_conservation_enforced():
+1072:            "delete_attacks": "rejected (append-only trigger，定向+全表)",
+1086:def test_MIG_05_project_key_conflict_explicit_no_fake_split():
+1238:                      writer_epoch=epoch)
+1305:def test_STATE_02_traversal_absolute_nul_overlong_ids_rejected():
+1367:# STATE-05：双 writer epoch → 所有写入拒绝
+1369:def test_STATE_05_dual_writer_epoch_all_writes_rejected():
+1370:    """注入：双 writer epoch——epoch 1 的写者建流写入后，epoch 2 的新写者
+1373:    期望（§20.2 逐字）：旧 epoch writer 的**所有写入**拒绝——
+1378:      3) 未启用 epoch 的 writer（视为 epoch 0）同样被拒；
+1380:         转换全对）但 writer_epoch 落后的事件 → 重放即 PipelineCorruptionError；
+1383:    新流（新建 run）仍可写（双 writer 争用的是同一条正源流）。
+1391:        assert w1.get_run(run_id).writer_epoch == 1     # 流内 epoch 折叠可见
+1392:        # 双 writer：epoch 2 接管（更高 epoch 写入放行，流内 epoch 前移）
+1397:        assert w2.get_run(run_id).writer_epoch == 2
+1398:        # 1) 旧 writer 的全部变更 API 拒绝
+1403:            lambda: w1.raise_waiting(run_id, "resource", "旧 writer 试图停等"),
+1407:            lambda: w1.cancel_run(run_id, "stale writer"),
+1408:            lambda: w1.supersede_run(run_id, "stale writer"),
+1412:        # 3) 未启用 epoch 的 writer（epoch 0）同样被拒
+1415:        # 2) broker 消费路径：w2 停等后，旧 writer 持完全合法审批消费不了
+1432:        assert st_w.writer_epoch == 2 and not st_w.findings
+1440:        forged["writer_epoch"] = 1
+1445:        # 边界：fencing 作用域=单流——旧 writer 对未被接管的新流仍可写
+1448:        assert w1.get_run(run_b).writer_epoch == 1
+1449:    return {"stale_writer_apis_rejected": 8,
+1451:            "unfenced_writer_rejected": True,
+1455:                        "writer_epoch 扩展字段（超出冻结 run-event-v2 词表，"
+1462:def test_STATE_09_sha_scope_policy_change_forces_new_run():
+1553:def test_STATE_11_s7_conditional_missing_risk_authorization_failed():
+1665:    ("STATE-05", "双 writer epoch → 所有写入拒绝（wenqu_pipeline fencing）",
+1666:     test_STATE_05_dual_writer_epoch_all_writes_rejected),
+--- output end ---
+exit_code=0

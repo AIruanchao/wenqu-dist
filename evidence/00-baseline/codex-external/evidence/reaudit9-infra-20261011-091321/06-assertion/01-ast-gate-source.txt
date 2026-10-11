@@ -1,0 +1,640 @@
+timestamp=2026-10-11T01:15:52Z
+pwd=/private/tmp/codex-test
+command=cd '/private/tmp/codex-test/reaudit9-infra-snapshot-20261011-091321' && nl -ba system/tests/p1f_ast_gate.py | sed -n '1,760p'
+--- output begin ---
+     1	#!/usr/bin/env python3
+     2	# -*- coding: utf-8 -*-
+     3	"""P1f2 AST 行为门——八轮 Codex P1f2 残余修复（文本 assert 计数可被绕过 → AST 行为门）。
+     4	
+     5	背景：旧 P1f2 用文本 grep 数 `assert`/`_ck`/`expect` 出现次数，三类绕过均不红：
+     6	  a) 常量真值断言（assert True / assert 1）——计数照涨、行为恒过；
+     7	  b) 删掉被测调用只留断言壳——计数不缩；
+     8	  c) 删掉失败路径（负例/异常腿）——计数不缩。
+     9	
+    10	本工具对 F6-TRC-GATE-001 的八个专属测试文件做纯 ast 静态分析（零第三方依赖、
+    11	不导入不执行任何被测体，只读源码），逐顶层 test 函数产出三指标：
+    12	
+    13	  trivial_asserts       assert 的测试表达式为常量真值（ast.Constant 真值 /
+    14	                        Name 'True'）→ 计劣（恒真化绕过面）
+    15	  has_call_into_module  函数体内在被测面上真实交互 → 良。被测面静态识别：
+    16	                        - wenqu_core.* 导入名/别名（文件内任意层 import 收集）
+    17	                          上的调用/取属性/下标/迭代（枚举迭代=执行产品 __iter__）；
+    18	                        - 轻量数据流传播的实例（gate = SourceGate(...) 之后
+    19	                          gate.execute_gate() / result["exit_code"]）；
+    20	                        - 产品构造器/装载器助手的产物（store, mgr = _mgr(td)
+    21	                          之后 mgr.get_run(...)；doctor = _load_doctor() 之后
+    22	                          doctor.check(...)）——助手=体内真实触碰产品码的
+    23	                          同文件模块级函数/类（构造 wenqu_core 对象、
+    24	                          spec_from_file_location 装载、或 subprocess 启动
+    25	                          产品路径常量指向的脚本）；
+    26	                        - 产品路径常量（模块级 __file__ 派生、不含 tests/
+    27	                          fixtures 字段的 Path 常量，如 _CONTRACT/_STATIONS）
+    28	                          上的读（.read_text()）与 subprocess 引用
+    29	                          （[sys.executable, str(DOCTOR), ...]）。
+    30	  has_failure_path      存在可失败的断言通道 → 良：
+    31	                        - expect/raises 族异常助手调用（expect/_expect_raise/
+    32	                          _raises/pytest.raises…）；
+    33	                        - try-except（含 except 子句）；
+    34	                        - 断言助手（_ok/_ck 式：体内含条件 raise）且首参非
+    35	                          常量真值（条件可判假=负例通道）；
+    36	                        - 函数内内联条件 raise（if ...: raise ...）；
+    37	                        - 非常量真值的 assert（可判假的真实检查）。
+    38	
+    39	合格函数 = trivial_asserts == 0 且 has_call_into_module 且 has_failure_path。
+    40	汇总每文件合格函数数，与冻结基线 tests/p1f-behavior-baseline.txt 比对：
+    41	合格数缩水、专属文件缺失、源码不可解析、基线缺项/格式非法 → exit 1（CI 红）。
+    42	
+    43	用法：
+    44	  python3 system/tests/p1f_ast_gate.py --root <repo根> --baseline <基线文件> [--verbose]
+    45	  python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline
+    46	  python3 system/tests/p1f_ast_gate.py --root <repo根> --file test_ac_gate_family
+    47	"""
+    48	from __future__ import annotations
+    49	
+    50	import argparse
+    51	import ast
+    52	import sys
+    53	from pathlib import Path
+    54	from typing import Any, Dict, List, Optional, Set
+    55	
+    56	# 与 acceptance.sh P1f 节的 P1F_FILES 同源（F6-TRC-GATE-001 八专属文件）
+    57	P1F_FILES: List[str] = [
+    58	    "test_ac_gate_family",
+    59	    "test_ac_state_mig",
+    60	    "test_ac_deploy_release",
+    61	    "test_ac_station_families",
+    62	    "test_ac_ops_families",
+    63	    "test_ac_auth_cond",
+    64	    "test_ac_act_run",
+    65	    "test_ac_ui_family",
+    66	]
+    67	
+    68	# importlib 动态装载产品码的标志调用名（装载器助手判定）
+    69	_LOADER_MARKS = {"spec_from_file_location", "module_from_spec", "exec_module"}
+    70	
+    71	# expect/raises 族异常助手名（调用即失败通道）
+    72	_EXPECT_NAME_MARKS = ("expect", "raises")
+    73	
+    74	# subprocess 家族方法名（启动子进程=可能驱动产品脚本）
+    75	_SUBPROCESS_FUNCS = {"run", "popen", "call", "check_call", "check_output"}
+    76	
+    77	# 产品路径常量的排除字段（夹具路径不算被测面）
+    78	_NON_PRODUCT_SEGMENTS = {"tests", "test", "fixtures", "fixture", "__pycache__"}
+    79	
+    80	
+    81	# ---------------------------------------------------------------------------
+    82	# 基础判定
+    83	# ---------------------------------------------------------------------------
+    84	def _is_truthy_const(node: ast.expr) -> bool:
+    85	    """常量真值：ast.Constant 真值 / Name 'True'（恒真化断言的静态形态）。"""
+    86	    if isinstance(node, ast.Constant):
+    87	        try:
+    88	            return bool(node.value)
+    89	        except Exception:  # 无布尔语义的常量对象按非真值处理
+    90	            return False
+    91	    if isinstance(node, ast.Name) and node.id == "True":
+    92	        return True
+    93	    return False
+    94	
+    95	
+    96	def _call_func_name(call: ast.Call) -> Optional[str]:
+    97	    f = call.func
+    98	    if isinstance(f, ast.Name):
+    99	        return f.id
+   100	    if isinstance(f, ast.Attribute):
+   101	        return f.attr
+   102	    return None
+   103	
+   104	
+   105	def _is_expect_like(name: Optional[str]) -> bool:
+   106	    if not name:
+   107	        return False
+   108	    return any(mark in name.lower() for mark in _EXPECT_NAME_MARKS)
+   109	
+   110	
+   111	def _is_subprocess_call(call: ast.Call) -> bool:
+   112	    f = call.func
+   113	    return isinstance(f, ast.Attribute) and f.attr.lower() in _SUBPROCESS_FUNCS
+   114	
+   115	
+   116	def _expr_mentions(node: ast.expr, names: Set[str]) -> bool:
+   117	    """表达式子树是否引用了 names 中任一名字。"""
+   118	    return any(
+   119	        isinstance(n, ast.Name) and n.id in names for n in ast.walk(node)
+   120	    )
+   121	
+   122	
+   123	# ---------------------------------------------------------------------------
+   124	# 文件级上下文（被测面收集）
+   125	# ---------------------------------------------------------------------------
+   126	class FileContext:
+   127	    def __init__(self, tree: ast.Module) -> None:
+   128	        self.tested_names: Set[str] = set()        # wenqu_core.* 导入名/别名
+   129	        self.product_paths: Set[str] = set()       # 产品路径常量名（模块级）
+   130	        self.loader_helpers: Set[str] = set()      # importlib 装载器助手
+   131	        self.assert_helpers: Set[str] = set()      # _ok/_ck 式断言助手
+   132	        self.product_helpers: Set[str] = set()     # 产品构造器/驱动器助手（函数）
+   133	        self.product_classes: Set[str] = set()     # 产品驱动器类
+   134	        self._collect(tree)
+   135	
+   136	    # —— 收集 ——
+   137	    def _collect(self, tree: ast.Module) -> None:
+   138	        # 1) wenqu_core 被测面：模块级+函数级 import 全收（同名只可能来自被测面）
+   139	        for node in ast.walk(tree):
+   140	            if isinstance(node, ast.ImportFrom) and node.module and (
+   141	                node.module == "wenqu_core" or node.module.startswith("wenqu_core.")
+   142	            ):
+   143	                for alias in node.names:
+   144	                    self.tested_names.add(alias.asname or alias.name)
+   145	            elif isinstance(node, ast.Import):
+   146	                for alias in node.names:
+   147	                    if alias.name == "wenqu_core" or alias.name.startswith("wenqu_core."):
+   148	                        self.tested_names.add(alias.asname or alias.name)
+   149	        # 2) 模块级产品路径常量：__file__ 派生链（fixpoint 追链），排除夹具字段
+   150	        self._collect_product_paths(tree)
+   151	        # 3) 模块级函数/类分类
+   152	        for stmt in tree.body:
+   153	            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+   154	                if self._touches_product(stmt):
+   155	                    self.product_helpers.add(stmt.name)
+   156	                body_nodes = ast.walk(stmt)
+   157	                if any(
+   158	                    isinstance(n, ast.Call) and _call_func_name(n) in _LOADER_MARKS
+   159	                    for n in body_nodes
+   160	                ):
+   161	                    self.loader_helpers.add(stmt.name)
+   162	                if self._has_conditional_raise(stmt):
+   163	                    self.assert_helpers.add(stmt.name)
+   164	            elif isinstance(stmt, ast.ClassDef):
+   165	                if any(
+   166	                    self._touches_product(sub) for sub in stmt.body
+   167	                    if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
+   168	                ):
+   169	                    self.product_classes.add(stmt.name)
+   170	
+   171	    def _collect_product_paths(self, tree: ast.Module) -> None:
+   172	        """__file__ 派生的模块级 Path 常量（REPO/SYSTEM/DASH/_CONTRACT…）。
+   173	
+   174	        fixpoint：常量值子树含 __file__ 或已判定常量名 → 产品路径常量；
+   175	        但链上出现 tests/fixtures 等夹具字段的除外（夹具不是被测面）。
+   176	        """
+   177	        for _ in range(8):  # 链深有限，几轮收敛
+   178	            grew = False
+   179	            for stmt in tree.body:
+   180	                if not isinstance(stmt, ast.Assign):
+   181	                    continue
+   182	                value = stmt.value
+   183	                if not _expr_mentions(value, self.product_paths) and not any(
+   184	                    isinstance(n, ast.Name) and n.id == "__file__"
+   185	                    for n in ast.walk(value)
+   186	                ):
+   187	                    continue
+   188	                if any(
+   189	                    isinstance(n, ast.Constant) and isinstance(n.value, str)
+   190	                    and n.value.strip("./").strip("/") in _NON_PRODUCT_SEGMENTS
+   191	                    for n in ast.walk(value)
+   192	                ):
+   193	                    continue  # 夹具路径：tests/fixtures 下不算被测面
+   194	                for t in stmt.targets:
+   195	                    if isinstance(t, ast.Name) and t.id not in self.product_paths:
+   196	                        self.product_paths.add(t.id)
+   197	                        grew = True
+   198	            if not grew:
+   199	                break
+   200	
+   201	    def _touches_product(self, fn: ast.FunctionDef) -> bool:
+   202	        """体内真实触碰产品码：wenqu_core 根调用/产品路径常量引用/装载器标志。
+   203	
+   204	        注意：模块级分析环境为空（参数不预信任）——夹具助手（_git/_make_repo
+   205	        只碰参数与字面量）不会被判为产品面。
+   206	        """
+   207	        for node in ast.walk(fn):
+   208	            if isinstance(node, ast.Call):
+   209	                fname = node.func.id if isinstance(node.func, ast.Name) else None
+   210	                if fname in self.tested_names:
+   211	                    return True
+   212	                if _call_func_name(node) in _LOADER_MARKS:
+   213	                    return True
+   214	                if _is_subprocess_call(node) and _expr_mentions(
+   215	                    node, self.product_paths
+   216	                ):
+   217	                    return True
+   218	            elif isinstance(node, ast.Name):
+   219	                if node.id in self.product_paths:
+   220	                    return True
+   221	        return False
+   222	
+   223	    @staticmethod
+   224	    def _has_conditional_raise(fn: ast.FunctionDef) -> bool:
+   225	        """_ok/_ck 式助手：if <cond>: raise ...（断言助手=条件抛错）。"""
+   226	        for node in ast.walk(fn):
+   227	            if isinstance(node, ast.If):
+   228	                for sub in ast.walk(node):
+   229	                    if isinstance(sub, ast.Raise):
+   230	                        return True
+   231	        return False
+   232	
+   233	
+   234	# ---------------------------------------------------------------------------
+   235	# 函数级行为分析（按语句顺序做轻量信任数据流）
+   236	# ---------------------------------------------------------------------------
+   237	class FunctionMetrics:
+   238	    __slots__ = ("name", "trivial_asserts", "has_call", "has_failure")
+   239	
+   240	    def __init__(self, name: str) -> None:
+   241	        self.name = name
+   242	        self.trivial_asserts = 0
+   243	        self.has_call = False
+   244	        self.has_failure = False
+   245	
+   246	    @property
+   247	    def qualified(self) -> bool:
+   248	        return self.trivial_asserts == 0 and self.has_call and self.has_failure
+   249	
+   250	    def hint(self) -> str:
+   251	        why = []
+   252	        if self.trivial_asserts:
+   253	            why.append(f"trivial_asserts={self.trivial_asserts}")
+   254	        if not self.has_call:
+   255	            why.append("无被测调用")
+   256	        if not self.has_failure:
+   257	            why.append("无失败路径")
+   258	        return ",".join(why) if why else "合格"
+   259	
+   260	
+   261	class _Env:
+   262	    """函数内轻量信任环境：产品对象局部名 + 产品路径局部名。"""
+   263	
+   264	    __slots__ = ("trusted", "path_locals")
+   265	
+   266	    def __init__(self, trusted: Set[str], path_locals: Set[str]) -> None:
+   267	        self.trusted = trusted      # 产品对象（可在其上调用/读属性/下标/迭代）
+   268	        self.path_locals = path_locals  # 产品路径派生局部（subprocess 引用算被测）
+   269	
+   270	    def copy(self) -> "_Env":
+   271	        return _Env(set(self.trusted), set(self.path_locals))
+   272	
+   273	    def merge(self, other: "_Env") -> None:
+   274	        self.trusted |= other.trusted
+   275	        self.path_locals |= other.path_locals
+   276	
+   277	
+   278	class FunctionAnalyzer:
+   279	    def __init__(self, ctx: FileContext) -> None:
+   280	        self.ctx = ctx
+   281	
+   282	    # —— 信任根判定 ——
+   283	    def _trusted_root(self, node: ast.expr, env: _Env) -> bool:
+   284	        if isinstance(node, ast.Name):
+   285	            return (
+   286	                node.id in self.ctx.tested_names
+   287	                or node.id in self.ctx.product_paths
+   288	                or node.id in env.trusted
+   289	            )
+   290	        if isinstance(node, ast.Attribute):
+   291	            return self._trusted_root(node.value, env)
+   292	        if isinstance(node, ast.Subscript):  # f = rep.findings[0] 仍是被测产物
+   293	            return self._trusted_root(node.value, env)
+   294	        if isinstance(node, ast.Call):
+   295	            return self._trusted_root(node.func, env)
+   296	        if isinstance(node, ast.Await):
+   297	            return self._trusted_root(node.value, env)
+   298	        return False
+   299	
+   300	    def _producing_helper_call(self, value: ast.expr) -> bool:
+   301	        """值是产品构造器/装载器/驱动器助手或产品类的调用 → 产物可信。"""
+   302	        if not isinstance(value, ast.Call):
+   303	            return False
+   304	        f = value.func
+   305	        if isinstance(f, ast.Name) and (
+   306	            f.id in self.ctx.loader_helpers
+   307	            or f.id in self.ctx.product_helpers
+   308	            or f.id in self.ctx.product_classes
+   309	        ):
+   310	            return True
+   311	        return False
+   312	
+   313	    def _assign_trusted(self, value: ast.expr, env: _Env) -> bool:
+   314	        if self._trusted_root(value, env):
+   315	            return True
+   316	        return self._producing_helper_call(value)
+   317	
+   318	    # —— 表达式扫描（ Calls 全子树） ——
+   319	    def _scan_expr(self, node: ast.expr, env: _Env, m: FunctionMetrics) -> None:
+   320	        for sub in ast.walk(node):
+   321	            if isinstance(sub, ast.Call):
+   322	                self._check_call(sub, env, m)
+   323	            elif isinstance(sub, (ast.Attribute, ast.Subscript)):
+   324	                # 被测态读取信号：可信根上的属性读/下标（消费产品输出）
+   325	                if self._trusted_root(sub.value, env):
+   326	                    m.has_call = True
+   327	            elif isinstance(sub, ast.NamedExpr):  # walrus：(x := trusted())
+   328	                if isinstance(sub.target, ast.Name) and self._assign_trusted(
+   329	                    sub.value, env
+   330	                ):
+   331	                    env.trusted.add(sub.target.id)
+   332	
+   333	    def _check_call(self, call: ast.Call, env: _Env, m: FunctionMetrics) -> None:
+   334	        # 指标二：被测面上的真实调用
+   335	        if self._trusted_root(call.func, env):
+   336	            m.has_call = True
+   337	        # 泛化腿：subprocess 启动产品路径（脚本/常量）= 驱动产品码
+   338	        if _is_subprocess_call(call) and _expr_mentions(
+   339	            call, self.ctx.product_paths | env.path_locals
+   340	        ):
+   341	            m.has_call = True
+   342	        # 指标三：失败通道（expect/raises 族 + 断言助手带可判假首参）
+   343	        fname = call.func.id if isinstance(call.func, ast.Name) else None
+   344	        if _is_expect_like(fname):
+   345	            m.has_failure = True
+   346	        if fname in self.ctx.assert_helpers:
+   347	            first = call.args[0] if call.args else None
+   348	            if first is not None and not _is_truthy_const(first):
+   349	                m.has_failure = True
+   350	
+   351	    # —— 语句遍历（顺序数据流） ——
+   352	    def _visit_body(self, stmts: List[ast.stmt], env: _Env, m: FunctionMetrics) -> None:
+   353	        for st in stmts:
+   354	            self._visit_stmt(st, env, m)
+   355	
+   356	    def _visit_stmt(self, st: ast.stmt, env: _Env, m: FunctionMetrics) -> None:
+   357	        if isinstance(st, ast.Assert):
+   358	            if _is_truthy_const(st.test):
+   359	                m.trivial_asserts += 1  # 常量真值断言——恒真化，计劣
+   360	            else:
+   361	                m.has_failure = True    # 可判假的真实检查=失败通道
+   362	            self._scan_expr(st.test, env, m)
+   363	            if st.msg is not None:
+   364	                self._scan_expr(st.msg, env, m)
+   365	            return
+   366	        if isinstance(st, ast.Assign):
+   367	            self._scan_expr(st.value, env, m)
+   368	            self._propagate_targets(st.targets, st.value, env)
+   369	            return
+   370	        if isinstance(st, ast.AnnAssign):
+   371	            if st.value is not None:
+   372	                self._scan_expr(st.value, env, m)
+   373	                if isinstance(st.target, ast.Name):
+   374	                    self._propagate_targets([st.target], st.value, env)
+   375	            return
+   376	        if isinstance(st, ast.AugAssign):
+   377	            self._scan_expr(st.value, env, m)
+   378	            return
+   379	        if isinstance(st, (ast.Expr, ast.Return, ast.Delete)):
+   380	            expr = getattr(st, "value", None)
+   381	            if expr is not None:
+   382	                self._scan_expr(expr, env, m)
+   383	            return
+   384	        if isinstance(st, ast.If):
+   385	            self._scan_expr(st.test, env, m)
+   386	            # 内联条件 raise：if <cond>: raise ...（失败通道）
+   387	            if any(isinstance(n, ast.Raise) for n in ast.walk(st)):
+   388	                m.has_failure = True
+   389	            env_body, env_else = env.copy(), env.copy()
+   390	            self._visit_body(st.body, env_body, m)
+   391	            self._visit_body(st.orelse, env_else, m)
+   392	            env.merge(env_body)
+   393	            env.merge(env_else)
+   394	            return
+   395	        if isinstance(st, ast.While):
+   396	            self._scan_expr(st.test, env, m)
+   397	            env_body = env.copy()
+   398	            self._visit_body(st.body, env_body, m)
+   399	            self._visit_body(st.orelse, env.copy(), m)
+   400	            env.merge(env_body)
+   401	            return
+   402	        if isinstance(st, (ast.For, ast.AsyncFor)):
+   403	            self._scan_expr(st.iter, env, m)
+   404	            env_body = env.copy()
+   405	            if self._trusted_root(st.iter, env):
+   406	                m.has_call = True  # 迭代被测对象=执行产品 __iter__
+   407	                self._add_targets(st.target, env_body.trusted)
+   408	            self._visit_body(st.body, env_body, m)
+   409	            self._visit_body(st.orelse, env.copy(), m)
+   410	            env.merge(env_body)
+   411	            return
+   412	        if isinstance(st, (ast.With, ast.AsyncWith)):
+   413	            for item in st.items:
+   414	                self._scan_expr(item.context_expr, env, m)
+   415	                if item.optional_vars is not None:
+   416	                    if self._assign_trusted(item.context_expr, env):
+   417	                        self._add_targets(item.optional_vars, env.trusted)
+   418	                    if _expr_mentions(
+   419	                        item.context_expr, self.ctx.product_paths | env.path_locals
+   420	                    ):
+   421	                        self._add_targets(item.optional_vars, env.path_locals)
+   422	            self._visit_body(st.body, env, m)
+   423	            return
+   424	        if isinstance(st, ast.Try):
+   425	            if st.handlers:  # except 子句存在=异常失败通道
+   426	                m.has_failure = True
+   427	            branches: List[_Env] = []
+   428	            for block in (st.body, st.orelse, st.finalbody):
+   429	                b = env.copy()
+   430	                self._visit_body(block, b, m)
+   431	                branches.append(b)
+   432	            for h in st.handlers:
+   433	                hb = env.copy()
+   434	                self._visit_body(h.body, hb, m)
+   435	                branches.append(hb)
+   436	            for b in branches:
+   437	                env.merge(b)
+   438	            return
+   439	        if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+   440	            # 嵌套函数（回调/闭包）：以当前 env 副本分析，指标并入父函数
+   441	            self._visit_body(st.body, env.copy(), m)
+   442	            return
+   443	        if isinstance(st, ast.ClassDef):
+   444	            for d in st.decorator_list:
+   445	                self._scan_expr(d, env, m)
+   446	            self._visit_body(st.body, env.copy(), m)
+   447	            return
+   448	        if isinstance(st, (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal,
+   449	                           ast.Pass, ast.Break, ast.Continue)):
+   450	            return
+   451	        if isinstance(st, ast.Raise):
+   452	            if st.exc is not None:
+   453	                self._scan_expr(st.exc, env, m)
+   454	            if st.cause is not None:
+   455	                self._scan_expr(st.cause, env, m)
+   456	            return
+   457	        # 其余罕见语句（match 等）：保守全子树扫 Calls，不做数据流
+   458	        for sub in ast.walk(st):
+   459	            if isinstance(sub, ast.Call):
+   460	                self._check_call(sub, env, m)
+   461	            elif isinstance(sub, ast.Assert):
+   462	                if _is_truthy_const(sub.test):
+   463	                    m.trivial_asserts += 1
+   464	                else:
+   465	                    m.has_failure = True
+   466	        return
+   467	
+   468	    def _propagate_targets(self, targets: List[ast.expr], value: ast.expr,
+   469	                           env: _Env) -> None:
+   470	        if self._assign_trusted(value, env):
+   471	            for t in targets:
+   472	                self._add_targets(t, env.trusted)
+   473	        if _expr_mentions(value, self.ctx.product_paths | env.path_locals):
+   474	            for t in targets:
+   475	                self._add_targets(t, env.path_locals)
+   476	
+   477	    def _add_targets(self, target: ast.expr, names: Set[str]) -> None:
+   478	        if isinstance(target, ast.Name):
+   479	            names.add(target.id)
+   480	        elif isinstance(target, (ast.Tuple, ast.List)):
+   481	            for el in target.elts:
+   482	                self._add_targets(el, names)
+   483	        elif isinstance(target, ast.Starred):
+   484	            self._add_targets(target.value, names)
+   485	
+   486	
+   487	# ---------------------------------------------------------------------------
+   488	# 文件分析
+   489	# ---------------------------------------------------------------------------
+   490	def analyze_file(path: Path) -> Dict[str, Any]:
+   491	    """返回 {file, total, qualified, metrics[], error}。源码不可解析=error。"""
+   492	    result: Dict[str, Any] = {
+   493	        "file": path.stem, "total": 0, "qualified": 0, "metrics": [], "error": None,
+   494	    }
+   495	    try:
+   496	        source = path.read_text(encoding="utf-8")
+   497	        tree = ast.parse(source, filename=str(path))
+   498	    except (OSError, SyntaxError, ValueError) as exc:
+   499	        result["error"] = f"源码不可读/不可解析: {exc}"
+   500	        return result
+   501	    ctx = FileContext(tree)
+   502	    analyzer = FunctionAnalyzer(ctx)
+   503	    for stmt in tree.body:
+   504	        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name.startswith("test_"):
+   505	            m = FunctionMetrics(stmt.name)
+   506	            analyzer._visit_body(stmt.body, _Env(set(), set()), m)
+   507	            result["metrics"].append(m)
+   508	            result["total"] += 1
+   509	            if m.qualified:
+   510	                result["qualified"] += 1
+   511	    return result
+   512	
+   513	
+   514	# ---------------------------------------------------------------------------
+   515	# 基线
+   516	# ---------------------------------------------------------------------------
+   517	def parse_baseline(path: Path) -> Dict[str, int]:
+   518	    """解析基线：# 注释行跳过；<文件名> <合格数>；非法行/重复条目抛错。"""
+   519	    baseline: Dict[str, int] = {}
+   520	    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+   521	        line = raw.strip()
+   522	        if not line or line.startswith("#"):
+   523	            continue
+   524	        parts = line.split()
+   525	        if len(parts) != 2 or not parts[1].isdigit():
+   526	            raise ValueError(f"基线第 {lineno} 行格式非法: {raw!r}（应为 '<文件名> <合格数>'）")
+   527	        if parts[0] in baseline:
+   528	            raise ValueError(f"基线第 {lineno} 行重复条目: {parts[0]}")
+   529	        baseline[parts[0]] = int(parts[1])
+   530	    return baseline
+   531	
+   532	
+   533	def emit_baseline(root: Path) -> int:
+   534	    lines = [
+   535	        "# P1f2 AST 行为门基线（八轮 Codex P1f2 残余修复：文本 assert 计数可被",
+   536	        "# 「常量真值断言/删被测调用/删失败路径」绕过 → 主门升级为 AST 行为门）。",
+   537	        "# 合格函数 = 非常量真值断言 且 有被测模块交互 且 有失败路径。",
+   538	        "# 只允许增长，缩水即 CI 红。再生成：",
+   539	        "#   python3 system/tests/p1f_ast_gate.py --root <repo根> --emit-baseline",
+   540	        "#     > tests/p1f-behavior-baseline.txt（增长后须人工复核再冻结）",
+   541	    ]
+   542	    for name in P1F_FILES:
+   543	        r = analyze_file(root / "system" / "tests" / f"{name}.py")
+   544	        if r["error"]:
+   545	            print(f"!! {name}: {r['error']}", file=sys.stderr)
+   546	            return 2
+   547	        lines.append(f"{name} {r['qualified']}")
+   548	    print("\n".join(lines))
+   549	    return 0
+   550	
+   551	
+   552	# ---------------------------------------------------------------------------
+   553	# 主流程
+   554	# ---------------------------------------------------------------------------
+   555	def run_gate(root: Path, baseline_path: Path, verbose: bool = False,
+   556	             single_file: Optional[str] = None) -> int:
+   557	    tests_dir = root / "system" / "tests"
+   558	    names = [single_file] if single_file else P1F_FILES
+   559	    baseline: Optional[Dict[str, int]] = None
+   560	    if not single_file:
+   561	        try:
+   562	            baseline = parse_baseline(baseline_path)
+   563	        except (OSError, ValueError) as exc:
+   564	            print(f"❌ 基线不可用（{baseline_path}）: {exc}")
+   565	            return 1
+   566	
+   567	    fail = False
+   568	    rows: List[str] = []
+   569	    total_q = 0
+   570	    for name in names:
+   571	        path = tests_dir / f"{name}.py"
+   572	        r = analyze_file(path)
+   573	        if r["error"]:
+   574	            print(f"❌ {name}: {r['error']}")
+   575	            fail = True
+   576	            continue
+   577	        total_q += r["qualified"]
+   578	        bad = sum(1 for m in r["metrics"] if not m.qualified)
+   579	        rows.append(f"  {name}: 合格 {r['qualified']}/{r['total']}"
+   580	                    f"（未达标 {bad} 个）")
+   581	        if verbose or single_file:
+   582	            for m in r["metrics"]:
+   583	                flag = "✅" if m.qualified else "⚠️ "
+   584	                rows.append(f"    {flag} {m.name}: {m.hint()}")
+   585	        if baseline is not None:
+   586	            if name not in baseline:
+   587	                print(f"❌ {name}: 基线缺项——行为门未冻结该文件")
+   588	                fail = True
+   589	            elif r["qualified"] < baseline[name]:
+   590	                print(f"❌ {name}: 合格函数 {r['qualified']} < 基线 {baseline[name]}"
+   591	                      "（空壳化/恒真化/删被测调用/删失败路径）")
+   592	                fail = True
+   593	    if baseline is not None:
+   594	        extra = set(baseline) - set(P1F_FILES)
+   595	        if extra:
+   596	            print(f"❌ 基线含未知条目: {sorted(extra)}")
+   597	            fail = True
+   598	
+   599	    if rows:
+   600	        print("\n".join(rows))
+   601	    if baseline is not None and not fail:
+   602	        print(f"✅ AST 行为门通过（八文件合格函数共 {total_q} ≥ 冻结基线）")
+   603	    return 1 if fail else 0
+   604	
+   605	
+   606	def main(argv: Optional[List[str]] = None) -> int:
+   607	    ap = argparse.ArgumentParser(description="P1f2 AST 行为门（八专属文件断言行为质量棘轮）")
+   608	    ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
+   609	    ap.add_argument("--baseline", help="冻结基线 tests/p1f-behavior-baseline.txt")
+   610	    ap.add_argument("--emit-baseline", action="store_true", help="输出当前合格数基线（再冻结用）")
+   611	    ap.add_argument("--file", help="单文件调试（输出逐函数三指标）")
+   612	    ap.add_argument("--verbose", action="store_true", help="check 模式附逐函数明细")
+   613	    args = ap.parse_args(argv)
+   614	
+   615	    root = Path(args.root).resolve()
+   616	    if not root.is_dir():
+   617	        print(f"❌ --root 不存在: {root}")
+   618	        return 2
+   619	    if args.emit_baseline:
+   620	        return emit_baseline(root)
+   621	    if args.file:
+   622	        if args.file not in P1F_FILES:
+   623	            print(f"❌ --file 须为八专属文件之一: {P1F_FILES}")
+   624	            return 2
+   625	        return run_gate(root, root / "tests" / "p1f-behavior-baseline.txt",
+   626	                        verbose=True, single_file=args.file)
+   627	    if not args.baseline:
+   628	        print("❌ check 模式需要 --baseline（或改用 --emit-baseline）")
+   629	        return 2
+   630	    return run_gate(root, Path(args.baseline), verbose=args.verbose)
+   631	
+   632	
+   633	if __name__ == "__main__":
+   634	    sys.exit(main())
+--- output end ---
+exit_code=0

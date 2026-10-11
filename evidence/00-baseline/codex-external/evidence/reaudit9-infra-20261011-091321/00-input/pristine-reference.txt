@@ -1,0 +1,11 @@
+cmd=git archive --format=tar origin/main | tee sha256 | tar -x -C pristine
+started=2026-10-11T09:20:30+08:00
+rc=0
+ended=2026-10-11T09:20:33+08:00
+origin_main=7eeb8a13107e8b52771f5b8784af8266ed0551b9
+tree=d3de6cfcbdb7b49a9ce35854604f97dc6635bc35
+tracked_count=2964
+pristine_count=2964
+writable_files=0
+pristine_path=/private/tmp/codex-test/reaudit9-infra-pristine-20261011-092030
+d14ff5dcb00821b14a096e64699631b1e201bdf430b124e743ceeb839d8c182c  -

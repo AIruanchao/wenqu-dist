@@ -1,0 +1,345 @@
+--- HEAD/commit parents ---
+commit 7eeb8a13107e8b52771f5b8784af8266ed0551b9
+Merge: bb38f70 1e31d88
+Author:     AIruanchao <8286900@qq.com>
+AuthorDate: Sun Oct 11 08:53:39 2026 +0800
+Commit:     GitHub <noreply@github.com>
+CommitDate: Sun Oct 11 08:53:39 2026 +0800
+
+    Merge pull request #33 from AIruanchao/wave10/t5-gate-frontdoor
+    
+    feat(T-5): scheduler gate 刷新正门优先（W8 现役身份最后一码）
+7eeb8a13107e8b52771f5b8784af8266ed0551b9 bb38f70163ce4a1a79f36ea66284e110eff96a95 1e31d8800082c3bf025e33faef53afdac8fc79e5
+--- workflow ---
+name: acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  matrix:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - name: release-check（版本号残留机械闸·动态版本）
+        run: |
+          V=$(python cli/wenqu --version | awk '{print $2}' | sed 's/^0\.3\.0-//;s/-maccc$//')
+          DV=$(ls docs/*v*.md | sed 's/.*v/v/' | sed 's/\.md//' | head -1)
+          echo "Checking: v$DV $V"
+          bash tests/release-check.sh v$DV $V
+      - name: acceptance
+        run: bash tests/acceptance.sh
+      - name: pytest 契约
+        run: pip install pytest && python -m pytest cli/test_wenqu.py -q
+      - name: Runner Linux /proc token 扫杀真腿（ubuntu 实测；macos 结构腿+SKIP）
+        # 八轮遗留项「Runner Linux /proc 通路未实测」：ubuntu-latest 上真跑
+        # system/tests/test_linux_proc_path.py 的两条真腿（/proc environ token
+        # 扫描命中+收敛、TrustedRunner 超时击杀 setsid+double-fork 逃逸 daemon）；
+        # macos-latest 上同文件跑结构腿（monkeypatch /proc 布局）+真腿 SKIP 标注。
+        run: python -m pytest system/tests/test_linux_proc_path.py -v
+      - name: selftest
+        run: python cli/wenqu selftest
+      # ---- G9-08（八轮 1.4-10）：required CI 全量检查面 ------------------
+      - name: 仓根 pytest 全量（含全部 system/tests；worktree .git 兼容）
+        run: pip install pytest && python -m pytest -q
+      - name: 严格 evidence validator（active 全字段+实算 hash+TTL）
+        run: python tools/evidence_validator.py --root .
+      - name: 全模块自测（bugscan/station2-7/capacity 八模块 SELF-TEST）
+        run: |
+          for m in bugscan_orchestrator station2_static station3_contract \
+                   station4_behavior station5_live_fire station6_adversarial \
+                   station7_runtime capacity_monitor; do
+            PYTHONPATH=system python3 -m "wenqu_core.$m"
+          done
+      - name: 追踪矩阵（§20/§25.1 目录+方案 hash 一致性）
+        run: PYTHONPATH=system python tools/ac_traceability.py --check
+      - name: TLA 双配置 TLC 完成级（G9-03：七段全序 A + retry/CAS/nonce B）
+        # 完成级判据：输出含 "Model checking completed"；非零违例/截断=红。
+        run: |
+          pushd specs/tla >/dev/null
+          for cfg in wenqu_pipeline_A wenqu_pipeline_B; do
+            java -cp ../../system/bin/tla2tools.jar tlc2.TLC -config "$cfg.cfg" wenqu_pipeline 2>&1 | tee "/tmp/tlc-$cfg.log"
+            grep -q "Model checking completed. No error has been found." "/tmp/tlc-$cfg.log"
+          done
+          popd >/dev/null
+      # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
+      # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
+      # 不再独立重跑，避免 macOS 时长翻倍。
+--- acceptance P1/mutations/docs/anchors ---
+2:# wenqu-dist 发行版回归测试件（v1.0.2 起）——把验收面固化为可重复跑的脚本。
+298:echo "== H. pytest 契约套件（若 pytest 可用）=="
+299:if python3 -c "import pytest" 2>/dev/null; then
+300:  (cd "$ROOT/cli" && python3 -m pytest test_wenqu.py -q >/dev/null 2>&1); ck "pytest 20 用例" 0 $?
+302:  echo "  ⏭ pytest 不可用，跳过（selftest 已覆盖核心契约）"
+350:echo "== P1b. P0-2 状态机+审批 Broker 行为接线（删 wenqu_pipeline.py 后此节必红）=="
+351:if [ -f "$ROOT/system/tests/test_wenqu_pipeline.py" ]; then
+352:  python3 "$ROOT/system/tests/test_wenqu_pipeline.py" >/dev/null 2>&1
+357:    FAIL_N=$((FAIL_N+1)); echo "  ❌ P0-2 行为自测失败（exit=${PIPE_RC}）——wenqu_pipeline 缺失或行为回归"
+360:  FAIL_N=$((FAIL_N+1)); echo "  ❌ test_wenqu_pipeline.py 不存在——P0-2 未接线"
+363:echo "== P1c. P0-10 追踪矩阵生成器接线（删 tools/ac_traceability.py 后此节必红；§20/§25.1 篡改必红）=="
+364:if [ -f "$ROOT/tools/ac_traceability.py" ]; then
+371:    python3 "$ROOT/tools/ac_traceability.py" --check --json "$AC_TMP_JSON" >/dev/null 2>&1
+381:  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/ac_traceability.py 不存在——P0-10 未接线"
+384:echo "== P1f. F6-TRC-GATE-001：七个专属测试文件接入 required CI（删任一必红；专属函数计数防缩水）=="
+385:P1F_FILES="test_ac_gate_family test_ac_state_mig test_ac_deploy_release test_ac_station_families test_ac_ops_families test_ac_auth_cond test_ac_act_run test_ac_ui_family"
+409:echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专属测试必红；G9-07 升级=mutation 真主门）=="
+411:# 路径三指标）→ G9-07 真 mutation 门（R8-TRC-TRUTHY-ASSERT-012 根修：
+415:#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
+416:#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
+420:if [ -f "$ROOT/system/tests/p1f_mutation_gate.py" ] && [ -f "$ROOT/tests/p1f-mutations.json" ]; then
+421:  MUTJSON="$TD/p1f-mutation-report.json"
+422:  MUT_OUT=$(python3 "$ROOT/system/tests/p1f_mutation_gate.py" --root "$ROOT" --mutations "$ROOT/tests/p1f-mutations.json" --json "$MUTJSON" 2>&1)
+425:    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 主门通过：$(echo "$MUT_OUT" | grep 'mutation score' | tail -1)"
+427:    P1F2_FAIL=1; echo "  ❌ mutation 主门失败（exit=${MUT_RC}——空壳化/恒真化/假测试替换令变异存活）"
+430:  # 棘轮：mutation 集只增不减（≥18 条且覆盖全部八专属文件）
+431:  MUT_GUARD=$(python3 - "$ROOT/tests/p1f-mutations.json" <<'MUTP'
+435:    ms = d["mutations"]
+437:    need = {"test_ac_gate_family","test_ac_state_mig","test_ac_deploy_release",
+440:    ok = (len(ms) >= 18 and files == need and "frozen_min_mutations" in d
+441:          and d["frozen_min_mutations"] >= 18)
+448:    PASS_N=$((PASS_N+1)); echo "  ✅ mutation 集棘轮（≥18 条且八文件全覆盖，只增不减）"
+450:    P1F2_FAIL=1; echo "  ❌ mutation 集棘轮失败——集缩水/覆盖门破（须≥18 条且八专属文件全被锚定）"
+453:  P1F2_FAIL=1; echo "  ❌ p1f_mutation_gate.py 或 tests/p1f-mutations.json 缺失——mutation 主门被拆"
+497:  PASS_N=$((PASS_N+1)); echo "  ✅ 断言棘轮通过（mutation 主门+集棘轮+AST 二闸+文本旧棘轮 ≥ 冻结基线）"
+502:echo "== P1g. 签名制品测试接线（删 tools/release_attest.py 或 system/tests/test_release_attest.py 后此节必红）=="
+503:if [ -f "$ROOT/tools/release_attest.py" ] && [ -f "$ROOT/system/tests/test_release_attest.py" ]; then
+504:  python3 "$ROOT/system/tests/test_release_attest.py" >/dev/null 2>&1
+512:  FAIL_N=$((FAIL_N+1)); echo "  ❌ release_attest 工具或测试缺失——签名制品未接线"
+520:if [ -f "$ROOT/tools/evidence_validator.py" ] && [ -f "$ROOT/evidence/evidence-index.json" ]; then
+521:  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" >/dev/null 2>&1
+535:  python3 "$ROOT/tools/evidence_validator.py" --root "$ROOT" --index "$EV_TMP" >/dev/null 2>&1
+543:  FAIL_N=$((FAIL_N+1)); echo "  ❌ tools/evidence_validator.py 或 evidence/evidence-index.json 缺失——严格 evidence 合同被拆"
+--- release manifests summary ---
+wenqu-dist-2bd59ab.manifest.json {'release_id': None, 'source_commit': '2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551', 'source_tree_sha256': None, 'plan_sha256': None, 'plan_sha256_frozen': None, 'manifest_version': None}
+wenqu-dist-b44b087.manifest.json {'release_id': None, 'source_commit': 'b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4', 'source_tree_sha256': None, 'plan_sha256': None, 'plan_sha256_frozen': None, 'manifest_version': None}
+wenqu-dist-cf6d10e.manifest.json {'release_id': None, 'source_commit': 'cf6d10e6f10e5369ea04c3d9f85b797d39279458', 'source_tree_sha256': None, 'plan_sha256': None, 'plan_sha256_frozen': None, 'manifest_version': None}
+--- evidence index schema/meta ---
+dict
+dict_keys(['index_version', 'created_at', 'created_by', 'plan_source', 'repo_head_at_filing', 'known_gaps', 'rebuilt_at', 'rebuilt_by', 'migrated_at', 'migrated_by', 'active', 'legacy_non_scoring'])
+{
+  "index_version": "2.0.0",
+  "created_at": "2026-10-08T00:00:00+08:00",
+  "created_by": "P0-10 证据包基础设施建档",
+  "plan_source": {
+    "path": "evidence/00-baseline/codex-external/方案.md",
+    "sha256": "96b8646f6f08fd5fc408bc64f332dff0aeabbb5bf51d3129fcaaa24612c32306",
+    "sha256_verified_at": "2026-10-08",
+    "note": "方案正源已快照入仓（外部 /private/tmp/codex-test/方案.md 为同哈希副本）；本索引按 §24.2 建档"
+  },
+  "repo_head_at_filing": {
+    "commit": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+    "commit_full": "2bd59ab73aabbcdc6c25a40fc94bfba6fe36a551",
+    "subject": "Merge pull request #10 from AIruanchao/wave6/p1f-gate",
+    "ci_conclusion": "success（双平台 matrix：macos-latest+ubuntu-latest 均 success，gh run view 实查 completed；建档时点曾 in_progress，2026-10-08T14:4xZ 复查转终态）",
+    "ci_run_id": "37792468258",
+    "ci_url": "https://github.com/AIruanchao/wenqu-dist/actions/runs/37792468258",
+    "note": "第七波终局建档：终 SHA 2bd59ab 制品四件套+索引 20/20 严格重建（PR#10 合流后；前值 07a9494）"
+  },
+  "known_gaps": [
+    {
+      "gap_id": "GAP-01",
+      "status": "open",
+      "gap": "32 个 §20 ID 不可实现（产品语义不存在：lease/smoke/签名体系/GATE-09~11/CI-06 等）——补产品面属后续波候选"
+    },
+    {
+      "gap_id": "GAP-02",
+      "status": "open（外部时序，未到期）",
+      "gap": "W9 48h shadow 投影+canary、W10 14 天观察窗时序证据未到期（时钟 2026-10-08 启动，届满 2026-10-22）；七轮另指 Day-1 clean 样本缺口——采样器 identity/样本覆盖缺陷已随 bac7148 修复，起算日后样本链可保全，届满前不得称完成"
+    },
+    {
+      "gap_id": "GAP-03",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "P1f 棘轮（七轮 P0-5：文件/函数名计数可空壳化绕过）——bac7148 P1f2 断言语义棘轮：八文件有效断言计数冻结基线 1205，空壳化/恒真化必红（提交记录 acceptance 67/67+棘轮过；本轮未独立复跑，验证引实现提交记录）"
+    },
+    {
+      "gap_id": "GAP-04",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "证据索引严格合同（R7-EVID-CONTRACT-004：11/20 可实算、严格仅 5/20）——本轮逐条重建 23/23：commit 全 40 位或显式 null+说明、evidence_path 全具体文件、artifact_sha256 全实算 64hex、自检断言全过后写盘"
+    },
+    {
+      "gap_id": "GAP-05",
+      "status": "closed 2026-10-08（本轮闭）",
+      "gap": "release 制品签名/SBOM/终态绑定（七轮 P0-6：四件套绑旧 1620c7c）——本轮 install-release.sh 2bd59ab 重产+verify 7 PASS+不可变部署+current 原子切换（EV-REL-003）；7789 模块化只读版七轮 §2.2 已实证在役（写路由 405 WRITE_DISABLED，旧「legacy 写版」表述随之过时）"
+    },
+    {
+      "gap_id": "GAP-06",
+      "status": "open（范围缩减）",
+      "gap": "Runner 容器级隔离/Linux /proc 通路未实测（原「审批签发端未建」已过时：wave6 95dff5e 已含签发端，七轮未列缺口）"
+    },
+    {
+      "gap_id": "GAP-07",
+      "status": "open（新知，需关注）",
+      "gap": "磁盘水位上行：观察采样器 2026-10-08 读数 90.3%→95.8%→96.7%（21:33 样本 avail≈16.2GB，采样器口径 used/(used+avail)，/Users/maccc 挂载）；主会话派工时点引用 96.9%；df 口径 /System/Volumes/Data 89%+45Gi avail（两口径差异未定界）。本轮制品产出净增约 50MB（dist 33MB+releases 解出树），需持续关注并清理"
+    }
+  ],
+  "rebuilt_at": "2026-10-08T22:30+08:00",
+  "rebuilt_by": "第七波终局（wave7/final-artifacts）：R7-EVID-CONTRACT-004 严格达标重建（一次性脚本，跑完即删）",
+  "migrated_at": "2026-10-09T04:30:00+08:00",
+  "migrated_by": "G9-07（R8-EVID-FIELDS-013）：v1 单表 → active(严格)+legacy_non_scoring(不计分) 分 schema 分表",
+  "active": {
+    "schema": "evidence-index-active-v2",
+    "schema_file": "system/schemas/evidence-index-active-v2.schema.json",
+    "description": "严格合同分母：commit=exact 40hex、run_id/argv/cwd/整数 real_rc/带时区 ISO time/仓内普通非 symlink 文件/实算 artifact_sha256/合法 TTL 全非空全合法；禁止 null+*_note 冒充。validator=tools/evidence_validator.py（acceptance/CI 接线）",
+    "entries": [
+      {
+        "entry_id": "EV-G9MUT-001",
+        "category": "04-unit-property-mutation",
+        "title": "P1f2 真 mutation gate 采用：18/18 全杀（G9-07 / R8-TRC-TRUTHY-ASSERT-012 根修）",
+        "what": "对 wenqu_core 产品函数机械变异（negate_return/flip_compare/drop_raise），逐 mutation 沙箱跑映射专属测试；mutation score 100%。三道闸并存：mutation 主门 + AST 行为基线 + 文本旧棘轮",
+        "commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+        "run_id": "g9-07-mutation-20261009T041858Z",
+        "environment": "local (macOS arm64, /tmp worktree)",
+        "scope": "tests/p1f-mutations.json 18 条 mutation × 8 专属测试文件（沙箱副本，零工作树写入）",
+        "ruleset": "system/tests/p1f_mutation_gate.py",
+        "argv": [
+          "python3",
+          "system/tests/p1f_mutation_gate.py",
+          "--root",
+          ".",
+          "--mutations",
+          "tests/p1f-mutations.json"
+        ],
+        "cwd": "/tmp/wq-g9-07-measure",
+        "real_rc": 0,
+        "time": "2026-10-09T04:21:51Z",
+        "artifact_sha256": "4e5967e1b93e6bb9e748efed4ed58967b31552fd855cc809b76c550bad919d01",
+        "evidence_path": "evidence/04-unit-property-mutation/p1f2-mutation-gate-adoption.json",
+        "fresh_until": "2027-01-07",
+        "verified_by": "ZCode G9-07 工单实跑（本索引条目与 acceptance P1f2 节 live 复验双通道）",
+        "caveat": "mutation 集为所选子集（18 条/12 产品函数），非全函数覆盖；覆盖门=每专属文件至少被 1 条 mutation 杀"
+      },
+      {
+        "entry_id": "EV-G9EVID-001",
+        "category": "08-ci-and-branch-rules",
+        "title": "Evidence 索引严格 validator 采用：v1 旧表 103 处违规全红（G9-07 / R8-EVID-FIELDS-013 根修）",
+        "what": "active 表强制 exact 40hex commit/run_id/argv/cwd/整数 real_rc/ISO 时间/普通非 symlink 文件/实算 hash/合法 TTL；历史不满足条目迁 legacy/non_scoring 分表不计分；live 负例腿入 acceptance",
+        "commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+        "run_id": "g9-07-evid-red-20261009T041805Z",
+        "environment": "local (macOS arm64, /tmp worktree)",
+        "scope": "迁移前旧 v1 索引 23 条按 active 严格合同整表校验（红相取证）",
+        "ruleset": "tools/evidence_validator.py",
+        "argv": [
+          "python3",
+          "tools/evidence_validator.py",
+          "--root",
+          "."
+        ],
+        "cwd": "/tmp/wq-g9-07-measure",
+        "real_rc": 1,
+        "time": "2026-10-09T04:18:05Z",
+        "artifact_sha256": "70f5c67cc5964bd0dd4aca62aad3c5dc7cf74340d6e3f5d7c73b521cbbac1689",
+        "evidence_path": "evidence/08-ci-and-branch-rules/evidence-strict-validator-adoption.json",
+        "fresh_until": "2027-01-07",
+        "verified_by": "ZCode G9-07 工单实跑（红相）；绿相由 acceptance P1h 节 live 复验（含篡改负例腿）",
+        "caveat": "real_rc=1 为红相取证（旧索引不满足严格合同——这正是本修复的存在证据）；修后绿相在每次 acceptance/CI 复验"
+      },
+      {
+        "entry_id": "EV-G9CLEAN-001",
+        "category": "04-unit-property-mutation",
+        "title": "测试零污染采用：八专属文件连跑后 git status 快照前后全等（G9-07 / R8-PYTEST-HISTORICAL-COLLECT-014 根治腿）",
+        "what": "3 个原无条件覆写 tracked evidence 的专属测试（state_mig/ops_families/ui_family）改为默认写独立临时目录；WENQU_EVIDENCE_OUT_DIR 为有意更新快照的正门",
+        "commit": "b44b08797a34862c9c6567a8f3fb8bfb3ad66fb4",
+        "run_id": "g9-07-clean-20261009T042400Z",
+        "environment": "local (macOS arm64, /tmp worktree)",
+        "scope": "八专属文件连跑（全部 rc0）+ pytest 仓根（testpaths=system/tests,cli）前后 porcelain 快照比对",
+        "ruleset": "system/tests/test_ac_state_mig.py / test_ac_ops_families.py / test_ac_ui_family.py 的 _artifact_out_dir",
+        "argv": [
+          "bash",
+          "-c",
+          "git status --porcelain | sort > before; for f in 八专属文件; python3 system/tests/$f.py; git status --porcelain | sort > after; diff before after"
+        ],
+        "cwd": "/tmp/wq-g9-07-measure",
+        "real_rc": 0,
+        "time": "2026-10-09T04:24:00Z",
+        "artifact_sha256": "15b52e7ed0246fb29a196e5dd48bb1ff075298106b94e07c1cbb746e24ea1659",
+        "evidence_path": "evidence/04-unit-property-mutation/test-zero-pollution-adoption.json",
+        "fresh_until": "2027-01-07",
+        "verified_by": "ZCode G9-07 工单实跑（PORCELAIN-IDENTICAL 断言）",
+        "caveat": "worktree 上 pytest 受 release_attest 的 .git-isdir 环境限制 rc1（基线既有，非本修复面）；全绿 rc0 取证见完整 clone（工单交付物）"
+      }
+    ]
+  },
+  "legacy_non_scoring": {
+    "schema": "evidence-index-legacy-v1",
+    "schema_file": "system/schemas/evidence-index-legacy-v1.schema.json",
+    "description": "v1.1.0 索引 23 条历史条目原样迁移（字段不篡改）；逐条登记 migrated_reason；不进 active 分母、不参与计分",
+    "entries": [
+      {
+        "entry_id": "EV-CI-001",
+        "category": "08-ci-and-branch-rules",
+        "title": "GitHub Actions acceptance 工作流通过记录（run 37660552501）",
+        "what": "CI 通过记录：commit 1858a75（fix(p0-9) dashboard /api/decide 安全加固）在 main 分支 acceptance 工作流全绿",
+        "run_id": "37660552501",
+        "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+        "environment": "candidate (GitHub Actions, remote)",
+        "scope": "acceptance workflow 4 步：release-check + tests/acceptance.sh + pytest 契约 + selftest",
+        "ruleset": ".github/workflows/acceptance.yml (sha256 df6d6ef18dcc9224843ce06d63f12c9e534cbd1fe17534cd8e4267b2e1f96592)",
+        "time": "2026-10-07T17:37:51Z",
+        "argv": [
+          "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+        ],
+        "real_rc": "conclusion=success (27s)",
+        "artifact_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
+        "evidence_path": "evidence/08-ci-and-branch-rules/README.md",
+        "fresh_until": "2026-10-21",
+        "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+        "caveat": "记录为 API 摘要，run 原始日志未导出落档；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算",
+        "migrated_reason": "无 cwd 记录；real_rc 非整数退出码（'conclusion=success (27s)'）——迁 legacy/non_scoring（不进 active 分母）"
+      },
+      {
+        "entry_id": "EV-CI-002",
+        "category": "08-ci-and-branch-rules",
+        "title": "GitHub Actions acceptance 工作流通过记录（run 37660144865）",
+        "what": "CI 通过记录：commit be50cb8（fix(p0-6+7) EventStore 幂等+表名避冲突+部署 exec bit 保留）main 分支全绿",
+        "run_id": "37660144865",
+        "commit": "be50cb820c0f1bd4fbcc563273d467f7e0c93e73",
+        "environment": "candidate (GitHub Actions, remote)",
+        "scope": "acceptance workflow 同上",
+        "ruleset": ".github/workflows/acceptance.yml",
+        "time": "2026-10-07T17:34:41Z",
+        "argv": [
+          "gh run list --limit 5 (repo AIruanchao/wenqu-dist)"
+        ],
+        "real_rc": "conclusion=success (27s)",
+        "artifact_sha256": "9a97e509bca09d6dd57a7147eeba78098c24c837db75f13bd3644f803f6f6627",
+        "evidence_path": "evidence/08-ci-and-branch-rules/README.md",
+        "fresh_until": "2026-10-21",
+        "verified_by": "ZCode P0-10 建档实查 (gh run list)",
+        "caveat": "同 EV-CI-001；F6-EVID-001：evidence_path 由目录改指本目录 README（run 记录固化于其状态表），artifact_sha256=该文件实算",
+        "migrated_reason": "无 cwd 记录；real_rc 非整数退出码（'conclusion=success (27s)'）——迁 legacy/non_scoring（不进 active 分母）"
+      },
+      {
+        "entry_id": "EV-TEST-001",
+        "category": "04-unit-property-mutation",
+        "title": "P0-1 核心接线测试 8/8 通过（CI 内执行）",
+        "what": "system/tests/test_core_wiring.py 全部 8 用例通过：wenqu_core 存在(≥8模块)/可导入/5 schema 可解析/dashboard 四文件/TrustedRunner 证据产出/GateAggregator 空分母 BLOCKED/schema 拒 CRITICAL ACCEPTED_RISK/install.sh 含核心安装",
+        "run_id": "37660552501 (随 CI acceptance 步骤)",
+        "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+        "environment": "candidate (GitHub Actions, remote)",
+        "scope": "system/tests/test_core_wiring.py；经 tests/acceptance.sh P1 节接线（缺失时 acceptance 必红）",
+        "ruleset": "同 CI acceptance.yml",
+        "time": "2026-10-07T17:37:51Z",
+        "argv": [
+          "python3 system/tests/test_core_wiring.py"
+        ],
+        "real_rc": "0 (8 PASS / 0 FAIL)",
+        "artifact_sha256": "099f78db913f872734899d5e840840f2221cdb5b9378467ce9ff1ae064c60d11",
+        "evidence_path": "evidence/04-unit-property-mutation/README.md",
+        "fresh_until": "2026-10-21",
+        "verified_by": "ZCode P0-10 建档（文件 sha256 实算 + CI 结论实查；步骤级日志未导出）",
+        "caveat": "属接线级测试；不覆盖 §20 的 131 个 ID 专属断言；F6-EVID-001：evidence_path 由目录改指本目录 README（P0-1 接线证据表所在）；原 artifact=31e1d6050190… 为建档时点旧文件哈希，已按当前文件实算更正",
+        "migrated_reason": "无 cwd 记录；real_rc 非整数退出码（'0 (8 PASS / 0 FAIL)'）——迁 legacy/non_scoring（不进 active 分母）"
+      },
+      {
+        "entry_id": "EV-TEST-002",
+        "category": "04-unit-property-mutation",
+        "title": "tests/acceptance.sh 发行版回归 53 PASS / 0 FAIL（Codex 复核时点）",
+        "what": "发行版验收脚本全绿：selftest 契约/预埋缺陷探测器真命中(标记行验证)/干净仓不误报/convergence 空转拒绝/超时不落账/参数值域/并发 8 进程账本零损坏/repair 不伤审计行/sweep 精确匹配/四高防线/P0 安装收敛/P1 核心接线",
+        "run_id": "acceptance-20261007-231333 (Codex 验收会话)",
+        "commit": "1858a757028afc0ab9b91efecf0afa05e4900b25",
+        "environment": "local (macOS, 只读复核)",
+        "scope": "tests/ac
