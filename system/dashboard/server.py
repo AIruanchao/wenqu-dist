@@ -68,6 +68,9 @@ RATE_WINDOW = 30.0               # 速率限制窗口（秒）
 RATE_MAX = 150                   # 窗口内每客户端 IP 最大请求数（前端 5s 轮询 ~10 端点 = 60/30s，留余量）
 REQUEST_TIMEOUT = 15             # 单连接读超时（秒）
 AGGREGATE_TTL = float(os.environ.get("WENQU_AGGREGATE_TTL", "1800"))  # 快照新鲜度上限（秒）
+# W11-02（R10-REL-ACTIVE-TREE-DRIFT-001）：release 完整性哨兵快照（只读；
+# 唯一 writer=com.wenqu.integrity）。TTL=3×扫描周期（300s）——超龄=哨兵停摆。
+INTEGRITY_TTL = float(os.environ.get("WENQU_INTEGRITY_TTL", "900"))
 HISTORY_INTERVAL = 600           # 健康度走势写入周期（秒）——独立定时任务，不在 GET 路径写
 LOG_MAX_BYTES_DEFAULT = 1048576  # /api/v1/logs 响应字节上限默认 1MiB（R7-UI-LOG-BYTES-010）
 
@@ -289,6 +292,35 @@ def read_gate_aggregate():
     return {"ok": True, "data": snap}
 
 
+# ───────────── W11-02：release 完整性哨兵快照（只读；漂移即聚合 BLOCKED） ─────────────
+def read_release_integrity():
+    """读漂移哨兵原子发布的状态（只读，绝不写）。
+
+    返回 {"ok": True, "data": state} 或 {"ok": False, "code", "detail"}：
+    缺失（哨兵未部署——向后兼容不阻断）/MALFORMED/STALE。data 内
+    verdict∈{CLEAN,DRIFT,BLOCKED,MONITOR_ERROR}、fuse∈{CLOSED,OPEN}。"""
+    path = os.environ.get("WENQU_RELEASE_INTEGRITY") or os.path.join(
+        WQ, "state", "release-integrity.json")
+    if not os.path.isfile(path):
+        return {"ok": False, "code": "INTEGRITY_UNPUBLISHED",
+                "detail": "release-integrity 哨兵状态未发布：%s（com.wenqu.integrity 部署后自动出现）" % path}
+    try:
+        with open(path, encoding="utf-8") as f:
+            snap = json.load(f)
+    except (OSError, ValueError) as e:
+        return {"ok": False, "code": "INTEGRITY_MALFORMED", "detail": "哨兵状态不可读/无法解析：%s" % e}
+    if not isinstance(snap, dict):
+        return {"ok": False, "code": "INTEGRITY_MALFORMED", "detail": "哨兵状态不是 JSON 对象"}
+    gen = snap.get("generated_at_epoch")
+    if not isinstance(gen, (int, float)) or isinstance(gen, bool):
+        return {"ok": False, "code": "INTEGRITY_MALFORMED", "detail": "哨兵状态缺 generated_at_epoch"}
+    age = time.time() - float(gen)
+    if age > INTEGRITY_TTL or age < -120:
+        return {"ok": False, "code": "INTEGRITY_STALE",
+                "detail": "哨兵快照龄 %ds 超出 TTL %ds（哨兵停摆?）" % (int(age), int(INTEGRITY_TTL))}
+    return {"ok": True, "data": snap}
+
+
 # ───────────── 不变量 10 保守面：PASS 必须立在可验证身份与权威模式上 ─────────────
 def _is_zero_placeholder_sha(v):
     """全零占位 SHA（0*40/0*64）——identity.commit_sha 未绑定真实 commit。
@@ -316,18 +348,25 @@ def _is_self_declared_aggregation(snap):
     return False
 
 
-def conservative_health_snapshot(snap):
-    """health 保守过滤（P0-9/W8 残余根修；纯函数，不改入参）。
+def conservative_health_snapshot(snap, integrity=None):
+    """health 保守过滤（P0-9/W8 残余根修 + W11-02 漂移 overlay；纯函数，不改入参）。
 
     透传判定恰为 PASS 时按旗标降级，其余一律原样透传（只等价或更保守）：
       - identity_missing（target_sha 全零占位）→ BLOCKED：证据身份是硬完整性
         问题，与 aggregator C2「SHA 缺失/不可绑定 → BLOCKED」同哲学；
       - self_declared（诊断模式聚合）→ NOT_EVALUATED：就上绿效力而言未在
-        权威模式下评估。
-    两旗标并存时取更保守的 BLOCKED。降级只改写 policy_verdict/
-    aggregate_outcome 的 PASS 值；raw 判定与旗标完整保留在
-    dashboard_downgrade 审计字段；reason/reasons 注明降级原因
-    （identity_missing/self_declared）。
+        权威模式下评估；
+      - W11-02 tree_drift（哨兵快照 verdict=DRIFT/BLOCKED 或 fuse=OPEN）
+        → BLOCKED：静态八站 PASS 不能覆盖现役树漂移/熔断；
+      - W11-02 integrity_monitor_error（哨兵快照不可信——由调用方对
+        MALFORMED/STALE 合成该 verdict 传入）→ NOT_EVALUATED：监控盲区
+        不背书 PASS。
+    旗标并存时取更保守的 BLOCKED（tree_drift/identity_missing 优先于
+    NOT_EVALUATED 类）。降级只改写 policy_verdict/aggregate_outcome 的
+    PASS 值；raw 判定与旗标完整保留在 dashboard_downgrade 审计字段；
+    reason/reasons 注明降级原因。integrity=None（哨兵未部署）时不引入
+    漂移旗标（向后兼容——已部署哨兵的主机缺状态文件按调用方合成
+    monitor_error 语义处理，见 /api/v1/health）。
     """
     raw = str(snap.get("policy_verdict") or snap.get("overall")
               or snap.get("verdict") or "").strip().upper()
@@ -338,10 +377,18 @@ def conservative_health_snapshot(snap):
         flags.append("identity_missing")
     if _is_self_declared_aggregation(snap):
         flags.append("self_declared")
+    if isinstance(integrity, dict):
+        iverdict = str(integrity.get("verdict") or "").strip().upper()
+        fused = str(integrity.get("fuse") or "").strip().upper() == "OPEN"
+        if iverdict in ("DRIFT", "BLOCKED") or fused:
+            flags.append("tree_drift")
+        elif iverdict == "MONITOR_ERROR":
+            flags.append("integrity_monitor_error")
     if not flags:
         return dict(snap)
     out = dict(snap)
-    verdict = "BLOCKED" if "identity_missing" in flags else "NOT_EVALUATED"
+    hard = [f for f in ("identity_missing", "tree_drift") if f in flags]
+    verdict = "BLOCKED" if hard else "NOT_EVALUATED"
     causes = []
     if "identity_missing" in flags:
         causes.append("identity_missing：target_sha 为全零占位（0*40），"
@@ -349,6 +396,13 @@ def conservative_health_snapshot(snap):
     if "self_declared" in flags:
         causes.append("self_declared：gate 以 --allow-self-declared 诊断模式聚合"
                       "（无 manifest 上绿效力背书）")
+    if "tree_drift" in flags:
+        causes.append("tree_drift：release-integrity 哨兵判定现役树漂移/熔断"
+                      "（verdict=%s fuse=%s）——静态八站 PASS 不能覆盖运行时"
+                      "树完整性" % (integrity.get("verdict"), integrity.get("fuse")))
+    if "integrity_monitor_error" in flags:
+        causes.append("integrity_monitor_error：哨兵状态 MALFORMED/STALE"
+                      "（监控盲区不背书 PASS）")
     note = ("dashboard_conservative_downgrade: 透传 PASS 拒绝——" +
             "；".join(causes) + "；降级为 " + verdict)
     out["policy_verdict"] = verdict
@@ -363,7 +417,11 @@ def conservative_health_snapshot(snap):
         "policy_verdict": verdict,
         "flags": flags,
         "rule": "P0-9/W8: PASS rejected on zero-SHA identity placeholder or "
-                "self-declared aggregation mode（不变量 10 保守面）",
+                "self-declared aggregation mode（不变量 10 保守面）；"
+                "W11-02: PASS rejected on release tree drift / open fuse",
+        "release_integrity": ({"verdict": integrity.get("verdict"),
+                               "fuse": integrity.get("fuse")}
+                              if isinstance(integrity, dict) else None),
     }
     return out
 
@@ -380,9 +438,15 @@ def health_history_writer(stop_evt):
     while True:
         r = read_gate_aggregate()
         if r["ok"]:
-            # 与 /api/v1/health 同口径（P0-9/W8）：走势记录与 API 判定一致，
-            # 不出现「API 已降级 NOT_EVALUATED 而走势仍记 PASS」的分叉
-            snap = conservative_health_snapshot(r["data"])
+            # 与 /api/v1/health 同口径（P0-9/W8 + W11-02）：走势记录与 API
+            # 判定一致，不出现「API 已降级 NOT_EVALUATED 而走势仍记 PASS」
+            # 的分叉
+            ri = read_release_integrity()
+            integrity = ri["data"] if ri.get("ok") else (
+                {"verdict": "MONITOR_ERROR", "detail": ri.get("detail")}
+                if ri.get("code") in ("INTEGRITY_MALFORMED", "INTEGRITY_STALE")
+                else None)
+            snap = conservative_health_snapshot(r["data"], integrity=integrity)
             score = snap.get("score")
             verdict = snap.get("policy_verdict") or snap.get("overall") or snap.get("verdict")
             if isinstance(score, (int, float)) or verdict:
@@ -928,11 +992,31 @@ class Handler(BaseHTTPRequestHandler):
             r = read_gate_aggregate()
             if not r["ok"]:
                 return self._err(503, r["code"], r["detail"])
+            # W11-02：哨兵快照只读接入——漂移/熔断 → 透传 PASS 拒绝；
+            # 快照 MALFORMED/STALE（监控盲区）合成 MONITOR_ERROR 语义参与
+            # 保守过滤；未部署（缺失）不引入旗标（向后兼容）。
+            ri = read_release_integrity()
+            integrity = ri["data"] if ri.get("ok") else (
+                {"verdict": "MONITOR_ERROR",
+                 "detail": ri.get("detail")}
+                if ri.get("code") in ("INTEGRITY_MALFORMED", "INTEGRITY_STALE")
+                else None)
             # P0-9/W8 保守面：零 SHA 身份占位 / self-declared 聚合模式下
             # 透传 PASS 拒绝（降级+reason 注明；非 PASS 原样透传，绝不上调）
-            out = conservative_health_snapshot(r["data"])
+            out = conservative_health_snapshot(r["data"], integrity=integrity)
             out.setdefault("source", "gate-aggregator")
+            if ri.get("ok"):
+                out.setdefault("release_integrity", {
+                    "verdict": ri["data"].get("verdict"),
+                    "fuse": ri["data"].get("fuse"),
+                    "generated_at": ri["data"].get("generated_at")})
             return self._json(200, out)
+        if ep == "integrity":
+            # W11-02：哨兵状态只读透传（readiness 消费面）
+            ri = read_release_integrity()
+            if not ri.get("ok"):
+                return self._err(503, ri["code"], ri["detail"])
+            return self._json(200, ri["data"])
         if ep == "health-history":
             return self._json(200, read_health_history())
         if ep == "bugscan-ledger":

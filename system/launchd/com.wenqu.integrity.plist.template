@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- W11-02（R10-REL-ACTIVE-TREE-DRIFT-001）：release 完整性哨兵 launchd 模板。
+     装配（install/scheduler 同风格）时替换 {{占位符}} 后安装：
+       生产形态：root-owned LaunchDaemon /Library/LaunchDaemons/
+         com.wenqu.integrity.plist（root 属主 0644；哨兵 root 运行——对账
+         现役+previous 全树、原子发布 state/release-integrity.json、漂移时
+         CRITICAL 告警/incident 封存/观察窗作废/熔断/授权自动恢复）。
+       开发形态：~/Library/LaunchAgents/com.wenqu.integrity.plist（同参数）。
+     部署纪律：
+       1. {{WENQU_SENTINEL_SCRIPT}} 装配时钉为绝对路径。默认指向现役
+          current 树（与 scheduler 同形态）；敌对干扰防线加固位建议钉到
+          具体release 位的绝对路径（不随 current 切换），使哨兵不审计
+          自身正在其中运行的树的自引用形态。
+       2. StartInterval=300 与哨兵扫描周期一致——漂移 ≤ 一个扫描周期内
+          Gate/health 变红（dashboard 只读 state/release-integrity.json）。
+       3. state/release-integrity.json 唯一 writer=com.wenqu.integrity；
+          scheduler tick/dashboard/install-release 只读（单一写纪律）。
+     审计：python3 system/sentinels/release-integrity-watch.py status -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wenqu.integrity</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>{{WENQU_SENTINEL_SCRIPT}}</string>
+        <string>tick</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>WENQU_HOME</key>
+        <string>{{WENQU_HOME}}</string>
+        <key>WENQU_RELEASE_ATTEST</key>
+        <string>{{WENQU_SENTINEL_TREE}}/tools/release_attest.py</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{WENQU_HOME}}/observation/logs/integrity-launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{WENQU_HOME}}/observation/logs/integrity-launchd.err.log</string>
+</dict>
+</plist>
