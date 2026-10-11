@@ -2036,9 +2036,24 @@ def refresh_gate_aggregate(paths: "ProductionPaths", *,
         # --allow-self-declared 诊断模式；快照如实携带
         # mode=self_declared_diagnostic / scope_binding.mode=self_declared，
         # 消费方可据此识别其不具上绿效力背书。
-        argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
-                or "python3", paths.cli_py, "gate", "--results", results_dir,
-                "--allow-self-declared"]
+        # W8/T-5 正门优先：环境给出冻结 manifest+验签 keyring（+可选 registry）
+        # 时走 gate 正门（--manifest --verify-key [--registry]）——现役快照
+        # 携带真实身份（target_sha 非零、非 self_declared）；任一 env 缺失
+        # 才回退 --allow-self-declared 诊断模式（快照如实自标不具上绿效力）。
+        gate_manifest = _os.environ.get("WENQU_GATE_MANIFEST", "").strip()
+        gate_key = _os.environ.get("WENQU_GATE_VERIFY_KEY", "").strip()
+        gate_registry = _os.environ.get("WENQU_GATE_REGISTRY", "").strip()
+        if gate_manifest and gate_key and _os.path.isfile(gate_manifest) \
+                and _os.path.isfile(gate_key):
+            argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+                    or "python3", paths.cli_py, "gate", "--results", results_dir,
+                    "--manifest", gate_manifest, "--verify-key", gate_key]
+            if gate_registry and _os.path.isfile(gate_registry):
+                argv += ["--registry", gate_registry]
+        else:
+            argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
+                    or "python3", paths.cli_py, "gate", "--results", results_dir,
+                    "--allow-self-declared"]
         try:
             p = _subprocess.run(argv, capture_output=True, text=True,
                                 timeout=60, cwd=paths.repo_root)
