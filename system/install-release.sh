@@ -40,6 +40,38 @@
 #                            keyring）+可选服务重载；任一失败自动补偿切回原
 #                            current 并 rc1（.last-current 保持原值供审计）。
 #
+#   W11-03（本轮）    R10-REL-ROLLBACK-DUAL-PIN-005 根修：双 pin 激活事务
+#                        与真实回滚状态机。旧洞（十轮实证）：① .last-current
+#                        只记裸路径，记录的回滚目标树也会漂移（7eeb8a1 树实
+#                        测漂移）——回滚时第 4 段逐文件对账才失败=回滚闭环
+#                        不成立；② 激活无事务性，kill -9 后无法断言收敛
+#                        old/new、无法检测指针顶替。现：
+#                        [A] activation journal（wenqu_core/release_state.py，
+#                            $INSTALL_ROOT/activation-state-v2.json，0600）：
+#                            current 切换前把「目标树全量 verify 通过」落
+#                            PREPARED（含目标 sha/manifest digest/全树实算
+#                            digest），四阶段
+#                            PREPARED→SYMLINK_SWITCHED→SMOKE_OK→COMMITTED
+#                            每阶段 write+fsync(file)+atomic rename+fsync(dir)；
+#                            journal 损坏/截断/篡改/链接/越根 → 检测+BLOCKED
+#                            （rc3 熔断）；kill -9 恢复只收敛 old 或 new，
+#                            第三态熔断 rc3；
+#                        [B] 回滚目标健康管理：每次激活 commit 后对
+#                            .last-current（=journal previous pin）目标全树
+#                            对账——漂移/伪造指针标记 rollback_unavailable
+#                            +ALARM 落 journal；回滚入口拒用坏目标并点名
+#                            rollback_unavailable（rc1）；
+#                        [C] 成功 rollback 交换双 pin（.last-current 翻转为
+#                            刚离开的 release）——roll-forward 可验证；
+#                        [D] 唯一 deploy lease（flock，全程持有）：并发安装
+#                            最多一个提交；正向安装/正常 rollback 均要求
+#                            current 与 target 双双在 roots 且两树无漂移；
+#                        [E] current 树漂移不得冒充正常 rollback：独立
+#                            --recover-drift 保全漂移现场（tree.drifted-*）
+#                            +切健康目标+新 epoch。
+#                        退出码新增：3=journal/指针/generation 不可调和
+#                        （熔断 BLOCKED）。
+#
 # 外部授权门（构建前 fail-closed，任一不过=rc1）：
 #   1. roots 文件存在（默认 $WENQU_RELEASE_ROOTS 或
 #      $INSTALL_ROOT/release-roots.json；生产位 ~/.wenqu/release-roots.json）；
@@ -77,6 +109,20 @@
 #                         与正向链同一信任链——结构门/外部授权门+main 血统/
 #                         四件套 verify/树逐文件对账/切换后 health+auth 冒烟，
 #                         失败自动补偿切回原 current 并 rc1；详见文件头注）
+#                         W11-03：回滚入口先过 journal 双 pin 健康门——漂移/
+#                         伪造 .last-current 目标拒用（点名
+#                         rollback_unavailable）；成功回滚交换双 pin
+#                         （roll-forward 备援）。
+#     --recover-drift     current 树已漂移时的独立恢复通道（W11-03 [E]）：
+#                         保全漂移现场（tree.drifted-<ts>，字节不抹除）→
+#                         对 journal previous pin 走完整信任链切换 → 新 epoch。
+#                         正常 rollback 在 current 漂移时拒绝并指路本通道。
+#
+# 环境变量：
+#   WENQU_FAILPOINT=after_prepared|after_switched|after_smoke
+#                        crash/failpoint 演练钩子（W11-03 集成测试专用）：
+#                        在对应 journal 阶段落盘后 kill -9 本进程。该钩子只能
+#                        让安装器死得更早，不能绕过任何验证门。
 #
 # 密钥纪律：keyring 只传路径给 release_attest（只读 import）；secret 绝不
 # 回显/入档。HMAC 对称签名 = tamper-evident，非非否认（§21.4 诚实边界）。
@@ -99,6 +145,7 @@ RELOAD_SCHEDULER=0
 RELOAD_DASHBOARD=0
 NO_ACTIVATE=0
 ROLLBACK=0
+RECOVER_DRIFT=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -112,6 +159,7 @@ while [ $# -gt 0 ]; do
     --reload-dashboard) RELOAD_DASHBOARD=1; shift;;
     --no-activate) NO_ACTIVATE=1; shift;;
     --rollback) ROLLBACK=1; shift;;
+    --recover-drift) RECOVER_DRIFT=1; shift;;
     -h|--help) sed -n '2,60p' "$0"; exit 0;;
     *) if [ "$COMMIT" = "HEAD" ]; then COMMIT="$1"; shift;
        else echo "install-release: 未知参数 $1" >&2; exit 1; fi;;
@@ -134,20 +182,207 @@ BUILD_BASE="${BUILD_BASE:-$INSTALL_ROOT/build}"
 # exit 的死法）的退出码掩成 0。现显式保存/回传真实 rc——清理永不改判。
 trap 'rc=$?; rm -f "$INSTALL_ROOT/.current.new.$$" \
       "$INSTALL_ROOT/.current.rollback.$$" "$INSTALL_ROOT/.chmod-err.$$" \
-      2>/dev/null; exit $rc' EXIT
+      "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null; exit $rc' EXIT
+
+# ----------------------------------------------------- W11-03 激活事务基建
+# journal 主载体 = wenqu_core/release_state.py（0600 owner-only；integrity
+# 自洽哈希；损坏/截断/篡改/链接/越根 → rc3 熔断 BLOCKED，绝不静默继续）。
+RS="$SCRIPT_DIR/wenqu_core/release_state.py"
+JOURNAL="$INSTALL_ROOT/activation-state-v2.json"
+[ -f "$RS" ] || { echo "install-release: ERROR: 缺 release_state.py: $RS" >&2; exit 2; }
+
+die3() { echo "install-release: FUSE/BLOCKED: $*" >&2; exit 3; }
+
+# stdin=JSON 一行 → 取字段（bool 转字面量）
+rs_field() { "$PY" -c 'import json,sys
+d = json.load(sys.stdin)
+v = d.get(sys.argv[1], "")
+print(v if not isinstance(v, bool) else str(v))' "$1"; }
+
+rs_status() { "$PY" "$RS" status --install-root "$INSTALL_ROOT" \
+  2>"$INSTALL_ROOT/.rs-err.$$"; }
+
+# crash/failpoint 钩子（仅 WENQU_FAILPOINT 显式置位时生效；见文件头注）
+failpoint() {
+  if [ "${WENQU_FAILPOINT:-}" = "$1" ]; then
+    echo "install-release: FAILPOINT $1 → kill -9 $$" >&2
+    kill -9 $$
+  fi
+}
+
+# 冒烟原语（journal 恢复复用；与 [5/5]/[6/6] 同语义）
+smoke_health() {  # $1=树路径
+  [ -f "$1/system/wenqu_core/scheduler.py" ] || return 1
+  PYTHONPATH="$1/system" "$PY" -c "import wenqu_core.scheduler" 2>/dev/null
+}
+smoke_auth() {    # $1=树路径 $2=keyring
+  PYTHONPATH="$1/system" "$PY" - "$2" <<'PYAUTH2' 2>/dev/null
+import sys
+from wenqu_core.approval_keys import ApprovalKeyring
+ApprovalKeyring.from_path(sys.argv[1])
+PYAUTH2
+}
+
+# ---- W11-03 [D]：唯一 deploy lease（flock，进程退出自动释放；全程持有）
+# 两个并发安装最多一个提交；争用者立即 rc1（不排队）。
+LEASE="$INSTALL_ROOT/.deploy-lease.lock"
+mkdir -p "$INSTALL_ROOT"
+exec 9>>"$LEASE"
+if "$PY" -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX | fcntl.LOCK_NB)' \
+    2>/dev/null; then :; else
+  die "deploy lease 被其他安装器持有（${LEASE}）——并发安装互斥（W11-03：最多一个提交），稍后重试"
+fi
+
+# ---- W11-03 [A]：journal 入口恢复（崩溃收敛，只许 old/new；第三态 rc3）
+run_journal_recovery() {
+  local st present state dec action gen tgt prev
+  if ! st=$(rs_status); then
+    die3 "activation journal 不可读/损坏/篡改/不可调和（${JOURNAL}）——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+  fi
+  present=$(printf '%s' "$st" | rs_field present)
+  [ "$present" = "False" ] && return 0
+  state=$(printf '%s' "$st" | rs_field state)
+  case "$state" in
+    COMMITTED|ABORTED) return 0 ;;
+  esac
+  if ! dec=$("$PY" "$RS" recover --install-root "$INSTALL_ROOT" 2>"$INSTALL_ROOT/.rs-err.$$"); then
+    die3 "journal 恢复判定熔断（指针/generation 不可调和）——$(printf '%s' "$dec" | tail -1)$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+  fi
+  action=$(printf '%s' "$dec" | rs_field action)
+  tgt=$(printf '%s' "$dec" | rs_field target_tree)
+  prev=$(printf '%s' "$dec" | rs_field previous_tree)
+  gen=$(printf '%s' "$st" | rs_field generation)
+  case "$action" in
+    converge_old)
+      "$PY" "$RS" abort --install-root "$INSTALL_ROOT" \
+        --expect-generation "$gen" \
+        --reason "crash-recovery: converged to OLD (current 未切换)" \
+        >/dev/null || die3 "恢复 abort 失败（generation=${gen}）"
+      log "journal 恢复：在途事务收敛 → OLD（current 保持原目标）"
+      return 0
+      ;;
+    finish_new)
+      log "journal 恢复：在途事务收敛 → NEW（${tgt}）——补冒烟后提交"
+      while [ "$state" = "PREPARED" ]; do
+        "$PY" "$RS" advance --install-root "$INSTALL_ROOT" \
+          --state SYMLINK_SWITCHED --expect-generation "$gen" >/dev/null \
+          || die3 "恢复 advance SYMLINK_SWITCHED 失败"
+        st=$(rs_status) || die3 "恢复中 journal 损坏"
+        state=$(printf '%s' "$st" | rs_field state)
+      done
+      if smoke_health "$tgt" && smoke_auth "$tgt" "$KEYRING"; then
+        if [ "$state" = "SYMLINK_SWITCHED" ]; then
+          "$PY" "$RS" advance --install-root "$INSTALL_ROOT" \
+            --state SMOKE_OK --expect-generation "$gen" >/dev/null \
+            || die3 "恢复 advance SMOKE_OK 失败"
+        fi
+        "$PY" "$RS" commit --install-root "$INSTALL_ROOT" \
+          --expect-generation "$gen" --current-link-expected "$tgt" >/dev/null \
+          || die3 "恢复 commit 失败"
+        log "journal 恢复完成：current=${tgt}（COMMITTED，收敛 NEW）"
+      else
+        if [ -n "$prev" ]; then
+          ln -s "$prev" "$INSTALL_ROOT/.current.rollback.$$"
+          "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
+            "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT" 2>/dev/null || true
+          log "恢复冒烟失败——已补偿切回 OLD（${prev}）"
+        else
+          log "恢复冒烟失败——无 previous 可补偿（首装在途），current 保持 $tgt 待人工处置"
+        fi
+        "$PY" "$RS" abort --install-root "$INSTALL_ROOT" \
+          --expect-generation "$gen" --reason "recovery smoke failed" >/dev/null \
+          || die3 "恢复 abort 失败"
+        die "journal 恢复：NEW 目标冒烟失败——事务 ABORTED（人工核查）"
+      fi
+      return 0
+      ;;
+    *)
+      die3 "未知恢复决策: $action"
+      ;;
+  esac
+}
+
+# ---- W11-03 [B]：回滚目标健康门（漂移/伪造 → rollback_unavailable，rc1 拒）
+rollback_health_gate() {
+  local out status
+  if ! out=$("$PY" "$RS" check-rollback --install-root "$INSTALL_ROOT" \
+      2>"$INSTALL_ROOT/.rs-err.$$"); then
+    die "回滚入口健康门失败：$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)——双 pin 不可核验（legacy/在途态拒绝回滚）"
+  fi
+  status=$(printf '%s' "$out" | rs_field status)
+  grep '^ALARM' "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null >&2 || true
+  if [ "$status" != "healthy" ]; then
+    die "回滚目标不可用（rollback_unavailable）：.last-current/journal previous pin 对账失败（漂移/缺件/伪造指针）——拒绝使用坏目标（W11-03 [B]），修复目标或 --force 重装后重试"
+  fi
+  log "回滚健康门 OK：journal previous pin 全树对账 + .last-current 一致"
+}
+
+# ---- W11-03 [E]：current 树漂移检测（漂移不得冒充正常 rollback/正向激活）
+current_tree_gate() {  # $1=动作名（rollback/install）
+  local cur reldir audit
+  cur=$(readlink "$CURRENT" 2>/dev/null || true)
+  [ -n "$cur" ] || return 0
+  reldir=$(cd "$(dirname "$cur")" 2>/dev/null && pwd -P) || return 0
+  local manifest
+  manifest=$(ls "$reldir"/wenqu-dist-*.manifest.json 2>/dev/null | head -1 || true)
+  [ -n "$manifest" ] || return 0
+  if audit=$("$PY" "$RS" audit-tree --manifest "$manifest" --tree "$cur" \
+      2>/dev/null); then
+    return 0
+  fi
+  die "$1 前置失败：current 树已漂移（$cur 与 manifest 逐文件对账不过）——漂移现役树不得冒充正常 $1；保全现场走 --recover-drift（W11-03 [E]）"
+}
+
 
 # ---------------------------------------------------------------- 回滚模式
 # G9-13（R9-REL-ROLLBACK-ROOT-BYPASS-004 根修）：回滚不再「目录存在即切」，
 # 与正向安装链同一信任链六段 fail-closed（详见文件头注）。任一段失败=rc1，
 # 未切换即拒；已切换后冒烟失败=自动补偿切回原 current 再 rc1。
-if [ "$ROLLBACK" = "1" ]; then
-  [ -f "$LAST_CURRENT" ] || die "无 .last-current 记录，无法回滚"
-  PREV=$(cat "$LAST_CURRENT")
-  [ -n "$PREV" ] || die ".last-current 为空，无法回滚"
-  [ -d "$PREV" ] || die "回滚目标不存在: $PREV"
+if [ "$ROLLBACK" = "1" ] || [ "$RECOVER_DRIFT" = "1" ]; then
   [ -f "$KEYRING" ] || die "keyring 不存在: ${KEYRING}（回滚验签必需）"
   [ -e "$REPO/.git" ] || die "不是 git 仓: ${REPO}（回滚血统/对象库核验必需）"
   command -v git >/dev/null 2>&1 || die "git 不可用"
+
+  # ---- W11-03 [A]：journal 入口恢复（崩溃收敛；损坏/第三态 rc3 熔断）
+  run_journal_recovery
+
+  # ---- W11-03 [E]：recover-drift 独立通道前置（身份核验+漂移确认+目标解析）
+  if [ "$RECOVER_DRIFT" = "1" ]; then
+    if ! RD_ST=$(rs_status); then
+      die3 "activation journal 不可读（recover-drift 需 journal 身份）——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+    fi
+    [ "$(printf '%s' "$RD_ST" | rs_field present)" != "False" ] \
+      || die "无 activation journal——recover-drift 无身份可核验（先正常安装生成 journal）"
+    [ "$(printf '%s' "$RD_ST" | rs_field state)" = "COMMITTED" ] \
+      || die "journal 非 COMMITTED——在途/中止态不可 recover-drift"
+    RD_CUR=$(printf '%s' "$RD_ST" | "$PY" -c 'import json,sys
+d = json.load(sys.stdin)
+print((d.get("current") or {}).get("tree_path", ""))')
+    CUR_NOW=$("$PY" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CURRENT" 2>/dev/null || true)
+    [ -n "$CUR_NOW" ] || die "current 指针不可解析——recover-drift 无从核验身份"
+    [ "$RD_CUR" = "$CUR_NOW" ] \
+      || die "current 指针与 journal current pin 不符（$CUR_NOW != ${RD_CUR}）——身份不匹配，拒绝 recover-drift"
+    # current 树必须确实漂移（健康→指路正常 rollback）
+    CUR_MANIFEST=$(ls "$(dirname "$CUR_NOW")"/wenqu-dist-*.manifest.json 2>/dev/null | head -1 || true)
+    [ -n "$CUR_MANIFEST" ] || die "current release manifest 缺失——非受管目标，拒绝"
+    if "$PY" "$RS" audit-tree --manifest "$CUR_MANIFEST" --tree "$CUR_NOW" >/dev/null 2>&1; then
+      die "current 树健康（逐文件对账通过）——无需 recover-drift，走正常 --rollback"
+    fi
+    PREV=$(printf '%s' "$RD_ST" | "$PY" -c 'import json,sys
+d = json.load(sys.stdin)
+print((d.get("previous") or {}).get("tree_path", ""))')
+    [ -n "$PREV" ] || die "journal 无 previous pin——无可恢复目标"
+    log "recover-drift：current 漂移已确认（${CUR_NOW}），目标=journal previous pin"
+  else
+    [ -f "$LAST_CURRENT" ] || die "无 .last-current 记录，无法回滚"
+    PREV=$(cat "$LAST_CURRENT")
+  fi
+  [ -n "$PREV" ] || die ".last-current 为空，无法回滚"
+  [ -d "$PREV" ] || die "回滚目标不存在: $PREV"
+
+  # -------- [0.5/6] W11-03 journal 双 pin 健康门（先于结构门：伪造/漂移
+  # .last-current 一进入口即点名 rollback_unavailable 拒绝）
+  rollback_health_gate
 
   # -------- [1/6] 结构门：受管 releases/<40hex>/tree + 四件套唯一 + 身份钉
   echo "== rollback [1/6] 结构门: $PREV =="
@@ -182,12 +417,18 @@ print(json.load(open(sys.argv[1], encoding="utf-8"))["source_commit"])' \
     || die "回滚目标身份断裂: manifest.source_commit=$RB_SC != 目录 SHA=${RB_SHA}（目录顶包/改名，拒绝）"
   log "结构门 OK  commit=${RB_SHA}（$(basename "$RB_STEM") 四件套完整）"
 
+  # -------- [1.5/6] W11-03 current 树漂移门
+  # （recover-drift 模式：current 漂移已在入口前置确认，跳过漂移门）
+  if [ "$RECOVER_DRIFT" != "1" ]; then
+    current_tree_gate "rollback"
+  fi
+
   # -------- [2/6] 外部授权门（与正向门同构；roots 同时容纳现役与回滚目标）
   echo "== rollback [2/6] 外部授权门: roots=$ROOTS =="
-  "$PY" - "$ROOTS" "$RB_SHA" "$REPO" <<'PYGATE_RB' || die "回滚外部授权门未过（fail-closed，不切换）"
+  "$PY" - "$ROOTS" "$RB_SHA" "$REPO" "$INSTALL_ROOT" <<'PYGATE_RB' || die "回滚外部授权门未过（fail-closed，不切换）"
 import json, os, re, subprocess, sys
 
-roots_path, full_sha, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+roots_path, full_sha, repo, install_root = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 ERR = lambda m: print(f"install-release: ERROR: {m}", file=sys.stderr)
 
 # 1) 存在 + 2) owner-only 权限（组/其他任何位即拒——>0600 语义）
@@ -242,6 +483,19 @@ anc = subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor",
 if anc.returncode != 0:
     ERR(f"回滚目标非 main 血统: {full_sha} 不可达自 {mainref}——拒绝")
     sys.exit(1)
+# 5) W11-03：current 也在 roots（正向/回滚均要求双授权——roots 只有
+#    target、没有 current 即拒）
+cur_real = os.path.realpath(os.path.join(install_root, "current"))
+if os.path.exists(cur_real):
+    mcur = re.search(r"/releases/([0-9a-f]{40})/tree$", cur_real)
+    if not mcur:
+        ERR(f"current 指向受管 releases 根之外: {cur_real}——拒绝（W11-03 双授权）")
+        sys.exit(1)
+    if mcur.group(1) not in entries:
+        ERR(f"current commit 不在 release-roots allowed_commit: "
+            f"{mcur.group(1)}——授权清单须同时容纳现役(current)与目标"
+            f"（target），只有 target 没有 current 即拒")
+        sys.exit(1)
 print(f"  回滚授权门 OK  allowed={len(entries)} commit={full_sha[:12]}… "
       f"main={mainref[:12]}… plan={plan[:12]}…")
 PYGATE_RB
@@ -285,21 +539,59 @@ if bad:
 print("  回滚树与 manifest 逐文件 sha256 全符（%d files）" % len(m["files"]))
 PYRB
 
-  # -------- [5/6] 切换前实录 current（补偿锚点）→ 原子切换
-  echo "== rollback [5/6] 记录 current + 原子切换 =="
+  # -------- [5/6] 切换前实录 current（补偿锚点）→ journal 事务 → 原子切换
+  echo "== rollback [5/6] journal PREPARED + 记录 current + 原子切换 =="
   CUR_BEFORE=$(readlink "$CURRENT" 2>/dev/null || true)
   [ -n "$CUR_BEFORE" ] || die "current 不存在/不可读——无「切回」语义，人工处置"
-  log "切换前实录 current → ${CUR_BEFORE}（失败补偿锚点）"
+  CUR_BEFORE_REAL=$("$PY" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CUR_BEFORE")
+  log "切换前实录 current → ${CUR_BEFORE}（补偿锚点）"
   if [ -e "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
     die "$CURRENT 已存在且不是 symlink——拒绝覆盖（人工处置）"
   fi
+  # W11-03 [A]/[E]：切换前落激活 journal（目标树全量 verify 已过 [1]-[4] 段）
+  if [ "$RECOVER_DRIFT" = "1" ]; then
+    if RB_BEGIN=$("$PY" "$RS" begin --install-root "$INSTALL_ROOT" \
+        --kind recover_drift --target-tree "$PREV_REAL" \
+        --previous-tree "$CUR_BEFORE_REAL" --allow-drifted-previous \
+        --roots "$ROOTS" 2>"$INSTALL_ROOT/.rs-err.$$"); then :; else
+      die "recover-drift journal begin 失败：$(tail -2 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+    fi
+  else
+    if RB_BEGIN=$("$PY" "$RS" begin --install-root "$INSTALL_ROOT" \
+        --kind rollback --target-tree "$PREV_REAL" \
+        --previous-tree "$CUR_BEFORE_REAL" \
+        --roots "$ROOTS" 2>"$INSTALL_ROOT/.rs-err.$$"); then :; else
+      die "rollback journal begin 失败（PREPARED 未落=不切换）：$(tail -2 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+    fi
+  fi
+  GEN=$(printf '%s' "$RB_BEGIN" | rs_field generation)
+  failpoint after_prepared
   ln -s "$PREV_REAL" "$INSTALL_ROOT/.current.rollback.$$"
   "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
     "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT"
   log "ROLLBACK SWITCH  current → $PREV_REAL"
+  "$PY" "$RS" advance --install-root "$INSTALL_ROOT" --state SYMLINK_SWITCHED \
+    --expect-generation "$GEN" >/dev/null 2>"$INSTALL_ROOT/.rs-err.$$" \
+    || die3 "journal advance SYMLINK_SWITCHED 失败——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+  failpoint after_switched
+  # W11-03 [E]：切换成功后隔离漂移 current（保全现场，字节不抹除）
+  if [ "$RECOVER_DRIFT" = "1" ]; then
+    QUAR_NAME="tree.drifted-$(date +%Y%m%dT%H%M%S)-$$"
+    QUAR_DIR=$(dirname "$CUR_BEFORE_REAL")
+    if chmod u+w "$QUAR_DIR" 2>/dev/null \
+       && mv "$CUR_BEFORE_REAL" "$QUAR_DIR/$QUAR_NAME" \
+       && chmod a-w "$QUAR_DIR"; then
+      "$PY" "$RS" note --install-root "$INSTALL_ROOT" \
+        --key quarantined_tree --value "$QUAR_DIR/$QUAR_NAME" >/dev/null 2>&1 || true
+      log "漂移 current 已隔离保全: ${QUAR_DIR}/${QUAR_NAME}（证据不抹除）"
+    else
+      echo "install-release: ERROR: 漂移树隔离失败（现场未破坏，人工处置）: $CUR_BEFORE_REAL" >&2
+      exit 2
+    fi
+  fi
 
-  # 补偿函数：冒烟/重载任一失败 → 切回原 current 并 rc1（.last-current
-  # 保持原值供审计——失败现场不抹除）。
+  # 补偿函数：冒烟/重载任一失败 → 切回原 current 并 rc1（journal ABORTED；
+  # .last-current 保持原值供审计——失败现场不抹除）。
   rb_compensate() {
     echo "install-release: ERROR: $*——自动补偿：切回原 current" >&2
     ln -s "$CUR_BEFORE" "$INSTALL_ROOT/.current.rollback.$$"
@@ -309,6 +601,11 @@ PYRB
       log "补偿完成  current 已切回 ${CUR_BEFORE}（.last-current 保持原值供审计）"
     else
       echo "install-release: ERROR: 补偿失败——current=$(readlink "$CURRENT" 2>/dev/null) 期望=${CUR_BEFORE}，须人工处置" >&2
+    fi
+    if [ -n "${GEN:-}" ]; then
+      "$PY" "$RS" abort --install-root "$INSTALL_ROOT" \
+        --expect-generation "$GEN" --reason "rollback compensate: $*" \
+        >/dev/null 2>&1 || true
     fi
     exit 1
   }
@@ -339,6 +636,12 @@ PYAUTH
   else
     rb_compensate "回滚位 approval_keys/keyring 加载失败（auth 冒烟）"
   fi
+
+  # W11-03 [A]：冒烟通过 → journal SMOKE_OK（分阶段落盘，可恢复）
+  "$PY" "$RS" advance --install-root "$INSTALL_ROOT" --state SMOKE_OK \
+    --expect-generation "$GEN" >/dev/null 2>"$INSTALL_ROOT/.rs-err.$$" \
+    || rb_compensate "journal advance SMOKE_OK 失败——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+  failpoint after_smoke
 
   # 可选：launchd 服务重载（与正向链同参数；失败走补偿而非裸 die）
   if [ "$RELOAD_SCHEDULER" = "1" ]; then
@@ -372,8 +675,15 @@ PYAUTH
     log "dashboard 已重载（current → $(readlink "$CURRENT")）"
   fi
 
-  # 全部通过：交换 .last-current（下一次 --rollback 即 roll-forward 备援）
-  printf '%s\n' "$CUR_BEFORE" > "$LAST_CURRENT"
+  # 全部通过：W11-03 [C] journal commit——交换双 pin（current=target /
+  # previous=刚离开的 release），.last-current 由 commit 原子写入
+  # （下一次 --rollback 即 roll-forward 备援，可验证）。
+  if ! RB_COMMIT=$("$PY" "$RS" commit --install-root "$INSTALL_ROOT" \
+      --expect-generation "$GEN" --current-link-expected "$PREV_REAL" \
+      2>"$INSTALL_ROOT/.rs-err.$$"); then
+    rb_compensate "journal commit 失败（双 pin 未交换）——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+  fi
+  log "双 pin 已交换（journal COMMITTED, epoch=$(printf '%s' "$RB_COMMIT" | rs_field epoch)）"
   log "记录上一激活目标（roll-forward 备援）→ $CUR_BEFORE"
   echo "ROLLBACK OK  current → $PREV_REAL"
   echo "  回滚授权  : ${ROOTS}（0600；allowed_commit 同时容纳现役与回滚目标）"
@@ -386,6 +696,11 @@ fi
 [ -e "$REPO/.git" ] || die "不是 git 仓: $REPO"
 [ -f "$KEYRING" ] || die "keyring 不存在: ${KEYRING}（生产签发 key 仓外隔离）"
 command -v git >/dev/null 2>&1 || die "git 不可用"
+
+# ---- W11-03 [A]：journal 入口恢复（崩溃收敛；损坏/第三态 rc3 熔断）
+run_journal_recovery
+# ---- W11-03 [D]/[E]：current 树漂移门（漂移→拒，指路 recover-drift）
+current_tree_gate "正向安装"
 
 FULL_SHA=$(git -C "$REPO" rev-parse --verify "$COMMIT^{commit}") \
   || die "commit 解析失败: $COMMIT"
@@ -400,10 +715,10 @@ RELDIR="$RELROOT/$FULL_SHA"
 # 任何授权面失败=rc1，且发生在构建之前——「只有 exact main CI 绿后才允许
 # 构建 Sfinal 制品」。全部为只读检查（不生成/不回写 roots）。
 echo "== [0/5] 外部授权门: roots=$ROOTS =="
-"$PY" - "$ROOTS" "$FULL_SHA" "$REPO" <<'PYGATE' || die "外部授权门未过（fail-closed）"
+"$PY" - "$ROOTS" "$FULL_SHA" "$REPO" "$INSTALL_ROOT" <<'PYGATE' || die "外部授权门未过（fail-closed）"
 import json, os, re, subprocess, sys
 
-roots_path, full_sha, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+roots_path, full_sha, repo, install_root = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 ERR = lambda m: print(f"install-release: ERROR: {m}", file=sys.stderr)
 
 # 1) 存在 + 2) owner-only 权限（组/其他任何位即拒——>0600 语义）
@@ -460,6 +775,19 @@ if anc.returncode != 0:
     ERR(f"commit 非 main 血统: {full_sha} 不可达自 {mainref}"
         f"——side commit 拒绝（即使 allowed_commit 误收录也拒）")
     sys.exit(1)
+# 5) W11-03：current 也在 roots（正向/回滚均要求双授权——roots 只有
+#    target、没有 current 即拒）
+cur_real = os.path.realpath(os.path.join(install_root, "current"))
+if os.path.exists(cur_real):
+    mcur = re.search(r"/releases/([0-9a-f]{40})/tree$", cur_real)
+    if not mcur:
+        ERR(f"current 指向受管 releases 根之外: {cur_real}——拒绝（W11-03 双授权）")
+        sys.exit(1)
+    if mcur.group(1) not in entries:
+        ERR(f"current commit 不在 release-roots allowed_commit: "
+            f"{mcur.group(1)}——授权清单须同时容纳现役(current)与目标"
+            f"（target），只有 target 没有 current 即拒")
+        sys.exit(1)
 print(f"  授权门 OK  allowed={len(entries)} commit={full_sha[:12]}… "
       f"main={mainref[:12]}… plan={plan[:12]}…")
 PYGATE
@@ -592,17 +920,31 @@ fi
 if [ -e "$CURRENT" ] && [ ! -L "$CURRENT" ]; then
   die "$CURRENT 已存在且不是 symlink——拒绝覆盖（人工处置）"
 fi
-if [ -L "$CURRENT" ] || [ -e "$CURRENT" ]; then
-  readlink "$CURRENT" > "$LAST_CURRENT" 2>/dev/null \
-    && log "记录上一激活目标 → $(cat "$LAST_CURRENT")"
+CUR_BEFORE=$(readlink "$CURRENT" 2>/dev/null || true)
+# W11-03 [A]：current 切换前把「目标树全量 verify 通过」落激活 journal——
+# begin 内部对 target（及 previous=现 current）做全树逐文件审计+digest 实算，
+# 任一不过即 rc1（不切换）；PREPARED 分阶段落盘（每阶段可恢复）。
+if ACT_BEGIN=$("$PY" "$RS" begin --install-root "$INSTALL_ROOT" \
+    --kind install --target-tree "$RELDIR/tree" --roots "$ROOTS" \
+    2>"$INSTALL_ROOT/.rs-err.$$"); then :; else
+  die "activation journal begin 失败（目标/现役树验证不过，PREPARED 未落=不切换）：$(tail -2 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
 fi
+GEN=$(printf '%s' "$ACT_BEGIN" | rs_field generation)
+log "activation journal PREPARED（generation=${GEN}；目标树全量 verify 已落 journal）"
+failpoint after_prepared
 # 原子切换：临时 symlink + rename(2)。不能用 mv——BSD mv 对「目标是
 # symlink→目录」会跟随目标把新链接移进目录（实测踩坑）；rename(2) 语义是
 # 原子替换 symlink 本身（不跟随目标），python os.rename 即此语义。
+# （.last-current 不再在此写——W11-03 由 journal commit 统一原子写入，
+# 与 previous pin 同源，杜绝两处指针漂移。）
 ln -s "$RELDIR/tree" "$INSTALL_ROOT/.current.new.$$"
 "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
   "$INSTALL_ROOT/.current.new.$$" "$CURRENT"
 log "current → $(readlink "$CURRENT")"
+"$PY" "$RS" advance --install-root "$INSTALL_ROOT" --state SYMLINK_SWITCHED \
+  --expect-generation "$GEN" >/dev/null 2>"$INSTALL_ROOT/.rs-err.$$" \
+  || die3 "journal advance SYMLINK_SWITCHED 失败——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+failpoint after_switched
 [ -f "$CURRENT/system/wenqu_core/scheduler.py" ] \
   || die "激活后 current/system 不可达"
 
@@ -613,8 +955,26 @@ if PYTHONPATH="$CURRENT/system" "$PY" -c \
    print('  import OK  wenqu_core.scheduler from', os.path.dirname(s.__file__))"; then
   :
 else
-  die "激活位 wenqu_core.scheduler 导入失败"
+  # W11-03：切换后冒烟失败 → 补偿切回原 current + journal ABORTED（不留
+  # 失败版在流量位；旧版只 die 不补偿的窗口已闭合）。
+  if [ -n "$CUR_BEFORE" ]; then
+    ln -s "$CUR_BEFORE" "$INSTALL_ROOT/.current.rollback.$$"
+    "$PY" -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' \
+      "$INSTALL_ROOT/.current.rollback.$$" "$CURRENT" 2>/dev/null || true
+    log "冒烟失败——已补偿切回 ${CUR_BEFORE}"
+  else
+    log "冒烟失败——无 previous 可补偿（首装），current 留在新位待人工处置"
+  fi
+  "$PY" "$RS" abort --install-root "$INSTALL_ROOT" \
+    --expect-generation "$GEN" --reason "forward smoke failed" \
+    >/dev/null 2>&1 || true
+  die "激活位 wenqu_core.scheduler 导入失败（journal ABORTED）"
 fi
+# W11-03 [A]：冒烟通过 → journal SMOKE_OK
+"$PY" "$RS" advance --install-root "$INSTALL_ROOT" --state SMOKE_OK \
+  --expect-generation "$GEN" >/dev/null 2>"$INSTALL_ROOT/.rs-err.$$" \
+  || die "journal advance SMOKE_OK 失败——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+failpoint after_smoke
 
 # 可选：launchd 重载 + 立即 kickstart 一轮
 if [ "$RELOAD_SCHEDULER" = "1" ]; then
@@ -651,6 +1011,22 @@ if [ "$RELOAD_DASHBOARD" = "1" ]; then
   done
   [ "$READY" = "1" ] || die "dashboard 重载后 15s 内未在 $DASH_PORT 就绪"
   log "dashboard 已重载（current → $(readlink "$CURRENT")；活性: curl 127.0.0.1:$DASH_PORT/api/v1/ping）"
+fi
+
+# ------------------------------------------------- W11-03 [A]/[C] 收口：
+# journal commit（交换双 pin + epoch+1 + .last-current 原子写入）+
+# [B] 回滚目标健康管理（.last-current 全树对账；漂移→rollback_unavailable
+# +ALARM 落 journal——安装本身不因此失败，但回滚入口将拒用坏目标）。
+if ! ACT_COMMIT=$("$PY" "$RS" commit --install-root "$INSTALL_ROOT" \
+    --expect-generation "$GEN" --current-link-expected "$RELDIR/tree" \
+    2>"$INSTALL_ROOT/.rs-err.$$"); then
+  die "journal commit 失败（双 pin 未交换/指针 TOCTOU）——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
+fi
+log "activation journal COMMITTED（epoch=$(printf '%s' "$ACT_COMMIT" | rs_field epoch)；双 pin 已落）"
+if HEALTH_OUT=$("$PY" "$RS" check-rollback --install-root "$INSTALL_ROOT" 2>&1); then
+  printf '%s\n' "$HEALTH_OUT"
+else
+  log "无回滚目标健康记录（首装/无 previous pin）——跳过健康管理"
 fi
 
 echo "INSTALL-RELEASE OK  $FULL_SHA"
