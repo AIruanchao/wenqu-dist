@@ -25,18 +25,29 @@ hash 全部登记在 `<observation_root>/windows/<window_id>.json`：
   }
 
 生命周期：
-  open_window()      O_EXCL 创建 status=open（存在同 id → 拒绝）；
-                     T2 收紧（R9-OBS-T0-QUALIFICATION-002）：开窗必须携带十项
-                     前置要素（prerequisites），缺任一/任一非法 →
+  open_window()      O_EXCL 创建 status=open（存在同 id → 拒绝）；T2 收紧
+                     （R9-OBS-T0-QUALIFICATION-002）：开窗必须携带十项前置
+                     要素（prerequisites），缺任一/任一非法 →
                      WindowPrereqError（CLI rc3），绝不 sfinal=null 起钟；
-  note_first_sample() 首条【合格】样本落盘后回填 t0/首样 hash/起止（仅 open 期
-                     可写，幂等；sealed 后拒绝；不合格样本不锚定 T0）；
-  seal_window()      封口（幂等；可从样本目录自行定位首样）；
-  invalidate_window() 生成可审计作废记录（<wid>.invalidated.json，含原 manifest
-                     全量+原文件 sha256+原因+作废人），manifest 状态改
-                     invalidated——绝不删除文件；
+  note_first_sample() W11-05：锚定【最早合格】样本——原子记录 t0 /
+                     first_qualified_sequence / first_qualified_sample_sha256
+                     / pre_t0_attempts（锚点前样本审计，不进分母不使窗口
+                     失败）；仅 open 期可写，幂等，锚点冲突 → rc1/rc3 语义；
+  seal_window()      封口（幂等；未锚定时按严格链重选最早合格样本补锚，
+                     不采信样本自报 qualified）；
+  invalidate_window() W11-06 单一提交点：不可变 <wid>.invalidated.json 是
+                     唯一作废提交点（O_EXCL|O_NOFOLLOW 临时文件 + fsync +
+                     原子 no-overwrite publish + fsync 目录）；manifest 原字
+                     节保持不动，reader 经 effective_status 计算 effective
+                     状态；同参数幂等 rc0 / 参数冲突 rc1 / 损坏·hash·symlink
+                     rc3；legacy（event+已改 manifest）兼容识别；
+  repair_anchor()    W11-05 崩溃恢复：样本在、锚无 → 严格链重选最早合格
+                     补锚（rc0 已锚/补锚/无需；1 暂无合格；3 坏链/冲突）；
   active_manifest()  取当前唯一「open 且未过期」的 manifest；多个活跃
-                     manifest = 环境错误（WindowAmbiguityError）。
+                     manifest = 环境错误（WindowAmbiguityError）；作废事件
+                     在场的窗口绝不活跃；从未锚定且名义到期不占活跃位。
+互斥（W11-05）：根级 windows/.window.lock 覆盖 open/sample/anchor/seal/
+invalidate（flock 跨进程 + 线程本地重入）。
 
 T0 十项前置（T0_PREREQUISITES，开窗 digests 块唯一来源，缺一=拒开）：
   1  sfinal             release 终 SHA（40hex 非零；--release）
@@ -55,11 +66,13 @@ T0 十项前置（T0_PREREQUISITES，开窗 digests 块唯一来源，缺一=拒
 CLI rc 契约：0=成功；1=冲突/失败；3=证据环境错误（含十项前置缺失/非法）。
 """
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -68,6 +81,11 @@ SCHEMA = "obs-window-manifest-v1"
 INVALIDATION_SCHEMA = "obs-window-invalidation-v1"
 DEFAULT_DURATION_HOURS = 336.0  # W10 观察窗缺省 14 天
 DEFAULT_CANARY_HOURS = 48.0
+
+# CLI 直跑时把自身注册为 import 名——防止 __main__ 与 window_manifest 双实例
+# （否则窗口锁的线程本地重入状态分裂，嵌套 acquire 会开新 fd 被 flock 自锁死）
+if __name__ == "__main__" and "window_manifest" not in sys.modules:
+    sys.modules["window_manifest"] = sys.modules[__name__]
 
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -96,11 +114,13 @@ PREREQ_DIGEST_KEYS = ("sfinal", "tree", "roots", "registry", "branch",
 
 __all__ = [
     "SCHEMA", "INVALIDATION_SCHEMA", "T0_PREREQUISITES", "PREREQ_DIGEST_KEYS",
-    "WindowError", "WindowPrereqError", "WindowAmbiguityError", "manifest_dir",
-    "manifest_path", "invalidation_path", "load_manifests", "load_manifest",
-    "validate_prerequisites", "prerequisites_from_env", "open_window",
-    "seal_window", "note_first_sample", "invalidate_window", "active_manifest",
-    "parse_iso", "utc_ns_stamp",
+    "WindowError", "WindowPrereqError", "WindowAmbiguityError",
+    "WindowConflictError", "WindowCorruptError", "manifest_dir",
+    "manifest_path", "invalidation_path", "window_lock_path", "window_lock",
+    "load_manifests", "load_manifest", "load_event", "effective_status",
+    "window_invalidated", "validate_prerequisites", "prerequisites_from_env",
+    "open_window", "seal_window", "note_first_sample", "invalidate_window",
+    "repair_anchor", "active_manifest", "parse_iso", "utc_ns_stamp",
 ]
 
 
@@ -114,6 +134,14 @@ class WindowPrereqError(WindowError):
 
 class WindowAmbiguityError(WindowError):
     """多个活跃 manifest——证据环境错误（rc3 语义）。"""
+
+
+class WindowConflictError(WindowError):
+    """与既有权威记录冲突（如锚点冲突/作废参数冲突）——CLI rc1 语义。"""
+
+
+class WindowCorruptError(WindowError):
+    """manifest/event 损坏、hash 不符、symlink 或不可读——CLI rc3 语义。"""
 
 
 def utc_ns_stamp(now_ns=None):
@@ -143,6 +171,179 @@ def manifest_path(root, window_id):
 
 def invalidation_path(root, window_id):
     return os.path.join(manifest_dir(root), window_id + ".invalidated.json")
+
+
+def window_lock_path(root):
+    """W11-05 根级单一窗口锁：覆盖 open、sample、anchor、seal、invalidate。"""
+    return os.path.join(manifest_dir(root), ".window.lock")
+
+
+_lock_tls = threading.local()
+
+
+class _ReentrantWindowLock:
+    """flock 互斥（跨进程）+ 线程本地重入计数（同线程嵌套 open/seal/anchor
+    不自锁死）；不同线程各持独立 fd——flock 语义下照常串行。"""
+
+    def __init__(self, root):
+        self._root = root
+
+    def __enter__(self):
+        depth = getattr(_lock_tls, "depth", 0)
+        if depth == 0:
+            path = window_lock_path(self._root)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            except OSError:
+                os.close(fd)
+                raise
+            _lock_tls.fd = fd
+        _lock_tls.depth = depth + 1
+        return self
+
+    def __exit__(self, *exc):
+        _lock_tls.depth = getattr(_lock_tls, "depth", 1) - 1
+        if _lock_tls.depth == 0:
+            fd = getattr(_lock_tls, "fd", None)
+            _lock_tls.fd = None
+            if fd is not None:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(fd)
+        return False
+
+
+def window_lock(root):
+    return _ReentrantWindowLock(root)
+
+
+def load_event(root, window_id):
+    """读取作废事件（W11-06 唯一提交点）。无事件 → None；symlink/损坏/
+    schema 不符 → WindowCorruptError（fail-visible，绝不静默跳过）。"""
+    ipath = invalidation_path(root, window_id)
+    if os.path.islink(ipath):
+        raise WindowCorruptError(
+            "invalidation event is a symlink (refusing): %s" % ipath)
+    if not os.path.exists(ipath):
+        return None
+    try:
+        with open(ipath, encoding="utf-8") as f:
+            ev = json.load(f)
+    except (OSError, ValueError) as e:
+        raise WindowCorruptError(
+            "invalidation event unreadable for %s: %s" % (window_id, e)) from e
+    if not isinstance(ev, dict) or ev.get("schema") != INVALIDATION_SCHEMA:
+        raise WindowCorruptError(
+            "invalidation event bad schema for %s: %s" % (window_id, ipath))
+    return ev
+
+
+def _manifest_bytes_sha256(root, window_id):
+    mpath = manifest_path(root, window_id)
+    try:
+        with open(mpath, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        raise WindowCorruptError(
+            "manifest unreadable for %s: %s" % (window_id, e)) from e
+    return raw, hashlib.sha256(raw).hexdigest()
+
+
+def _verify_event_binding(root, window_id, manifest, event,
+                          *, original_sha=None):
+    """事件绑定校验：window/epoch 一致；genesis-未改形态（manifest status
+    非 invalidated）要求事件 hash 与当前 manifest 字节严格咬合（篡改→
+    WindowCorruptError）。legacy 已改 manifest 形态（旧 writer 双写完成态）
+    不再逐字节比较——事件即权威（W11-06 合法兼容）。"""
+    if event.get("window_id") != window_id:
+        raise WindowCorruptError(
+            "invalidation event window_id mismatch: %r != %r"
+            % (event.get("window_id"), window_id))
+    if event.get("epoch_id") != manifest.get("epoch_id"):
+        raise WindowCorruptError(
+            "invalidation event epoch_id mismatch for %s" % window_id)
+    if manifest.get("status") == "invalidated":
+        return  # legacy 已改 manifest 完成态：识别为 invalidated（不重起旧窗）
+    if original_sha is None:
+        _raw, original_sha = _manifest_bytes_sha256(root, window_id)
+    if event.get("original_manifest_sha256") != original_sha:
+        raise WindowCorruptError(
+            "invalidation event hash mismatch for %s: event=%s manifest=%s "
+            "(manifest mutated after invalidation? fail-closed)"
+            % (window_id, str(event.get("original_manifest_sha256"))[:16],
+               original_sha[:16]))
+
+
+def effective_status(root, window_id):
+    """W11-06 effective status：事件存在 → invalidated（无论 manifest 本体
+    status）；撕裂态（manifest 已 invalidated 但无事件）→ WindowCorruptError。
+    返回 (status, event|None)。"""
+    manifest = load_manifest(root, window_id)
+    event = load_event(root, window_id)
+    if event is not None:
+        _verify_event_binding(root, window_id, manifest, event)
+        return "invalidated", event
+    if manifest.get("status") == "invalidated":
+        raise WindowCorruptError(
+            "torn invalidation state: manifest %s status=invalidated but no "
+            "audit event (pre-W11-06 writer tear; manual repair required)"
+            % window_id)
+    return manifest.get("status"), None
+
+
+def window_invalidated(root, window_id):
+    """事件在场即作废（撕裂/损坏 fail-visible 抛错）。"""
+    status, _ev = effective_status(root, window_id)
+    return status == "invalidated"
+
+
+def _fsync_dir(dirpath):
+    """目录 fsync（发布事件后落目录项；平台不支持则尽力而为）。"""
+    try:
+        dfd = os.open(dirpath, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dfd)
+    except OSError:
+        pass  # 某些平台对目录 fd fsync 不支持——尽力而为
+    finally:
+        os.close(dfd)
+
+
+def _publish_event_no_overwrite(ipath, record):
+    """W11-06 发布原语：O_EXCL|O_NOFOLLOW 临时文件 → write+fsync → 原子
+    no-overwrite publish（link）→ fsync 目录。目标已存在 → 返回 False。"""
+    d = os.path.dirname(ipath)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, ".tmp-inval-" + uuid.uuid4().hex[:12] + ".tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(tmp, flags, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(record, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(tmp, ipath)  # 原子 no-overwrite publish
+        except FileExistsError:
+            return False
+        except OSError as e:
+            raise WindowError(
+                "cannot publish invalidation record %s: %s" % (ipath, e)) from e
+        _fsync_dir(d)
+        return True
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def _atomic_write_json(path, payload):
@@ -302,11 +503,11 @@ def open_window(root, *, window_id=None, epoch_id=None,
                                "prerequisites sealed into digests"}],
     }
     try:
-        os.makedirs(manifest_dir(root), exist_ok=True)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(doc, f, ensure_ascii=False, indent=2)
-            f.write("\n")
+        with window_lock(root):  # W11-05：open 与 sample/anchor/seal/invalidate 同锁
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(doc, f, ensure_ascii=False, indent=2)
+                f.write("\n")
     except FileExistsError:
         raise WindowError("window already exists: %s" % wid) from None
     except OSError as e:
@@ -342,33 +543,43 @@ def load_manifests(root):
 
 
 def load_manifest(root, window_id):
-    """单读一个 manifest；缺失/损坏 → WindowError。"""
+    """单读一个 manifest；缺失/损坏 → WindowCorruptError（W11-06 rc3 语义）。"""
     p = manifest_path(root, window_id)
     try:
         with open(p, encoding="utf-8") as f:
             doc = json.load(f)
     except (OSError, ValueError) as e:
-        raise WindowError("cannot load manifest %s: %s" % (window_id, e)) from e
+        raise WindowCorruptError(
+            "cannot load manifest %s: %s" % (window_id, e)) from e
     if not isinstance(doc, dict) or doc.get("schema") != SCHEMA:
-        raise WindowError("manifest %s bad schema" % window_id)
+        raise WindowCorruptError("manifest %s bad schema" % window_id)
     return doc
 
 
-def _first_sample_of_epoch(root, epoch_id):
-    """从样本目录定位链首样本（sequence==1）。返回 (doc, path) 或 (None, None)。
+def note_first_sample(root, manifest, *, sample_sha256, t0_iso, now=None,
+                      sequence=None, pre_t0_attempts=None):
+    """锚定 T0 到【合格】样本（W11-05）：原子记录 t0 /
+    first_qualified_sequence / first_qualified_sample_sha256（兼容别名
+    first_sample_sha256）/ pre_t0_attempts（锚点前样本审计：保留、严格验链、
+    不进观察窗分母）。
 
-    注意：只认 v2 样本（schema=obs-sample-v2）；legacy 样本不属于任何链。"""
-    import observation_daily as od  # 同目录；链解析单一正源
-    return od.find_epoch_head_sample(od.samples_dir(root), epoch_id)
-
-
-def note_first_sample(root, manifest, *, sample_sha256, t0_iso, now=None):
-    """首条合格样本落盘后回填 t0/首样 hash/起止。仅 open 期、仅一次。"""
+    - 仅 open 期可写；作废窗（事件在场）拒绝变更（W11-06）；
+    - 幂等：同锚 sha 重复提交 → 原样返回；
+    - 冲突：已锚定到不同 sha → WindowConflictError（repair rc3 语义）。"""
+    wid = manifest.get("window_id")
+    if window_invalidated(root, wid):
+        raise WindowError(
+            "window %s invalidated; refuse anchor mutation" % wid)
     if manifest.get("status") != "open":
-        raise WindowError("manifest %s not open (refuse mutation)"
-                          % manifest.get("window_id"))
-    if manifest.get("first_sample_sha256"):
-        return manifest  # 幂等
+        raise WindowError("manifest %s not open (refuse mutation)" % wid)
+    existing = (manifest.get("first_qualified_sample_sha256")
+                or manifest.get("first_sample_sha256"))
+    if existing:
+        if existing == sample_sha256:
+            return manifest  # 幂等
+        raise WindowConflictError(
+            "anchor conflict: window %s already anchored to %s; refusing %s"
+            % (wid, existing, sample_sha256))
     now_dt = now or datetime.now(timezone.utc)
     if isinstance(now_dt, (int, float)):
         now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
@@ -383,111 +594,221 @@ def note_first_sample(root, manifest, *, sample_sha256, t0_iso, now=None):
     manifest.update({
         "t0": t0.isoformat(),
         "first_sample_sha256": sample_sha256,
+        "first_qualified_sequence": sequence,
+        "first_qualified_sample_sha256": sample_sha256,
+        "pre_t0_attempts": pre_t0_attempts or [],
         "start_at": t0.isoformat(),
         "end_at": end.isoformat(),
         "history": manifest.get("history", []) + [{
             "action": "first_sample", "at": iso,
-            "detail": "t0 anchored to first qualified sample"}],
+            "detail": "t0 anchored to earliest qualified sample "
+                      "(sequence=%s)" % sequence}],
     })
     _atomic_write_json(manifest_path(root, manifest["window_id"]), manifest)
     return manifest
 
 
 def seal_window(root, window_id, *, first_sample=None, now=None):
-    """封口窗口（幂等）。t0 未定时可从样本目录自行定位首样回填。"""
-    manifest = load_manifest(root, window_id)
-    if manifest.get("status") == "sealed":
+    """封口窗口（幂等）。t0 未定时按 W11-05 严格重算最早合格样本补锚
+    （解析全部样本、重算 hash、验链、按 sequence 重判资格——不采信样本
+    自报 qualified）；作废窗（事件在场）拒绝封口。"""
+    with window_lock(root):
+        manifest = load_manifest(root, window_id)
+        if window_invalidated(root, window_id):
+            raise WindowError("window %s invalidated; seal refused"
+                              % window_id)
+        if manifest.get("status") == "sealed":
+            return manifest
+        now_dt = now or datetime.now(timezone.utc)
+        if isinstance(now_dt, (int, float)):
+            now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
+        iso = now_dt.astimezone(timezone.utc).isoformat()
+        if manifest.get("t0") is None:
+            import observation_daily as od  # 同目录；严格链/资格单一正源
+            anchored = False
+            if isinstance(first_sample, dict) \
+                    and first_sample.get("sample_sha256") \
+                    and first_sample.get("collected_at"):
+                cand = dict(first_sample)
+                stored = cand.get("sample_sha256")
+                recomputed = od.compute_sample_sha256(
+                    {k: v for k, v in cand.items() if k != "sample_sha256"})
+                ok, _reasons = od.qualify_sample_strict(cand, manifest)
+                if stored == recomputed and ok:
+                    try:
+                        manifest = note_first_sample(
+                            root, manifest,
+                            sample_sha256=stored,
+                            t0_iso=cand["collected_at"], now=now_dt,
+                            sequence=cand.get("sequence"))
+                        anchored = True
+                    except WindowError:
+                        anchored = False
+            if not anchored:
+                # 严格重算（样本目录全量解析+验链+最早合格样本，不采信自报）
+                od.try_anchor_first_qualified(root, manifest, now=now_dt)
+        manifest = load_manifest(root, window_id)
+        manifest = dict(manifest)
+        manifest["status"] = "sealed"
+        manifest["sealed_at"] = iso
+        manifest["history"] = manifest.get("history", []) + [{
+            "action": "seal", "at": iso, "detail": "window sealed"}]
+        _atomic_write_json(manifest_path(root, manifest["window_id"]), manifest)
         return manifest
-    now_dt = now or datetime.now(timezone.utc)
-    if isinstance(now_dt, (int, float)):
-        now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
-    iso = now_dt.astimezone(timezone.utc).isoformat()
-    if manifest.get("t0") is None:
-        doc, _ = ((first_sample, None) if first_sample else
-                  _first_sample_of_epoch(root, manifest.get("epoch_id")))
-        # T2：T0 只锚定首条【合格】样本（不合格首样不推进窗口起点）
-        if isinstance(doc, dict) and doc.get("collected_at") \
-                and doc.get("qualified") is True:
-            manifest = note_first_sample(
-                root, manifest,
-                sample_sha256=doc.get("sample_sha256"),
-                t0_iso=doc["collected_at"], now=now_dt)
-    manifest = dict(manifest)
-    manifest["status"] = "sealed"
-    manifest["sealed_at"] = iso
-    manifest["history"] = manifest.get("history", []) + [{
-        "action": "seal", "at": iso, "detail": "window sealed"}]
-    _atomic_write_json(manifest_path(root, manifest["window_id"]), manifest)
-    return manifest
 
 
-def invalidate_window(root, window_id, *, reason, principal, now=None):
-    """作废一个窗口——生成可审计作废记录，绝不删除文件（T2 工单 D）。
+def invalidate_window(root, window_id, *, reason, principal, now=None,
+                      expect_manifest_sha256=None):
+    """W11-06 作废单一提交点（R10-OBS-INVALIDATE-ATOMICITY-003）。
 
-    - 记录落 ``windows/<window_id>.invalidated.json``（O_EXCL）：含
-      invalidated_at / reason / principal / 原 manifest 全量留档 /
-      原 manifest 文件字节 sha256（作废前实算）；
-    - manifest 本体只改 status="invalidated" 并追加 history（可审计、可回溯）；
-    - 幂等：已作废且记录在 → 返回既有记录；已作废但记录缺失 → WindowError
-      （状态不一致，须人工修复，绝不静默重写）。
-    返回作废记录 dict。"""
+    - 不再同时修改两个权威文件：manifest 原字节保持不动，不可变
+      ``<window>.invalidated.json`` 是唯一作废提交点，reader 计算
+      effective status（见 effective_status）；
+    - 事件绑定 window_id / epoch_id / 原 manifest 字节 sha256 / reason /
+      principal / invalidated_at；
+    - 发布：O_EXCL|O_NOFOLLOW 临时文件 → write+fsync → 原子 no-overwrite
+      publish（link）→ fsync 目录；任何 failpoint 只留下「open 且无事件」
+      或「invalidated 且事件完整」两种状态；
+    - 幂等/冲突：同 reason+principal → 返回既有记录（rc0）；不同 →
+      WindowConflictError（rc1）；预置/篡改/symlink/hardlink/hash 不符 →
+      WindowCorruptError（rc3）；
+    - legacy 兼容：event+已改 manifest（旧 writer 完成态）识别为已作废；
+      撕裂态（manifest 已 invalidated 无事件）→ rc3，绝不静默补写。
+    返回作废事件 dict。"""
     if not isinstance(reason, str) or not reason.strip():
         raise WindowError("invalidate requires non-empty reason")
     if not isinstance(principal, str) or not principal.strip():
         raise WindowError("invalidate requires non-empty principal")
-    manifest = load_manifest(root, window_id)
-    mpath = manifest_path(root, window_id)
-    ipath = invalidation_path(root, window_id)
     now_dt = now or datetime.now(timezone.utc)
     if isinstance(now_dt, (int, float)):
         now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
-    iso = now_dt.astimezone(timezone.utc).isoformat()
-    if manifest.get("status") == "invalidated":
-        if os.path.exists(ipath):
-            try:
-                with open(ipath, encoding="utf-8") as f:
-                    return json.load(f)  # 幂等
-            except (OSError, ValueError) as e:
-                raise WindowError("invalidation record unreadable for %s: %s"
-                                  % (window_id, e)) from e
-        raise WindowError(
-            "manifest %s already invalidated but audit record missing "
-            "(inconsistent state; manual repair required)" % window_id)
-    try:
-        with open(mpath, "rb") as f:
-            raw = f.read()
-    except OSError as e:
-        raise WindowError("cannot read manifest %s: %s" % (window_id, e)) from e
-    original_sha = hashlib.sha256(raw).hexdigest()
-    record = {
-        "schema": INVALIDATION_SCHEMA,
-        "window_id": window_id,
-        "epoch_id": manifest.get("epoch_id"),
-        "invalidated_at": iso,
-        "reason": reason,
-        "principal": principal,
-        "original_manifest_sha256": original_sha,
-        "original_manifest": manifest,
-        "note": "auditable invalidation; original manifest file retained "
-                "(never deleted) with status=invalidated",
-    }
-    try:
-        fd = os.open(ipath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(record, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-    except FileExistsError:
-        raise WindowError("invalidation record already exists: %s" % ipath) from None
-    except OSError as e:
-        raise WindowError("cannot create invalidation record %s: %s"
-                          % (ipath, e)) from e
-    manifest = dict(manifest)
-    manifest["status"] = "invalidated"
-    manifest["history"] = manifest.get("history", []) + [{
-        "action": "invalidate", "at": iso, "detail": reason,
-        "principal": principal, "original_manifest_sha256": original_sha}]
-    _atomic_write_json(mpath, manifest)
-    return record
+    with window_lock(root):  # 与 sample/anchor/seal/open 同锁串行
+        manifest = load_manifest(root, window_id)
+        _raw, original_sha = _manifest_bytes_sha256(root, window_id)
+        if expect_manifest_sha256 is not None \
+                and expect_manifest_sha256 != original_sha:
+            raise WindowCorruptError(
+                "manifest hash mismatch for %s: expected %s, on disk %s"
+                % (window_id, expect_manifest_sha256[:16], original_sha[:16]))
+        event = load_event(root, window_id)
+        if event is not None:
+            _verify_event_binding(root, window_id, manifest, event,
+                                  original_sha=original_sha)
+            if event.get("reason") == reason \
+                    and event.get("principal") == principal:
+                return event  # 同参数幂等（rc0）
+            raise WindowConflictError(
+                "invalidation record exists for %s with different "
+                "reason/principal (recorded reason=%r principal=%r; "
+                "refusing %r/%r)"
+                % (window_id, event.get("reason"), event.get("principal"),
+                   reason, principal))
+        if manifest.get("status") == "invalidated":
+            raise WindowCorruptError(
+                "manifest %s status=invalidated but audit event missing "
+                "(torn state from pre-W11-06 writer; manual repair required)"
+                % window_id)
+        iso = now_dt.astimezone(timezone.utc).isoformat()
+        record = {
+            "schema": INVALIDATION_SCHEMA,
+            "window_id": window_id,
+            "epoch_id": manifest.get("epoch_id"),
+            "invalidated_at": iso,
+            "reason": reason,
+            "principal": principal,
+            "original_manifest_sha256": original_sha,
+            "original_manifest": manifest,
+            "note": "single commit point (W11-06): genesis manifest bytes "
+                    "retained unchanged; effective status computed by "
+                    "reader (effective_status); never deleted",
+        }
+        published = _publish_event_no_overwrite(
+            invalidation_path(root, window_id), record)
+        if not published:
+            # publish 撞上既有文件（锁外写手/竞态残留）→ 按事件既有内容裁定
+            event = load_event(root, window_id)
+            if event is None:
+                raise WindowCorruptError(
+                    "invalidation record path occupied by non-event file: %s"
+                    % invalidation_path(root, window_id))
+            _verify_event_binding(root, window_id, manifest, event,
+                                  original_sha=original_sha)
+            if event.get("reason") == reason \
+                    and event.get("principal") == principal:
+                return event
+            raise WindowConflictError(
+                "invalidation record exists for %s with different "
+                "reason/principal" % window_id)
+        return record
+
+
+def repair_anchor(root, window_id=None, *, now=None):
+    """W11-05 修复入口：样本已落盘、锚定缺失（崩溃恢复）时按严格链重选
+    最早合格样本补锚。
+
+    返回 dict（含 rc）：0 已锚（校验一致）/补锚成功/无需修改；
+    1 暂无合格样本；3 坏链或冲突（含撕裂/作废/歧义）。"""
+    import observation_daily as od
+    with window_lock(root):
+        try:
+            if window_id:
+                manifest = load_manifest(root, window_id)
+            else:
+                docs, _errs = load_manifests(root)
+                opens = [m for m in docs if m.get("status") == "open"]
+                if not opens:
+                    return {"rc": 0, "status": "nothing_to_repair",
+                            "detail": "no open window under %s"
+                                      % manifest_dir(root)}
+                if len(opens) > 1:
+                    return {"rc": 3, "status": "ambiguous",
+                            "detail": "multiple open windows: %s" % [
+                                m.get("window_id") for m in opens]}
+                manifest = opens[0]
+            wid = manifest["window_id"]
+            if manifest.get("status") == "sealed":
+                return {"rc": 0, "status": "no_repair_needed",
+                        "detail": "window %s sealed (not repairable scope)"
+                                  % wid}
+            status, _ev = effective_status(root, wid)
+            if status == "invalidated":
+                return {"rc": 3, "status": "invalidated",
+                        "detail": "window %s invalidated; no repair" % wid}
+            chain = od.strict_epoch_chain(
+                od.samples_dir(root), manifest.get("epoch_id"),
+                manifest=manifest)
+            if chain["failures"]:
+                return {"rc": 3, "status": "chain_broken",
+                        "chain_failures": chain["failures"]}
+            anchored_sha = (manifest.get("first_qualified_sample_sha256")
+                            or manifest.get("first_sample_sha256"))
+            if anchored_sha:
+                fq = chain["first_qualified"]
+                if fq is None or fq[1].get("sample_sha256") != anchored_sha:
+                    return {"rc": 3, "status": "anchor_conflict",
+                            "detail": "manifest anchor does not match "
+                                      "earliest qualified sample in chain"}
+                return {"rc": 0, "status": "already_anchored",
+                        "window_id": wid,
+                        "first_qualified_sequence":
+                            manifest.get("first_qualified_sequence")}
+            res = od.try_anchor_first_qualified(root, manifest, now=now)
+            if res["status"] == "anchored":
+                return {"rc": 0, "status": "anchored", "window_id": wid,
+                        "first_qualified_sequence": res.get("sequence"),
+                        "t0": res.get("t0")}
+            if res["status"] == "none":
+                return {"rc": 1, "status": "no_qualified_sample",
+                        "window_id": wid,
+                        "detail": "no qualified sample in epoch chain yet"}
+            if res["status"] == "chain_error":
+                return {"rc": 3, "status": "chain_broken",
+                        "chain_failures": res.get("chain_failures")}
+            return {"rc": 3, "status": res["status"], "window_id": wid}
+        except WindowCorruptError as e:
+            return {"rc": 3, "status": "corrupt", "error": str(e)}
+        except WindowError as e:
+            return {"rc": 3, "status": "error", "error": str(e)}
 
 
 def active_manifest(root, *, now=None):
@@ -495,7 +816,11 @@ def active_manifest(root, *, now=None):
 
     - 无 → None（调用方可 auto-open 新窗口）；
     - 多个 → WindowAmbiguityError（证据环境错误，rc3）；
-    - 过期判定：end_at 已定且 now > end_at。
+    - W11-06：事件在场的窗口 effective=invalidated，绝不活跃（撕裂/损坏
+      事件 fail-visible 抛 WindowCorruptError）；
+    - 过期判定：end_at 已定且 now > end_at；从未锚定（end 为空）的窗口按
+      名义到期（created_at + duration_hours）计——T0 死锁窗口不再永久占用
+      活跃位（W11-05）。
     """
     now_dt = now or datetime.now(timezone.utc)
     if isinstance(now_dt, (int, float)):
@@ -505,9 +830,22 @@ def active_manifest(root, *, now=None):
     for m in docs:
         if m.get("status") != "open":
             continue
+        # W11-06：作废事件在场 → effective invalidated → 不活跃
+        ev = load_event(root, m.get("window_id", ""))
+        if ev is not None:
+            _verify_event_binding(root, m["window_id"], m, ev)
+            continue
         end = parse_iso(m.get("end_at"))
         if end is not None and now_dt > end:
             continue
+        if end is None and m.get("t0") is None:
+            created = parse_iso(m.get("created_at"))
+            try:
+                dur = float(m.get("duration_hours") or DEFAULT_DURATION_HOURS)
+            except (TypeError, ValueError):
+                dur = DEFAULT_DURATION_HOURS
+            if created is not None and now_dt > created + timedelta(hours=dur):
+                continue  # 从未锚定且名义到期：不再活跃（由 seal/收割裁决）
         active.append(m)
     if len(active) > 1:
         raise WindowAmbiguityError(
@@ -549,13 +887,19 @@ def _cli(argv=None):
                         "self_declared）")
     p_open.add_argument("--capacity-gate", help="T0-10 容量闸（必须 OPEN）")
     p_inv = sub.add_parser("invalidate",
-                           help="作废窗口（可审计记录，不删文件）")
+                           help="作废窗口（单一提交点=W11-06，不删文件）")
     p_inv.add_argument("--root", required=True)
     p_inv.add_argument("--window-id", required=True)
     p_inv.add_argument("--reason", required=True,
                        help="作废原因（入审计记录）")
     p_inv.add_argument("--principal", required=True,
                        help="作废人（入审计记录）")
+    p_inv.add_argument("--expect-manifest-sha256", dest="expect_sha",
+                       help="期望的原 manifest 字节 sha256（不符 → rc3）")
+    p_rep = sub.add_parser(
+        "repair", help="W11-05 锚定修复（最早合格样本补锚；rc0/1/3）")
+    p_rep.add_argument("--root", required=True)
+    p_rep.add_argument("--window-id")
     p_seal = sub.add_parser("seal", help="封口窗口（幂等）")
     p_seal.add_argument("--root", required=True)
     p_seal.add_argument("--window-id", required=True)
@@ -598,9 +942,10 @@ def _cli(argv=None):
                              ensure_ascii=False))
             return 0
         if args.cmd == "invalidate":
-            record = invalidate_window(args.root, args.window_id,
-                                       reason=args.reason,
-                                       principal=args.principal)
+            record = invalidate_window(
+                args.root, args.window_id, reason=args.reason,
+                principal=args.principal,
+                expect_manifest_sha256=args.expect_sha)
             print(json.dumps({"rc": 0,
                               "window_id": record["window_id"],
                               "status": "invalidated",
@@ -615,6 +960,12 @@ def _cli(argv=None):
                                                         args.window_id))},
                              ensure_ascii=False))
             return 0
+        if args.cmd == "repair":
+            result = repair_anchor(args.root, args.window_id)
+            out = dict(result)
+            out["rc"] = int(result.get("rc", 3))
+            print(json.dumps(out, ensure_ascii=False, default=str))
+            return out["rc"]
         if args.cmd == "seal":
             doc = seal_window(args.root, args.window_id)
             print(json.dumps({"rc": 0, "status": doc["status"],
@@ -640,6 +991,12 @@ def _cli(argv=None):
         print(json.dumps({"rc": 3, "refused": "open", "error": str(e)}))
         return 3
     except WindowAmbiguityError as e:
+        print(json.dumps({"rc": 3, "error": str(e)}))
+        return 3
+    except WindowConflictError as e:  # W11-06：参数冲突 → rc1
+        print(json.dumps({"rc": 1, "error": str(e)}))
+        return 1
+    except WindowCorruptError as e:   # W11-06：损坏/hash/symlink → rc3
         print(json.dumps({"rc": 3, "error": str(e)}))
         return 3
     except WindowError as e:

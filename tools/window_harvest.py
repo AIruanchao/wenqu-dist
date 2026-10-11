@@ -40,7 +40,7 @@ import math
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 _TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _TOOLS_DIR not in sys.path:
@@ -63,13 +63,13 @@ def _canonical(obj):
 
 def _scan_samples(root):
     """扫描 samples/：返回 (v2 样本 [(doc, path, name)], legacy 计数,
-    symlink 名单, 损坏计数)。symlink 绝不打开。"""
+    symlink 名单, 不可解析 v2 命名文件名单)。symlink/坏 JSON 绝不打开。"""
     sdir = od.samples_dir(root)
-    v2, symlinks, unparsable, legacy = [], [], 0, 0
+    v2, symlinks, unparsable, legacy = [], [], [], 0
     try:
         names = sorted(os.listdir(sdir))
     except OSError:
-        return v2, 0, symlinks, 0
+        return v2, 0, symlinks, []
     for n in names:
         if not n.endswith(".json"):
             continue
@@ -81,7 +81,8 @@ def _scan_samples(root):
             with open(p, encoding="utf-8") as f:
                 d = json.load(f)
         except (OSError, ValueError):
-            unparsable += 1
+            if re.match(od.NEW_SAMPLE_NAME_RE, n):
+                unparsable.append(n)  # v2 命名却不可解析 → fail-visible
             continue
         if isinstance(d, dict) and d.get("schema") == od.SAMPLE_SCHEMA:
             v2.append((d, p, n))
@@ -91,38 +92,9 @@ def _scan_samples(root):
 
 
 def _requalify(doc, manifest=None):
-    """从 raw 字段重新判定样本合格性（不信 qualified 自报）。
-
-    T2 fail-closed：structural（identity/provenance）之外追加
-    od.qualify_against_window（health/capacity/release·observer 咬合窗口）。
-    返回 (qualified, failures)；failures 即该样本的 unqualified_reasons。"""
-    failures = []
-    identity = (doc.get("repo") or {}).get("identity") \
-        if isinstance(doc.get("repo"), dict) else None
-    if not (isinstance(identity, str) and SHA1_RE.match(identity)):
-        failures.append("identity_invalid")
-    for fld, pat in (("release_sha", SHA1_RE),
-                     ("observer_sha", SHA256_RE),
-                     ("scheduler_config_sha", SHA256_RE),
-                     ("prev_sha256", SHA256_RE),
-                     ("sample_sha256", SHA256_RE)):
-        v = doc.get(fld)
-        if not (isinstance(v, str) and pat.match(v)):
-            failures.append(fld + "_invalid")
-    seq = doc.get("sequence")
-    if not isinstance(seq, int) or isinstance(seq, bool) or seq < 1:
-        failures.append("sequence_invalid")
-    if not isinstance(doc.get("epoch_id"), str) or not doc.get("epoch_id"):
-        failures.append("epoch_id_invalid")
-    w_ok, w_reasons = od.qualify_against_window(doc, manifest)
-    if not w_ok:
-        failures.extend(w_reasons)
-    flagged = doc.get("qualified") is True
-    if not failures and not flagged:
-        failures.append("qualified_flag_inconsistent")
-    if flagged and failures:
-        failures.append("qualified_flag_inconsistent")
-    return (not failures), failures
+    """W11-05：资格重判单一正源=od.qualify_sample_strict（sampler 锚定选择/
+    repair/收割共用；不采信样本自报 qualified）。"""
+    return od.qualify_sample_strict(doc, manifest)
 
 
 def _verify_chain(samples, *, failures):
@@ -178,13 +150,14 @@ def _verify_chain(samples, *, failures):
                                  "file": name})
 
 
-def _coverage(manifest, epoch_samples, *, now_dt=None,
+def _coverage(manifest, qualified_docs, *, now_dt=None,
               bin_minutes=SAMPLE_BIN_MINUTES):
     """T2-C 分桶覆盖重算：5min/bin 预期桶数 vs 实际被【合格】样本覆盖的桶数。
 
-    返回 {"expected_bins", "covered_bins", "ratio", "qualified_in_window",
-    "bin_minutes"}；无法计算（无 t0/无时长）时 ratio=None。仅统计
-    collected_at 落在 [t0, end) 内的桶。"""
+    qualified_docs：锚后窗口样本中经资格重判合格的 doc 列表（W11-05：
+    pre_t0_attempts 不进分母）。返回 {"expected_bins", "covered_bins",
+    "ratio", "qualified_in_window", "bin_minutes"}；无法计算（无 t0/无时长）
+    时 ratio=None。仅统计 collected_at 落在 [t0, end) 内的桶。"""
     t0 = wm.parse_iso(manifest.get("t0") or manifest.get("start_at"))
     end = wm.parse_iso(manifest.get("end_at"))
     try:
@@ -200,9 +173,7 @@ def _coverage(manifest, epoch_samples, *, now_dt=None,
     expected = max(1, math.ceil(span / (bin_minutes * 60.0)))
     covered, in_win = set(), 0
     bin_sec = bin_minutes * 60.0
-    for doc, _p, _n in epoch_samples:
-        if not doc.get("qualified"):
-            continue  # 只有合格样本覆盖分桶
+    for doc in qualified_docs:
         ts = wm.parse_iso(doc.get("collected_at"))
         if ts is None:
             continue
@@ -217,7 +188,12 @@ def _coverage(manifest, epoch_samples, *, now_dt=None,
 
 
 def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
-    """收割一个窗口（默认取最新 manifest）。返回判定 dict（含 rc）。"""
+    """收割一个窗口（默认取最新 manifest）。返回判定 dict（含 rc）。
+
+    W11-05：pre_t0_attempts（锚点前样本）保留审计、严格验链，但不进观察窗
+    分母、不使正式窗口失败；从锚样本开始的任何不合格样本仍使窗口失败；
+    全窗无合格样本到期 → rc1 no_qualified_anchor（T0 死锁收口）。
+    W11-06：effective status（作废事件为唯一提交点）→ rc3。"""
     verdict = {"rc": None, "status": None, "root": root,
                "window_id": window_id, "failures": [], "counts": {},
                "notes": []}
@@ -229,7 +205,7 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
     if not docs:
         verdict.update(rc=3, status="ENV_ERROR",
                        error="no valid window manifest under %s"
-                       % wm.manifest_dir(root),
+                             % wm.manifest_dir(root),
                        manifest_errors=merrors)
         return verdict
     if window_id:
@@ -244,8 +220,14 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
     verdict["window_id"] = manifest.get("window_id")
     verdict["epoch_id"] = manifest.get("epoch_id")
 
-    # T2-D：目标窗已作废 → 证据环境错误（绝不收割作废窗）
-    if manifest.get("status") == "invalidated":
+    # T2-D + W11-06：effective status（事件=唯一提交点；兼容 legacy 已改
+    # manifest 形态；撕裂/篡改 → WindowCorruptError → rc3）
+    try:
+        estatus, _event = wm.effective_status(root, manifest.get("window_id"))
+    except wm.WindowCorruptError as e:
+        verdict.update(rc=3, status="ENV_ERROR", error=str(e))
+        return verdict
+    if estatus == "invalidated":
         verdict.update(rc=3, status="ENV_ERROR",
                        error="window %s invalidated (audit record: %s)"
                              % (manifest.get("window_id"),
@@ -263,13 +245,33 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
                        prerequisite_failures=pfail)
         return verdict
 
-    # 多活跃 manifest = 证据环境歧义（双 writer 风险面）
+    # 多活跃 manifest = 证据环境歧义（双 writer 风险面）；从未锚定且名义
+    # 到期的窗口不再占用活跃位（W11-05）
     now_dt = now or datetime.now(timezone.utc)
     if isinstance(now_dt, (int, float)):
         now_dt = datetime.fromtimestamp(now_dt, tz=timezone.utc)
-    actives = [m for m in docs if m.get("status") == "open"
-               and not (wm.parse_iso(m.get("end_at"))
-                        and now_dt > wm.parse_iso(m.get("end_at")))]
+    actives = []
+    for m in docs:
+        if m.get("status") != "open":
+            continue
+        try:
+            if wm.window_invalidated(root, m["window_id"]):
+                continue
+        except wm.WindowError:
+            pass  # 事件损坏由目标窗收割路径暴露；多活跃判定按 manifest 面
+        end = wm.parse_iso(m.get("end_at"))
+        expired = end is not None and now_dt > end
+        if not expired and end is None and m.get("t0") is None:
+            created = wm.parse_iso(m.get("created_at"))
+            try:
+                dur = float(m.get("duration_hours") or 0.0)
+            except (TypeError, ValueError):
+                dur = 0.0
+            if created is not None and dur > 0 \
+                    and now_dt > created + timedelta(hours=dur):
+                expired = True
+        if not expired:
+            actives.append(m)
     if len(actives) > 1:
         verdict.update(rc=3, status="ENV_ERROR",
                        error="multiple active windows: %s" % [
@@ -279,38 +281,91 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
     samples, legacy, symlinks, unparsable = _scan_samples(root)
     verdict["counts"]["v2_samples_scanned"] = len(samples)
     verdict["counts"]["legacy_ignored"] = legacy  # legacy 不计分母，显式计数
-    verdict["counts"]["unparsable_ignored"] = unparsable
+    verdict["counts"]["unparsable_ignored"] = len(unparsable)
     failures = verdict["failures"]
     for n in symlinks:
         failures.append({"code": "symlink_sample", "file": n})
+    for n in unparsable:  # W11-05：v2 命名坏 JSON 不静默跳过
+        failures.append({"code": "unparsable_sample", "file": n})
 
     epoch_samples = [(d, p, n) for d, p, n in samples
                      if d.get("epoch_id") == manifest.get("epoch_id")]
+    # W11-05：锚点切分——pre_t0_attempts（严格验链、不进分母、不失败窗口）
+    # vs 锚后窗口样本（任何不合格 → 窗口失败）
+    anchor_seq = manifest.get("first_qualified_sequence")
+    anchor_sha = (manifest.get("first_qualified_sample_sha256")
+                  or manifest.get("first_sample_sha256"))
+
+    def _seq_of(doc):
+        seq = doc.get("sequence")
+        return seq if isinstance(seq, int) and not isinstance(seq, bool) else None
+
+    pre_anchor = [s for s in epoch_samples
+                  if anchor_seq is not None and _seq_of(s[0]) is not None
+                  and _seq_of(s[0]) < anchor_seq]
+    window_samples = [s for s in epoch_samples
+                      if anchor_seq is not None and _seq_of(s[0]) is not None
+                      and _seq_of(s[0]) >= anchor_seq]
+    verdict["counts"]["epoch_samples"] = len(epoch_samples)
+    verdict["counts"]["pre_t0_attempts"] = len(pre_anchor)
+
+    # 链重算覆盖全部 epoch 样本（含 pre_t0_attempts——严格验链）
+    _verify_chain(epoch_samples, failures=failures)
+
+    # 资格重判：只对锚后窗口样本（pre_t0_attempts 已在锚定时重判入 manifest
+    # 审计，不进分母、不使窗口失败）
     qualified_n = 0
+    window_qualified_docs = []
     qualification = {
-        "epoch_samples": len(epoch_samples), "qualified_samples": 0,
+        "epoch_samples": len(window_samples), "qualified_samples": 0,
         "unqualified_samples": 0, "qualified_ratio": None,
         "unqualified_reasons": {},
     }
-    for doc, path, name in epoch_samples:
+    for doc, path, name in window_samples:
         ok, qfail = _requalify(doc, manifest)
         if ok:
             qualified_n += 1
+            window_qualified_docs.append(doc)
         else:
             for r in qfail:
                 qualification["unqualified_reasons"][r] = \
                     qualification["unqualified_reasons"].get(r, 0) + 1
             failures.append({"code": "unqualified_sample", "file": name,
                              "unqualified_reasons": qfail})
-    _verify_chain(epoch_samples, failures=failures)
-    verdict["counts"]["epoch_samples"] = len(epoch_samples)
     verdict["counts"]["qualified_samples"] = qualified_n
     qualification["qualified_samples"] = qualified_n
-    qualification["unqualified_samples"] = len(epoch_samples) - qualified_n
-    if epoch_samples:
+    qualification["unqualified_samples"] = len(window_samples) - qualified_n
+    if window_samples:
         qualification["qualified_ratio"] = \
-            round(qualified_n / len(epoch_samples), 6)
+            round(qualified_n / len(window_samples), 6)
     verdict["qualification"] = qualification
+
+    # 锚点一致性：manifest 锚必须与链上样本咬合，且=重算的最早合格样本
+    if anchor_seq is not None and anchor_sha:
+        by_seq = {doc.get("sequence"): doc for doc, _p, _n in epoch_samples}
+        a_doc = by_seq.get(anchor_seq)
+        if a_doc is None:
+            failures.append({"code": "first_sample_mismatch",
+                             "detail": "anchored sequence %s missing from "
+                                       "chain" % anchor_seq})
+        elif a_doc.get("sample_sha256") != anchor_sha:
+            failures.append({"code": "first_sample_mismatch"})
+        else:
+            t0 = wm.parse_iso(manifest.get("t0"))
+            a_at = wm.parse_iso(a_doc.get("collected_at"))
+            if t0 is None or a_at is None or t0 != a_at:
+                failures.append({"code": "first_sample_mismatch",
+                                 "detail": "t0 != anchored sample "
+                                           "collected_at"})
+            earliest = min(
+                (seq for seq, doc2 in by_seq.items()
+                 if od.qualify_sample_strict(doc2, manifest)[0]),
+                default=None)
+            if earliest is not None and earliest != anchor_seq:
+                failures.append({
+                    "code": "anchor_not_earliest_qualified",
+                    "detail": "manifest anchor=%s but earliest qualified=%s"
+                              % (anchor_seq, earliest)})
 
     if failures:
         verdict.update(rc=1, status="WINDOW_FAIL")
@@ -318,30 +373,42 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
 
     end = wm.parse_iso(manifest.get("end_at"))
     if end is None:
-        verdict.update(rc=2, status="NOT_DUE",
-                       note="window open, t0 not yet anchored (no first "
-                            "qualified sample)")
+        # 从未锚定：名义到期（created_at+duration）前 rc2 等待首合格样本；
+        # 到期仍无合格锚 → rc1（W11-05：T0 死锁收口，绝不 NOT_DUE 永挂）
+        created = wm.parse_iso(manifest.get("created_at"))
+        try:
+            dur = float(manifest.get("duration_hours") or 0.0)
+        except (TypeError, ValueError):
+            dur = 0.0
+        nominal = (created + timedelta(hours=dur)) if created else None
+        if nominal is None or now_dt < nominal:
+            verdict.update(rc=2, status="NOT_DUE",
+                           note="window open, t0 not yet anchored (no first "
+                                "qualified sample); pre-anchor attempts=%s"
+                                % len(epoch_samples))
+            return verdict
+        failures.append({"code": "no_samples"
+                         if not epoch_samples else "no_qualified_anchor",
+                         "detail": ("window expired with zero samples"
+                                    if not epoch_samples else
+                                    "window expired without ever anchoring "
+                                    "T0 (no qualified sample; %d attempts)"
+                                    % len(epoch_samples))})
+        verdict.update(rc=1, status="WINDOW_FAIL")
         return verdict
     if now_dt < end:
         verdict.update(rc=2, status="NOT_DUE",
                        note="window still running (end_at=%s)" % end.isoformat())
         return verdict
-    if not epoch_samples:
-        verdict.update(rc=1, status="WINDOW_FAIL")
+    if not window_samples:
         failures.append({"code": "no_samples",
-                         "detail": "window expired with zero samples"})
+                         "detail": "window expired with zero in-window "
+                                   "samples"})
+        verdict.update(rc=1, status="WINDOW_FAIL")
         return verdict
-    first = (manifest.get("first_sample_sha256") or "")
-    if first and epoch_samples:
-        head = next((d for d, _p, _n in epoch_samples
-                     if d.get("sequence") == 1), None)
-        if head is not None and head.get("sample_sha256") != first:
-            failures.append({"code": "first_sample_mismatch"})
-            verdict.update(rc=1, status="WINDOW_FAIL")
-            return verdict
     # T2-C 收割严判：5min 分桶覆盖（legacy 不计分母；counts.legacy_ignored
     # 已显式上报）。覆盖 < 阈值 → rc1 WINDOW_FAIL（绝不 2 样本 rc0）。
-    cov = _coverage(manifest, epoch_samples)
+    cov = _coverage(manifest, window_qualified_docs)
     verdict["coverage"] = cov
     if cov["ratio"] is None or cov["ratio"] < float(min_coverage):
         failures.append({
@@ -355,13 +422,15 @@ def harvest(root, *, window_id=None, now=None, min_coverage=MIN_COVERAGE):
             "ratio": cov["ratio"],
             "threshold": float(min_coverage),
             "legacy_ignored": verdict["counts"]["legacy_ignored"],
+            "pre_t0_attempts": verdict["counts"]["pre_t0_attempts"],
         })
         verdict.update(rc=1, status="WINDOW_FAIL")
         return verdict
     verdict.update(rc=0, status="PASS",
                    note="window complete: chain verified by recomputation; "
-                        "bin coverage %.4f >= %.2f"
-                        % (cov["ratio"], float(min_coverage)))
+                        "bin coverage %.4f >= %.2f; pre_t0_attempts=%d"
+                        % (cov["ratio"], float(min_coverage),
+                           verdict["counts"]["pre_t0_attempts"]))
     return verdict
 
 

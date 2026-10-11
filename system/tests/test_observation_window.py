@@ -42,6 +42,29 @@ F. T2 收紧（R9-OBS-T0-QUALIFICATION-002 / 九轮 §1 硬阻断 2 / §9 P0-2�
    - F4 invalidate 工单：可审计作废记录（invalidated_at+原因+作废人+原窗
      全量+原文件 sha256），不删文件；作废窗收割 rc3；active 释放后可按新
      窗重开；幂等；空 reason/principal 拒绝。
+G. W11-05 首个合格样本的可恢复锚定（R10-OBS-FIRST-QUALIFIED-ANCHOR-002）
+   - seq1 不合格、seq2 合格 → 锚定 seq2（first_qualified_sequence=2）；
+     seq1 记入 pre_t0_attempts（保留审计、严格验链、不进分母、不使窗口失败）；
+   - seq2 落盘后、锚定前崩溃（note_first_sample 失败模拟）→ 下一 tick/repair
+     仍锚 seq2（t0=seq2.collected_at，不漂移到 seq3）；
+   - 伪造 qualified=true（raw 面坏）不被采信；sampler/repair/harvest 共用
+     单一资格判定；
+   - 32 并发只产生一个最早锚；
+   - 坏 JSON/断链/symlink → sampler rc3（绝不静默跳过、绝不扩链）；
+   - repair：0 已锚/补锚/无需修改；1 暂无合格样本；3 坏链或冲突；
+   - seq1 坏但锚后全好 → 到期 rc0 PASS；锚后再坏（seq3）→ rc1 FAIL；
+     全窗无合格样本到期 → rc1 no_qualified_anchor（T0 死锁收口）。
+H. W11-06 invalidate 单一提交点（R10-OBS-INVALIDATE-ATOMICITY-003）
+   - <wid>.invalidated.json 为唯一作废提交点：manifest 原字节保持不动，
+     reader 计算 effective status；发布=临时文件 O_EXCL|O_NOFOLLOW + fsync
+     + 原子 no-overwrite publish + fsync 目录；
+   - failpoint 两态收敛：open 且无 event；或 invalidated 且 event 完整；
+   - 幂等：同 reason/principal rc0；冲突参数 rc1；预置/篡改/symlink/
+     hardlink/event 损坏/hash 不符 → rc3；
+   - legacy 兼容：event+已改 manifest、event+open manifest 均识别为
+     invalidated，旧窗绝不 resume；撕裂态（manifest 已 invalidated 无
+     event）→ rc3；
+   - sample/invalidate 竞态由同一 .window.lock 串行。
 
 纯标准库；`PYTHONPATH=system python3 -m pytest system/tests/ -q -k "observ or window"`
 或 `python3 system/tests/test_observation_window.py`（exit 0=全绿）。
@@ -145,6 +168,38 @@ def _open_valid(td, duration_hours=336.0, **over):
                           prerequisites=_prereqs(**over))
 
 
+def _craft_sample(sdir, epoch_id, window_id, seq, prev_sha, *,
+                  collected_at=None, mutations=None, qualified=False,
+                  reasons=None):
+    """手工造一条链上样本（B 组分叉/G 组伪造已用）——hash 重算咬合。
+    mutations 在 sample_sha256 计算前覆盖任意键（伪造 raw 面）。"""
+    doc = {
+        "schema": od.SAMPLE_SCHEMA, "window": "W10-observation",
+        "window_id": window_id, "epoch_id": epoch_id,
+        "collected_at": collected_at or datetime.now(timezone.utc).isoformat(),
+        "probe_mode": "full", "host": "crafted",
+        "repo": {"path": "/tmp/x", "identity": "a" * 40,
+                 "identity_error": None, "worktree_head": "a" * 40,
+                 "dirty": False},
+        "disk": {"used_pct": 33.0},
+        "legacy_health": {"status": 200, "json": {
+            "target_sha": "b" * 40, "scope_binding": {"mode": "manifest"},
+            "mode": "manifest_aggregation"}},
+        "capacity_gate": {"capacity_gate": "OPEN", "severity": "OK"},
+        "sequence": seq, "prev_sha256": prev_sha,
+        "release_sha": "b" * 40, "observer_sha": od.observer_sha(),
+        "scheduler_config_sha": "c" * 64,
+        "qualified": qualified, "qualify_failures": reasons or [],
+    }
+    for k, val in (mutations or {}).items():
+        doc[k] = val
+    doc["sample_sha256"] = od.compute_sample_sha256(
+        {k: v for k, v in doc.items() if k != "sample_sha256"})
+    res = od.write_sample_exclusive(sdir, doc)
+    assert res["path"], res["error"]
+    return doc
+
+
 def _seal_expired(td, manifest):
     """封口并置 end_at 于过去（收割严判用；从盘上重读防 stale 覆盖 t0）。"""
     man = wm.load_manifest(td, manifest["window_id"])
@@ -211,6 +266,15 @@ def test_32_writers_same_second_immutable(td):
     _ck("A 新命名契约（纳秒+随机）",
         all(re.match(r"^\d{8}T\d{15}-[0-9a-f]{8}\.json$", n) for n in names),
         str(names[:2]))
+    # W11-05：32 并发只产生一个最早锚（seq1，t0=seq1 时刻，history 单条）
+    m = wm.load_manifest(td, wm.active_manifest(td)["window_id"])
+    _ck("A 32 并发恰一个最早锚（锚=seq1）",
+        m["first_qualified_sequence"] == 1
+        and m["first_qualified_sample_sha256"] == by_seq[1]["sample_sha256"]
+        and m["t0"] == by_seq[1]["collected_at"]
+        and len([h for h in m["history"]
+                 if h.get("action") == "first_sample"]) == 1,
+        str((m.get("first_qualified_sequence"), m.get("t0"))))
 
 
 def test_preset_symlink_and_collision_fail_visible(td):
@@ -458,14 +522,19 @@ def test_harvest_four_states(td):
     _ck("C 窗口级 qualification 聚合（全窗合格率 1.0）",
         v.get("qualification", {}).get("qualified_ratio") == 1.0,
         str(v.get("qualification")))
-    # rc1：窗口内失败（不合格样本：identity 缺失）
+    # rc1：窗口内失败（W11-05：锚后不合格样本才使窗口失败）
     _open_valid(td, duration_hours=24.0)
     r = _record(td, identity=None, tag="bad")
     _ck("C identity 缺失样本 qualified=false",
         r["doc"]["qualified"] is False
         and "repo_identity_missing" in r["doc"]["qualify_failures"])
     v = wh.harvest(td)
-    _ck("C 四态·窗口内失败 rc1",
+    _ck("C 未锚定窗坏样本=pre_t0_attempt（不使正式窗口失败，rc2 等待首合格）",
+        v["rc"] == 2 and v["status"] == "NOT_DUE", str(v)[:250])
+    _record(td, tag="good", scheduler_config_sha="c" * 64)   # 锚定 T0
+    _record(td, identity=None, tag="bad2", scheduler_config_sha="c" * 64)
+    v = wh.harvest(td)
+    _ck("C 四态·锚后不合格样本 rc1",
         v["rc"] == 1 and any(f["code"] == "unqualified_sample"
                              for f in v["failures"]), str(v)[:250])
     # rc3：证据环境错误（无 manifest / 根不可读 / manifest 损坏）
@@ -660,10 +729,23 @@ def test_invalid_git_repo_fail_visible(td):
         doc.get("repo", {}).get("fallback_refused") is True)
     _ck("E identity 为 null", doc.get("repo", {}).get("identity") is None)
 
-    # 收割暴露：该窗口 rc1（不合格样本不进合格分母）
-    v = wh.harvest(env["WENQU_OBSERVATION_ROOT"])
-    _ck("E 含 identity 缺失样本的窗口 harvest rc1", v["rc"] == 1,
-        str(v)[:200])
+    # 收割暴露（W11-05：未锚定窗的坏样本=pre_t0_attempt，运行期 rc2 等待
+    # 首合格样本；名义到期仍无合格锚 → rc1 no_qualified_anchor）
+    obs = env["WENQU_OBSERVATION_ROOT"]
+    man = wm.active_manifest(obs)
+    v = wh.harvest(obs)
+    _ck("E 运行期未锚定窗 rc2（坏样本不使窗口失败，等待首合格）",
+        v["rc"] == 2 and v["status"] == "NOT_DUE", str(v)[:200])
+    mpath = wm.manifest_path(obs, man["window_id"])
+    doc = json.load(open(mpath))
+    doc["created_at"] = (datetime.now(timezone.utc)
+                         - timedelta(hours=400)).isoformat()
+    with open(mpath, "w") as f:
+        json.dump(doc, f)
+    v = wh.harvest(obs)
+    _ck("E 名义到期无合格锚 → rc1 no_qualified_anchor（T0 死锁收口）",
+        v["rc"] == 1 and any(f.get("code") == "no_qualified_anchor"
+                             for f in v["failures"]), str(v)[:250])
 
     # 2) probe_repo 单元面：非 git 目录同样拒绝回退
     notgit = os.path.join(td, "not-a-repo")
@@ -841,8 +923,12 @@ def test_open_gate_ten_prerequisites(td):
 def test_bad_health_sample_unqualified(td):
     """F2 资格 fail-closed：health 零SHA/self_declared/BLOCKED/SHA 不咬合
     → qualified=false + unqualified_reasons（红负例2：曾 qualified=true）。
-    窗口级 qualification 聚合（全窗合格率+理由直方图）。"""
+    窗口级 qualification 聚合（全窗合格率+理由直方图）。W11-05 后：先以合格
+    样本锚定，坏样本均为锚后窗口样本（pre_t0_attempt 语义见 G 组）。"""
     _open_valid(td)
+    # 先锚定（W11-05：T0=首条合格样本；锚前样本是 pre_t0_attempt）
+    r0 = _record(td, tag="anchor-good")
+    assert r0["doc"]["qualified"] is True, r0["doc"].get("qualify_failures")
     # 红负例2 现场：health 零 SHA + self_declared + capacity BLOCKED
     r = _record(td, tag="bad-health", health_target="0" * 40,
                 health_scope="self_declared", capacity="BLOCKED")
@@ -852,7 +938,7 @@ def test_bad_health_sample_unqualified(td):
     _ck("F2 unqualified_reasons 显式（零SHA/self_declared/BLOCKED）",
         {"health_target_sha_invalid", "health_scope_self_declared",
          "capacity_blocked"} <= qf, str(sorted(qf)))
-    # 单项坏：target 与 sfinal 不咬合 / release 不咬合 / observer 不咬合
+    # 单项坏：target 与 sfinal 不咬合 / release 不咬合
     r2 = _record(td, tag="h-mismatch", health_target="c" * 40)
     _ck("F2 health target != sfinal → 不合格",
         r2["doc"]["qualified"] is False
@@ -862,7 +948,7 @@ def test_bad_health_sample_unqualified(td):
         r3["doc"]["qualified"] is False
         and "release_sha_window_mismatch" in r3["doc"]["qualify_failures"])
 
-    # 收割：窗1 全部不合格 → rc1 + 逐样本 unqualified_reasons + 窗口聚合
+    # 收割：锚后 3 坏 1 好 → rc1 + 逐样本 unqualified_reasons + 窗口聚合
     v = wh.harvest(td)
     _ck("F2 收割 rc1（fail-closed，曾 NOT_DUE 放行）",
         v["rc"] == 1 and v["status"] == "WINDOW_FAIL", str(v)[:200])
@@ -873,35 +959,45 @@ def test_bad_health_sample_unqualified(td):
             if f.get("code") == "unqualified_sample"),
         str(v["failures"])[:250])
     agg = v.get("qualification", {})
-    _ck("F2 窗口级聚合：全窗合格率=0 + 理由直方图",
-        agg.get("qualified_ratio") == 0.0
+    _ck("F2 窗口级聚合：锚后窗 1好3坏（ratio=0.25）+ 理由直方图",
+        agg.get("qualified_ratio") == 0.25
         and agg.get("unqualified_samples") == 3
         and agg.get("unqualified_reasons", {}).get("capacity_blocked") == 1,
         str(agg))
 
     # 窗2（封口窗1 后开，防多活跃歧义）：observer 与脚本不咬合 → 不合格
+    # （手工造样锚定：record_sample 只会盖真实 observer_sha）
     wm.seal_window(td, v["window_id"])
-    _open_valid(td, observer="9" * 64)
-    r4 = _record(td, tag="obs-mismatch")
-    _ck("F2 observer_sha != 窗口 digests.observer → 不合格",
-        r4["doc"]["qualified"] is False
-        and "observer_sha_window_mismatch" in r4["doc"]["qualify_failures"])
+    m2 = _open_valid(td, observer="9" * 64)
+    sdir = od.samples_dir(td)
+    good9 = _craft_sample(sdir, m2["epoch_id"], m2["window_id"], 1,
+                          od.GENESIS_SHA,
+                          mutations={"observer_sha": "9" * 64},
+                          qualified=True, reasons=[])
+    rep = wm.repair_anchor(td, m2["window_id"])
+    assert rep["rc"] == 0 and rep["status"] in ("anchored", "already_anchored"), rep
+    _craft_sample(sdir, m2["epoch_id"], m2["window_id"], 2,
+                  good9["sample_sha256"],
+                  mutations={"observer_sha": od.observer_sha()},
+                  qualified=False,
+                  reasons=["observer_sha_window_mismatch"])
     v3 = wh.harvest(td)
-    _ck("F2 observer 失配窗收割 rc1 + 直方图",
+    _ck("F2 observer_sha != 窗口 digests.observer → 不合格（收割重判）",
         v3["rc"] == 1 and v3["qualification"]["unqualified_reasons"]
         .get("observer_sha_window_mismatch") == 1,
         str(v3.get("qualification")))
 
-    # 窗3（混合）：1 坏 + 1 好 → 合格率 0.5，好样本仍计数
+    # 窗3（混合）：锚好 + 1 坏 + 1 好 → 合格率 2/3，好样本仍计数
     wm.seal_window(td, v3["window_id"])
     _open_valid(td)
+    _record(td, tag="mix-anchor")
     _record(td, tag="bad2", health_target="0" * 40)
     _record(td, tag="good2")
     v2 = wh.harvest(td)
-    _ck("F2 混合窗合格率聚合=0.5（1/2）",
+    _ck("F2 混合窗合格率聚合=2/3",
         v2["rc"] == 1
-        and v2["qualification"]["qualified_ratio"] == 0.5
-        and v2["qualification"]["qualified_samples"] == 1,
+        and abs(v2["qualification"]["qualified_ratio"] - 2 / 3) < 1e-6
+        and v2["qualification"]["qualified_samples"] == 2,
         str(v2.get("qualification")))
 
 
@@ -953,13 +1049,15 @@ def test_thin_window_harvest_window_fail(td):
 
 
 def test_invalidate_auditable(td):
-    """F4 invalidate 工单：可审计作废记录（不删文件），作废窗收割 rc3，
-    active 释放后可按新窗重开（新 window_id 重新起算）。"""
+    """F4/W11-06 invalidate 单一提交点（R10-OBS-INVALIDATE-ATOMICITY-003）：
+    <wid>.invalidated.json 为唯一作废提交点——manifest 原字节保持不动，
+    reader 计算 effective status；作废窗收割 rc3；active 释放后可按新窗重开。"""
     _open_valid(td, duration_hours=24.0)
     r = _record(td, tag="witness", scheduler_config_sha="c" * 64)
     assert r["rc"] == 0
     wid = r["manifest"]["window_id"]
     mpath = wm.manifest_path(td, wid)
+    ipath = wm.invalidation_path(td, wid)
     orig_sha = _sha(mpath)
 
     # 空 reason/principal 拒绝（CLI rc1）
@@ -971,55 +1069,74 @@ def test_invalidate_auditable(td):
     _ck("F4 CLI 空 reason → rc1", r_bad.returncode == 1, r_bad.stdout[:150])
 
     # 正门作废（CLI）
+    reason = ("R10-OBS-INVALIDATE-ATOMICITY-003: single commit point")
     r_inv = subprocess.run([sys.executable, cli, "invalidate", "--root",
                             str(td), "--window-id", wid,
-                            "--reason", "R9-OBS-T0-QUALIFICATION-002: "
-                            "window opened before ten prerequisites",
-                            "--principal", "t2-remediation"],
+                            "--reason", reason,
+                            "--principal", "w11-remediation"],
                            capture_output=True, text=True, timeout=30)
     _ck("F4 invalidate CLI rc0", r_inv.returncode == 0,
         r_inv.stdout[:200] + r_inv.stderr[:200])
     out = json.loads(r_inv.stdout or "{}")
     _ck("F4 判词含 invalidated_at/原因/作废人/原窗 hash",
         out.get("invalidated_at") and out.get("reason")
-        and out.get("principal") == "t2-remediation"
+        and out.get("principal") == "w11-remediation"
         and re.match(r"^[0-9a-f]{64}$",
                      out.get("original_manifest_sha256", "")),
         r_inv.stdout[:250])
 
-    # 审计记录落盘：原 manifest 全量留档 + 原文件 sha256 + 不删文件
-    ipath = wm.invalidation_path(td, wid)
-    _ck("F4 作废记录文件存在（不删 manifest 原文件）",
-        os.path.exists(ipath) and os.path.exists(mpath))
+    # W11-06 核心：manifest 原字节不动（唯一提交点=事件，不再双写权威文件）
+    _ck("F4 manifest 原字节保持（sha 不变）", _sha(mpath) == orig_sha)
+    man_disk = json.load(open(mpath))
+    _ck("F4 manifest 本体 status 未翻转（effective 由 reader 计算）",
+        man_disk["status"] == "open", str(man_disk.get("status")))
     rec = json.load(open(ipath))
-    _ck("F4 记录 schema/原窗全量/原窗 hash 咬合",
+    _ck("F4 记录 schema/绑定 window+epoch/原窗 hash 咬合",
         rec["schema"] == wm.INVALIDATION_SCHEMA
-        and rec["original_manifest"].get("status") == "open"
-        and rec["original_manifest"].get("window_id") == wid
-        and rec["original_manifest_sha256"] == orig_sha, str(rec)[:200])
-    man = wm.load_manifest(td, wid)
-    _ck("F4 manifest 状态=invalidated + history 追加（principal 在场）",
-        man["status"] == "invalidated"
-        and any(h.get("action") == "invalidate"
-                and h.get("principal") == "t2-remediation"
-                and h.get("original_manifest_sha256") == orig_sha
-                for h in man["history"]), str(man.get("history"))[:200])
+        and rec["window_id"] == wid
+        and rec["epoch_id"] == man_disk["epoch_id"]
+        and rec["original_manifest_sha256"] == orig_sha
+        and rec["original_manifest"].get("window_id") == wid, str(rec)[:200])
 
-    # 作废窗：active 释放；收割 rc3（绝不 PASS）；load_manifests 不误报
-    _ck("F4 作废后 active_manifest=None",
+    # effective status 统一消费：active 释放、收割 rc3、seal 拒绝、绝不 resume
+    _ck("F4 作废后 active_manifest=None（event+open manifest 形态）",
         wm.active_manifest(td) is None)
     v = wh.harvest(td, window_id=wid)
-    _ck("F4 作废窗收割 rc3 ENV_ERROR", v["rc"] == 3
+    _ck("F4 作废窗收割 rc3 ENV_ERROR（fail-closed）", v["rc"] == 3
         and "invalidated" in str(v.get("error", "")), str(v)[:200])
+    try:
+        wm.seal_window(td, wid)
+        sealed = True
+    except wm.WindowError:
+        sealed = False
+    _ck("F4 作废窗拒绝 seal（永不复活）", not sealed)
+    rec_ext = od.record_sample(td, _core(), release_sha="b" * 40,
+                               scheduler_config_sha="c" * 64)
+    _ck("F4 采样器不向作废窗续写（auto-open 无前置 → rc3，绝不 resume 旧窗）",
+        rec_ext["rc"] == 3, str(rec_ext)[:200])
     _ck("F4 list 不被作废记录污染",
         all(d["window_id"] == wid for d in wm.load_manifests(td)[0]))
 
-    # 幂等：重复作废返回既有记录（同 invalidated_at）
-    rec2 = wm.invalidate_window(td, wid, reason="again",
-                                principal="someone-else")
-    _ck("F4 重复 invalidate 幂等（返回原记录）",
+    # 幂等：同参数重复作废 rc0 返回既有记录；不同 reason/principal → rc1 冲突
+    rec2 = wm.invalidate_window(td, wid, reason=reason,
+                                principal="w11-remediation")
+    _ck("F4 同参数重复 invalidate 幂等（返回原记录）",
         rec2["invalidated_at"] == rec["invalidated_at"]
         and rec2["principal"] == rec["principal"])
+    try:
+        wm.invalidate_window(td, wid, reason="different",
+                             principal="other")
+        conflicted = False
+    except wm.WindowConflictError:
+        conflicted = True
+    except wm.WindowError:
+        conflicted = False  # 其它错误类型不算冲突
+    _ck("F4 冲突参数（不同 reason/principal）→ 拒绝", conflicted)
+    r_conf = subprocess.run([sys.executable, cli, "invalidate", "--root",
+                             str(td), "--window-id", wid, "--reason", "x2",
+                             "--principal", "p2"],
+                            capture_output=True, text=True, timeout=30)
+    _ck("F4 CLI 冲突参数 → rc1", r_conf.returncode == 1, r_conf.stdout[:150])
 
     # 作废后可按新窗重开（新 window_id / 新 epoch 重新起算）
     m2 = _open_valid(td, duration_hours=336.0)
@@ -1030,6 +1147,468 @@ def test_invalidate_auditable(td):
         r2["doc"]["qualified"] is True
         and r2["doc"]["window_id"] == m2["window_id"]
         and wm.load_manifest(td, m2["window_id"])["t0"] is not None)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# G. W11-05 首个合格样本的可恢复锚定（R10-OBS-FIRST-QUALIFIED-ANCHOR-002）
+# ══════════════════════════════════════════════════════════════════════
+
+def test_w11_05_anchor_selection_and_recovery(td):
+    """G1 最早合格样本锚定+双路径崩溃恢复+伪造不采信+并发单一锚。"""
+    man = _open_valid(td, duration_hours=336.0)
+    wid = man["window_id"]
+
+    # seq1 不合格 → 不锚定；seq2 合格 → 锚定 seq2（T0 死锁收口）
+    r1 = _record(td, tag="bad1", health_target="0" * 40)
+    _ck("G1 seq1 不合格落盘 rc1（合法但不合格）", r1["rc"] == 1)
+    m = wm.load_manifest(td, wid)
+    _ck("G1 seq1 不合格不锚定 T0（等下一合格样本）",
+        m["t0"] is None and m.get("first_qualified_sequence") is None)
+    r2 = _record(td, tag="good2")
+    _ck("G1 seq2 合格 rc0", r2["rc"] == 0)
+    m = wm.load_manifest(td, wid)
+    _ck("G1 锚定最早合格样本=seq2（first_qualified_sequence=2）",
+        m["t0"] is not None
+        and m["first_qualified_sequence"] == 2
+        and m["first_qualified_sample_sha256"] == r2["doc"]["sample_sha256"]
+        and m["first_sample_sha256"] == r2["doc"]["sample_sha256"])
+    _ck("G1 t0=seq2.collected_at（不漂移到后续样本）",
+        m["t0"] == r2["doc"]["collected_at"])
+    pre = m.get("pre_t0_attempts")
+    _ck("G1 seq1 记入 pre_t0_attempts（审计保留+重判理由）",
+        isinstance(pre, list) and len(pre) == 1
+        and pre[0]["sequence"] == 1
+        and pre[0]["sample_sha256"] == r1["doc"]["sample_sha256"]
+        and pre[0]["unqualified_reasons"], str(pre)[:200])
+
+    # 崩溃恢复·tick 路径：锚字段丢失（样本在、锚无）→ 下一 tick 补锚 seq2
+    mpath = wm.manifest_path(td, wid)
+    doc_m = json.load(open(mpath))
+    for k in ("t0", "start_at", "end_at", "first_sample_sha256",
+              "first_qualified_sequence", "first_qualified_sample_sha256",
+              "pre_t0_attempts"):
+        doc_m[k] = None
+    with open(mpath, "w") as f:
+        json.dump(doc_m, f)
+    r3 = _record(td, tag="good3")
+    m = wm.load_manifest(td, wid)
+    _ck("G1 tick 恢复：补锚 seq2（t0=seq2 时刻，非 seq3）",
+        m["first_qualified_sequence"] == 2
+        and m["t0"] == r2["doc"]["collected_at"]
+        and m["pre_t0_attempts"][0]["sequence"] == 1,
+        str((m.get("first_qualified_sequence"), m.get("t0"))))
+
+    # 崩溃恢复·anchor 提交失败 + repair 正门
+    wm.seal_window(td, wid)
+    man2 = _open_valid(td, duration_hours=336.0)
+    wid2 = man2["window_id"]
+    orig_nfs = wm.note_first_sample
+
+    def _boom(*a, **k):
+        raise wm.WindowError("simulated crash before anchor commit")
+
+    wm.note_first_sample = _boom
+    try:
+        rw = _record(td, tag="crash-before-anchor")
+    finally:
+        wm.note_first_sample = orig_nfs
+    _ck("G1 锚定提交崩溃：合格样本仍落盘 rc0", rw["rc"] == 0)
+    m = wm.load_manifest(td, wid2)
+    _ck("G1 崩溃后 manifest 无锚（等待恢复）",
+        m.get("first_qualified_sequence") is None)
+    cli = os.path.join(TOOLS, "window_manifest.py")
+    r_rep = subprocess.run([sys.executable, cli, "repair", "--root", str(td),
+                            "--window-id", wid2],
+                           capture_output=True, text=True, timeout=30)
+    _ck("G1 repair 补锚 rc0（锚到崩溃前合格样本）", r_rep.returncode == 0,
+        r_rep.stdout[:200] + r_rep.stderr[:200])
+    m = wm.load_manifest(td, wid2)
+    _ck("G1 repair 锚=seq1（t0=崩溃样本时刻）",
+        m["first_qualified_sequence"] == 1
+        and m["t0"] == rw["doc"]["collected_at"])
+    r_rep2 = subprocess.run([sys.executable, cli, "repair", "--root", str(td),
+                             "--window-id", wid2],
+                            capture_output=True, text=True, timeout=30)
+    _ck("G1 repair 幂等（已锚 → rc0）", r_rep2.returncode == 0)
+    r_after = _record(td, tag="after-repair")
+    m = wm.load_manifest(td, wid2)
+    _ck("G1 repair 后续采样不漂移锚（仍 seq1）",
+        r_after["rc"] == 0 and m["first_qualified_sequence"] == 1
+        and m["t0"] == rw["doc"]["collected_at"])
+
+    # repair rc1：暂无合格样本；repair rc3：坏链
+    wm.seal_window(td, wid2)
+    man3 = _open_valid(td, duration_hours=336.0)
+    wid3 = man3["window_id"]
+    rbad = _record(td, tag="no-qualified", health_target="0" * 40)
+    _ck("G1 坏样本窗 repair 前置（rc1 落盘）", rbad["rc"] == 1)
+    r_rep3 = subprocess.run([sys.executable, cli, "repair", "--root", str(td),
+                             "--window-id", wid3],
+                            capture_output=True, text=True, timeout=30)
+    _ck("G1 repair 暂无合格样本 → rc1", r_rep3.returncode == 1,
+        r_rep3.stdout[:150])
+    p_bad = rbad["path"]
+    d_bad = json.load(open(p_bad))
+    d_bad["probe_note"] = "tampered"
+    with open(p_bad, "w") as f:
+        json.dump(d_bad, f)
+    r_rep4 = subprocess.run([sys.executable, cli, "repair", "--root", str(td),
+                             "--window-id", wid3],
+                            capture_output=True, text=True, timeout=30)
+    _ck("G1 repair 坏链（篡改样本）→ rc3", r_rep4.returncode == 3,
+        r_rep4.stdout[:200])
+
+    # 伪造 qualified=true（raw 面坏）不被采信：锚越过伪造样本
+    wm.seal_window(td, wid3)
+    man4 = _open_valid(td, duration_hours=336.0)
+    forged = _craft_sample(
+        od.samples_dir(td), man4["epoch_id"], man4["window_id"], 1,
+        od.GENESIS_SHA,
+        mutations={"legacy_health": {"status": 200, "json": {
+            "target_sha": "0" * 40, "scope_binding": {"mode": "manifest"},
+            "mode": "manifest_aggregation"}}},
+        qualified=True, reasons=[])
+    r_g = _record(td, tag="real-good")
+    m = wm.load_manifest(td, man4["window_id"])
+    _ck("G1 伪造 qualified=true 不被采信（锚=seq2 真合格样本）",
+        m["first_qualified_sequence"] == 2
+        and m["first_qualified_sample_sha256"] == r_g["doc"]["sample_sha256"],
+        str((m.get("first_qualified_sequence"),
+             m.get("first_qualified_sample_sha256"))))
+    _ck("G1 伪造样本在 pre_t0_attempts 中被重判不合格（含理由）",
+        m["pre_t0_attempts"][0]["sequence"] == 1
+        and m["pre_t0_attempts"][0]["qualified"] is False
+        and m["pre_t0_attempts"][0]["unqualified_reasons"],
+        str(m["pre_t0_attempts"])[:250])
+
+    # 8 并发（好坏混合）→ 恰一个最早锚
+    wm.seal_window(td, man4["window_id"])
+    man5 = _open_valid(td, duration_hours=336.0)
+    wid5 = man5["window_id"]
+    results, errors = [], []
+    barrier = threading.Barrier(8)
+
+    def writer(i):
+        try:
+            barrier.wait()
+            if i % 2 == 0:
+                results.append(_record(td, tag=f"w11-{i}",
+                                       health_target="0" * 40))
+            else:
+                results.append(_record(td, tag=f"w11-{i}"))
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"w{i}:{type(e).__name__}:{e}")
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=60)
+    _ck("G1 8 并发零异常", not errors, str(errors[:3]))
+    sdir = od.samples_dir(td)
+    seq_map = {}
+    for n in os.listdir(sdir):
+        if not re.match(od.NEW_SAMPLE_NAME_RE, n):
+            continue
+        d = json.load(open(os.path.join(sdir, n)))
+        if d.get("epoch_id") == man5["epoch_id"]:
+            seq_map[d["sequence"]] = d
+    good_seqs = sorted(s for s, d in seq_map.items() if d["qualified"] is True)
+    m = wm.load_manifest(td, wid5)
+    earliest = min(good_seqs)
+    _ck("G1 并发锚=最早合格 sequence（%d）" % earliest,
+        m["first_qualified_sequence"] == earliest
+        and m["first_qualified_sample_sha256"]
+        == seq_map[earliest]["sample_sha256"]
+        and m["t0"] == seq_map[earliest]["collected_at"])
+    _ck("G1 并发恰一次锚提交（history 单条 first_sample）",
+        len([h for h in m["history"] if h.get("action") == "first_sample"]) == 1)
+    _ck("G1 并发 pre_t0_attempts 全部严格早于锚且重判不合格",
+        all(a["sequence"] < earliest and a["qualified"] is False
+            for a in m["pre_t0_attempts"])
+        and len(m["pre_t0_attempts"]) == earliest - 1,
+        str(m["pre_t0_attempts"])[:250])
+
+
+def test_w11_05_window_verdicts_and_chain_fail_visible(td):
+    """G2 四态收割 × pre_t0_attempts 兼容 + 坏链 fail-visible（sampler rc3
+    不扩链）。"""
+    # 窗A：seq1 坏（pre-anchor）→ seq2 好（锚）→ seq3 好；到期 → rc0 PASS
+    manA = _open_valid(td, duration_hours=0.05)
+    _record(td, tag="a1", health_target="0" * 40)
+    r2 = _record(td, tag="a2")
+    _record(td, tag="a3")
+    m = wm.load_manifest(td, manA["window_id"])
+    _ck("G2 窗A 锚=seq2（seq1 为 pre_t0_attempt）",
+        m["first_qualified_sequence"] == 2
+        and m["t0"] == r2["doc"]["collected_at"])
+    _seal_expired(td, manA)
+    v = wh.harvest(td, window_id=manA["window_id"])
+    _ck("G2 窗A：seq1 坏但锚后全好 → 到期 rc0 PASS",
+        v["rc"] == 0 and v["status"] == "PASS", str(v)[:300])
+    _ck("G2 窗A counts：pre_t0_attempts=1 不进分母、锚后合格=2",
+        v["counts"].get("pre_t0_attempts") == 1
+        and v["counts"]["qualified_samples"] == 2
+        and v["qualification"]["qualified_ratio"] == 1.0,
+        str((v.get("counts"), v.get("qualification"))))
+
+    # 窗B：seq1 坏 → seq2 好（锚）→ seq3 坏；到期 → rc1（锚后失败）
+    manB = _open_valid(td, duration_hours=0.05)
+    _record(td, tag="b1", health_target="0" * 40)
+    _record(td, tag="b2")
+    _record(td, tag="b3", health_target="0" * 40)
+    _seal_expired(td, manB)
+    v = wh.harvest(td, window_id=manB["window_id"])
+    _ck("G2 窗B：锚后 seq3 坏 → 到期 rc1（unqualified_sample）",
+        v["rc"] == 1 and any(f["code"] == "unqualified_sample"
+                             for f in v["failures"])
+        and v["counts"].get("pre_t0_attempts") == 1, str(v)[:250])
+
+    # 窗C：全窗无合格样本：运行期 rc2；名义到期 → rc1 no_qualified_anchor
+    manC = _open_valid(td, duration_hours=0.05)
+    _record(td, tag="c1", health_target="0" * 40)
+    v = wh.harvest(td, window_id=manC["window_id"])
+    _ck("G2 窗C 运行期 rc2（等待首合格，T0 不再死锁）",
+        v["rc"] == 2 and v["status"] == "NOT_DUE", str(v)[:200])
+    mpath = wm.manifest_path(td, manC["window_id"])
+    dm = json.load(open(mpath))
+    dm["created_at"] = (datetime.now(timezone.utc)
+                        - timedelta(hours=1)).isoformat()
+    with open(mpath, "w") as f:
+        json.dump(dm, f)
+    v = wh.harvest(td, window_id=manC["window_id"])
+    _ck("G2 窗C 名义到期无合格锚 → rc1 no_qualified_anchor",
+        v["rc"] == 1 and any(f.get("code") == "no_qualified_anchor"
+                             for f in v["failures"]), str(v)[:250])
+    wm.seal_window(td, manC["window_id"])
+
+    # 坏链 fail-visible：sampler rc3、不扩链（断链/symlink/坏 JSON）
+    manD = _open_valid(td, duration_hours=24.0)
+    rd = _record(td, tag="d1")
+    assert rd["rc"] == 0
+    sdir = od.samples_dir(td)
+    p1 = rd["path"]
+    orig_bytes = open(p1, "rb").read()
+
+    def _v2_files():
+        return [n for n in os.listdir(sdir)
+                if re.match(od.NEW_SAMPLE_NAME_RE, n)]
+
+    n0 = len(_v2_files())
+    d_t = json.loads(orig_bytes)
+    d_t["probe_note"] = "tampered"
+    with open(p1, "w") as f:
+        json.dump(d_t, f)
+    r_t = _record(td, tag="d2")
+    _ck("G2 断链（篡改→hash 失配）→ sampler rc3 且不扩链",
+        r_t["rc"] == 3 and any(f.get("code") == "sample_hash_mismatch"
+                               for f in r_t.get("chain_failures", []))
+        and len(_v2_files()) == n0, str(r_t)[:250])
+    with open(p1, "wb") as f:
+        f.write(orig_bytes)
+    os.remove(p1)
+    os.symlink(os.path.join(td, "bait-g2"), p1)
+    r_s = _record(td, tag="d3")
+    _ck("G2 symlink 样本 → sampler rc3（绝不跟随/静默跳过）",
+        r_s["rc"] == 3 and any(f.get("code") == "symlink_sample"
+                               for f in r_s.get("chain_failures", [])),
+        str(r_s)[:250])
+    os.remove(p1)
+    with open(p1, "wb") as f:
+        f.write(orig_bytes)
+    bad = os.path.join(sdir, od.gen_sample_name())
+    with open(bad, "w") as f:
+        f.write("{not json")
+    r_j = _record(td, tag="d4")
+    _ck("G2 坏 JSON 样本文件 → sampler rc3（不静默跳过）",
+        r_j["rc"] == 3 and any(f.get("code") == "unparsable_sample"
+                               for f in r_j.get("chain_failures", [])),
+        str(r_j)[:250])
+    os.remove(bad)
+    r_ok = _record(td, tag="d5")
+    _ck("G2 链修复后 sampler 恢复 rc0（可恢复路径）",
+        r_ok["rc"] == 0, str(r_ok)[:200])
+
+
+# ══════════════════════════════════════════════════════════════════════
+# H. W11-06 invalidate 单一提交点（R10-OBS-INVALIDATE-ATOMICITY-003）
+# ══════════════════════════════════════════════════════════════════════
+
+def test_w11_06_invalidate_failpoints_and_legacy(td):
+    """H failpoint 两态收敛 + 预置/篡改/symlink/hardlink rc3 + legacy 兼容
+    + 撕裂态 rc3 + sample/invalidate 同锁串行。"""
+    cli = os.path.join(TOOLS, "window_manifest.py")
+    py = sys.executable
+
+    # ① failpoint：发布中途崩溃（临时文件已写、未 publish）→ 仅 open 态
+    man1 = _open_valid(td, duration_hours=24.0)
+    _record(td, tag="fp1", scheduler_config_sha="c" * 64)
+    wid1 = man1["window_id"]
+    leftover = os.path.join(wm.manifest_dir(td), ".tmp-inval-crashsim.tmp")
+    with open(leftover, "w") as f:
+        f.write('{"partial": true}')
+    _ck("H 中途崩溃（temp 残留、无 event）→ 窗口仍 open 可用",
+        wm.active_manifest(td)["window_id"] == wid1
+        and not os.path.exists(wm.invalidation_path(td, wid1)))
+    r1 = subprocess.run([py, cli, "invalidate", "--root", str(td),
+                         "--window-id", wid1, "--reason", "fp",
+                         "--principal", "w11"],
+                        capture_output=True, text=True, timeout=30)
+    _ck("H 崩溃残留不阻碍正式作废（rc0，两态收敛）", r1.returncode == 0,
+        r1.stdout[:150])
+    ev1 = json.load(open(wm.invalidation_path(td, wid1)))
+    _ck("H event 完整（绑定 window/epoch/reason/principal/原窗 hash）",
+        ev1["schema"] == wm.INVALIDATION_SCHEMA
+        and ev1["window_id"] == wid1 and ev1["epoch_id"] == man1["epoch_id"]
+        and ev1["reason"] == "fp" and ev1["principal"] == "w11"
+        and re.match(r"^[0-9a-f]{64}$", ev1["original_manifest_sha256"]))
+    _ck("H 作废后 active 释放", wm.active_manifest(td) is None)
+
+    # ② 预置/篡改/symlink/hardlink → 一律 rc3（不留半提交态）
+    adversarial = []
+    for kind in ("preset-garbage", "preset-symlink", "preset-hardlink",
+                 "tampered-hash"):
+        mw = _open_valid(td, duration_hours=24.0)
+        foreign = os.path.join(td, "foreign-%s.json" % kind)
+        with open(foreign, "w") as f:
+            json.dump({"hello": "world"}, f)
+        ip = wm.invalidation_path(td, mw["window_id"])
+        if kind == "preset-garbage":
+            with open(ip, "w") as f:
+                f.write("{not json")
+        elif kind == "preset-symlink":
+            os.symlink(foreign, ip)
+        elif kind == "preset-hardlink":
+            os.link(foreign, ip)
+        else:
+            forged_ev = {"schema": wm.INVALIDATION_SCHEMA,
+                         "window_id": mw["window_id"],
+                         "epoch_id": mw["epoch_id"],
+                         "invalidated_at": "2026-10-11T00:00:00+00:00",
+                         "reason": "legit", "principal": "ops",
+                         "original_manifest_sha256": "0" * 64,
+                         "original_manifest": {}}
+            with open(ip, "w") as f:
+                json.dump(forged_ev, f)
+        rr = subprocess.run([py, cli, "invalidate", "--root", str(td),
+                             "--window-id", mw["window_id"],
+                             "--reason", "legit", "--principal", "ops"],
+                            capture_output=True, text=True, timeout=30)
+        adversarial.append((kind, rr.returncode, mw["window_id"]))
+    codes = {k: rc for k, rc, _ in adversarial}
+    _ck("H 预置垃圾内容 → rc3", codes["preset-garbage"] == 3)
+    _ck("H 预置 symlink → rc3", codes["preset-symlink"] == 3)
+    _ck("H 预置 hardlink → rc3", codes["preset-hardlink"] == 3)
+    _ck("H 篡改 event（hash 不咬合）→ rc3", codes["tampered-hash"] == 3)
+    # 篡改窗收割 fail-closed（binding 校验）
+    wid_tam = next(w for k, _rc, w in adversarial if k == "tampered-hash")
+    v_tam = wh.harvest(td, window_id=wid_tam)
+    _ck("H 篡改 event 的窗收割 rc3（fail-closed）", v_tam["rc"] == 3,
+        str(v_tam)[:200])
+    # 清理：移除对抗文件后正门作废成功（证明 rc3 未留半提交态）
+    for kind, _rc, w in adversarial:
+        ip = wm.invalidation_path(td, w)
+        if os.path.lexists(ip):
+            os.remove(ip)
+        rr = subprocess.run([py, cli, "invalidate", "--root", str(td),
+                             "--window-id", w, "--reason", "cleanup",
+                             "--principal", "w11"],
+                            capture_output=True, text=True, timeout=30)
+        assert rr.returncode == 0, (kind, rr.stdout[:200])
+    _ck("H 对抗面清理后全部可正门作废（无半提交残留）",
+        wm.active_manifest(td) is None)
+
+    # ③ legacy 兼容形态一：event + 已改 manifest（旧 writer 完成态）
+    manL = _open_valid(td, duration_hours=24.0)
+    _record(td, tag="legacy", scheduler_config_sha="c" * 64)
+    widL = manL["window_id"]
+    mpathL = wm.manifest_path(td, widL)
+    rawL = open(mpathL, "rb").read()
+    shaL = hashlib.sha256(rawL).hexdigest()
+    docL = json.loads(rawL)
+    evL = {"schema": wm.INVALIDATION_SCHEMA, "window_id": widL,
+           "epoch_id": docL["epoch_id"],
+           "invalidated_at": "2026-10-10T00:00:00+00:00",
+           "reason": "legacy-migration", "principal": "old-writer",
+           "original_manifest_sha256": shaL, "original_manifest": docL}
+    with open(wm.invalidation_path(td, widL), "w") as f:
+        json.dump(evL, f)
+    docL["status"] = "invalidated"
+    docL["history"] = docL.get("history", []) + [
+        {"action": "invalidate", "at": "2026-10-10T00:00:00+00:00"}]
+    with open(mpathL, "w") as f:
+        json.dump(docL, f)
+    _ck("H legacy event+已改 manifest → effective invalidated（active 释放）",
+        wm.active_manifest(td) is None)
+    vL = wh.harvest(td, window_id=widL)
+    _ck("H legacy 作废窗收割 rc3（绝不 resume 旧窗）",
+        vL["rc"] == 3 and "invalidated" in str(vL.get("error", "")),
+        str(vL)[:200])
+    recL = wm.invalidate_window(td, widL, reason="legacy-migration",
+                                principal="old-writer")
+    _ck("H legacy 事件同参数 → 幂等返回原记录（rc0 语义）",
+        recL["invalidated_at"] == evL["invalidated_at"])
+
+    # ④ 撕裂态：manifest 已 invalidated 但无 event（旧 bug 现场）→ rc3
+    manT = _open_valid(td, duration_hours=24.0)
+    _record(td, tag="torn", scheduler_config_sha="c" * 64)
+    widT = manT["window_id"]
+    dT = json.load(open(wm.manifest_path(td, widT)))
+    dT["status"] = "invalidated"
+    with open(wm.manifest_path(td, widT), "w") as f:
+        json.dump(dT, f)
+    vT = wh.harvest(td, window_id=widT)
+    _ck("H 撕裂态（invalidated 无 event）收割 rc3", vT["rc"] == 3,
+        str(vT)[:200])
+    rT = subprocess.run([py, cli, "invalidate", "--root", str(td),
+                         "--window-id", widT, "--reason", "r",
+                         "--principal", "p"],
+                        capture_output=True, text=True, timeout=30)
+    _ck("H 撕裂态 invalidate → rc3（绝不静默补写）", rT.returncode == 3,
+        rT.stdout[:150])
+
+    # ⑤ sample/invalidate 竞态：同一 .window.lock 串行（无撕裂态）
+    manR = _open_valid(td, duration_hours=24.0)
+    _record(td, tag="race-anchor", scheduler_config_sha="c" * 64)
+    widR = manR["window_id"]
+    sdir = od.samples_dir(td)
+    n_before = len([n for n in os.listdir(sdir)
+                    if re.match(od.NEW_SAMPLE_NAME_RE, n)])
+    barrier = threading.Barrier(2)
+    outcomes = []
+
+    def _inv():
+        barrier.wait()
+        try:
+            wm.invalidate_window(td, widR, reason="race", principal="w11")
+            outcomes.append(("invalidate", 0))
+        except wm.WindowError as e:
+            outcomes.append(("invalidate", type(e).__name__))
+
+    def _samp():
+        barrier.wait()
+        r = od.record_sample(td, _core(tag="race"), release_sha="b" * 40,
+                             scheduler_config_sha="c" * 64)
+        outcomes.append(("sample", r["rc"]))
+
+    ts = [threading.Thread(target=_inv), threading.Thread(target=_samp)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(timeout=60)
+    evR = wm.load_event(td, widR)
+    _ck("H 竞态后 event 完整且为唯一提交点",
+        evR is not None and evR["reason"] == "race"
+        and wm.active_manifest(td) is None)
+    n_after = len([n for n in os.listdir(sdir)
+                   if re.match(od.NEW_SAMPLE_NAME_RE, n)])
+    sample_rc = next(o[1] for o in outcomes if o[0] == "sample")
+    if n_after == n_before + 1:
+        _ck("H 竞态序A：样本先入旧窗随后作废（sample rc0 + invalidate rc0）",
+            sample_rc == 0)
+    else:
+        _ck("H 竞态序B：作废先落地，采样拒绝复活旧窗（sample rc3 不写样）",
+            sample_rc == 3 and n_after == n_before)
 
 
 def _run_all():
