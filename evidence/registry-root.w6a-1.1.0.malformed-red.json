@@ -1,0 +1,450 @@
+{
+ "snapshot_kind": "wenqu/station-registry-snapshot",
+ "registry_version": "w6a-1.1.0",
+ "stations": {
+  "0": {
+   "station_id": 0,
+   "name": "范围冻结",
+   "slug": "scope_freeze",
+   "entry": "freeze_run_manifest()（对齐 `wenqu init` 的 sha256 范围哈希语义；commit SHA/环境/定级理由由 manifest 落账）",
+   "coverage_denominator": "scope 冻结清单内路径数（denominator=len(paths)）",
+   "tools": [
+    "wenqu_core.bugscan_orchestrator.freeze_run_manifest"
+   ],
+   "rules": [
+    "W6A-ST0",
+    "规范§1-站0"
+   ],
+   "criteria": {
+    "pass": [
+     "范围分母齐全",
+     "身份三源一致（commit SHA/环境/范围哈希）"
+    ],
+    "fail": [
+     "范围分母缺失",
+     "身份三源不一致"
+    ],
+    "error": [
+     "指",
+     "纹",
+     "计",
+     "算",
+     "失",
+     "败",
+     "（",
+     "g",
+     "i",
+     "t",
+     " ",
+     "不",
+     "可",
+     "用",
+     "/",
+     "哈",
+     "希",
+     "异",
+     "常",
+     "）"
+    ]
+   },
+   "evidence_class": "general",
+   "ttl_days": 30,
+   "notes": []
+  },
+  "1": {
+   "station_id": 1,
+   "name": "源闸",
+   "slug": "source_gate",
+   "entry": "SourceGateAdapter（消费仓 CI 快速门的 exact-SHA 结果，不自行判定）",
+   "coverage_denominator": "CI 快速门组件数（lint/typecheck/unit/守卫棘轮等）",
+   "tools": [
+    "ci-fast.yml",
+    "iron-gate.sh"
+   ],
+   "rules": [
+    "W6A-ST1",
+    "规范§1-站1",
+    "退出码契约=wenqu-vNext-contract§7"
+   ],
+   "criteria": {
+    "pass": [
+     "全绿",
+     "棘轮不升"
+    ],
+    "fail": [
+     "任一门红",
+     "棘轮回退或异常升级"
+    ],
+    "error": [
+     "工",
+     "具",
+     "缺",
+     "失",
+     "/",
+     "超",
+     "时",
+     "/",
+     "环",
+     "境",
+     "错",
+     "（",
+     "e",
+     "x",
+     "i",
+     "t",
+     " ",
+     "2",
+     "/",
+     "3",
+     "/",
+     "1",
+     "2",
+     "4",
+     "）"
+    ]
+   },
+   "evidence_class": "general",
+   "ttl_days": 30,
+   "notes": []
+  },
+  "2": {
+   "station_id": 2,
+   "name": "静态与供应链",
+   "slug": "static_supply",
+   "entry": "`wenqu run <station>`（内置 py-static/sh-static/tests/supply + 域探测器）",
+   "coverage_denominator": "scope 内可扫文件数（按语言分母）",
+   "tools": [
+    "wenqu run py-static",
+    "wenqu run sh-static",
+    "wenqu run tests",
+    "wenqu run supply",
+    "stations.json 域探测器",
+    "克隆检测",
+    "CVE 审计"
+   ],
+   "rules": [
+    "W6A-ST2",
+    "规范§1-站2",
+    "探测器 rc 契约：exit1=命中落账/exit≥2=环境错"
+   ],
+   "criteria": {
+    "pass": [
+     "克隆≤基线",
+     "CVE 零 HIGH+",
+     "探测器零 FAIL"
+    ],
+    "fail": [
+     "任一探测器命中（自动落账 OPEN）",
+     "CVE HIGH+",
+     "克隆超基线"
+    ],
+    "error": [
+     "探",
+     "测",
+     "器",
+     " ",
+     "e",
+     "x",
+     "i",
+     "t",
+     "≥",
+     "2",
+     " ",
+     "环",
+     "境",
+     "错",
+     "（",
+     "不",
+     "落",
+     "账",
+     "不",
+     "计",
+     "通",
+     "过",
+     "）"
+    ]
+   },
+   "evidence_class": "permission_vulnerability",
+   "ttl_days": 7,
+   "notes": []
+  },
+  "3": {
+   "station_id": 3,
+   "name": "契约与数据",
+   "slug": "contract_data",
+   "entry": "按栈选件：API 契约对账 / 权限矩阵 / schema 漂移",
+   "coverage_denominator": "对外端点×用例矩阵（正例+负例）数",
+   "tools": [
+    "API 契约对账",
+    "权限矩阵",
+    "schema 漂移检测"
+   ],
+   "rules": [
+    "W6A-ST3",
+    "规范§1-站3"
+   ],
+   "criteria": {
+    "pass": [
+     "无未归属端点",
+     "负例全拦+正例全通",
+     "漂移全部在白名单"
+    ],
+    "fail": [
+     "存在未归属端点",
+     "负例放行或正例未通",
+     "漂移未白名单"
+    ],
+    "error": [
+     "对",
+     "账",
+     "件",
+     "不",
+     "可",
+     "用",
+     "/",
+     "依",
+     "赖",
+     "服",
+     "务",
+     "未",
+     "起"
+    ]
+   },
+   "evidence_class": "permission_vulnerability",
+   "ttl_days": 7,
+   "notes": []
+  },
+  "4": {
+   "station_id": 4,
+   "name": "行为面",
+   "slug": "behavior",
+   "entry": "e2e 套件 + 浏览器抽检",
+   "coverage_denominator": "e2e 测试点数",
+   "tools": [
+    "e2e 套件",
+    "浏览器抽检"
+   ],
+   "rules": [
+    "W6A-ST4",
+    "规范§1-站4"
+   ],
+   "criteria": {
+    "pass": [
+     "套件全绿",
+     "每测试点有已看证据"
+    ],
+    "fail": [
+     "任一 e2e 红",
+     "证据缺失"
+    ],
+    "error": [
+     "环",
+     "境",
+     "起",
+     "不",
+     "来",
+     "/",
+     "驱",
+     "动",
+     "缺",
+     "失"
+    ]
+   },
+   "evidence_class": "general",
+   "ttl_days": 30,
+   "notes": []
+  },
+  "5": {
+   "station_id": 5,
+   "name": "实弹面",
+   "slug": "live_fire",
+   "entry": "真实业务流全链操作（生产写须所有者明确口令——一次性 exact-scope 授权）",
+   "coverage_denominator": "业务流断言点数",
+   "tools": [
+    "wenqu_core.station5_live_fire",
+    "真实业务流全链操作"
+   ],
+   "rules": [
+    "W6A-ST5",
+    "规范§1-站5",
+    "停等类型=prod-write/fund-auth"
+   ],
+   "criteria": {
+    "pass": [
+     "状态断言全 PASS",
+     "数据回基线"
+    ],
+    "fail": [
+     "状态断言失败",
+     "数据未回基线"
+    ],
+    "error": [
+     "生",
+     "产",
+     "写",
+     "授",
+     "权",
+     "缺",
+     "失",
+     "（",
+     "B",
+     "L",
+     "O",
+     "C",
+     "K",
+     "E",
+     "D",
+     "，",
+     "不",
+     "算",
+     "通",
+     "过",
+     "）"
+    ]
+   },
+   "evidence_class": "general",
+   "ttl_days": 30,
+   "notes": [
+    "不在任何自动档 required 集内——必须显式授权后加入",
+    "最小真实扫描器=wenqu_core.station5_live_fire（w6a-1.1.0 起：授权五要素+exact-scope+日落执法+前后状态/幂等/守恒/补偿/回基线证据面真实判定；取代 station7_runtime 占位接口）"
+   ]
+  },
+  "6": {
+   "station_id": 6,
+   "name": "对抗面",
+   "slug": "adversarial",
+   "entry": "`wenqu charter` 发射反方评审（异构端点优先）+ `wenqu ingest` 回收产物",
+   "coverage_denominator": "对抗轴问题数（每轴必问）",
+   "tools": [
+    "wenqu_core.station6_adversarial",
+    "wenqu charter",
+    "wenqu ingest"
+   ],
+   "rules": [
+    "W6A-ST6",
+    "规范§1-站6",
+    "二审定律：零发现结论须 ≥2 独立上下文"
+   ],
+   "criteria": {
+    "pass": [
+     "每轴必问全覆盖",
+     "零发现结论出自 ≥2 独立上下文"
+    ],
+    "fail": [
+     "轴覆盖缺失",
+     "单上下文零发现声明"
+    ],
+    "error": [
+     "异",
+     "源",
+     "端",
+     "点",
+     "宕",
+     "机",
+     "（",
+     "降",
+     "级",
+     "须",
+     "登",
+     "记",
+     "豁",
+     "免",
+     "，",
+     "恢",
+     "复",
+     "后",
+     "补",
+     "一",
+     "次",
+     "异",
+     "源",
+     "审",
+     "）"
+    ]
+   },
+   "evidence_class": "permission_vulnerability",
+   "ttl_days": 7,
+   "notes": [
+    "上游 charter 模板内嵌 wsl.exe 探测命令——跨平台使用须改本机等价只读探测",
+    "最小真实扫描器=wenqu_core.station6_adversarial（w6a-1.1.0 起：登记完整性/每轴必问/二审定律独立性（同源换标签只计一）/TTL 日落合规真实判定；取代 station7_runtime 占位接口）"
+   ]
+  },
+  "7": {
+   "station_id": 7,
+   "name": "运行时",
+   "slug": "runtime",
+   "entry": "常驻哨兵/探针/告警链（不参与收敛声明，事件回流站6）",
+   "coverage_denominator": "哨兵×探针检查项数",
+   "tools": [
+    "常驻哨兵",
+    "探针",
+    "告警链"
+   ],
+   "rules": [
+    "W6A-ST7",
+    "规范§1-站7"
+   ],
+   "criteria": {
+    "pass": [
+     "哨兵活着",
+     "真的会叫（告警链实测）"
+    ],
+    "fail": [
+     "哨兵死",
+     "告警链断"
+    ],
+    "error": [
+     "探",
+     "针",
+     "不",
+     "可",
+     "用"
+    ]
+   },
+   "evidence_class": "general",
+   "ttl_days": 30,
+   "notes": [
+    "INCIDENT 档 required；不参与收敛声明"
+   ]
+  }
+ },
+ "lane_required_stations": {
+  "FAST": [
+   0,
+   1
+  ],
+  "STANDARD": [
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  "INCIDENT": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   6,
+   7
+  ]
+ },
+ "lane_convergence_rounds": {
+  "FAST": 1,
+  "STANDARD": 2,
+  "INCIDENT": 3
+ },
+ "downgrade_floor_stations": [
+  0,
+  1
+ ],
+ "required_scope_globs": [
+  "src/**",
+  "tests/**",
+  "tools/**"
+ ],
+ "registry_digest": "3027e7c7fbf85ad307e4170b3ef13acf69b8b0f3dc132c7f4d9d34415fc3987f",
+ "key_id": "key_registry_w10",
+ "signature": "8e3b6feff4915ed0e167ddac574222055682c4548dcbcf35455a6ddd596774cd"
+}

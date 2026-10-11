@@ -310,7 +310,7 @@ def test_ST5_06_registry_wire_real_scanner_not_placeholder():
     spec = default_registry().get(5)
     assert spec.slug == "live_fire" and spec.station_id == 5
     assert "wenqu_core.station5_live_fire" in spec.tools, spec.tools
-    assert REGISTRY_VERSION == "w6a-1.1.0", REGISTRY_VERSION
+    assert REGISTRY_VERSION == "w6a-1.2.0", REGISTRY_VERSION
     default_registry().validate()  # 判据三态/TTL 双上限一致性
     # 占位对照：station7_runtime 的占位类与真实扫描器并存，但注册表只认真实件
     from wenqu_core.station7_runtime import Station5LiveFirePlaceholder
@@ -603,7 +603,7 @@ def test_ST56_07_orchestrator_selftest_covers_real_stations():
     assert "SELF-TEST PASS" in out
     assert "station-5 live-fire real scan OK" in out, out
     assert "station-6 adversarial real scan OK" in out, out
-    assert "registry w6a-1.1.0" in out  # 注册表版本已随工具槽变更递增
+    assert "registry w6a-1.2.0" in out  # 版本随工具槽/判据变更递增（W11-04）
 
 
 # ---------------------------------------------------------------------------

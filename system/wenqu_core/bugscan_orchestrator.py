@@ -98,6 +98,9 @@ __all__ = [
     "StationSpec",
     "StationCriteria",
     "StationRegistry",
+    "CRITERIA_STATE_KEYS",
+    "CriteriaValueError",
+    "validate_criteria_mapping",
     "RiskAcceptance",
     "BugscanPlan",
     "BugscanPlanner",
@@ -157,7 +160,7 @@ __version__ = "1.1.0"
 SCHEMA_VERSION = "2.0"
 
 #: 注册表版本——站定义/判据/TTL 任何变更必须递增并同步 schemas/ 与规范文档。
-REGISTRY_VERSION = "w6a-1.1.0"
+REGISTRY_VERSION = "w6a-1.2.0"
 
 LANE_FAST = "FAST"
 LANE_STANDARD = "STANDARD"
@@ -397,20 +400,127 @@ def _hash_or_digest(value: Any, *, what: str, required: bool = True) -> Optional
 # StationRegistry——版本化八站注册表（Codex W6A §7.1）
 # ---------------------------------------------------------------------------
 
+#: 判据三态键（canonical 序）——criteria 映射的键集必须与之完全相等。
+CRITERIA_STATE_KEYS: Tuple[str, ...] = ("pass", "fail", "error")
+#: 每态判据条数上下界（W11-04：1..16 条）。
+CRITERIA_MIN_ITEMS = 1
+CRITERIA_MAX_ITEMS = 16
+#: 单条判据文本长度上下界（W11-04：2..512 字符；单字符=拆分畸形）。
+CRITERIA_ITEM_MIN_CHARS = 2
+CRITERIA_ITEM_MAX_CHARS = 512
+
+
+class CriteriaValueError(ValueError):
+    """判据语义违规——W11-04 共享 criteria validator 的统一拒绝类型。"""
+
+
+def _criteria_item_ok(item: Any) -> bool:
+    """单条判据合法性：str、2..512 字符、无首尾/纯空白、无控制字符。"""
+    if not isinstance(item, str):
+        return False
+    if not CRITERIA_ITEM_MIN_CHARS <= len(item) <= CRITERIA_ITEM_MAX_CHARS:
+        return False
+    if item != item.strip() or not item.strip():
+        return False
+    for ch in item:
+        code = ord(ch)
+        if code < 0x20 or code == 0x7F or 0x80 <= code <= 0x9F:
+            return False
+    return True
+
+
+def validate_criteria_mapping(
+    criteria: Any, *, where: str = "criteria"
+) -> Dict[str, Tuple[str, ...]]:
+    """W11-04 共享判据 validator（R10-REGISTRY-ERROR-CRITERIA-CHAR-SPLIT-006 根修）。
+
+    被四个入口共用：``StationCriteria`` 构造、``StationCriteria.to_dict()``、
+    ``StationRegistry.validate()``、``load_trusted_registry_snapshot()``。
+    规则（fail-closed）：
+      1. 必须是 Mapping 且键集恰为 ``{"pass","fail","error"}``（缺键/未知键全拒）；
+      2. 每态只接受 list/tuple——str/bytes（``error=("单句")`` 缺逗号退化）
+         无条件拒绝，杜绝 ``list(str)`` 把整句静默拆成单字符数组；
+      3. 每态 1..16 条；每条 2..512 字符非空文本；
+      4. 拒绝单字符条目（字符拆分形状）、纯空白/首尾空白、控制字符、态内重复。
+
+    返回归一化 ``{"pass": (...), "fail": (...), "error": (...)}``；
+    违规抛 :class:`CriteriaValueError`（``ValueError`` 子类，与注册表校验
+    异常族兼容）。
+    """
+    if not isinstance(criteria, Mapping):
+        raise CriteriaValueError(
+            f"{where}: must be a mapping keyed by {list(CRITERIA_STATE_KEYS)}, "
+            f"got {type(criteria).__name__}"
+        )
+    missing = [k for k in CRITERIA_STATE_KEYS if k not in criteria]
+    unknown = [k for k in criteria if k not in CRITERIA_STATE_KEYS]
+    if missing or unknown:
+        raise CriteriaValueError(
+            f"{where}: keys must be exactly {list(CRITERIA_STATE_KEYS)}"
+            f"（missing={missing}, unknown={unknown}）"
+        )
+    normalized: Dict[str, Tuple[str, ...]] = {}
+    for state in CRITERIA_STATE_KEYS:
+        items = criteria[state]
+        if isinstance(items, (str, bytes)) or not isinstance(items, (list, tuple)):
+            raise CriteriaValueError(
+                f"{where}[{state!r}]: must be a list/tuple of texts, got "
+                f"{type(items).__name__}（str/bytes 单元素退化即 "
+                "R10-REGISTRY-ERROR-CRITERIA-CHAR-SPLIT-006 畸形，拒绝）"
+            )
+        if not CRITERIA_MIN_ITEMS <= len(items) <= CRITERIA_MAX_ITEMS:
+            raise CriteriaValueError(
+                f"{where}[{state!r}]: item count must be "
+                f"{CRITERIA_MIN_ITEMS}..{CRITERIA_MAX_ITEMS}, got {len(items)}"
+            )
+        for item in items:
+            if not _criteria_item_ok(item):
+                preview = item if isinstance(item, str) else repr(item)
+                if len(preview) > 48:
+                    preview = preview[:48] + "…"
+                raise CriteriaValueError(
+                    f"{where}[{state!r}]: item {preview!r} 违规——每条须为 "
+                    f"{CRITERIA_ITEM_MIN_CHARS}..{CRITERIA_ITEM_MAX_CHARS} 字符"
+                    "非空文本（单字符拆分/空白/控制字符全拒）"
+                )
+        if len(set(items)) != len(items):
+            raise CriteriaValueError(
+                f"{where}[{state!r}]: 态内重复条目拒绝"
+            )
+        normalized[state] = tuple(items)
+    return normalized
+
+
 @dataclass(frozen=True)
 class StationCriteria:
-    """PASS / FAIL / ERROR 三态判据（铁律 2：BLOCKED/ERROR 时整站不得记 PASS）。"""
+    """PASS / FAIL / ERROR 三态判据（铁律 2：BLOCKED/ERROR 时整站不得记 PASS）。
+
+    W11-04：构造即验（共享 validator）——缺逗号的 str 退化在构造面直接
+    拒绝，绝不留到 ``to_dict()`` 被 ``list(str)`` 拆成字符数组。
+    """
 
     pass_: Tuple[str, ...]
     fail: Tuple[str, ...]
     error: Tuple[str, ...]
 
+    def __post_init__(self) -> None:
+        normalized = validate_criteria_mapping(
+            {"pass": self.pass_, "fail": self.fail, "error": self.error},
+            where="StationCriteria",
+        )
+        for attr, state in (
+            ("pass_", "pass"), ("fail", "fail"), ("error", "error"),
+        ):
+            object.__setattr__(self, attr, normalized[state])
+
     def to_dict(self) -> Dict[str, List[str]]:
-        return {
-            "pass": list(self.pass_),
-            "fail": list(self.fail),
-            "error": list(self.error),
-        }
+        # W11-04：先验后出——防 object.__setattr__ 等旁路注入畸形形状
+        # （旧实现 list(self.error) 会把 str 静默拆成单字符数组）。
+        normalized = validate_criteria_mapping(
+            {"pass": self.pass_, "fail": self.fail, "error": self.error},
+            where="StationCriteria.to_dict",
+        )
+        return {state: list(normalized[state]) for state in CRITERIA_STATE_KEYS}
 
 
 @dataclass(frozen=True)
@@ -459,7 +569,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("范围分母齐全", "身份三源一致（commit SHA/环境/范围哈希）"),
             fail=("范围分母缺失", "身份三源不一致"),
-            error=("指纹计算失败（git 不可用/哈希异常）"),
+            error=("指纹计算失败（git 不可用/哈希异常）",),
         ),
         evidence_class="general",
         ttl_days=30,
@@ -475,7 +585,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("全绿", "棘轮不升"),
             fail=("任一门红", "棘轮回退或异常升级"),
-            error=("工具缺失/超时/环境错（exit 2/3/124）"),
+            error=("工具缺失/超时/环境错（exit 2/3/124）",),
         ),
         evidence_class="general",
         ttl_days=30,
@@ -492,7 +602,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("克隆≤基线", "CVE 零 HIGH+", "探测器零 FAIL"),
             fail=("任一探测器命中（自动落账 OPEN）", "CVE HIGH+", "克隆超基线"),
-            error=("探测器 exit≥2 环境错（不落账不计通过）"),
+            error=("探测器 exit≥2 环境错（不落账不计通过）",),
         ),
         evidence_class="permission_vulnerability",
         ttl_days=7,
@@ -508,7 +618,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("无未归属端点", "负例全拦+正例全通", "漂移全部在白名单"),
             fail=("存在未归属端点", "负例放行或正例未通", "漂移未白名单"),
-            error=("对账件不可用/依赖服务未起"),
+            error=("对账件不可用/依赖服务未起",),
         ),
         evidence_class="permission_vulnerability",
         ttl_days=7,
@@ -524,7 +634,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("套件全绿", "每测试点有已看证据"),
             fail=("任一 e2e 红", "证据缺失"),
-            error=("环境起不来/驱动缺失"),
+            error=("环境起不来/驱动缺失",),
         ),
         evidence_class="general",
         ttl_days=30,
@@ -540,7 +650,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("状态断言全 PASS", "数据回基线"),
             fail=("状态断言失败", "数据未回基线"),
-            error=("生产写授权缺失（BLOCKED，不算通过）"),
+            error=("生产写授权缺失（BLOCKED，不算通过）",),
         ),
         evidence_class="general",
         ttl_days=30,
@@ -560,7 +670,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("每轴必问全覆盖", "零发现结论出自 ≥2 独立上下文"),
             fail=("轴覆盖缺失", "单上下文零发现声明"),
-            error=("异源端点宕机（降级须登记豁免，恢复后补一次异源审）"),
+            error=("异源端点宕机（降级须登记豁免，恢复后补一次异源审）",),
         ),
         evidence_class="permission_vulnerability",
         ttl_days=7,
@@ -580,7 +690,7 @@ _DEFAULT_STATIONS: Tuple[StationSpec, ...] = (
         criteria=StationCriteria(
             pass_=("哨兵活着", "真的会叫（告警链实测）"),
             fail=("哨兵死", "告警链断"),
-            error=("探针不可用"),
+            error=("探针不可用",),
         ),
         evidence_class="general",
         ttl_days=30,
@@ -658,11 +768,13 @@ class StationRegistry:
                     f"{spec.ttl_days} violates 铁律4 cap {cap}d for "
                     f"{spec.evidence_class}"
                 )
-            if not (spec.criteria.pass_ and spec.criteria.fail and spec.criteria.error):
-                raise ValueError(
-                    f"station {spec.station_id} ({spec.slug}): PASS/FAIL/ERROR "
-                    "criteria must all be non-empty"
-                )
+            # W11-04：三态形状全量校验（旧「非空」检查放行过 list(str)
+            # 拆出的单字符数组——R10-REGISTRY-ERROR-CRITERIA-CHAR-SPLIT-006）。
+            validate_criteria_mapping(
+                {"pass": spec.criteria.pass_, "fail": spec.criteria.fail,
+                 "error": spec.criteria.error},
+                where=f"station {spec.station_id} ({spec.slug}) criteria",
+            )
             if not spec.tools or not spec.rules:
                 raise ValueError(
                     f"station {spec.station_id} ({spec.slug}): tools and rules "
@@ -2112,6 +2224,15 @@ def load_trusted_registry_snapshot(
                 f"cap {cap}d for {ev_class}"
             )
         ttl_days[int(key)] = ttl
+        # W11-04：判据三态形状全量校验——即使签名合法（持钥者可用合法
+        # registry key 重签畸形内容），字符拆分等畸形判据也绝不当重放正源。
+        try:
+            validate_criteria_mapping(
+                spec.get("criteria"),
+                where=f"{path}: stations[{key!r}].criteria",
+            )
+        except CriteriaValueError as exc:
+            raise RegistryTrustError(str(exc)) from exc
 
     lane_tables = doc.get("lane_required_stations")
     if not isinstance(lane_tables, Mapping) or sorted(lane_tables) != sorted(LANES):

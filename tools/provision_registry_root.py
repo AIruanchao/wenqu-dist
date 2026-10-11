@@ -29,6 +29,7 @@ from wenqu_core.bugscan_orchestrator import (  # noqa: E402
 
 
 def main(argv=None) -> int:
+    """W11-04 退出码契约：0 通过 / 2 参数错误（argparse）/ 3 语义或信任失败。"""
     ap = argparse.ArgumentParser(description="registry root 供给器（T-9）")
     ap.add_argument("--keyring", required=True)
     ap.add_argument("--key-id", required=True,
@@ -39,29 +40,34 @@ def main(argv=None) -> int:
                     help="落位后回读验签+同钥拒收自检")
     args = ap.parse_args(argv)
 
-    keyring = ApprovalKeyring.from_path(args.keyring)
-    snap = signed_registry_snapshot(signing_keyring=keyring,
-                                    signing_key_id=args.key_id)
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n",
-                   encoding="utf-8")
-    os.chmod(out, 0o600)
+    try:
+        keyring = ApprovalKeyring.from_path(args.keyring)
+        snap = signed_registry_snapshot(signing_keyring=keyring,
+                                        signing_key_id=args.key_id)
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(snap, ensure_ascii=False, indent=1) + "\n",
+                       encoding="utf-8")
+        os.chmod(out, 0o600)
 
-    if args.verify:
-        # 异钥（正确形态）：回读验签通过
-        view = load_trusted_registry_snapshot(out, keyring=keyring)
-        print(f"verify: registry_digest={view.registry_digest[:16]}… OK")
-        # 同钥拒收自检（G9-06 语义：manifest_key_id 相同必须拒）
-        try:
-            load_trusted_registry_snapshot(out, keyring=keyring,
-                                           manifest_key_id=args.key_id)
-            print("verify: ❌ 同钥未拒收（语义根独立性失败）", file=sys.stderr)
-            return 1
-        except RegistryTrustError:
-            print("verify: 同钥拒收 OK（独立语义根）")
-    print(f"registry root 落位: {out} ({oct(os.stat(out).st_mode & 0o777)})")
-    return 0
+        if args.verify:
+            # 异钥（正确形态）：回读验签通过
+            view = load_trusted_registry_snapshot(out, keyring=keyring)
+            print(f"verify: registry_digest={view.registry_digest[:16]}… OK")
+            # 同钥拒收自检（G9-06 语义：manifest_key_id 相同必须拒）
+            try:
+                load_trusted_registry_snapshot(out, keyring=keyring,
+                                               manifest_key_id=args.key_id)
+                print("verify: ❌ 同钥未拒收（语义根独立性失败）",
+                      file=sys.stderr)
+                return 3
+            except RegistryTrustError:
+                print("verify: 同钥拒收 OK（独立语义根）")
+        print(f"registry root 落位: {out} ({oct(os.stat(out).st_mode & 0o777)})")
+        return 0
+    except RegistryTrustError as exc:
+        print(f"registry root 供给失败（语义/信任）: {exc}", file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":
