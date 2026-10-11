@@ -61,6 +61,7 @@ import http.client
 import json
 import os
 import shutil
+import importlib.util
 import socket
 import subprocess
 import sys
@@ -215,7 +216,7 @@ class _Dash:
     """在随机空闲端口起 system/dashboard/server.py 子进程（沙箱化环境，退出清理）。"""
 
     def __init__(self, sandbox: Path, *, ttl_seconds: int = 1800,
-                 log_key: str | None = DASH_KEY):
+                 log_key: str | None = DASH_KEY, key_file: Path | None = None):
         self.sandbox = sandbox
         self.snap = sandbox / "gate-aggregate.json"
         self.home = sandbox / "wenqu-home"
@@ -223,6 +224,7 @@ class _Dash:
         self.port = _free_port()
         self.ttl = ttl_seconds
         self.log_key = log_key  # None=刻意不配置（fail-closed 对抗腿）
+        self.key_file = key_file  # W11-08：外部预制密钥文件（轮换腿复用）；None=由 log_key 现写
         self.proc: subprocess.Popen | None = None
 
     def __enter__(self) -> "_Dash":
@@ -236,10 +238,15 @@ class _Dash:
                    WENQU_DECISIONS=str(self.sandbox / "decisions.jsonl"),
                    WENQU_LEDGER=str(self.sandbox / "rounds.jsonl"),
                    WENQU_REPO_DIR=str(self.sandbox))
-        if self.log_key is None:
-            env.pop("WENQU_DASHBOARD_KEY", None)  # 外壳环境残留也不许放行（fail-closed 决定性）
+        env.pop("WENQU_DASHBOARD_KEY", None)  # W11-08：inline env 是启动致死面，外壳残留必须清
+        if self.key_file is None and self.log_key is None:
+            env.pop("WENQU_DASHBOARD_KEY_FILE", None)  # 刻意不配置（fail-closed 决定性）
         else:
-            env["WENQU_DASHBOARD_KEY"] = self.log_key
+            if self.key_file is None:
+                self.key_file = self.sandbox / "dashboard.key"
+                self.key_file.write_text(self.log_key + "\n", encoding="utf-8")
+                os.chmod(self.key_file, 0o600)
+            env["WENQU_DASHBOARD_KEY_FILE"] = str(self.key_file)
         self.err_path = self.sandbox / "server.err.log"
         self.proc = subprocess.Popen(
             [sys.executable, str(DASH / "server.py"), "--port", str(self.port)],
@@ -902,7 +909,7 @@ def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():
             surf = probe_http_surface("127.0.0.1", dash.port)
             assert surf == [], f"真 UI 面探针应零发现，实得 {[x.as_dict() for x in surf]}"
 
-        # R7 fail-closed 腿：WENQU_DASHBOARD_KEY 未配置 → 该端点默认 403（与 decide 同范式）
+        # R7/W11-08 fail-closed 腿：密钥文件未配置 → 该端点默认 403（与 decide 同范式）
         with _Dash(sandbox / "nokey", ttl_seconds=1800, log_key=None) as nokey:
             _write_snapshot(nokey.snap, "PASS")
             (nokey.home / "logs").mkdir(parents=True, exist_ok=True)
@@ -1071,6 +1078,208 @@ def test_UI_07_slow_concurrent_huge_logs_do_not_exhaust_resources():
             f"限速真实触发（第 {first_429} 发 429）；压力后存活。负例无限速假服务被探针必报")
 
 
+def test_UI_08_dashboard_key_file_and_rotation():
+    """UI-08/W11-08 | R10-UI-LOGKEY-PLIST-LEAK-007 | 期望: 密钥文件化+启动校验+轮换。
+
+    非法配置族（inline env/相对路径/缺失/0644/symlink/hardlink/FIFO/字符集/
+    过短/超长）→ 子进程 rc=78/EX_CONFIG 且端口不监听；owner 与 TOCTOU 以
+    函数级 monkeypatch 腿覆盖（无 root 也能确定性红）；plist 模板只携带
+    {{WENQU_DASHBOARD_KEY_FILE}} 路径占位、零密钥字面量；进程日志不含认证值；
+    install-release.sh --rotate-dashboard-key 原子替换 0600 密钥后：旧 key
+    403、新 key 200（重启腿实测；launchctl 重载腿经隔离 HOME+skip 布尔跳过，
+    生产语义=轮换即重载）。
+    """
+    import re as _re
+
+    with tempfile.TemporaryDirectory(prefix="wq_ui08_") as tmp:
+        sb = Path(tmp)
+
+        def spawn_rc(extra_env, name, timeout=30):
+            """起预期 rc78 的 server 子进程；返回 (rc, err_tail, port)。"""
+            port = _free_port()
+            home = sb / name
+            home.mkdir(parents=True, exist_ok=True)
+            env = dict(os.environ, WENQU_HOME=str(home))
+            env.pop("WENQU_DASHBOARD_KEY", None)
+            env.pop("WENQU_DASHBOARD_KEY_FILE", None)
+            env.update(extra_env)
+            err_path = home / "server.err.log"
+            with open(err_path, "w") as ef:
+                proc = subprocess.Popen(
+                    [sys.executable, str(DASH / "server.py"), "--port", str(port)],
+                    env=env, stdout=subprocess.DEVNULL, stderr=ef, cwd=str(home))
+            try:
+                rc = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+                return None, "(server 未按预期退出——超时)", port
+            return rc, err_path.read_text(errors="replace")[-300:], port
+
+        def port_closed(port):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=1.0).close()
+                return False
+            except OSError:
+                return True
+
+        good = sb / "good.key"
+        good.write_text(DASH_KEY + "\n", encoding="utf-8")
+        os.chmod(good, 0o600)
+
+        # ── 非法配置族：全部 rc78 + 端口不监听 ──
+        m644 = sb / "m644.key"
+        m644.write_text(DASH_KEY + "\n", encoding="utf-8")
+        os.chmod(m644, 0o644)
+        slink = sb / "link.key"
+        os.symlink(good, slink)
+        hard = sb / "hard.key"
+        os.link(good, hard)
+        fifo = sb / "fifo.key"
+        os.mkfifo(fifo, 0o600)
+        badcs = sb / "badcs.key"
+        badcs.write_text("带空格的 key with spaces!\n", encoding="utf-8")
+        os.chmod(badcs, 0o600)
+        shortk = sb / "short.key"
+        shortk.write_text("short-key\n", encoding="utf-8")
+        os.chmod(shortk, 0o600)
+        longk = sb / "long.key"
+        longk.write_text("k" * 257 + "\n", encoding="utf-8")
+        os.chmod(longk, 0o600)
+        cases = [
+            ("inline-env", {"WENQU_DASHBOARD_KEY": DASH_KEY}),
+            ("relative", {"WENQU_DASHBOARD_KEY_FILE": "rel/dashboard.key"}),
+            ("missing", {"WENQU_DASHBOARD_KEY_FILE": str(sb / "absent.key")}),
+            ("mode-0644", {"WENQU_DASHBOARD_KEY_FILE": str(m644)}),
+            ("symlink", {"WENQU_DASHBOARD_KEY_FILE": str(slink)}),
+            ("hardlink", {"WENQU_DASHBOARD_KEY_FILE": str(hard)}),
+            ("fifo", {"WENQU_DASHBOARD_KEY_FILE": str(fifo)}),
+            ("charset", {"WENQU_DASHBOARD_KEY_FILE": str(badcs)}),
+            ("too-short", {"WENQU_DASHBOARD_KEY_FILE": str(shortk)}),
+            ("too-long", {"WENQU_DASHBOARD_KEY_FILE": str(longk)}),
+        ]
+        for i, (name, extra) in enumerate(cases):
+            rc, err, port = spawn_rc(extra, "case-%02d-%s" % (i, name))
+            assert rc == 78, f"[{name}] 应 rc78/EX_CONFIG，实得 rc={rc}; stderr: {err}"
+            assert "W11-08" in err, f"[{name}] stderr 应带 W11-08 标记: {err}"
+            assert port_closed(port), f"[{name}] rc78 后端口必须不监听"
+
+        # ── owner / TOCTOU：函数级（monkeypatch euid / open 重定向 decoy）──
+        spec = importlib.util.spec_from_file_location(
+            "w11_dash_server", str(DASH / "server.py"))
+        srv = importlib.util.module_from_spec(spec)
+        os.environ["WENQU_HOME"] = str(sb / "unit-home")
+        spec.loader.exec_module(srv)
+        victim = sb / "victim.key"
+        victim.write_text(DASH_KEY + "\n", encoding="utf-8")
+        os.chmod(victim, 0o600)
+        decoy = sb / "decoy.key"
+        decoy.write_text(DASH_KEY + "\n", encoding="utf-8")
+        os.chmod(decoy, 0o600)
+        os.environ["WENQU_DASHBOARD_KEY_FILE"] = str(victim)
+        real_geteuid = os.geteuid
+        os.geteuid = lambda: real_geteuid() + 1  # 任何真实文件 owner 都不匹配
+        try:
+            _, e = srv.load_dashboard_key_file()
+        finally:
+            os.geteuid = real_geteuid
+        assert e and e.startswith("KEYFILE_OWNER"), f"owner 腿应红，实得 {e}"
+        real_open = os.open
+
+        def _redirect_open(path, flags, *a, **kw):
+            return real_open(str(decoy), flags, *a, **kw)  # lstat(victim) vs fstat(decoy)
+        os.open = _redirect_open
+        try:
+            _, e = srv.load_dashboard_key_file()
+        finally:
+            os.open = real_open
+        assert e and e.startswith("KEYFILE_TOCTOU"), f"TOCTOU 腿应红，实得 {e}"
+        os.environ.pop("WENQU_DASHBOARD_KEY_FILE", None)
+
+        # ── plist 模板：只存路径占位，零密钥字面量/零 inline env 面 ──
+        tpl = (REPO / "system" / "launchd" /
+               "com.wenqu.dashboard.plist.template").read_text(encoding="utf-8")
+        assert "{{WENQU_DASHBOARD_KEY_FILE}}" in tpl, "模板必须携带密钥文件路径占位"
+        assert "<key>WENQU_DASHBOARD_KEY</key>" not in tpl, "模板不得出现 inline env 密钥名"
+        allowed_literals = {"7789", "com.wenqu.dashboard", "--port"}
+        for m in _re.finditer(r"<string>(.*?)</string>", tpl):
+            v = m.group(1)
+            assert v.startswith("{{") or v in allowed_literals, \
+                f"plist 模板出现非占位字面量（疑似密钥）: {v[:12]}"
+
+        # ── 轮换：旧 key 失效 / 新 key 生效（同一 0600 文件原子替换）──
+        old_key = "ui08-old-rotate-key-0123456789"
+        ir = sb / "ir"  # INSTALL_ROOT；_Dash sandbox=ir/dashboard → 密钥同一路径
+        rot_root = ir / "dashboard"
+        rot_root.mkdir(parents=True)
+        with _Dash(rot_root, log_key=old_key) as dash:
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": old_key})
+            assert st == 200, f"轮换前旧 key 应 200（前置），实得 {st}"
+            errlog = dash.err_path.read_text(errors="replace")
+            assert old_key not in errlog, "进程 stderr 不得回显认证值"
+        rot = subprocess.run(
+            ["bash", str(REPO / "system" / "install-release.sh"),
+             "--rotate-dashboard-key"],
+            env=dict(os.environ, HOME=str(sb / "rot-home"),
+                     WENQU_INSTALL_ROOT=str(ir),
+                     WENQU_ROTATE_SKIP_LAUNCHCTL="1"),
+            capture_output=True, text=True, timeout=60)
+        assert rot.returncode == 0, f"rotate rc={rot.returncode}: {rot.stderr[-300:]}"
+        kpath = rot_root / "dashboard.key"
+        new_key = kpath.read_text(encoding="utf-8").strip()
+        assert new_key and new_key != old_key, "轮换必须替换密钥内容"
+        assert new_key not in rot.stdout + rot.stderr, "轮换输出不得携带新密钥"
+        assert "sha256:" in rot.stdout, "轮换须给出 key-id 摘要"
+        assert (kpath.stat().st_mode & 0o777) == 0o600, "轮换后密钥文件须 0600"
+        with _Dash(rot_root, log_key=None, key_file=kpath) as dash:
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": old_key})
+            assert st == 403, f"轮换后旧 key 必须 403，实得 {st}"
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": new_key})
+            assert st == 200, f"轮换后新 key 应 200，实得 {st}"
+
+        old_key = "ui08-old-rotate-key-0123456789"
+        ir = sb / "ir"  # INSTALL_ROOT；_Dash sandbox=ir/dashboard → 密钥同一路径
+        rot_root = ir / "dashboard"
+        with _Dash(rot_root, log_key=old_key) as dash:
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": old_key})
+            assert st == 200, f"轮换前旧 key 应 200（前置），实得 {st}"
+            errlog = dash.err_path.read_text(errors="replace")
+            assert old_key not in errlog, "进程 stderr 不得回显认证值"
+        rot = subprocess.run(
+            ["bash", str(REPO / "system" / "install-release.sh"),
+             "--rotate-dashboard-key"],
+            env=dict(os.environ, HOME=str(sb / "rot-home"),
+                     WENQU_INSTALL_ROOT=str(ir),
+                     WENQU_ROTATE_SKIP_LAUNCHCTL="1"),
+            capture_output=True, text=True, timeout=60)
+        assert rot.returncode == 0, f"rotate rc={rot.returncode}: {rot.stderr[-300:]}"
+        new_key = (rot_root / "dashboard.key").read_text(encoding="utf-8").strip()
+        assert new_key and new_key != old_key, "轮换必须替换密钥内容"
+        assert new_key not in rot.stdout + rot.stderr, "轮换输出不得携带新密钥"
+        assert "sha256:" in rot.stdout, "轮换须给出 key-id 摘要"
+        mode = (rot_root / "dashboard.key").stat().st_mode & 0o777
+        assert mode == 0o600, f"轮换后密钥文件须 0600，实得 {oct(mode)}"
+        with _Dash(rot_root, log_key=None, key_file=rot_root / "dashboard.key") as dash:
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": old_key})
+            assert st == 403, f"轮换后旧 key 必须 403，实得 {st}"
+            st, _, _ = raw_request("127.0.0.1", dash.port, "GET", "/api/v1/logs",
+                                   headers={"X-Auth-Key": new_key})
+            assert st == 200, f"轮换后新 key 应 200，实得 {st}"
+
+    _record("UI-08",
+            "密钥文件化（W11-08/R10-UI-LOGKEY-PLIST-LEAK-007）：inline env/相对/缺失/"
+            "0644/symlink/hardlink/FIFO/字符集/过短/超长 10 类配置全 rc78+端口不监听；"
+            "owner/TOCTOU 函数级 monkeypatch 红腿；plist 模板零密钥字面量（只存"
+            "{{WENQU_DASHBOARD_KEY_FILE}} 路径）；进程 stderr 零认证值；"
+            "--rotate-dashboard-key 原子替换 0600 后旧 key 403/新 key 200（重启腿；"
+            "launchctl 即时重载腿经隔离 HOME 跳过——生产语义=轮换即重载，未实测）")
+
+
 # ---------------------------------------------------------------------------
 # 运行器：逐条执行、写证据工件、exit 0/1
 # ---------------------------------------------------------------------------
@@ -1094,14 +1303,14 @@ def _playwright_available() -> bool:
 
 
 def main() -> int:
-    order = {f"test_UI_{i:02d}_": i for i in range(1, 8)}
+    order = {f"test_UI_{i:02d}_": i for i in range(1, 9)}
     tests = [(name, fn) for name, fn in sorted(globals().items())
              if name.startswith("test_") and callable(fn)]
     tests.sort(key=lambda t: order.get(t[0][:11], 99))
 
     pw = _playwright_available()
     print("=" * 72)
-    print("§20 验收 ID 专属测试——UI 族 7 条（真实注入/真实断言/负例红探针）")
+    print("§20 验收 ID 专属测试——UI 族 8 条")
     print(f"repo: {REPO}  HEAD: {_git_head()}")
     print(f"方法级别: {'L1 真浏览器（Playwright 可用）' if pw else 'L2 HTTP+DOM（Playwright 不可用，按可用性降级）'}")
     print("=" * 72)
@@ -1135,7 +1344,7 @@ def main() -> int:
                 "test_file": "system/tests/test_ac_ui_family.py",
                 "probe_module": "system/wenqu_core/ui_probe.py",
                 "plan_source": "evidence/00-baseline/codex-external/方案.md §20.4/§20.5",
-                "scope": "UI-01~07（7 ID，UI 前缀全量）",
+                "scope": "UI-01~08（8 ID；UI-08=W11-08 密钥文件化）",
                 "method_level": "L2-HTTP-DOM",
                 "method_level_reason": "Playwright 不可用（python3 -c \"import playwright\" "
                                         "ModuleNotFoundError）——按方法可用性降级；"
@@ -1149,13 +1358,18 @@ def main() -> int:
                     "UI-07 超大日志产品界=行数界（tail -n 20）+字节界（R7-UI-LOG-BYTES-010 "
                     "响应硬上限默认 1MiB/WENQU_LOG_MAX_BYTES 可配/超限按字节截断+truncated "
                     "标记）双闸；6MiB 病态单行对抗腿实证 ≤上限+标记+前缀保留",
-                    "UI-06 日志端点已加鉴权（R7-UI-LOG-AUTH-009）：WENQU_DASHBOARD_KEY "
+                    "UI-06 日志端点已鉴权（R7-UI-LOG-AUTH-009）：0600 密钥文件 "
                     "配置后须匹配 X-Auth-Key；未配置默认 403（fail-closed）——无 key/错 "
                     "key/key 未配置三对抗腿均实证 403+零泄漏",
                     "UI-01 构建门以产品 --self-check 启动自检门 + ui_probe 构建门承载；"
                     "R7 根修后产品配对门覆盖常见标签（删 </span> 必红）；"
                     "server 常驻启动路径未强制每次 serve 前自动跑门（登记观察）",
-                    "UI-04b（P0-9/W8 根修腿，2026-10-08 增）：health 透传前保守过滤——"
+                    "UI-08（W11-08/R10-UI-LOGKEY-PLIST-LEAK-007）：日志密钥=唯一 0600 文件；"
+                "inline env/相对/缺失/0644/symlink/hardlink/FIFO/字符集/长度 10 类"
+                "rc78+端口不监听；owner/TOCTOU 函数级红；plist 零密钥字面量；"
+                "--rotate-dashboard-key 轮换后旧 key 403/新 key 200（launchctl 即时"
+                "重载腿隔离跳过，未实测）",
+                "UI-04b（P0-9/W8 根修腿，2026-10-08 增）：health 透传前保守过滤——"
                     "零 SHA(0*40) 身份占位/self-declared 诊断聚合下的 PASS 拒绝"
                     "（identity_missing→BLOCKED / self_declared→NOT_EVALUATED，"
                     "reason+dashboard_downgrade 审计注明）；非 PASS 原样透传绝不上调；"

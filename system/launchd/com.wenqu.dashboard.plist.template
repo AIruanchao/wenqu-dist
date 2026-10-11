@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- W11-08（R10-UI-LOGKEY-PLIST-LEAK-007 根修）：dashboard launchd 模板。
+     铁律：本 plist 只携带 WENQU_DASHBOARD_KEY_FILE=密钥文件【路径】，
+     绝不出现密钥内容——旧 inline WENQU_DASHBOARD_KEY 泄露面（plist+进程
+     环境双泄露）就此废止；server.py 启动时对 {{WENQU_DASHBOARD_KEY_FILE}}
+     做 0600/owner/绝对路径/nlink==1 全链校验，不合格 rc78/EX_CONFIG 且端口不监听。
+     密钥文件由 install-release.sh rotate-dashboard-key(单横线) 以 0600 原子生成；
+     轮换=重生成文件+重载本作业（旧密钥随进程重启立即失效）。
+     装配（install）时替换 {{占位符}} 后安装到 ~/Library/LaunchAgents/。 -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wenqu.dashboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>{{WENQU_CURRENT_TREE}}/system/dashboard/server.py</string>
+        <string>--port</string>
+        <string>7789</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{{WENQU_CURRENT_TREE}}/system/dashboard</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>WENQU_HOME</key>
+        <string>{{WENQU_HOME}}</string>
+        <key>WENQU_DASHBOARD_KEY_FILE</key>
+        <string>{{WENQU_DASHBOARD_KEY_FILE}}</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{WENQU_HOME}}/dashboard/dashboard-launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{WENQU_HOME}}/dashboard/dashboard-launchd.err.log</string>
+</dict>
+</plist>

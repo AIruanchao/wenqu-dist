@@ -576,8 +576,9 @@ def test_unique_writer_launchd_audit(td):
         with open(os.path.join(tmpl_dir, n), "rb") as f:
             doc = pl.load(f)
         managed_labels.append(doc.get("Label", ""))
-    _ck("D 模板唯一观察入口=com.wenqu.scheduler",
-        managed_labels == ["com.wenqu.scheduler"], str(managed_labels))
+    _ck("D 模板唯一观察入口=com.wenqu.scheduler（dashboard=W11-08 UI 面，非观察 writer）",
+        set(managed_labels) == {"com.wenqu.scheduler", "com.wenqu.dashboard"}
+        and "com.wenqu.scheduler" in managed_labels, str(managed_labels))
     _ck("D 模板无禁止 label",
         not (set(managed_labels)
              & set(sched.FORBIDDEN_OBSERVATION_LABELS)))
