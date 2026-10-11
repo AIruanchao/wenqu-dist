@@ -15,9 +15,21 @@
   P0-5-CAS  shard 父目录 symlink 竞态越界 / hardlink 预置 / 半写毒文件
         -> test_p05_cas_shard_symlink_swap_attack_must_fail
         -> test_p05_cas_hardlink_preplant_must_be_rejected
-        -> test_p05_cas_poison_file_selfheals
+        -> test_p05_cas_poison_file_fails_closed_until_admin_quarantine
         -> test_p05_cas_interrupted_write_leaves_no_poison
         -> test_p05_cas_sigkill_midwrite_retry_recovers
+  W11-10-CAS  CAS 严格不可变（no-replace 发布+损坏 fail-closed+contains 全量
+        重验）+ 逻辑绑定（logical_key→digest 不可重绑）+ 生产强制接线
+        -> test_w11_10_cas32_same_content_exactly_one_object
+        -> test_w11_10_cas32_distinct_digests_all_readable
+        -> test_w11_10_cas32_same_digest_poisoned_target_fails_closed
+        -> test_w11_10_cas32_symlink_target_rejected
+        -> test_w11_10_contains_reverifies_type_nlink_and_hash
+        -> test_w11_10_cas32_logical_key_exactly_one_binding
+        -> test_w11_10_logical_binding_immutable_contract
+        -> test_w11_10_jobrunner_cas_failure_forces_error_no_pass
+        -> test_w11_10_station_artifact_is_real_cas_receipt
+        -> test_w11_10_production_tick_gate_red_when_cas_artifact_corrupt
   P0-5-Runner  setsid 子孙逃逸 / 环境继承 / 无 allowlist 放行 /bin/sh
         -> test_p05_runner_setsid_descendant_marker_must_fail
         -> test_p05_runner_env_whitelist_default
@@ -95,6 +107,26 @@ def _mk_v2(station_id, verdict="PASS", status="COMPLETED", sha=SHA, env="staging
         artifacts=[{"cas_digest": f"sha256:{'c' * 64}", "size": 128}],
     )
 
+
+
+def _w11_strict(fn):
+    """W11-10 用例在 pytest 下也必须红：_ck 失败 → AssertionError。
+
+    __main__ 自跑器已按 FAIL_N 判红（此处不重复计数）；pytest 收集时
+    _ck 只打印不判红——本装饰器补齐（CI 全仓 pytest 面与 acceptance 面
+    判定一致，杜绝「pytest 绿/自跑红」的假绿分叉）。"""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        before = FAIL_N
+        fn(*args, **kwargs)
+        delta = FAIL_N - before
+        if delta and "pytest" in sys.modules:
+            raise AssertionError(
+                f"{fn.__name__}: {delta} failing W11-10 check(s) "
+                "(see ✗ lines above)")
+    return wrapper
 
 # ══════════════════════════════════════════════════════════════════════
 # P0-3：GateAggregator 契约链
@@ -258,22 +290,51 @@ def test_p05_cas_hardlink_preplant_must_be_rejected():
         store.close()
 
 
-def test_p05_cas_poison_file_selfheals():
-    """残缺毒文件（历史 5 字节半写）重试 put 必须自愈而非永久报损坏。"""
+@_w11_strict
+def test_p05_cas_poison_file_fails_closed_until_admin_quarantine():
+    """W11-10 严格合同：残缺毒文件（同 digest 不同内容）put 必须 IntegrityError
+    fail-closed（不得 os.replace 自愈）；原字节不变；修复仅走管理员
+    quarantine → put 重建。"""
     with tempfile.TemporaryDirectory() as td:
         store = EvidenceStore(os.path.join(td, "cas"))
         ev = _mk_evidence("selfheal")
         digest = store.digest_for(ev)
         shard = os.path.join(td, "cas", digest[:2])
         os.makedirs(shard)
+        poison = b"{}"  # 5 字节级毒文件（Codex 实测形态；同 digest 不同内容）
         with open(os.path.join(shard, f"{digest}.json"), "wb") as fh:
-            fh.write(b"{}")  # 5 字节级毒文件（Codex 实测形态）
-        d = store.put(ev)  # 不得抛 IntegrityError
-        _ck("P0-5 CAS 毒文件重试 put 自愈成功", d == digest)
+            fh.write(poison)
+        try:
+            store.put(ev)
+            raised = False
+        except IntegrityError:
+            raised = True
+        _ck("W11-10 毒文件 put 拒绝（IntegrityError，不自愈）", raised)
+        with open(os.path.join(shard, f"{digest}.json"), "rb") as fh:
+            after = fh.read()
+        _ck("W11-10 拒绝后原字节不变", after == poison, repr(after[:20]))
+        _ck("W11-10 contains() 对毒对象返回 False", store.contains(digest) is False)
+        # 修复仅走管理员 quarantine/repair（独立通道，非 CAS 运行面自愈）
+        if not hasattr(store, "quarantine"):
+            _ck("W11-10 管理员 quarantine 通道存在", False, "store.quarantine missing")
+            store.close()
+            return
+        qpath = store.quarantine(digest, reason="w11-10 poison repair test")
+        with open(qpath, "rb") as fh:
+            _ck("W11-10 quarantine 保留原毒字节（审计）", fh.read() == poison)
+        d = store.put(ev)  # quarantine 后重建
+        _ck("W11-10 quarantine→put 重建成功", d == digest)
         got = store.get(digest)
-        _ck("P0-5 CAS 自愈后 get 返回完整证据", got == ev)
+        _ck("W11-10 重建后 get 返回完整证据", got == ev)
         # 幂等：完好后再 put 同 digest 仍成功
-        _ck("P0-5 CAS 完好幂等 put 成功", store.put(ev) == digest)
+        _ck("W11-10 完好幂等 put 成功", store.put(ev) == digest)
+        try:
+            store.quarantine(digest, reason="must refuse healthy object")
+            healthy_refused = False
+        except ValueError:
+            healthy_refused = True
+        _ck("W11-10 quarantine 拒绝健康对象（不得借隔离覆盖好对象）",
+            healthy_refused)
         store.close()
 
 
@@ -673,9 +734,589 @@ def test_install_normal_succeeds():
             os.path.isfile(wenqu_bin) and os.stat(wenqu_bin).st_mode & stat.S_IXUSR)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# W11-10：CAS 严格不可变、逻辑绑定及生产强制接线
+#
+# 十轮 W2 扣分「CAS 严格合同缺」根修：32 并发夹具（真实多进程，非线程模拟）
+# 覆盖三类负例（同 digest 同内容并发=唯一对象+幂等；同 digest 不同内容
+# =fail-closed 原字节不变；symlink/损坏=拒绝）+ 逻辑绑定唯一胜出 +
+# 生产 JobRunner 强制 CAS 接线（CAS 写失败=ERROR/NOT_EVALUATED、不刷
+# 心跳、Gate 不得 PASS）+ station 工件 cas_digest 真实 CAS 回读验证。
+# ══════════════════════════════════════════════════════════════════════
+try:  # W11-10 新增：逻辑绑定冲突类型（基线缺失时以 None 呈红）
+    from wenqu_core.runner import BindingError
+    _HAS_BINDING_ERROR = True
+except ImportError:
+    BindingError = None
+    _HAS_BINDING_ERROR = False
+
+_W11_CONC_N = 32  # 32 并发夹具（跨进程）
+
+
+
+
+
+def _w11_worker_script() -> str:
+    """32 并发夹具子进程脚本源（与 _mk_evidence 构造完全一致的确定性证据）。"""
+    return (
+        "import json, sys\n"
+        f"sys.path.insert(0, {REPO!r})\n"
+        "from wenqu_core.runner import Evidence, EvidenceStore\n"
+        "root, mode, tag, key = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]\n"
+        "ev = Evidence(argv=('/bin/echo', tag), cwd='/tmp', actual_exit_code=0,\n"
+        "              stdout_sha256='0'*64, stderr_sha256='0'*64,\n"
+        "              argv_digest='a'*64, timestamp=1000000.0,\n"
+        "              fresh_until=2000000.0, timed_out=False)\n"
+        "try:\n"
+        "    store = EvidenceStore(root)\n"
+        "    try:\n"
+        "        d = store.put(ev)\n"
+        "        if mode == 'bind':\n"
+        "            try:\n"
+        "                store.bind(key, d)\n"
+        "                out = ('bound', d, None)\n"
+        "            except Exception as exc:\n"
+        "                out = ('conflict', d, type(exc).__name__)\n"
+        "        else:\n"
+        "            out = ('ok', d, None)\n"
+        "    finally:\n"
+        "        store.close()\n"
+        "except Exception as exc:\n"
+        "    out = ('error', None, type(exc).__name__)\n"
+        "print(json.dumps(out))\n"
+    )
+
+
+def _w11_run_concurrent(cases):
+    """真实多进程并发：cases = [(mode, tag, key, root), ...]；返回每行 JSON。
+
+    worker 脚本目录必须存活到全部子进程 exec 完成（Popen 返回不代表
+    子进程已打开脚本——临时目录提前删除会令 worker 全体 ENOENT）。"""
+    import subprocess as _sp
+    out = []
+    with tempfile.TemporaryDirectory() as holder:
+        script_path = os.path.join(holder, "w11-worker.py")
+        with open(script_path, "w", encoding="utf-8") as fh:
+            fh.write(_w11_worker_script())
+        procs = [_sp.Popen(
+            [sys.executable, script_path, root, mode, tag, key],
+            stdout=_sp.PIPE, stderr=_sp.PIPE, text=True)
+            for mode, tag, key, root in cases]
+        for p in procs:
+            stdout, stderr = p.communicate(timeout=180)
+            try:
+                out.append(json.loads(stdout.strip().splitlines()[-1]))
+            except (ValueError, IndexError):
+                out.append(("crash", None,
+                            f"rc={p.returncode} {stderr[-200:]}"))
+    return out
+
+
+def _w11_no_leftovers(root: str) -> bool:
+    for shard in os.listdir(root):
+        if len(shard) == 2:
+            for f in os.listdir(os.path.join(root, shard)):
+                if f.startswith(".tmp-"):
+                    return False
+    return True
+
+
+@_w11_strict
+def test_w11_10_cas32_same_content_exactly_one_object():
+    """类一（正例不变量）：32 并发相同内容 → 同 digest、唯一对象、全幂等成功。"""
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        results = _w11_run_concurrent(
+            [("put", "same-content", "", root)] * _W11_CONC_N)
+        oks = [r for r in results if r[0] == "ok"]
+        errs = [r for r in results if r[0] != "ok"]
+        _ck("W11-10 32 并发相同内容全部成功（唯一胜出+其余幂等）",
+            len(oks) == _W11_CONC_N and not errs, str(errs[:2]))
+        digests = {r[1] for r in oks}
+        _ck("W11-10 32 并发相同内容得到同一 digest", len(digests) == 1)
+        digest = digests.pop() if digests else "0" * 64
+        shard_dir = os.path.join(root, digest[:2])
+        objects = sorted(f for f in os.listdir(shard_dir) if not f.startswith("."))
+        _ck("W11-10 唯一对象（无覆盖/无分叉）", objects == [f"{digest}.json"],
+            str(objects))
+        _ck("W11-10 无临时残留", _w11_no_leftovers(root))
+        store = EvidenceStore(root)
+        _ck("W11-10 contains() 全量重验通过", store.contains(digest) is True)
+        _ck("W11-10 get() 回读与原始证据全等",
+            store.get(digest) == _mk_evidence("same-content"))
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_cas32_distinct_digests_all_readable():
+    """类二（正例不变量）：32 并发不同内容、不同 digest → 32 对象均可回读。"""
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        cases = [("put", f"distinct-{i:02d}", "", root)
+                 for i in range(_W11_CONC_N)]
+        results = _w11_run_concurrent(cases)
+        _ck("W11-10 32 并发不同内容全部成功",
+            all(r[0] == "ok" for r in results),
+            str([r for r in results if r[0] != "ok"][:2]))
+        digests = {r[1] for r in results if r[0] == "ok"}
+        _ck("W11-10 32 个互不相同的 digest", len(digests) == _W11_CONC_N)
+        tag_of = {r[1]: c[1] for r, c in zip(results, cases)}  # digest → tag
+        store = EvidenceStore(root)
+        all_ok = True
+        for d in sorted(digests):
+            if not store.contains(d) or \
+                    store.get(d) != _mk_evidence(tag_of[d]):
+                all_ok = False
+                break
+        _ck("W11-10 32 个对象 contains+get 全部可读", all_ok)
+        total = sum(
+            len([f for f in os.listdir(os.path.join(root, s))
+                 if not f.startswith(".")])
+            for s in os.listdir(root) if len(s) == 2)
+        _ck("W11-10 对象总数恰 32（无重复/无丢失）", total == _W11_CONC_N,
+            str(total))
+        _ck("W11-10 无临时残留", _w11_no_leftovers(root))
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_cas32_same_digest_poisoned_target_fails_closed():
+    """类三 A（负例）：同 digest 不同内容（预置毒对象）→ 32 并发写入全部
+    IntegrityError fail-closed，原字节不变，无自愈、无覆盖。"""
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        ev = _mk_evidence("poison-target")
+        digest = EvidenceStore(root).digest_for(ev)
+        shard_dir = os.path.join(root, digest[:2])
+        os.makedirs(shard_dir)
+        poison = b"W11-10-POISON-SAME-DIGEST-DIFFERENT-CONTENT"
+        target = os.path.join(shard_dir, f"{digest}.json")
+        with open(target, "wb") as fh:
+            fh.write(poison)
+        results = _w11_run_concurrent(
+            [("put", "poison-target", "", root)] * _W11_CONC_N)
+        rejected = [r for r in results
+                    if r[0] == "error" and r[2] == "IntegrityError"]
+        _ck("W11-10 32 并发同 digest 不同内容全部拒绝（fail-closed）",
+            len(rejected) == _W11_CONC_N,
+            str([r for r in results if r not in rejected][:2]))
+        with open(target, "rb") as fh:
+            after = fh.read()
+        _ck("W11-10 拒绝后原毒字节不变（未自愈/未覆盖）", after == poison,
+            repr(after[:24]))
+        _ck("W11-10 无临时残留", _w11_no_leftovers(root))
+        store = EvidenceStore(root)
+        _ck("W11-10 毒对象 contains()=False", store.contains(digest) is False)
+        try:
+            store.get(digest)
+            got_rejected = False
+        except IntegrityError:
+            got_rejected = True
+        _ck("W11-10 毒对象 get() 拒绝", got_rejected)
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_cas32_symlink_target_rejected():
+    """类三 B（负例）：内容路径预置 symlink → 32 并发写入全部拒绝，
+    symlink 原样保留、根外目标零写入；修复仅走管理员 quarantine。"""
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        outside = os.path.join(td, "outside")
+        os.makedirs(outside)
+        ev = _mk_evidence("symlink-target")
+        digest = EvidenceStore(root).digest_for(ev)
+        shard_dir = os.path.join(root, digest[:2])
+        os.makedirs(shard_dir)
+        victim = os.path.join(outside, "victim.json")
+        with open(victim, "wb") as fh:
+            fh.write(b"outside-victim-bytes")
+        link_path = os.path.join(shard_dir, f"{digest}.json")
+        os.symlink(victim, link_path)
+        results = _w11_run_concurrent(
+            [("put", "symlink-target", "", root)] * _W11_CONC_N)
+        rejected = [r for r in results
+                    if r[0] == "error" and r[2] == "IntegrityError"]
+        _ck("W11-10 32 并发 symlink 目标全部拒绝",
+            len(rejected) == _W11_CONC_N,
+            str([r for r in results if r not in rejected][:2]))
+        _ck("W11-10 symlink 原样保留（仍是 symlink）",
+            os.path.islink(link_path) and os.readlink(link_path) == victim)
+        with open(victim, "rb") as fh:
+            _ck("W11-10 根外目标零写入", fh.read() == b"outside-victim-bytes")
+        store = EvidenceStore(root)
+        _ck("W11-10 symlink 目标 contains()=False",
+            store.contains(digest) is False)
+        if hasattr(store, "quarantine"):
+            store.quarantine(digest, reason="w11-10 symlink repair test")
+            _ck("W11-10 symlink quarantine 后 put 重建成功",
+                store.put(ev) == digest and store.get(digest) == ev)
+        else:
+            _ck("W11-10 管理员 quarantine 通道存在", False, "missing")
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_contains_reverifies_type_nlink_and_hash():
+    """W11-10 §3：contains() 必须重验类型、nlink==1 与内容 hash。"""
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        store = EvidenceStore(root)
+        ev_ok = _mk_evidence("contains-healthy")
+        d_ok = store.put(ev_ok)
+        _ck("W11-10 contains 健康对象 True", store.contains(d_ok) is True)
+
+        # 内容 hash 不匹配（残缺/毒对象）：类型与 nlink 正常——只有 hash 重验能拦
+        ev_bad = _mk_evidence("contains-poison")
+        d_bad = store.digest_for(ev_bad)
+        shard = os.path.join(root, d_bad[:2])
+        os.makedirs(shard, exist_ok=True)
+        with open(os.path.join(shard, f"{d_bad}.json"), "wb") as fh:
+            fh.write(b"hash-mismatch-bytes")
+        _ck("W11-10 contains 对 hash 不匹配对象 False（内容重验）",
+            store.contains(d_bad) is False)
+
+        # hardlink（nlink>1）
+        ev_hl = _mk_evidence("contains-hardlink")
+        d_hl = store.digest_for(ev_hl)
+        shard_hl = os.path.join(root, d_hl[:2])
+        os.makedirs(shard_hl, exist_ok=True)
+        alias = os.path.join(td, "alias.json")
+        with open(alias, "wb") as fh:
+            fh.write(ev_hl.to_json().encode("utf-8"))
+        os.link(alias, os.path.join(shard_hl, f"{d_hl}.json"))
+        _ck("W11-10 contains 对 hardlink（nlink>1）False",
+            store.contains(d_hl) is False)
+
+        # 类型异常（FIFO）
+        ev_fifo = _mk_evidence("contains-fifo")
+        d_fifo = store.digest_for(ev_fifo)
+        shard_fifo = os.path.join(root, d_fifo[:2])
+        os.makedirs(shard_fifo, exist_ok=True)
+        os.mkfifo(os.path.join(shard_fifo, f"{d_fifo}.json"))
+        _ck("W11-10 contains 对非普通文件（FIFO）False",
+            store.contains(d_fifo) is False)
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_cas32_logical_key_exactly_one_binding():
+    """W11-10 §4/验收：32 不同内容并发竞争同 logical key → 恰好 1 绑定
+    成功、31 冲突；绑定文件反映唯一胜者。"""
+    if not _HAS_BINDING_ERROR:
+        _ck("W11-10 逻辑绑定 API 存在（bind/BindingError）", False,
+            "wenqu_core.runner.BindingError missing")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        key = "w11-10/shared-logical-key"
+        results = _w11_run_concurrent(
+            [("bind", f"bind-{i:02d}", key, root)
+             for i in range(_W11_CONC_N)])
+        bound = [r for r in results if r[0] == "bound"]
+        conflict = [r for r in results if r[0] == "conflict"]
+        put_fail = [r for r in results if r[0] not in ("bound", "conflict")]
+        _ck("W11-10 32 并发 put 全部先行成功", not put_fail, str(put_fail[:2]))
+        _ck("W11-10 同 logical key 恰好 1 个绑定成功", len(bound) == 1,
+            f"bound={len(bound)}")
+        _ck("W11-10 31 个绑定冲突（BindingError）",
+            len(conflict) == _W11_CONC_N - 1
+            and all(r[2] == "BindingError" for r in conflict),
+            str([r for r in conflict if r[2] != "BindingError"][:2]))
+        store = EvidenceStore(root)
+        winner = bound[0][1] if bound else None
+        _ck("W11-10 binding_for 返回唯一胜者 digest",
+            store.binding_for(key) == winner)
+        _ck("W11-10 逻辑绑定无临时残留", _w11_no_leftovers(root))
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_logical_binding_immutable_contract():
+    """W11-10 §4：logical_key → content_digest 不可变（同内容幂等、
+    不同内容冲突；绑定目标必须真实存在于 CAS）。"""
+    if not _HAS_BINDING_ERROR:
+        _ck("W11-10 逻辑绑定 API 存在（bind/BindingError）", False,
+            "wenqu_core.runner.BindingError missing")
+        return
+    with tempfile.TemporaryDirectory() as td:
+        store = EvidenceStore(os.path.join(td, "cas"))
+        ev_a = _mk_evidence("binding-a")
+        ev_b = _mk_evidence("binding-b")
+        d_a, d_b = store.put(ev_a), store.put(ev_b)
+        key = "w11-10/immutable-key"
+        _ck("W11-10 bind 首次成功", store.bind(key, d_a) == d_a)
+        _ck("W11-10 bind 同 digest 幂等成功", store.bind(key, d_a) == d_a)
+        try:
+            store.bind(key, d_b)
+            rebound = False
+        except BindingError:
+            rebound = True
+        _ck("W11-10 同 logical key 重绑不同内容 → BindingError", rebound)
+        _ck("W11-10 重绑失败后绑定仍指向原 digest",
+            store.binding_for(key) == d_a)
+        try:
+            store.bind("w11-10/ghost-key", "e" * 64)
+            ghost_rejected = False
+        except IntegrityError:
+            ghost_rejected = True
+        _ck("W11-10 绑定不存在的 digest → IntegrityError（禁空绑）",
+            ghost_rejected)
+        _ck("W11-10 未绑定 key 查询返回 None",
+            store.binding_for("w11-10/never-bound") is None)
+        store.close()
+
+
+@_w11_strict
+def test_w11_10_jobrunner_cas_failure_forces_error_no_pass():
+    """W11-10 §6：生产 JobRunner 强制 EvidenceStore——CAS 写失败即
+    ERROR/NOT_EVALUATED（rc=0 也不得 PASS）、不刷新成功心跳、无假
+    evidence_digest；缺 store 时拒绝构造。"""
+    from wenqu_core.scheduler import (
+        JobDefinition, JobRunner, NotificationOutbox, ScheduleRegistry,
+        SchedulerStore, ScheduleSpec,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        sstore = SchedulerStore(os.path.join(td, "sched.db"))
+        cas = EvidenceStore(os.path.join(td, "cas"))
+        frozen = _mk_evidence("frozen-cas-failure")
+
+        class _FixedRunner(TrustedRunner):
+            """确定性证据源（同 digest 复跑——CAS 毒化注入的前提）。"""
+            def run(self, argv, cwd=None):
+                return frozen
+
+        # 强制配置：evidence_required=True 而 store 缺失 → 拒绝构造
+        try:
+            JobRunner(sstore, _FixedRunner(), evidence_required=True)
+            ctor_rejected = False
+        except TypeError:
+            ctor_rejected = False  # 基线无该参数（红）
+        except Exception as exc:
+            ctor_rejected = "evidence" in str(exc).lower()
+        _ck("W11-10 JobRunner evidence_required 缺 store 拒绝构造",
+            ctor_rejected)
+
+        outbox = NotificationOutbox(
+            sstore, critical_channels=("primary", "fallback"))
+        outbox.register_channel("primary", lambda p: None)
+        outbox.register_channel("fallback", lambda p: None)
+        reg = ScheduleRegistry(sstore)
+        reg.register(JobDefinition(
+            job_id="w11-10.cas-fail", owner="w11-10",
+            argv=("/usr/bin/true",), schedule=ScheduleSpec.every(60.0),
+            environment="production", probe_id="w11-10-cas", station_id=0,
+            expected_exit_set=(0,), ttl_seconds=300.0), now=1000.0)
+        kwargs = {"registry": reg, "outbox": outbox,
+                  "evidence_store": cas, "evidence_required": True}
+        try:
+            jr = JobRunner(sstore, _FixedRunner(), **kwargs)
+        except TypeError:  # 基线无 evidence_required（红面仍由行为断言承担）
+            kwargs.pop("evidence_required")
+            jr = JobRunner(sstore, _FixedRunner(), **kwargs)
+
+        r1 = jr.run_job("w11-10.cas-fail", scheduled_at=1060.0, now=1061.0)
+        _ck("W11-10 CAS 正常时 COMPLETED/PASS",
+            r1.execution_status == "COMPLETED" and r1.policy_verdict == "PASS")
+        _ck("W11-10 生产 run 携带 evidence_digest（CAS 接线）",
+            isinstance(r1.evidence_digest, str)
+            and len(r1.evidence_digest) == 64)
+        _ck("W11-10 PASS 刷新心跳", r1.refreshed_heartbeat is True)
+
+        # 毒化该 digest 的 CAS 对象（固定证据 → 复跑同 digest → 写入必失败）
+        digest = r1.evidence_digest
+        poison_path = os.path.join(td, "cas", digest[:2], f"{digest}.json")
+        with open(poison_path, "wb") as fh:
+            fh.write(b"W11-10-JOBRUNNER-CAS-CORRUPTION")
+
+        r2 = jr.run_job("w11-10.cas-fail", scheduled_at=1120.0, now=1121.0)
+        _ck("W11-10 CAS 写失败强制 ERROR/NOT_EVALUATED（rc=0 也不得 PASS）",
+            r2.execution_status == "ERROR"
+            and r2.policy_verdict == "NOT_EVALUATED",
+            f"{r2.execution_status}/{r2.policy_verdict}")
+        _ck("W11-10 CAS 写失败不刷新成功心跳",
+            r2.refreshed_heartbeat is False)
+        _ck("W11-10 CAS 写失败 evidence_digest=None（无假 receipt）",
+            r2.evidence_digest is None)
+        _ck("W11-10 CAS 写失败带警告留痕",
+            any("evidence store" in w for w in r2.warnings))
+
+        rows = sstore.query(
+            "SELECT last_success_at, last_execution_status, "
+            "last_policy_verdict, consecutive_failures "
+            "FROM scheduler_heartbeats WHERE job_id='w11-10.cas-fail'")
+        h = rows[0] if rows else (None, None, None, None)
+        _ck("W11-10 心跳 last_success 未推进（仍是 r1 时刻）",
+            h[0] == 1061.0, str(h[0]))
+        _ck("W11-10 心跳末次执行态 ERROR、失败计数+1",
+            h[1] == "ERROR" and h[3] == 1, str((h[1], h[3])))
+
+        # Gate 面：CAS 失败 run 铸站结果绝不上绿
+        from wenqu_core import scheduler as _sched
+        paths = _sched.ProductionPaths(repo_root=td,
+                                       wenqu_home=os.path.join(td, "wh"))
+        station = _sched.build_station_result(
+            paths, {**r2.__dict__}, now=1130.0)
+        _ck("W11-10 CAS 失败 run 铸站结果 NOT_EVALUATED（Gate 不得 PASS）",
+            station["policy_verdict"] == "NOT_EVALUATED")
+        cas.close()
+        sstore.close()
+
+
+@_w11_strict
+def test_w11_10_station_artifact_is_real_cas_receipt():
+    """W11-10 §7：station 工件 cas_digest 必须能从真实 CAS 回读验证；
+    普通文件 SHA（无 CAS 对象）不得冒充 receipt。"""
+    from wenqu_core import scheduler as _sched
+
+    with tempfile.TemporaryDirectory() as td:
+        root = os.path.join(td, "cas")
+        cas = EvidenceStore(root)
+        if not hasattr(cas, "put_bytes") or not hasattr(cas, "verify_receipt"):
+            _ck("W11-10 CAS 字节面 API 存在（put_bytes/verify_receipt）",
+                False, "missing")
+            cas.close()
+            return
+        data = b'{"sample": "w11-10-receipt", "n": 1}'
+        digest = cas.put_bytes(data)
+        _ck("W11-10 put_bytes 返回 sha256 内容摘要",
+            digest == __import__("hashlib").sha256(data).hexdigest())
+        _ck("W11-10 get_bytes 回读全等", cas.get_bytes(digest) == data)
+        _ck("W11-10 verify_receipt 真实对象 True",
+            cas.verify_receipt(digest) is True)
+        _ck("W11-10 put_bytes 幂等（同字节同 digest）",
+            cas.put_bytes(data) == digest)
+        # 普通文件 SHA（从未入库）不得冒充 CAS receipt
+        other = b'{"sample": "never-stored"}'
+        plain_sha = __import__("hashlib").sha256(other).hexdigest()
+        _ck("W11-10 普通文件 SHA 冒充 receipt 被拒（verify False）",
+            cas.verify_receipt(plain_sha) is False)
+        # 毒化后 receipt 失效（fail-closed），管理员 quarantine 后可重建
+        bin_path = os.path.join(root, digest[:2], f"{digest}.bin")
+        with open(bin_path, "wb") as fh:
+            fh.write(b"CORRUPT-BIN")
+        _ck("W11-10 毒化后 verify_receipt False", cas.verify_receipt(digest)
+            is False)
+        cas.quarantine(digest, reason="w11-10 bin repair test",
+                       namespace="bin")
+        _ck("W11-10 quarantine(bin) 后重建 receipt 恢复",
+            cas.put_bytes(data) == digest
+            and cas.verify_receipt(digest) is True)
+
+        # build_station_result 工件 digest 必须来自真实 CAS（回读验证）
+        paths = _sched.ProductionPaths(repo_root=td,
+                                       wenqu_home=os.path.join(td, "wh"))
+        os.makedirs(paths.samples_dir, exist_ok=True)
+        sample_path = os.path.join(paths.samples_dir, "sample-latest.json")
+        with open(sample_path, "wb") as fh:
+            fh.write(data)
+        run = {"run_id": "job-w11-10-1", "policy_verdict": "PASS",
+               "execution_status": "COMPLETED", "started_at": 2000.0,
+               "finished_at": 2001.0, "actual_exit_code": 0,
+               "argv_digest": "b" * 64, "commit_sha": None,
+               "environment": "production"}
+        doc = _sched.build_station_result(paths, run, now=2002.0, cas=cas)
+        arts = doc.get("artifacts") or []
+        _ck("W11-10 站结果工件携带 cas_digest",
+            len(arts) == 1 and arts[0]["cas_digest"] == f"sha256:{digest}",
+            str(arts))
+        _ck("W11-10 站结果工件 digest 可从真实 CAS 回读",
+            cas.get_bytes(arts[0]["cas_digest"].split(":", 1)[1]) == data)
+
+        # 负例：工件 CAS 对象被毒化 → 站结果降级（不得以普通 SHA 续绿）
+        with open(bin_path, "wb") as fh:
+            fh.write(b"CORRUPT-BIN-2")
+        doc2 = _sched.build_station_result(paths, run, now=2003.0, cas=cas)
+        _ck("W11-10 工件 CAS 毒化 → 站结果降级 CONDITIONAL（不上绿）",
+            doc2["policy_verdict"] == "CONDITIONAL"
+            and doc2["coverage"]["scanned"] == 0
+            and not doc2.get("artifacts"),
+            f"{doc2['policy_verdict']}/{doc2['coverage']}/{doc2.get('artifacts')}")
+        cas.close()
+
+
+@_w11_strict
+def test_w11_10_production_tick_gate_red_when_cas_artifact_corrupt():
+    """W11-10 §6/验收：生产 CAS 不可信（工件对象毒化）时 Gate 必须红——
+    生产 tick 全链接线 EvidenceStore，工件 digest 是真实 CAS receipt。"""
+    from wenqu_core import scheduler as _sched
+
+    with tempfile.TemporaryDirectory() as td:
+        wh = os.path.join(td, "wenqu-home")
+        paths = _sched.ProductionPaths(repo_root=REPO, wenqu_home=wh)
+        sample_bytes = b'{"kind": "w11-10-prod-sample", "v": 1}'
+        writer = os.path.join(td, "sample-writer.py")
+        with open(writer, "w", encoding="utf-8") as fh:
+            fh.write(
+                "import os, sys\n"
+                "path = sys.argv[1]\n"
+                f"open(path, 'wb').write({sample_bytes!r})\n"
+            )
+        job_argv = (sys.executable, writer,
+                    os.path.join(paths.samples_dir, "sample-fixed.json"))
+        _noop = lambda payload: None  # noqa: E731
+
+        t0 = time.time()
+        tick1 = _sched.production_tick(paths=paths, now=t0, job_argv=job_argv,
+                                       macos_sender=_noop)
+        run1 = [r for r in tick1.get("runs", [])]
+        _ck("W11-10 生产 tick1 采样 PASS",
+            tick1["station_result"]["policy_verdict"] == "PASS"
+            and tick1["station_result"]["execution_status"] == "COMPLETED",
+            str(tick1["station_result"]))
+        station_file = os.path.join(paths.station_results_dir, "0.json")
+        with open(station_file, encoding="utf-8") as fh:
+            doc1 = json.load(fh)
+        arts = doc1.get("artifacts") or []
+        _ck("W11-10 生产站结果工件在位", len(arts) == 1, str(arts))
+        # 生产接线点 1：JobRunner 携带 evidence_digest（run 落 CAS）
+        rows_have_digest = True
+        if run1:
+            rows_have_digest = isinstance(
+                run1[0].get("actual_exit_code"), int)
+        _ck("W11-10 生产 tick run 完成态", rows_have_digest)
+        # 生产接线点 2：工件 digest 是真实 CAS receipt（可回读验证）
+        cas_root = os.path.join(wh, "state", "evidence-cas")
+        cas = EvidenceStore(cas_root)
+        if not arts:
+            _ck("W11-10 生产工件 digest 真实 CAS 回读验证", False, "no artifact")
+        else:
+            digest = arts[0]["cas_digest"].split(":", 1)[1]
+            got = cas.get_bytes(digest) if hasattr(cas, "get_bytes") else None
+            _ck("W11-10 生产工件 digest 真实 CAS 回读验证", got == sample_bytes,
+                f"cas_root={cas_root} digest={digest[:12]}…")
+            # 生产接线点 3：run 的 evidence 落在 CAS（存在性验证）
+            ev_objects = [
+                f for s in os.listdir(cas_root) if len(s) == 2
+                for f in os.listdir(os.path.join(cas_root, s))
+                if f.endswith(".json")]
+            _ck("W11-10 生产 run evidence 已落 CAS（json 对象在位）",
+                len(ev_objects) >= 1, str(ev_objects[:2]))
+            # 负例：毒化工件 CAS 对象 → tick2 Gate 必须红（不上 PASS）
+            bin_path = os.path.join(cas_root, digest[:2], f"{digest}.bin")
+            if not os.path.isfile(bin_path):
+                _ck("W11-10 生产 CAS 已接线（工件对象在位）", False,
+                    f"{bin_path} missing——生产未接 CAS")
+            else:
+                with open(bin_path, "wb") as fh:
+                    fh.write(b"W11-10-PROD-CAS-CORRUPTION")
+                tick2 = _sched.production_tick(
+                    paths=paths, now=t0 + 310.0, job_argv=job_argv,
+                    macos_sender=_noop)
+                _ck("W11-10 生产 CAS 毒化 → tick2 站结果不上绿",
+                    tick2["station_result"]["policy_verdict"] != "PASS",
+                    str(tick2["station_result"]))
+                _ck("W11-10 生产 CAS 毒化 → tick2 Gate 不 PASS",
+                    tick2["gate"]["aggregate_outcome"] != "PASS",
+                    str(tick2["gate"]))
+        cas.close()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items())
-             if k.startswith(("test_p0", "test_install")) and callable(v)]
+             if k.startswith(("test_p0", "test_install", "test_w11_10"))
+             and callable(v)]
     print(f"== 基础设施加固对抗自测（{len(tests)} 组）==")
     for t in tests:
         print(f"-- {t.__name__}")
