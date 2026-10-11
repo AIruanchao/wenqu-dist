@@ -31,6 +31,17 @@ R7 加固（第七轮验收根修，2026-10-08）：
 用法：
   python3 server.py [--port 7789] [--log]
   python3 server.py --port 7789 --self-check   # 自检输出 PASS 并退出
+
+W11-08｜日志密钥文件化、启动校验及强制轮换（R10-UI-LOGKEY-PLIST-LEAK-007 根修）：
+  - inline WENQU_DASHBOARD_KEY 泄露面（plist/进程环境）废止：生产只认
+    WENQU_DASHBOARD_KEY_FILE 指向的 0600 密钥文件，plist 只存路径不存密钥。
+  - load_dashboard_key_file() 在 bind 端口前执行：绝对路径 +
+    lstat→open(O_NOFOLLOW)→fstat 的 dev/ino 一致性（TOCTOU）、普通文件、
+    owner==euid、mode 恰为 0600、nlink==1、长度/字符集受限；相对路径、
+    0644、symlink、hardlink、FIFO、目录、inline env、文件缺失/越界一律
+    rc=78/EX_CONFIG 且端口绝不监听。
+  - 运行期 /api/v1/logs 鉴权只读启动时加载进内存的密钥（常量时间比较）；
+    未配置密钥文件时该端点维持 R7 fail-closed 403（与 decide 同范式）。
 """
 import argparse
 import collections
@@ -38,6 +49,7 @@ import hmac
 import json
 import os
 import re
+import stat as stat_m
 import subprocess
 import sys
 import threading
@@ -46,7 +58,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
-SERVER_VERSION = "wenqu-dashboard-w8/1.0"
+SERVER_VERSION = "wenqu-dashboard-w8/1.1"
 DASH_DIR = os.path.dirname(os.path.abspath(__file__))
 WQ = os.environ.get("WENQU_HOME", os.path.expanduser("~/.wenqu"))
 PORT_DEFAULT = 7789
@@ -58,6 +70,77 @@ REQUEST_TIMEOUT = 15             # 单连接读超时（秒）
 AGGREGATE_TTL = float(os.environ.get("WENQU_AGGREGATE_TTL", "1800"))  # 快照新鲜度上限（秒）
 HISTORY_INTERVAL = 600           # 健康度走势写入周期（秒）——独立定时任务，不在 GET 路径写
 LOG_MAX_BYTES_DEFAULT = 1048576  # /api/v1/logs 响应字节上限默认 1MiB（R7-UI-LOG-BYTES-010）
+
+# ── W11-08：日志密钥文件化（R10-UI-LOGKEY-PLIST-LEAK-007）──────────────
+KEY_FILE_ENV = "WENQU_DASHBOARD_KEY_FILE"      # 生产唯一密钥来源：0600 文件
+INLINE_KEY_ENV = "WENQU_DASHBOARD_KEY"         # 旧 inline 泄露面：启动即拒
+KEY_MAX_LEN = 256                              # 密钥字符数上限
+KEY_MIN_LEN = 16                               # 密钥字符数下限（charset 校验前）
+KEY_CHARSET_RE = re.compile(r"\A[A-Za-z0-9._:-]+\Z")  # 允许字符集（可打印子集）
+EX_CONFIG = 78                                 # sysexits.h：key 配置无效 → rc78，端口不得监听
+_DASH_LOG_KEY = None                           # 启动时从已验证密钥文件加载（内存唯一持有；None=未配置→403 fail-closed）
+
+
+def load_dashboard_key_file():
+    """W11-08：加载并校验 dashboard 日志密钥文件，(key, err)。"""
+    path = (os.environ.get(KEY_FILE_ENV) or "").strip()
+    if not path:
+        return None, None  # 未配置：不是错误——端点维持 R7 fail-closed 403
+    if not os.path.isabs(path):
+        return None, "KEYFILE_NOT_ABSOLUTE: %s" % path
+    try:
+        lst = os.lstat(path)
+    except OSError as e:
+        return None, "KEYFILE_STAT_FAIL: %s (%s)" % (path, e)
+    if not stat_m.S_ISREG(lst.st_mode):
+        return None, "KEYFILE_NOT_REGULAR: %s (symlink/FIFO/目录均拒)" % path
+    if lst.st_uid != os.geteuid():
+        return None, "KEYFILE_OWNER: uid=%d != euid=%d" % (lst.st_uid, os.geteuid())
+    if stat_m.S_IMODE(lst.st_mode) != 0o600:
+        return None, "KEYFILE_MODE: %o != 600" % stat_m.S_IMODE(lst.st_mode)
+    if lst.st_nlink != 1:
+        return None, "KEYFILE_HARDLINK: nlink=%d" % lst.st_nlink
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                     | getattr(os, "O_CLOEXEC", 0))
+    except OSError as e:
+        return None, "KEYFILE_OPEN_FAIL: %s (%s)" % (path, e)
+    try:
+        fst = os.fstat(fd)
+        if (fst.st_dev, fst.st_ino) != (lst.st_dev, lst.st_ino):
+            return None, "KEYFILE_TOCTOU: lstat/fstat dev/ino 不一致（路径被替换）"
+        if not stat_m.S_ISREG(fst.st_mode) or stat_m.S_IMODE(fst.st_mode) != 0o600 \
+                or fst.st_uid != os.geteuid() or fst.st_nlink != 1:
+            return None, "KEYFILE_TOCTOU: fstat 复核失败"
+        data = os.read(fd, KEY_MAX_LEN + 1)
+    finally:
+        os.close(fd)
+    try:
+        raw = data.decode("utf-8").rstrip("\r\n")
+    except UnicodeDecodeError:
+        return None, "KEYFILE_CHARSET: 非 UTF-8 或含 NUL"
+    if "\x00" in raw or not raw:
+        return None, "KEYFILE_CHARSET: 空或含 NUL"
+    if len(raw) > KEY_MAX_LEN:
+        return None, "KEYFILE_TOO_LONG: %d > %d" % (len(raw), KEY_MAX_LEN)
+    if len(raw) < KEY_MIN_LEN:
+        return None, "KEYFILE_TOO_SHORT: %d < %d" % (len(raw), KEY_MIN_LEN)
+    if not KEY_CHARSET_RE.match(raw):
+        return None, "KEYFILE_CHARSET: 字符集越界"
+    return raw, None
+
+
+def validate_dashboard_key_startup():
+    """W11-08：bind 前启动校验；返回 None=通过（_DASH_LOG_KEY 已就绪），字符串=失败原因（rc78）。"""
+    global _DASH_LOG_KEY
+    if (os.environ.get(INLINE_KEY_ENV) or "").strip():
+        return ("INLINE_KEY_FORBIDDEN: 检测到旧 inline %s——W11-08 起生产只允许 "
+                "%s（plist 只存路径）" % (INLINE_KEY_ENV, KEY_FILE_ENV))
+    key, err = load_dashboard_key_file()
+    if err:
+        return err
+    _DASH_LOG_KEY = key
+    return None
 
 
 def _log_max_bytes():
@@ -781,11 +864,12 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
-    # ── /api/v1/logs 鉴权（R7-UI-LOG-AUTH-009）：未配置 WENQU_DASHBOARD_KEY →
-    #    默认 403（fail-closed，与写接口关闭同范式）；配置后须携带匹配的
-    #    X-Auth-Key（hmac 常数时间比较，防时序侧信道）——日志敏感面绝不匿名可读 ──
+    # ── /api/v1/logs 鉴权（R7-UI-LOG-AUTH-009 + W11-08 密钥文件化）：启动时
+    #    未从 0600 密钥文件加载 key → 默认 403（fail-closed，与写接口关闭同
+    #    范式）；配置后须携带匹配的 X-Auth-Key（hmac 常数时间比较，防时序
+    #    侧信道）——日志敏感面绝不匿名可读 ──
     def _logs_auth(self):
-        key = (os.environ.get("WENQU_DASHBOARD_KEY") or "").strip()
+        key = _DASH_LOG_KEY
         if not key:
             return False, "LOGS_AUTH_UNCONFIGURED"
         provided = self.headers.get("X-Auth-Key") or ""
@@ -836,8 +920,9 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 self.close_connection = True
                 return self._err(403, code,
-                                 "日志端点需鉴权：配置 WENQU_DASHBOARD_KEY 并携带匹配的 "
-                                 "X-Auth-Key（未配置 key 时默认 403——fail-closed）")
+                                 "日志端点需鉴权：通过 WENQU_DASHBOARD_KEY_FILE 配置 0600 密钥文件并"
+                                 "携带匹配的 X-Auth-Key（未配置 key 时默认 403——fail-closed；W11-08 "
+                                 "起 inline WENQU_DASHBOARD_KEY 已废止）")
             return self._send(200, read_logs())
         if ep == "health":
             r = read_gate_aggregate()
@@ -986,6 +1071,57 @@ def self_check(port):
     ck("app.css 非空且含核心类", len(css) > 1500 and ".scard" in css and ".hidden" in css and ".errbox" in css)
     ck("server.py 关键控制存在（版本化/限速/405/Host/回环绑定）",
        all(t in src for t in ("/api/v1/", "RateLimiter", "405", "_host_ok", "127.0.0.1", "ThreadingHTTPServer")))
+    ck("server.py W11-08 密钥文件化控制存在（加载器/inline 拒/EX_CONFIG/常量时间）",
+       all(t in src for t in ("load_dashboard_key_file", "INLINE_KEY_FORBIDDEN",
+                              "EX_CONFIG", "O_NOFOLLOW", "compare_digest")))
+
+    # ── W11-08：load_dashboard_key_file() 函数级校验腿（临时密钥文件，逐项断言 err）──
+    import tempfile as _tf
+    with _tf.TemporaryDirectory(prefix="wq-selfcheck-key-") as _kd:
+        _kf = os.path.join(_kd, "dashboard.key")
+
+        def _keycase(env_val, prep=None):
+            old = os.environ.get(KEY_FILE_ENV)
+            os.environ[KEY_FILE_ENV] = env_val
+            try:
+                if prep:
+                    prep()
+                return load_dashboard_key_file()
+            finally:
+                os.environ.pop(KEY_FILE_ENV, None)
+                if old is not None:
+                    os.environ[KEY_FILE_ENV] = old
+
+        def _mk(content="selfcheck-file-key-0123456789", mode=0o600):
+            if os.path.lexists(_kf):
+                os.unlink(_kf)  # FIFO/symlink 残留先清——对 FIFO 的写 open 会永久阻塞
+            with open(_kf, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.chmod(_kf, mode)
+
+        k, e = _keycase(_kf, lambda: _mk())
+        ck("keyfile 合法 0600 → 加载成功", e is None and k == "selfcheck-file-key-0123456789")
+        _, e = _keycase("relative/dashboard.key")
+        ck("keyfile 相对路径 → 拒", e is not None and e.startswith("KEYFILE_NOT_ABSOLUTE"))
+        _, e = _keycase(os.path.join(_kd, "absent.key"))
+        ck("keyfile 不存在 → 拒", e is not None and e.startswith("KEYFILE_STAT_FAIL"))
+        _, e = _keycase(_kf, lambda: _mk(mode=0o644))
+        ck("keyfile 0644 → 拒", e is not None and e.startswith("KEYFILE_MODE"))
+        _, e = _keycase(_kf, lambda: (_mk(), os.symlink(_kf, _kf + ".lnk"),
+                                      os.environ.__setitem__(KEY_FILE_ENV, _kf + ".lnk")))
+        ck("keyfile symlink → 拒", e is not None and e.startswith("KEYFILE_NOT_REGULAR"))
+        _, e = _keycase(_kf, lambda: (_mk(), os.link(_kf, _kf + ".hl"),
+                                      os.environ.__setitem__(KEY_FILE_ENV, _kf + ".hl")))
+        ck("keyfile hardlink → 拒", e is not None and e.startswith("KEYFILE_HARDLINK"))
+        _, e = _keycase(_kf, lambda: (os.path.exists(_kf) and os.unlink(_kf),
+                                      os.mkfifo(_kf, 0o600)))
+        ck("keyfile FIFO → 拒", e is not None and e.startswith("KEYFILE_NOT_REGULAR"))
+        _, e = _keycase(_kf, lambda: _mk("short-key"))
+        ck("keyfile 过短(<%d) → 拒" % KEY_MIN_LEN, e is not None and e.startswith("KEYFILE_TOO_SHORT"))
+        _, e = _keycase(_kf, lambda: _mk("带空格的密钥 key with spaces!!"))
+        ck("keyfile 字符集越界 → 拒", e is not None and e.startswith("KEYFILE_CHARSET"))
+        _, e = _keycase(_kf, lambda: _mk("k" * (KEY_MAX_LEN + 1)))
+        ck("keyfile 超长(>%d) → 拒" % KEY_MAX_LEN, e is not None and e.startswith("KEYFILE_TOO_LONG"))
 
     # ── 动态检查：起真实服务打真实请求 ──
     bind_port = port
@@ -1068,15 +1204,17 @@ def self_check(port):
         ck("路径穿越 /../server.py → 404", s == 404)
         s, _, _, _ = req("OPTIONS", "/api/v1/ping")
         ck("OPTIONS（CORS 预检）→ 405 且无 ACAO", s == 405)
-        # 日志端点鉴权（R7-UI-LOG-AUTH-009，沙箱 key 现场注入，跑完还原环境）
-        _saved_key = os.environ.get("WENQU_DASHBOARD_KEY")
+        # 日志端点鉴权（R7-UI-LOG-AUTH-009 + W11-08 密钥文件化；沙箱 key 现场
+        # 注入模块全局——与生产 load_dashboard_key_file() 等价的内存持有面，跑完还原）
+        global _DASH_LOG_KEY
+        _saved_key = _DASH_LOG_KEY
         try:
-            os.environ.pop("WENQU_DASHBOARD_KEY", None)
+            _DASH_LOG_KEY = None
             s, _, _, j = req("GET", "/api/v1/logs")
             ck("/api/v1/logs 未配置 key → 403 LOGS_AUTH_UNCONFIGURED（fail-closed）",
                s == 403 and isinstance(j, dict)
                and j.get("error", {}).get("code") == "LOGS_AUTH_UNCONFIGURED")
-            os.environ["WENQU_DASHBOARD_KEY"] = "selfcheck-log-key"
+            _DASH_LOG_KEY = "selfcheck-log-key"
             s, _, _, j = req("GET", "/api/v1/logs")
             ck("/api/v1/logs 配置 key 但无 X-Auth-Key → 403",
                s == 403 and j.get("error", {}).get("code") == "LOGS_AUTH_FORBIDDEN")
@@ -1086,10 +1224,7 @@ def self_check(port):
             s, _, _, _ = req("GET", "/api/v1/logs", headers={"X-Auth-Key": "selfcheck-log-key"})
             ck("/api/v1/logs 正确 X-Auth-Key → 200", s == 200)
         finally:
-            if _saved_key is None:
-                os.environ.pop("WENQU_DASHBOARD_KEY", None)
-            else:
-                os.environ["WENQU_DASHBOARD_KEY"] = _saved_key
+            _DASH_LOG_KEY = _saved_key
         # P0-9/W8 保守面：零 SHA / self-declared 拒 PASS（沙箱快照现场注入，
         # 跑完还原 WENQU_GATE_AGGREGATE——绝不碰真实 ~/.wenqu/state）
         _saved_agg = os.environ.get("WENQU_GATE_AGGREGATE")
@@ -1157,6 +1292,14 @@ def main(argv=None):
 
     if args.self_check:
         sys.exit(self_check(args.port))
+
+    # W11-08：bind 端口前的密钥配置校验（inline env 拒 + 密钥文件全链校验）；
+    # 任何失败 rc=EX_CONFIG(78) 且下方 ThreadingHTTPServer 永不执行（端口不监听）
+    _key_err = validate_dashboard_key_startup()
+    if _key_err:
+        print("wenqu dashboard: FATAL(W11-08) key 配置无效 → rc78/EX_CONFIG: %s" % _key_err,
+              file=sys.stderr)
+        sys.exit(EX_CONFIG)
 
     _LOG_ENABLED = args.log
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # 仅回环绑定

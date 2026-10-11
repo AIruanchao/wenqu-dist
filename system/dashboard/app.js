@@ -8,8 +8,15 @@
  */
 const $=id=>document.getElementById(id);
 function el(t,c,txt){const d=document.createElement(t);if(c)d.className=c;if(txt!=null)d.textContent=String(txt);return d}
-async function api(path){
-  const r=await fetch(path);
+/* W11-08：日志解锁密钥只存活在本闭包内存——不写 URL/DOM/cookie/localStorage，
+ * 仅 logs 请求经 headers 附认证；刷新/重开即失忆（密钥正源=服务端 0600 文件） */
+const logsAuth=(()=>{let k=null;return{
+  header(){return k?{'X-Auth-Key':k}:null},
+  has(){return !!k},
+  set(v){k=String(v||'').trim()||null}
+}})();
+async function api(path,opts){
+  const r=await fetch(path,{headers:(opts&&opts.auth)||undefined});
   let body=null;
   try{body=await r.json()}catch(_e){/* 非 JSON 体 */}
   if(!r.ok||(body&&body.error)){
@@ -415,9 +422,19 @@ async function loadRounds(){
   }
 }
 async function loadLogs(){
-  const lg=await api('/api/v1/logs');
+  let lg=null,lastErr=null;
+  try{lg=await api('/api/v1/logs',{auth:logsAuth.header()})}
+  catch(e){
+    lastErr=e;
+    /* W11-08：403 且尚未持 key → 内存态解锁一次（prompt 值只进闭包，绝不入 DOM/URL/storage） */
+    if((e.code==='LOGS_AUTH_UNCONFIGURED'||e.code==='LOGS_AUTH_FORBIDDEN')&&!logsAuth.has()){
+      const k=window.prompt('哨兵日志已鉴权（W11-08 密钥文件化）：输入解锁密钥（只存内存，刷新失效）');
+      if(k){logsAuth.set(k);try{lg=await api('/api/v1/logs',{auth:logsAuth.header()})}catch(e2){lastErr=e2}}
+    }
+  }
   const lbox=$('logs');if(!lbox)return;
   lbox.replaceChildren();
+  if(!lg){lbox.appendChild(errBox(lastErr,'日志端点已鉴权：密钥正源=服务端 0600 密钥文件（W11-08），前端只存内存'));return}
   for(const[n,t]of Object.entries(lg)){
     lbox.appendChild(el('h2','mt8',n));
     const p=document.createElement('pre');

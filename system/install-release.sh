@@ -104,6 +104,9 @@
 #     --reload-scheduler  激活后 launchctl 重载 com.wenqu.scheduler 并 kickstart
 #     --reload-dashboard  激活后 launchctl 重载 com.wenqu.dashboard（现役
 #                         dashboard 走 current 不可变树，切换后须重启）
+#     --rotate-dashboard-key  W11-08：重生成 dashboard 日志密钥文件（0600，
+#                         原子替换）并重载作业——旧 key 立即失效；独立动作，
+#                         可不带 commit 单独执行（R10-UI-LOGKEY-PLIST-LEAK-007）
 #     --no-activate       只产四件套到仓外构建位（+verify 过 roots），不部署
 #     --rollback          切回 .last-current 记录的上一个激活目标（G9-13：
 #                         与正向链同一信任链——结构门/外部授权门+main 血统/
@@ -143,6 +146,7 @@ BUILD_BASE=""
 FORCE=0
 RELOAD_SCHEDULER=0
 RELOAD_DASHBOARD=0
+ROTATE_DASH_KEY=0
 NO_ACTIVATE=0
 ROLLBACK=0
 RECOVER_DRIFT=0
@@ -157,6 +161,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=1; shift;;
     --reload-scheduler) RELOAD_SCHEDULER=1; shift;;
     --reload-dashboard) RELOAD_DASHBOARD=1; shift;;
+    --rotate-dashboard-key) ROTATE_DASH_KEY=1; shift;;
     --no-activate) NO_ACTIVATE=1; shift;;
     --rollback) ROLLBACK=1; shift;;
     --recover-drift) RECOVER_DRIFT=1; shift;;
@@ -333,6 +338,47 @@ current_tree_gate() {  # $1=动作名（rollback/install）
   die "$1 前置失败：current 树已漂移（$cur 与 manifest 逐文件对账不过）——漂移现役树不得冒充正常 $1；保全现场走 --recover-drift（W11-03 [E]）"
 }
 
+
+# --------------------------------------------- W11-08 密钥轮换（独立动作）
+# R10-UI-LOGKEY-PLIST-LEAK-007 根修：dashboard 日志密钥只存在于 0600 文件；
+# plist/进程环境/日志绝不携带密钥内容。轮换=原子替换密钥文件 + 重载作业，
+# 旧密钥随进程重启即刻失效。key-id=sha256 摘要前 16 hex（可审计不泄密）。
+if [ "$ROTATE_DASH_KEY" = "1" ]; then
+  KEY_DIR="$INSTALL_ROOT/dashboard"
+  KEY_FILE="$KEY_DIR/dashboard.key"
+  umask 077
+  mkdir -p "$KEY_DIR" || die "无法创建 $KEY_DIR"
+  chmod 700 "$KEY_DIR" 2>/dev/null || true
+  NEW_KEY="$("$PY" -c 'import secrets;print(secrets.token_urlsafe(32))')"     || die "密钥生成失败（secrets 不可用）"
+  case "$NEW_KEY" in *[!A-Za-z0-9._:-]*|'') die "生成的密钥字符集异常（拒装）";; esac
+  TMP_KEY="$(mktemp "$KEY_DIR/.dashboard.key.XXXXXX")" || die "mktemp 失败"
+  printf '%s\n' "$NEW_KEY" > "$TMP_KEY" || { rm -f "$TMP_KEY"; die "密钥写入失败"; }
+  chmod 600 "$TMP_KEY" || { rm -f "$TMP_KEY"; die "密钥临时文件 chmod 600 失败"; }
+  mv -f "$TMP_KEY" "$KEY_FILE" || die "密钥原子替换失败（旧文件保持原样）"
+  KEY_ID="$("$PY" -c 'import sys,hashlib
+print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])' "$NEW_KEY")"
+  echo "ROTATE-KEY OK  ${KEY_FILE}（0600，owner=${UID_N}）"
+  echo "  key-id  : sha256:${KEY_ID}（摘要可审计；密钥内容绝不回显/入档）"
+  # 重载：作业已安装才动 launchctl；未装=下次启动自然持新 key
+  PLIST="$HOME/Library/LaunchAgents/com.wenqu.dashboard.plist"
+  if [ -f "$PLIST" ] && [ "${WENQU_ROTATE_SKIP_LAUNCHCTL:-0}" != "1" ]; then
+    launchctl bootout "gui/$UID_N/com.wenqu.dashboard" 2>/dev/null || true
+    launchctl bootstrap "gui/$UID_N" "$PLIST" || die "launchctl bootstrap 失败（旧 key 可能仍存活——人工介入核验）"
+    READY=0
+    for _ in $(seq 1 30); do
+      if curl -sS -o /dev/null --noproxy '*' \
+          "http://127.0.0.1:7789/api/v1/ping" 2>/dev/null; then
+        READY=1; break
+      fi
+      sleep 0.5
+    done
+    [ "$READY" = "1" ] || die "dashboard 重载后 15s 内未就绪（旧 key 可能仍存活——人工介入核验）"
+    echo "  reload  : com.wenqu.dashboard 已重启——旧 key 已失效"
+  else
+    echo "  reload  : plist 未安装（${PLIST}）或 WENQU_ROTATE_SKIP_LAUNCHCTL=1——跳过 launchctl"
+  fi
+  exit 0
+fi
 
 # ---------------------------------------------------------------- 回滚模式
 # G9-13（R9-REL-ROLLBACK-ROOT-BYPASS-004 根修）：回滚不再「目录存在即切」，
