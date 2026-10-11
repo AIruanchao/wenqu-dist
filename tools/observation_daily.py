@@ -17,8 +17,12 @@ v2（2026-10-09，G9-02：O_EXCL、hash chain、动态窗口）：
     显式 identity_error + fallback_refused=true，进程 rc1。
   - 进程 rc 契约：0=合格样本落盘；1=落盘但样本不合格（identity/provenance
     缺失）或创建碰撞/symlink 失败；3=证据环境错误（根不可写、manifest
-    歧义等）。scheduler 侧 expected_exit_set=(0,)：rc1 → COMPLETED/FAIL →
-    CRITICAL 通知（fail-visible 接线）。
+    歧义等）+ W11-07 受管前置（receipt 缺失/陈旧/篡改、prerequisite 改
+    字节——fail-closed 绝不采样）。scheduler 侧 expected_exit_set=(0,)：
+    rc1 → COMPLETED/FAIL → CRITICAL 通知（fail-visible 接线）。
+  - W11-07（十轮 W0 扣分根治）：观察器/git identity 用受控 clone 位
+    （WENQU_GIT_REPO + 唯一 updater 冻结的 freshness receipt）；共享开发
+    仓 fallback 已删除；采样器零 fetch（只读 exact ref + receipt 前置）。
   - rotation：识别新旧两代命名；当前窗口（active epoch）证据绝不删除。
 
 W9 shadow v2 语义（2026-10-09，八轮 identity=null 旧语义废止）不变：
@@ -58,8 +62,11 @@ REPO = os.path.dirname(_TOOLS_DIR)  # 代码/导入正源（脚本所在树）
 if __name__ == "__main__" and "observation_daily" not in sys.modules:
     sys.modules["observation_daily"] = sys.modules[__name__]
 # ---------------------------------------------------------------- git 身份仓解析
-_DEV_REPO_FALLBACK = os.environ.get("WENQU_DEV_REPO_FALLBACK",
-                                    "/Users/maccc/Documents/wenqu-dist")
+# W11-07（十轮 W0「共享开发仓依赖」根治）：共享开发仓 fallback 已删除——
+# 观察器/git identity 只认 WENQU_GIT_REPO（受控 clone 位）或脚本所在树；
+# 绝不回退 ~/Documents 下的可变共享开发树（dirty/删除/换分支都会污染
+# 观察身份）。受控 clone 的唯一 fetch 方 = tools/control_clone_updater.py
+# （独立 updater + freshness receipt）；采样器只读 exact ref，绝不 fetch。
 
 
 def _is_git_worktree(path):
@@ -76,8 +83,9 @@ def resolve_repo():
       - 合法 git 仓 → 使用之（repo_source=env）；
       - 无效（不存在/非 git）→ 拒绝静默回退（repo_source=env_invalid，
         fallback_refused=True）——后续 git 探针全部显式报错。
-    未设置：脚本所在树是 git 仓 → 用之；否则受控开发仓兜底；再否则
-    无 git 可用（identity_error 如实记录）。"""
+    未设置：脚本所在树是 git 仓 → 用之；否则无 git 可用（identity_error
+    如实记录）。W11-07：共享开发仓 fallback 已删除（W0 扣分项——
+    可变共享树不得成为观察身份正源）。"""
     env_repo = os.environ.get("WENQU_GIT_REPO")
     if env_repo:
         if _is_git_worktree(env_repo):
@@ -85,8 +93,6 @@ def resolve_repo():
         return env_repo, "env_invalid", env_repo
     if _is_git_worktree(REPO):
         return REPO, "script", None
-    if _is_git_worktree(_DEV_REPO_FALLBACK):
-        return _DEV_REPO_FALLBACK, "dev_default", None
     return REPO, "none", None
 
 
@@ -243,9 +249,12 @@ def probe_host():
 def probe_repo():
     """git 身份探针（R7-OBS-SAMPLE-014 + G9-02 E fail-visible）。
 
-    身份正源 = fetch 后的 origin/main；WENQU_GIT_REPO 无效时拒绝静默回退
-    （fallback_refused=True，identity=None + 显式 identity_error）——绝不
-    把 identity=null 的样本混进合格分母。"""
+    身份正源 = 受控 clone 的 origin/main（exact ref，只读）；W11-07 起
+    采样器绝不 fetch——fetch 属独立受控 updater
+    （tools/control_clone_updater.py，freshness receipt 冻结 exact ref）。
+    WENQU_GIT_REPO 无效时拒绝静默回退（fallback_refused=True，
+    identity=None + 显式 identity_error）——绝不把 identity=null 的样本
+    混进合格分母。"""
     git_bin = find_bin("git")
     base = {
         "worktree_head": None, "head_error": None,
@@ -264,7 +273,7 @@ def probe_repo():
             + "；silent fallback refused (G9-02 identity fail-visible)")
         out["head_error"] = "repo invalid; git probes skipped"
         return out
-    run_cmd([git_bin, "fetch", "origin", "main"], timeout=90, cwd=repo_path)
+    # 只读探针（零 fetch——freshness 由 receipt 前置校验承担）
     ident_r = run_cmd([git_bin, "rev-parse", "origin/main"], timeout=15, cwd=repo_path)
     head_r = run_cmd([git_bin, "rev-parse", "HEAD"], timeout=15, cwd=repo_path)
     dirty_r = run_cmd([git_bin, "status", "--porcelain"], timeout=15, cwd=repo_path)
@@ -456,6 +465,92 @@ def resolve_scheduler_config_sha():
     if not p:
         p = os.path.expanduser("~/Library/LaunchAgents/com.wenqu.scheduler.plist")
     return sha256_file(p)
+
+
+# ---------------------------------------------------------------- W11-07 受管前置
+
+RECEIPT_SCHEMA = "w11-control-clone-receipt-v1"
+
+
+def validate_controlled_inputs(env=None):
+    """W11-07 受管环境闭环前置校验（sampler 侧，只读、fail-closed）。
+
+    受管模式判定：``WENQU_MANAGED_SAMPLER=1``（plist→scheduler→runner
+    全链透传的非秘密标记）或设置了 ``WENQU_GIT_RECEIPT``——二者任一
+    即受管。受管模式下 receipt（WENQU_GIT_RECEIPT，由唯一 updater
+    tools/control_clone_updater.py 冻结）必须满足：
+
+      - 可读、可解析、schema 匹配；
+      - receipt.repo 与 WENQU_GIT_REPO（规范化）一致；
+      - clone 内 ``git rev-parse origin/<ref>`` == receipt.sha（exact ref，
+        采样器零 fetch，ref 被移动即暴露）；
+      - fetched_at 距今 ≤ ttl（freshness receipt 陈旧即拒）；
+      - prerequisite / scheduler-config 文件内容 sha256 与 receipt 绑定
+        值一致（改字节=篡改，即便 JSON 仍可解析）。
+
+    任一不满足 → failures 非空 → main() 直接 rc3（配置缺失、陈旧或
+    篡改），绝不采样。返回 (ok, failures, receipt_doc)。"""
+    env = os.environ if env is None else env
+    managed = env.get("WENQU_MANAGED_SAMPLER") == "1"
+    receipt_path = env.get("WENQU_GIT_RECEIPT")
+    if not managed and not receipt_path:
+        return True, [], None  # 非受管（本地/开发直跑）——不适用本闸
+    if not receipt_path:
+        return False, ["receipt_missing:"
+                       "managed sampler (WENQU_MANAGED_SAMPLER=1) requires"
+                       " WENQU_GIT_RECEIPT (plist→scheduler→runner 透传"
+                       "断裂也会走到这里——fail-closed)"], None
+    failures = []
+    try:
+        with open(receipt_path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError) as e:
+        return False, ["receipt_unparsable:%s" % str(e)[:160]], None
+    if not isinstance(doc, dict) or doc.get("schema") != RECEIPT_SCHEMA:
+        return False, ["receipt_schema_invalid"], doc
+    repo_env = env.get("WENQU_GIT_REPO", "")
+    repo_declared = doc.get("repo") or ""
+    if repo_env and os.path.realpath(repo_declared) != os.path.realpath(repo_env):
+        failures.append("receipt_repo_mismatch:%s!=%s"
+                        % (repo_declared, repo_env))
+    if not _is_git_worktree(repo_declared):
+        failures.append("control_clone_not_a_worktree:%s" % repo_declared)
+    else:
+        origin_ref = doc.get("origin_ref") or "origin/main"
+        sha = doc.get("sha")
+        if not (isinstance(sha, str) and len(sha) == 40):
+            failures.append("receipt_sha_invalid")
+        else:
+            git_bin = find_bin("git")
+            r = run_cmd([git_bin, "rev-parse", origin_ref], timeout=15,
+                        cwd=repo_declared) if git_bin else {
+                "returncode": None, "stdout": "", "stderr": "git not found",
+                "error": "git not found"}
+            if r["returncode"] != 0 or r["stdout"] != sha:
+                failures.append("receipt_ref_mismatch:%s!=%s"
+                                % (r["stdout"] or "none", sha))
+    fetched = doc.get("fetched_at_epoch")
+    ttl = doc.get("ttl_seconds")
+    if not isinstance(fetched, (int, float)) or not isinstance(ttl,
+                                                               (int, float)) \
+            or ttl <= 0:
+        failures.append("receipt_freshness_fields_invalid")
+    elif (time.time() - float(fetched)) > float(ttl):
+        failures.append("receipt_stale:age=%.0fs>ttl=%.0fs"
+                        % (time.time() - float(fetched), float(ttl)))
+    # 声明文件 → 内容 hash 绑定（键名与 updater receipt 写出的物理键一致）
+    for file_key, sha_key, label in (
+            ("prereqs_file", "prereqs_sha256", "prereqs"),
+            ("scheduler_config", "scheduler_config_sha256",
+             "scheduler_config")):
+        declared, bound = doc.get(file_key), doc.get(sha_key)
+        if not declared:
+            continue
+        if not os.path.isfile(declared):
+            failures.append("%s_tampered:file_missing" % label)
+        elif sha256_file(declared) != bound:
+            failures.append("%s_tampered:hash_mismatch" % label)
+    return (not failures), failures, doc
 
 
 def probe_live_identity():
@@ -1423,6 +1518,17 @@ def main(argv=None):
         return 3
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()
+
+    # W11-07 受管前置闸（fail-closed）：receipt 缺失/陈旧/篡改、prerequisite
+    # 改字节 → rc3 配置缺失、陈旧或篡改——绝不采样、绝不开窗。
+    cfg_ok, cfg_failures, _receipt = validate_controlled_inputs()
+    if not cfg_ok:
+        print(json.dumps({"ok": False, "rc": 3,
+                          "error": "controlled-inputs preflight failed: "
+                                   + "; ".join(cfg_failures),
+                          "config_failures": cfg_failures},
+                         ensure_ascii=False))
+        return 3
 
     def _skipped():
         return {"skipped": "light-mode"}
