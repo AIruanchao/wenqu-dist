@@ -1591,6 +1591,90 @@ PROD_TICK_INTERVAL = 300  # launchd StartInterval（秒）
 PROD_CHANNEL_MACOS = "macos"
 PROD_CHANNEL_ALERTBOX = "alertbox"
 
+# ---------------------------------------------------------------------------
+# W11-07 受管环境二跳（plist → scheduler → TrustedRunner → sampler）
+#
+# 十轮 W0 扣分「scheduler 环境二跳」根治：plist EnvironmentVariables 只
+# 解决第一跳（launchd→scheduler 进程）；TrustedRunner 的 P0-5 环境白名单
+# 默认只放行 PATH/LANG/LC_ALL/TZ/TMPDIR/HOME——受管变量在第二跳
+# （scheduler→采样子进程）被剥除，采样器只能静默回退共享开发仓。修复：
+# production_tick 的默认 runner 必须显式携带下面的非秘密 passthrough
+# （inherit_env 一律禁止）；plist 模板同步显式配置同名键（正源一致）。
+# ---------------------------------------------------------------------------
+#: 受管采样标记（非秘密；plist 设 1，经 passthrough 全链透传到采样器——
+#: 采样器据此强制 receipt 前置闸，断裂即 rc3 fail-closed）。
+PROD_MANAGED_MARKER_ENV = "WENQU_MANAGED_SAMPLER"
+#: TrustedRunner 显式非秘密 passthrough 白名单（第二跳允许清单；
+#: 秘密/令牌类变量一律不得加入——子进程只见批准变量）。
+PROD_ENV_PASSTHROUGH = (
+    "PYTHONPATH",
+    "WENQU_HOME",
+    PROD_MANAGED_MARKER_ENV,
+    "WENQU_GIT_REPO",
+    "WENQU_GIT_RECEIPT",
+    "WENQU_GIT_REF",
+    "WENQU_WINDOW_PREREQS_FILE",
+    "WENQU_SCHEDULER_CONFIG",
+    "WENQU_OBSERVATION_ROOT",
+    "WENQU_OBS_PROBE_MODE",
+    "WENQU_RELEASE_SHA",
+)
+#: data_config_hash 绑定的允许变量（规范化值入哈希）。
+PROD_DATA_CONFIG_VARS = (
+    PROD_MANAGED_MARKER_ENV,
+    "WENQU_GIT_REPO",
+    "WENQU_GIT_REF",
+    "WENQU_GIT_RECEIPT",
+    "WENQU_WINDOW_PREREQS_FILE",
+    "WENQU_SCHEDULER_CONFIG",
+    "WENQU_OBSERVATION_ROOT",
+    "WENQU_OBS_PROBE_MODE",
+    "WENQU_RELEASE_SHA",
+)
+#: 上表中按路径语义规范化的变量（realpath——尾斜杠/相对段不产生新指纹）。
+_PROD_PATHISH_VARS = frozenset((
+    "WENQU_GIT_REPO", "WENQU_GIT_RECEIPT", "WENQU_WINDOW_PREREQS_FILE",
+    "WENQU_SCHEDULER_CONFIG", "WENQU_OBSERVATION_ROOT",
+))
+
+
+def _normalize_prod_env_value(key: str, value: str) -> str:
+    v = (value or "").strip()
+    if key in _PROD_PATHISH_VARS and v:
+        try:
+            return _os.path.realpath(v)
+        except OSError:
+            return v
+    return v
+
+
+def production_data_config_hash(paths: "ProductionPaths") -> str:
+    """W11-07 data_config_hash：绑定受管配置面的规范化摘要。
+
+    绑定分量（任一变化 → 指纹变化 → 旧 input fingerprint / heartbeat
+    成功 / PASS 证据全部失效——compute_input_fingerprint 消费本值）：
+      - 允许变量（PROD_DATA_CONFIG_VARS）的规范化值（路径 realpath）；
+      - prerequisite 文件（WENQU_WINDOW_PREREQS_FILE）内容 sha256；
+      - scheduler config 文件（WENQU_SCHEDULER_CONFIG）内容 sha256；
+      - clone receipt（WENQU_GIT_RECEIPT）文件内容 sha256（fetch 时间/
+        exact ref sha/前置绑定全在 receipt 内——receipt 任何字节变化
+        都换指纹）；
+      - observer digest（tools/observation_daily.py 内容 sha256）。"""
+    vars_norm = {k: _normalize_prod_env_value(k, _os.environ.get(k, ""))
+                 for k in PROD_DATA_CONFIG_VARS}
+    payload = {
+        "vars": vars_norm,
+        "prereqs_sha256": _sha256_file(_os.environ.get(
+            "WENQU_WINDOW_PREREQS_FILE", "")) or "",
+        "scheduler_config_sha256": _sha256_file(_os.environ.get(
+            "WENQU_SCHEDULER_CONFIG", "")) or "",
+        "receipt_sha256": _sha256_file(_os.environ.get(
+            "WENQU_GIT_RECEIPT", "")) or "",
+        "observer_sha256": _sha256_file(paths.observation_daily) or "",
+    }
+    return hashlib.sha256(_canonical_json(payload).encode("utf-8")
+                          ).hexdigest()
+
 
 class ProductionPaths:
     """W4 生产运行的全部路径（env 可覆盖；测试整体注入）。"""
@@ -2120,6 +2204,9 @@ def _prod_job_definition(paths: "ProductionPaths",
         ttl_seconds=900.0,
         expected_exit_set=(0,),
         channels=(PROD_CHANNEL_MACOS, PROD_CHANNEL_ALERTBOX),
+        # W11-07：受管配置面绑定——允许变量规范化值 + prereqs/config/receipt
+        # 内容 hash + observer digest（配置变化 → 指纹变化 → 旧 PASS 失效）。
+        data_config_hash=production_data_config_hash(paths),
     )
 
 
@@ -2155,7 +2242,11 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         outbox.register_channel(
             PROD_CHANNEL_ALERTBOX, make_alertbox_sender(paths.alerts_dir))
         heartbeat_mon = HeartbeatMonitor(store, outbox)
-        runner_impl = runner or TrustedRunner(timeout=240.0)
+        # W11-07 环境二跳修复：默认 runner 显式携带非秘密 passthrough
+        # （plist→scheduler→TrustedRunner→sampler 全链透传）；inherit_env
+        # 一律禁止。runner 注入仅作测试接缝——注入方自担透传语义。
+        runner_impl = runner or TrustedRunner(
+            timeout=240.0, env_passthrough=PROD_ENV_PASSTHROUGH)
         jrunner = JobRunner(
             store, runner_impl, registry=registry, outbox=outbox,
             heartbeat=heartbeat_mon,
@@ -2263,6 +2354,52 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                 f"{PROD_STATION_ID}.json")  # 同站覆盖=gate 只见最新
             _atomic_write_json(station_path, station_doc)
 
+        # ---- W11-07 scheduler health 分离：tick 存活 ≠ 采样 PASS/FRESH ----
+        # tick rc0 只证明调度器活着；采样作业的真实 rc/verdict/新鲜度单列，
+        # rc3（配置缺失、陈旧或篡改）额外触发 CRITICAL——tick 绿不得掩盖。
+        sampler_block: Dict[str, Any] = {"job_id": PROD_JOB_ID,
+                                         "tick_alive": True,
+                                         "last_run_rc": None,
+                                         "execution_status": None,
+                                         "policy_verdict": None,
+                                         "finished_at": None,
+                                         "watchdog_freshness_seconds": 1200.0,
+                                         "fresh": False,
+                                         "config_error": False}
+        if rows:
+            lr = JobRunner._row_to_record_dict(rows[0])
+            lr_finished = lr.get("finished_at")
+            sampler_block.update({
+                "last_run_rc": lr.get("actual_exit_code"),
+                "execution_status": lr.get("execution_status"),
+                "policy_verdict": lr.get("policy_verdict"),
+                "finished_at": lr_finished,
+                "config_error": lr.get("actual_exit_code") == 3,
+            })
+            sampler_block["fresh"] = bool(
+                lr.get("execution_status") == "COMPLETED"
+                and lr.get("policy_verdict") == "PASS"
+                and isinstance(lr_finished, (int, float))
+                and (now - float(lr_finished)) <= 1200.0)
+            if sampler_block["config_error"]:
+                try:
+                    outbox.notify(
+                        "CRITICAL",
+                        "[wenqu] 采样器 rc3：配置缺失/陈旧/篡改",
+                        "job=%s run=%s rc=3（receipt 陈旧/ref 不匹配/"
+                        "prerequisite 改字节/透传断裂均归此类）——tick 存活"
+                        "不掩盖采样 fail-closed。"
+                        % (PROD_JOB_ID, lr.get("run_id")),
+                        meta={"kind": "sampler_config_error",
+                              "job_id": PROD_JOB_ID,
+                              "run_id": lr.get("run_id"),
+                              "actual_exit_code": 3},
+                        dedup_key="sampler_rc3:%d" % int(now // 3600),
+                        now=now,
+                    )
+                except Exception:
+                    log.exception("sampler rc3 CRITICAL notify failed")
+
         gate = refresh_gate_aggregate(paths, now=now)
         health = heartbeat_mon.check_health(now=now, notify=True)
         dispatch = outbox.dispatch_due(now=now)
@@ -2291,6 +2428,9 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                      "policy_verdict": gate.get("policy_verdict"),
                      "reason": gate.get("reason"),
                      "cli_exit": gate.get("cli_exit")},
+            # W11-07：tick 存活（tick_rc）与采样 PASS/FRESH 显式分离——
+            # tick rc0 不得掩盖 sampler rc3。
+            "sampler": sampler_block,
             "capacity_gate": {
                 "gate": cap.get("capacity_gate"),
                 "code": cap.get("code"),

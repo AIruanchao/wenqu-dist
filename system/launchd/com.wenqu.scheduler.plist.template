@@ -5,7 +5,14 @@
      只允许此一个作业，禁止注册 com.wenqu.observation /
      com.wenqu.observation-window（见同目录 README.md 注册表）。
      审计命令：python3 tools/window_harvest.py 的 audit-writers 模式
-     （指定 root 与 LaunchAgents 目录）。 -->
+     （指定 root 与 LaunchAgents 目录）。
+     W11-07（环境二跳/运行前置覆盖）：本模板显式配置受管 env 键——
+     第一跳（launchd→scheduler）；第二跳（scheduler→TrustedRunner→
+     采样器）由 wenqu_core.scheduler.PROD_ENV_PASSTHROUGH 显式非秘密
+     透传承担（plist 与 passthrough 键集保持同源）。采样器收到
+     WENQU_MANAGED_SAMPLER=1 后强制 receipt 前置闸（fail-closed）。
+     WENQU_GIT_REPO 必须指向受控 clone 位（install-release.sh 的
+     control-clone-remote 冻结步），绝不指向共享开发树。 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -25,8 +32,18 @@
         <string>{{WENQU_CURRENT_TREE}}/system</string>
         <key>WENQU_HOME</key>
         <string>{{WENQU_HOME}}</string>
+        <key>WENQU_MANAGED_SAMPLER</key>
+        <string>1</string>
         <key>WENQU_GIT_REPO</key>
-        <string>{{WENQU_GIT_REPO}}</string>
+        <string>{{WENQU_CONTROL_CLONE}}</string>
+        <key>WENQU_GIT_RECEIPT</key>
+        <string>{{WENQU_HOME}}/control/clone-receipt.json</string>
+        <key>WENQU_WINDOW_PREREQS_FILE</key>
+        <string>{{WENQU_HOME}}/control/window-prereqs.json</string>
+        <key>WENQU_SCHEDULER_CONFIG</key>
+        <string>{{WENQU_HOME}}/launchd/com.wenqu.scheduler.plist</string>
+        <key>WENQU_OBSERVATION_ROOT</key>
+        <string>{{WENQU_HOME}}/observation</string>
     </dict>
     <key>StartInterval</key>
     <integer>300</integer>

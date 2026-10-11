@@ -108,6 +108,13 @@
 #                         原子替换）并重载作业——旧 key 立即失效；独立动作，
 #                         可不带 commit 单独执行（R10-UI-LOGKEY-PLIST-LEAK-007）
 #     --no-activate       只产四件套到仓外构建位（+verify 过 roots），不部署
+#     --control-clone-remote URL  W11-07 受控 clone 冻结步：以独立受控
+#                         updater（tools/control_clone_updater.py，唯一
+#                         fetch 方）维护 $INSTALL_ROOT/control/clone 并写
+#                         freshness receipt；观测 identity 不再用共享开发树
+#     --control-clone-ref REF     受控 clone exact ref（默认 main）
+#     --control-prereqs P         运行前置 JSON 文件（内容 hash 绑入
+#                         receipt；默认 $INSTALL_ROOT/control/window-prereqs.json）
 #     --rollback          切回 .last-current 记录的上一个激活目标（G9-13：
 #                         与正向链同一信任链——结构门/外部授权门+main 血统/
 #                         四件套 verify/树逐文件对账/切换后 health+auth 冒烟，
@@ -150,6 +157,10 @@ ROTATE_DASH_KEY=0
 NO_ACTIVATE=0
 ROLLBACK=0
 RECOVER_DRIFT=0
+# W11-07 受控 clone 冻结步（opt-in：--control-clone-remote）
+CONTROL_CLONE_REMOTE=""
+CONTROL_CLONE_REF="main"
+CONTROL_PREREQS=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -163,6 +174,9 @@ while [ $# -gt 0 ]; do
     --reload-dashboard) RELOAD_DASHBOARD=1; shift;;
     --rotate-dashboard-key) ROTATE_DASH_KEY=1; shift;;
     --no-activate) NO_ACTIVATE=1; shift;;
+    --control-clone-remote) CONTROL_CLONE_REMOTE="${2:?--control-clone-remote 缺参数}"; shift 2;;
+    --control-clone-ref) CONTROL_CLONE_REF="${2:?--control-clone-ref 缺参数}"; shift 2;;
+    --control-prereqs) CONTROL_PREREQS="${2:?--control-prereqs 缺参数}"; shift 2;;
     --rollback) ROLLBACK=1; shift;;
     --recover-drift) RECOVER_DRIFT=1; shift;;
     -h|--help) sed -n '2,60p' "$0"; exit 0;;
@@ -1021,6 +1035,49 @@ fi
   --expect-generation "$GEN" >/dev/null 2>"$INSTALL_ROOT/.rs-err.$$" \
   || die "journal advance SMOKE_OK 失败——$(tail -1 "$INSTALL_ROOT/.rs-err.$$" 2>/dev/null)"
 failpoint after_smoke
+
+# ------------------------------------------------- 6) W11-07 受控 clone 冻结
+# （opt-in：--control-clone-remote）观察器/git identity 的专用受控 clone 位
+# + freshness receipt——采样器零 fetch、绝不回退共享开发树（十轮 W0 根治）。
+# 唯一 fetch 方 = 激活位 current 树的 tools/control_clone_updater.py。
+if [ -n "$CONTROL_CLONE_REMOTE" ]; then
+  echo "== [6] W11-07 受控 clone 冻结（updater fetch + receipt + 复验）=="
+  CONTROL_DIR="$INSTALL_ROOT/control"
+  CONTROL_CLONE="$CONTROL_DIR/clone"
+  CONTROL_RECEIPT="$CONTROL_DIR/clone-receipt.json"
+  CONTROL_PREREQS="${CONTROL_PREREQS:-$CONTROL_DIR/window-prereqs.json}"
+  if [ ! -f "$CURRENT/tools/control_clone_updater.py" ]; then
+    die "激活树缺 tools/control_clone_updater.py——非本仓制品（W11-07）"
+  fi
+  if [ -n "$CONTROL_PREREQS" ] && [ ! -f "$CONTROL_PREREQS" ]; then
+    die "运行前置文件不存在: $CONTROL_PREREQS（须部署前预置，内容 hash 将绑入 receipt）"
+  fi
+  # scheduler config（受管 plist）存在才绑内容 hash——首装 plist 未就位时
+  # 不强制 die（装配后重跑冻结步即可绑入）。
+  UPDATER_ARGS="--repo $CONTROL_CLONE --remote $CONTROL_CLONE_REMOTE \
+--ref $CONTROL_CLONE_REF --receipt $CONTROL_RECEIPT \
+--prereqs-file $CONTROL_PREREQS"
+  SCHED_PLIST="$HOME/Library/LaunchAgents/com.wenqu.scheduler.plist"
+  if [ -f "$SCHED_PLIST" ]; then
+    UPDATER_ARGS="$UPDATER_ARGS --scheduler-config $SCHED_PLIST"
+  fi
+  # shellcheck disable=SC2086 —— 受控参数串（路径含空格场景用数组重写）
+  if "$PY" "$CURRENT/tools/control_clone_updater.py" $UPDATER_ARGS; then
+    :
+  else
+    die "受控 clone updater 失败（fetch/环境）——拒绝冻结（W11-07 fail-closed）"
+  fi
+  # 冻结复验：不 fetch，receipt↔clone↔freshness↔hash 全链一致才算冻结
+  if "$PY" "$CURRENT/tools/control_clone_updater.py" \
+      --validate-only --repo "$CONTROL_CLONE" \
+      --receipt "$CONTROL_RECEIPT"; then
+    :
+  else
+    die "受控 clone receipt 复验失败（陈旧/ref 不匹配/前置改字节）——拒绝冻结"
+  fi
+  log "受控 clone 冻结完成: $CONTROL_CLONE（receipt: $CONTROL_RECEIPT）"
+  log "plist 须显式配置 WENQU_GIT_REPO=$CONTROL_CLONE 与 receipt/前置路径（见 system/launchd 模板）"
+fi
 
 # 可选：launchd 重载 + 立即 kickstart 一轮
 if [ "$RELOAD_SCHEDULER" = "1" ]; then
