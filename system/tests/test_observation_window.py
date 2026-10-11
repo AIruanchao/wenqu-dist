@@ -135,8 +135,11 @@ def _core(identity="a" * 40, tag="t", sfinal="b" * 40,
 
 
 def _record(root, identity="a" * 40, tag="t", release_sha=None,
-            scheduler_config_sha=None, collected_at=None, sfinal="b" * 40,
+            scheduler_config_sha="d" * 64, collected_at=None, sfinal="b" * 40,
             **core_over):
+    # 默认补 scheduler_config_sha：回退路径是 macOS 专属 LaunchAgents plist，
+    # 干净 runner（Linux/macOS CI）必缺 → 样本不合格 → 锚不锚（T-2 同族第三现，
+    # 2026-10-11 CI 实证）。显式传 None 可测不合格路径。
     return od.record_sample(
         root, _core(identity, tag, sfinal=sfinal, **core_over),
         identity=identity, release_sha=release_sha or sfinal,
