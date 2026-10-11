@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wenqu:schemas/adjudication-final-v3.json",
+  "title": "Quarantine Adjudication Final V3 (Ed25519 independent channel)",
+  "description": "W11-09 / R10-MIG-ADJUDICATION-VERIFYKEY-004: per-row Ed25519 signature over a frozen length-prefixed UTF-8 canonical contract plus a corpus root signature. V2/HMAC artifacts are historical only and do not validate against this schema. The public key is NOT carried in this document: verifiers must pin key_id and public key from an out-of-band trust source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema", "contract_version", "algorithm", "namespace", "canonicalization", "key_id", "run_id", "environment", "source_sha", "generated_at", "inputs", "clusters", "conservation", "rows", "corpus"],
+  "properties": {
+    "artifact": {"const": "quarantine-adjudication-final-v3"},
+    "schema": {"const": "adjudication-final-v3"},
+    "contract_version": {"const": "adjudication-final-v3"},
+    "algorithm": {"const": "Ed25519"},
+    "namespace": {"const": "wenqu-dist.migration-reconcile.adjudication"},
+    "canonicalization": {"const": "lp-utf8-v1;fields=row_id,row_digest,cluster_id,decision,reason,principal,reviewed_at,proposal_sha256,report_sha256,contract_version,key_id,namespace"},
+    "key_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+    "environment": {"enum": ["dev", "test", "staging", "production"]},
+    "source_sha": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "generated_at": {"type": "string"},
+    "authority": {"type": ["string", "null"]},
+    "principal": {"type": ["string", "null"]},
+    "production_write": {"type": ["string", "null"]},
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal_sha256", "report_sha256"],
+      "properties": {
+        "proposal_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "report_git_head": {"type": ["string", "null"]}
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["cluster_id", "decision", "row_count"],
+        "properties": {
+          "cluster_id": {"type": "string", "minLength": 1},
+          "decision": {"enum": ["KEEP_QUARANTINE", "RECLASSIFY"]},
+          "row_count": {"type": "integer", "minimum": 1},
+          "rationale": {"type": ["string", "null"]},
+          "conservative_note": {"type": ["string", "null"]},
+          "sample_checked": {"type": ["array", "null"]},
+          "review_state": {"type": ["string", "null"]},
+          "principal": {"type": ["string", "null"]},
+          "reviewed_at": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "conservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "KEEP_QUARANTINE", "RECLASSIFY", "PENDING", "contract", "rows_with_signature"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 1},
+        "KEEP_QUARANTINE": {"type": "integer", "minimum": 0},
+        "RECLASSIFY": {"type": "integer", "minimum": 0},
+        "PENDING": {"const": 0},
+        "contract": {"const": "adjudication-final-v3"},
+        "rows_with_signature": {"type": "integer", "minimum": 1}
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["row_id", "row_digest", "cluster_id", "decision", "reason", "principal", "reviewed_at", "signature"],
+        "properties": {
+          "row_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "row_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "cluster_id": {"type": "string", "minLength": 1},
+          "decision": {"enum": ["KEEP_QUARANTINE", "RECLASSIFY"]},
+          "reason": {"type": "string", "minLength": 1},
+          "principal": {"type": "string", "minLength": 1},
+          "reviewed_at": {"type": "string", "minLength": 1},
+          "signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$"}
+        }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row_count", "decision_counts", "corpus_root_signature"],
+      "properties": {
+        "row_count": {"type": "integer", "minimum": 1},
+        "decision_counts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"enum": ["KEEP_QUARANTINE", "RECLASSIFY"]}
+        },
+        "corpus_root_signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$"}
+      }
+    }
+  }
+}

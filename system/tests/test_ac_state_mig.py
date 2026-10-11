@@ -53,6 +53,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -1651,6 +1652,277 @@ def test_STATE_11_s7_conditional_missing_risk_authorization_failed():
 
 
 # ---------------------------------------------------------------------- #
+# W11-09｜1950 行裁定的独立验签通道（Ed25519 V3；R10-MIG-ADJUDICATION-
+# VERIFYKEY-004）。被测体：tools/adjudication_sign.py、tools/
+# verify_adjudication.py、tools/lib_ed25519.py、system/schemas/
+# adjudication-final-v3.schema.json。V2/HMAC 旧件仅历史证据；本节用
+# 独立 Ed25519 测试密钥（tmp 生成、仓外、测后即焚）重签真实 1950 行
+# 语料；生产 V3 须运维受控私钥签出（W11-09-A 实证私钥不入仓边界）。
+# ---------------------------------------------------------------------- #
+W11_FINAL_V2 = os.path.join(REPO_ROOT, "evidence", "07-migration-reconcile",
+                            "adjudication", "adjudication-final.json")
+W11_PROPOSAL = os.path.join(REPO_ROOT, "evidence", "07-migration-reconcile",
+                            "adjudication", "adjudication-proposal.json")
+W11_REPORT = os.path.join(REPO_ROOT, "evidence", "07-migration-reconcile",
+                          "reconcile-report.json")
+W11_SIGNER = os.path.join(REPO_ROOT, "tools", "adjudication_sign.py")
+W11_VERIFIER = os.path.join(REPO_ROOT, "tools", "verify_adjudication.py")
+W11_SCHEMA = os.path.join(REPO_ROOT, "system", "schemas",
+                          "adjudication-final-v3.schema.json")
+W11_KEY_ID = "test-adjudication-ed25519-v3"
+W11_HEX64 = "^[0-9a-f]{64}$"
+
+
+def _w11_run(args):
+    return subprocess.run([sys.executable] + args, cwd=REPO_ROOT,
+                          capture_output=True, text=True, timeout=600)
+
+
+def _w11_verify(final, pub, key_id=W11_KEY_ID, proposal=None, report=None):
+    args = [W11_VERIFIER, "--final", final, "--public-key", pub,
+            "--key-id", key_id]
+    if proposal:
+        args += ["--proposal", proposal]
+    if report:
+        args += ["--report", report]
+    return _w11_run(args)
+
+
+def _w11_mutate(src, tmpdir, name, fn):
+    with open(src, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    fn(doc)
+    path = os.path.join(tmpdir, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False)
+    return path
+
+
+_W11_FIXTURE = {}
+
+
+def _w11_full_fixture():
+    if "v3" in _W11_FIXTURE:
+        return _W11_FIXTURE
+    tmp = tempfile.mkdtemp(prefix="w11-09-full-")
+    key = os.path.join(tmp, "adj.key")
+    out = _w11_run([W11_SIGNER, "--generate-keypair", key])
+    assert out.returncode == 0, "生成密钥对失败: %s%s" % (out.stderr, out.stdout)
+    v3 = os.path.join(tmp, "adjudication-final-v3.json")
+    out = _w11_run([
+        W11_SIGNER, "--final-in", W11_FINAL_V2, "--proposal", W11_PROPOSAL,
+        "--report", W11_REPORT, "--private-key", key, "--key-id", W11_KEY_ID,
+        "--out", v3, "--run-id", "run-w11-09-test", "--environment", "test",
+        "--source-sha", "0" * 40])
+    assert out.returncode == 0, "真实语料签名失败: %s%s" % (out.stderr, out.stdout)
+    _W11_FIXTURE.update(tmp=tmp, key=key, pub=key + ".pub", v3=v3)
+    return _W11_FIXTURE
+
+
+def _w11_mini_fixture():
+    if "mv3" in _W11_FIXTURE:
+        return _W11_FIXTURE
+    tmp = tempfile.mkdtemp(prefix="w11-09-mini-")
+    key = os.path.join(tmp, "mini.key")
+    assert _w11_run([W11_SIGNER, "--generate-keypair", key]).returncode == 0
+    rows = []
+    for i in range(3):
+        rows.append({
+            "row_id": "%064x" % i, "row_digest": "%064x" % (0x100 + i),
+            "cluster_id": "mini:token", "decision": "KEEP_QUARANTINE",
+            "reason": "合成第 %d 行：长尾 token 维持隔离" % i,
+            "principal": "pytest（合成）",
+            "reviewed_at": "2026-10-11T00:00:00+00:00",
+            "signature": "00" * 32, "review_state": "final"})
+    v2 = {"artifact": "quarantine-adjudication-final", "rows": rows,
+          "clusters": [{"cluster_id": "mini:token",
+                        "decision": "KEEP_QUARANTINE", "row_count": 3}]}
+    v2p = os.path.join(tmp, "mini-final.json")
+    with open(v2p, "w", encoding="utf-8") as fh:
+        json.dump(v2, fh, ensure_ascii=False)
+    prop = os.path.join(tmp, "mini-proposal.json")
+    rep = os.path.join(tmp, "mini-report.json")
+    with open(prop, "w", encoding="utf-8") as fh:
+        json.dump({"artifact": "mini-proposal"}, fh)
+    with open(rep, "w", encoding="utf-8") as fh:
+        json.dump({"artifact": "mini-report",
+                   "rows": [{"row_id": r["row_id"],
+                             "state": "quarantined"} for r in rows]}, fh)
+    mv3 = os.path.join(tmp, "mini-final-v3.json")
+    out = _w11_run([
+        W11_SIGNER, "--final-in", v2p, "--proposal", prop, "--report", rep,
+        "--private-key", key, "--key-id", W11_KEY_ID, "--out", mv3,
+        "--run-id", "run-w11-09-mini", "--environment", "test",
+        "--source-sha", "1" * 40])
+    assert out.returncode == 0, "合成语料签名失败: %s%s" % (out.stderr, out.stdout)
+    _W11_FIXTURE.update(mtmp=tmp, mkey=key, mpub=key + ".pub", mprop=prop,
+                        mrep=rep, mv3=mv3)
+    return _W11_FIXTURE
+
+
+def test_W11_09_A_keypair_hygiene_and_real_roundtrip():
+    """Ed25519 密钥卫生 + 真实 1950 行语料签/验往返（KEEP=1950、PENDING=0）。"""
+    fx = _w11_full_fixture()
+    st = os.stat(fx["key"])
+    assert st.st_mode & 0o777 == 0o600, "私钥权限不是 0600"
+    with open(fx["key"]) as fh:
+        priv_hex = fh.read().strip()
+    assert re.match(W11_HEX64, priv_hex), "私钥必须单行 64hex"
+    with open(fx["pub"]) as fh:
+        assert re.match(W11_HEX64, fh.read().strip()), "公钥 64hex"
+    inside = os.path.join(REPO_ROOT, "adj-inside-repo.key")
+    try:
+        with open(inside, "w") as fh:
+            fh.write(priv_hex + "\n")
+        os.chmod(inside, 0o600)
+        out = _w11_run([
+            W11_SIGNER, "--final-in", W11_FINAL_V2, "--proposal",
+            W11_PROPOSAL, "--report", W11_REPORT, "--private-key", inside,
+            "--key-id", W11_KEY_ID, "--out", os.path.join(fx["tmp"], "x.json"),
+            "--run-id", "run-inside", "--environment", "test",
+            "--source-sha", "0" * 40])
+        assert out.returncode != 0 and "仓" in out.stderr + out.stdout, \
+            "仓内私钥未被拒绝"
+    finally:
+        if os.path.exists(inside):
+            os.remove(inside)
+    with open(fx["v3"], encoding="utf-8") as fh:
+        v3 = json.load(fh)
+    c = v3["conservation"]
+    assert c["total"] == 1950 and c["KEEP_QUARANTINE"] == 1950, c
+    assert c["PENDING"] == 0 and c["RECLASSIFY"] == 0, c
+    with open(fx["v3"], encoding="utf-8") as fh:
+        blob = fh.read()
+    assert priv_hex not in blob and "PRIVATE KEY" not in blob, "私钥泄漏"
+    out = _w11_verify(fx["v3"], fx["pub"], proposal=W11_PROPOSAL,
+                      report=W11_REPORT)
+    assert out.returncode == 0, "验签失败: %s%s" % (out.stderr, out.stdout)
+    assert "1950/1950" in out.stdout
+    return {"keep": 1950, "pending": 0, "verify_rc": 0}
+
+
+def test_W11_09_B_conservation_no_dup_no_missing():
+    """守恒细目：重复=0、遗漏=0（report quarantined 恒等）、簇一致。"""
+    fx = _w11_full_fixture()
+    with open(fx["v3"], encoding="utf-8") as fh:
+        v3 = json.load(fh)
+    with open(W11_REPORT, encoding="utf-8") as fh:
+        rep = json.load(fh)
+    ids = [r["row_id"] for r in v3["rows"]]
+    assert len(ids) == 1950 and len(set(ids)) == 1950, "row_id 重复"
+    qids = {x["row_id"] for x in rep["rows"] if x["state"] == "quarantined"}
+    assert qids == set(ids), "遗漏/多出"
+    per = {}
+    for r in v3["rows"]:
+        per.setdefault(r["cluster_id"], []).append(r)
+    for cl in v3["clusters"]:
+        got = per.get(cl["cluster_id"], [])
+        assert cl["row_count"] == len(got), "簇计数漂移"
+        for r in got:
+            assert r["decision"] == cl["decision"], "簇内决策漂移"
+    assert v3["corpus"]["decision_counts"]["KEEP_QUARANTINE"] == 1950
+    return {"dup": 0, "missing": 0, "clusters": len(v3["clusters"])}
+
+
+def test_W11_09_C_tamper_matrix_all_rejected():
+    """篡改/删行/重复/换签/错key/错key_id/旧report哈希 -> rc1 全拒。"""
+    fx = _w11_mini_fixture()
+    ok = _w11_verify(fx["mv3"], fx["mpub"], proposal=fx["mprop"],
+                     report=fx["mrep"])
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    tmp = fx["mtmp"]
+
+    def setr0(d, val):
+        d["rows"][0]["reason"] = val
+    variants = [
+        ("reason-tamper", lambda d: setr0(d, d["rows"][0]["reason"] + "x")),
+        ("delete-row", lambda d: d["rows"].pop(0)),
+        ("duplicate-row", lambda d: d["rows"].append(dict(d["rows"][0]))),
+        ("cross-row-sig-swap",
+         lambda d: d["rows"][0].__setitem__("signature",
+                                            d["rows"][1]["signature"])),
+        ("corpus-count-tamper",
+         lambda d: d["corpus"].__setitem__("row_count",
+                                           d["corpus"]["row_count"] + 1)),
+        ("conservation-tamper",
+         lambda d: d["conservation"].__setitem__(
+             "total", d["conservation"]["total"] + 1)),
+    ]
+    for name, mut in variants:
+        p = _w11_mutate(fx["mv3"], tmp, name + ".json", mut)
+        out = _w11_verify(p, fx["mpub"], proposal=fx["mprop"],
+                          report=fx["mrep"])
+        assert out.returncode == 1, "%s 未被拒绝: %s%s" % (name, out.stdout,
+                                                           out.stderr)
+    k2 = os.path.join(tmp, "k2.key")
+    assert _w11_run([W11_SIGNER, "--generate-keypair", k2]).returncode == 0
+    out = _w11_verify(fx["mv3"], k2 + ".pub", proposal=fx["mprop"],
+                      report=fx["mrep"])
+    assert out.returncode == 1, "错公钥未被拒"
+    out = _w11_verify(fx["mv3"], fx["mpub"], key_id="rogue-key-id")
+    assert out.returncode == 1, "错 key_id 未被拒"
+    stale = os.path.join(tmp, "stale-report.json")
+    with open(fx["mrep"], encoding="utf-8") as fh:
+        srep = json.load(fh)
+    srep["rows"][0]["state"] = "mapped"
+    with open(stale, "w", encoding="utf-8") as fh:
+        json.dump(srep, fh, ensure_ascii=False)
+    out = _w11_verify(fx["mv3"], fx["mpub"], proposal=fx["mprop"],
+                      report=stale)
+    assert out.returncode == 1, "旧 report 哈希未被拒"
+    return {"variants": 9, "all_rc": 1}
+
+
+def test_W11_09_D_exit_code_semantics():
+    """退出码 0/1/2/3 语义逐档实证（缺失=3、结构/Schema=2、内容=1）。"""
+    fx = _w11_mini_fixture()
+    tmp = fx["mtmp"]
+    ghost = os.path.join(tmp, "ghost.json")
+    assert _w11_verify(ghost, fx["mpub"]).returncode == 3, "缺失 final!=3"
+    assert _w11_verify(fx["mv3"], ghost).returncode == 3, "缺失公钥!=3"
+    bad = os.path.join(tmp, "bad.pub")
+    with open(bad, "w") as fh:
+        fh.write("not-hex\n")
+    assert _w11_verify(fx["mv3"], bad).returncode == 3, "坏公钥!=3"
+    nj = os.path.join(tmp, "notjson.json")
+    with open(nj, "w") as fh:
+        fh.write("{broken")
+    assert _w11_verify(nj, fx["mpub"]).returncode == 2, "坏 JSON!=2"
+    out = _w11_run([W11_VERIFIER, "--final", W11_FINAL_V2,
+                    "--public-key", fx["mpub"], "--key-id", W11_KEY_ID])
+    assert out.returncode == 2, "V2/HMAC 旧件!=2"
+    p = _w11_mutate(fx["mv3"], tmp, "no-digest.json",
+                    lambda d: d["rows"][0].pop("row_digest"))
+    assert _w11_verify(p, fx["mpub"]).returncode == 2, "缺字段!=2"
+    p = _w11_mutate(fx["mv3"], tmp, "wrong-canon.json",
+                    lambda d: d.__setitem__("namespace",
+                                            d["namespace"] + "x"))
+    assert _w11_verify(p, fx["mpub"]).returncode == 2, "错 canonicalization!=2"
+    return {"rc3": 3, "rc2": 4, "rc1": "见 W11-09-C"}
+
+
+def test_W11_09_E_schema_and_v2_demoted():
+    """schema 文件合法且 V3 过检、V2 不过检（V2 仅历史证据）。"""
+    fx = _w11_full_fixture()
+    with open(W11_SCHEMA, encoding="utf-8") as fh:
+        schema = json.load(fh)
+    assert schema.get("required"), "schema 必填面为空"
+    try:
+        import jsonschema
+    except ImportError:
+        return {"jsonschema": "不可用（结构面由验证器内建检查覆盖）"}
+    with open(fx["v3"], encoding="utf-8") as fh:
+        v3 = json.load(fh)
+    jsonschema.validate(v3, schema)
+    with open(W11_FINAL_V2, encoding="utf-8") as fh:
+        v2 = json.load(fh)
+    try:
+        jsonschema.validate(v2, schema)
+    except jsonschema.ValidationError:
+        return {"v3": "PASS", "v2": "REJECTED（历史件不入 V3 通道）"}
+    raise AssertionError("V2 旧件不应通过 V3 schema")
+
+# ---------------------------------------------------------------------- #
 # 运行器 + 证据工件
 # ---------------------------------------------------------------------- #
 TESTS = [
@@ -1688,6 +1960,16 @@ TESTS = [
      test_MIG_04_source_conservation_enforced),
     ("MIG-05", "project key 冲突 → 明确冲突，不拆成假项目",
      test_MIG_05_project_key_conflict_explicit_no_fake_split),
+    ("W11-09-A", "Ed25519 密钥卫生+真实 1950 行签/验往返（KEEP=1950）",
+     test_W11_09_A_keypair_hygiene_and_real_roundtrip),
+    ("W11-09-B", "守恒：重复=0、遗漏=0（report 恒等）",
+     test_W11_09_B_conservation_no_dup_no_missing),
+    ("W11-09-C", "篡改矩阵 9 变体全拒（含换签名/错key/旧report）",
+     test_W11_09_C_tamper_matrix_all_rejected),
+    ("W11-09-D", "退出码 0/1/2/3 逐档实证",
+     test_W11_09_D_exit_code_semantics),
+    ("W11-09-E", "schema 合法+V2 历史件不入通道",
+     test_W11_09_E_schema_and_v2_demoted),
 ]
 
 
@@ -1739,7 +2021,7 @@ def write_artifact(started_at, finished_at, exit_code):
                         "非生产账本；STATE-04 崩溃注入为真实 SIGKILL 子进程。",
         "results": dict(sorted(results.items())),
         "summary": {
-            "ids_total": 16,
+            "ids_total": len(TESTS),
             "implemented_and_passed": n_pass,
             "not_implementable_in_scope": len(NOT_IMPLEMENTABLE_IN_SCOPE),
             "failed": len(RESULTS) - n_pass,
@@ -1758,7 +2040,8 @@ def write_artifact(started_at, finished_at, exit_code):
 def main():
     global PASS_N, FAIL_N
     started_at = datetime.now(timezone.utc).isoformat()
-    print("§20 验收 ID 专属测试：STATE-01~11 / MIG-01~05")
+    print("§20 验收 ID 专属测试：STATE-01~11 / MIG-01~05 "
+      "+ W11-09（Ed25519 独立验签通道）")
     print("被测体 A 组: system/wenqu_core/store.py + "
           "system/wenqu_core/ledger_migrator.py（不依赖 wenqu_pipeline）")
     print("被测体 B 组: system/wenqu_core/wenqu_pipeline.py"
@@ -1783,7 +2066,8 @@ def main():
             print(f"  --   {tid}  {info['injection']} → {info['expectation']}"
                   f"（详见证据工件 reason）")
     else:
-        print("\n不可实现登记：无（16/16 ID 均有专属真实测试）")
+        print("\n不可实现登记：无（%d/%d ID 均有专属真实测试）"
+              % (len(TESTS), len(TESTS)))
     exit_code = 0 if FAIL_N == 0 else 1
     finished_at = datetime.now(timezone.utc).isoformat()
     path = write_artifact(started_at, finished_at, exit_code)
