@@ -45,7 +45,9 @@ from datetime import time as dtime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .runner import Evidence, EvidenceStore, TrustedRunner
+from .runner import (
+    Evidence, EvidenceStore, IntegrityError, TrustedRunner,
+)
 from .store import EventStore
 
 __all__ = [
@@ -1285,6 +1287,7 @@ class JobRunner:
         outbox: Optional[NotificationOutbox] = None,
         heartbeat: Optional[HeartbeatMonitor] = None,
         evidence_store: Optional[EvidenceStore] = None,
+        evidence_required: bool = False,
         event_store: Optional[EventStore] = None,
         commit_sha_provider: Optional[Callable[[], Optional[str]]] = None,
         notify_dedup_seconds: float = 3600.0,
@@ -1294,6 +1297,15 @@ class JobRunner:
         self._registry = registry or ScheduleRegistry(self._store)
         self._outbox = outbox or NotificationOutbox(self._store)
         self._heartbeat = heartbeat or HeartbeatMonitor(self._store, self._outbox)
+        # W11-10 生产强制接线：evidence_required=True 时 EvidenceStore 缺失
+        # 即拒绝构造——生产 JobRunner 不允许无 CAS 运行（CAS 写失败的
+        # fail-closed 语义见 run_job：ERROR/NOT_EVALUATED、不刷心跳、
+        # Gate 不得 PASS）。
+        self._evidence_required = bool(evidence_required)
+        if self._evidence_required and evidence_store is None:
+            raise SchedulerError(
+                "evidence_required=True demands an EvidenceStore: production "
+                "JobRunner must be wired with a real CAS (W11-10)")
         self._evidence_store = evidence_store
         self._event_store = event_store
         self._commit_sha_provider = commit_sha_provider
@@ -1380,12 +1392,26 @@ class JobRunner:
                                                  job.expected_exit_set)
         finished = time.time()
 
+        # ---- W11-10 生产强制接线：证据必须落 CAS，写失败即 fail-closed ----
+        # CAS 写失败（含损坏对象 IntegrityError、不可写 OSError）一律强制
+        # ERROR/NOT_EVALUATED：rc=0 也不得 PASS、成功心跳不刷新（刷新铁律
+        # 只认 COMPLETED+PASS）、evidence_digest=None（绝不留假 receipt）、
+        # 站结果铸不出 PASS → Gate 必红。修复仅走管理员 quarantine/repair。
         evidence_digest: Optional[str] = None
         if evidence is not None and self._evidence_store is not None:
             try:
                 evidence_digest = self._evidence_store.put(evidence)
             except Exception as exc:
                 warnings.append(f"evidence store write failed: {exc}")
+                status, verdict = "ERROR", "NOT_EVALUATED"
+                warnings.append(
+                    "CAS evidence write failed; forced ERROR/NOT_EVALUATED "
+                    "(no PASS, no heartbeat refresh, Gate must stay red; "
+                    "repair via admin quarantine only)")
+        elif evidence is not None and self._evidence_required:
+            # 构造期已守卫；此处防御性兜底（evidence 不得脱离 CAS 声称完成）。
+            status, verdict = "ERROR", "NOT_EVALUATED"
+            warnings.append("evidence_required but no evidence store wired")
 
         if scheduled_at is not None:
             run_id = f"job-{job_id}-{int(round(float(scheduled_at) * 1000))}"
@@ -1683,7 +1709,7 @@ class ProductionPaths:
         "repo_root", "wenqu_home", "state_dir", "scheduler_db",
         "gate_aggregate", "station_results_dir", "observation_root",
         "samples_dir", "shadow_dir", "alerts_dir", "drills_dir", "logs_dir",
-        "heartbeat", "observation_daily", "cli_py",
+        "heartbeat", "observation_daily", "cli_py", "cas_root",
     )
 
     def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
@@ -1695,6 +1721,9 @@ class ProductionPaths:
                                             "gate-aggregate.json")
         self.station_results_dir = _os.path.join(self.state_dir,
                                                  "station-results")
+        # W11-10：生产 CAS 根（run evidence + 站工件 receipt 同根分桶；
+        # _bindings/_quarantine 为内部区，不与 2-hex shard 冲突）
+        self.cas_root = _os.path.join(self.state_dir, "evidence-cas")
         self.observation_root = _os.path.join(wenqu_home, "observation")
         self.samples_dir = _os.path.join(self.observation_root, "samples")
         self.shadow_dir = _os.path.join(self.observation_root, "shadow")
@@ -2018,13 +2047,44 @@ def _latest_sample_artifact(paths: "ProductionPaths",
 
 
 def build_station_result(paths: "ProductionPaths", run: Dict[str, Any],
-                         *, now: float) -> Dict[str, Any]:
-    """把采样作业的最近 run 铸成 station-result-v2（gate CLI 严格校验）。"""
+                         *, now: float,
+                         cas: Optional[EvidenceStore] = None) -> Dict[str, Any]:
+    """把采样作业的最近 run 铸成 station-result-v2（gate CLI 严格校验）。
+
+    W11-10 §7：``cas`` 给出时（生产 tick 必给），工件 digest 必须来自
+    真实 CAS——样本字节 ``put_bytes`` 入库 + ``get_bytes`` 回读复验通过
+    才写 artifacts；任何 CAS 故障（损坏/不可写）= 无 receipt = scanned
+    降级，绝不以普通文件 SHA 冒充 CAS receipt。
+    """
     verdict = run.get("policy_verdict")
     status = run.get("execution_status")
     art_path, art_size = _latest_sample_artifact(
         paths, finished_after=run.get("started_at"))
     scanned = 1 if (art_path is not None) else 0
+    artifact_entry: Optional[Dict[str, Any]] = None
+    if art_path is not None:
+        if cas is not None:
+            # 真实 CAS receipt：入库（create-if-absent 幂等）+ 回读复验
+            try:
+                with open(art_path, "rb") as fh:
+                    data = fh.read()
+                digest = cas.put_bytes(data)
+                if cas.get_bytes(digest) != data or not data:
+                    raise IntegrityError(
+                        "CAS artifact readback mismatch (receipt unverifiable)")
+                artifact_entry = {"cas_digest": f"sha256:{digest}",
+                                  "size": len(data)}
+            except Exception:
+                artifact_entry = None
+        elif art_size:
+            # 旧路径（非生产调用方兼容）：普通文件 SHA——生产 tick 已不再
+            # 走此分支（W11-10 起 production_tick 强制传入真实 CAS）。
+            digest = _sha256_file(art_path)
+            if digest:
+                artifact_entry = {"cas_digest": f"sha256:{digest}",
+                                  "size": art_size}
+    if artifact_entry is None:
+        scanned = 0
     # 采样器完成且样本工件在位 → PASS 证据齐全；否则如实降级：
     #   执行完成但工件缺失 = CONDITIONAL（软，不上绿）；
     #   执行未完成（ERROR/TIMEOUT/BLOCKED）或 FAIL = 对应阻断裁决。
@@ -2064,13 +2124,8 @@ def build_station_result(paths: "ProductionPaths", run: Dict[str, Any],
                      "exclusions": []},
         "artifacts": [],
     }
-    if art_path is not None and art_size is not None:
-        digest = _sha256_file(art_path)
-        if digest:
-            doc["artifacts"].append({
-                "cas_digest": f"sha256:{digest}", "size": art_size})
-        else:
-            doc["coverage"]["scanned"] = 0
+    if artifact_entry is not None:
+        doc["artifacts"].append(artifact_entry)
     return doc
 
 
@@ -2231,6 +2286,10 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
     now = _as_epoch(now)
 
     store = SchedulerStore(paths.scheduler_db)
+    # W11-10 生产强制接线：EvidenceStore 是生产 JobRunner 的必配组件——
+    # run evidence 与站工件 receipt 同根入 CAS；CAS 写失败即 ERROR/
+    # NOT_EVALUATED（不刷成功心跳、Gate 不得 PASS）。
+    cas = EvidenceStore(paths.cas_root)
     try:
         registry = ScheduleRegistry(store)
         outbox = NotificationOutbox(
@@ -2250,6 +2309,7 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         jrunner = JobRunner(
             store, runner_impl, registry=registry, outbox=outbox,
             heartbeat=heartbeat_mon,
+            evidence_store=cas, evidence_required=True,
             commit_sha_provider=lambda: _git_head(paths.repo_root),
         )
         # ---- B5 容量闸前置检查（2026-10-09 接线）：判定+记录+CRITICAL 告警；
@@ -2383,7 +2443,10 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         station_doc = None
         if rows:
             run_dict = JobRunner._row_to_record_dict(rows[0])
-            station_doc = build_station_result(paths, run_dict, now=now)
+            # W11-10 §7：站工件 digest 必须来自真实 CAS（回读验证），
+            # 生产路径绝不以普通文件 SHA 冒充 receipt。
+            station_doc = build_station_result(paths, run_dict, now=now,
+                                               cas=cas)
             station_path = _os.path.join(
                 paths.station_results_dir,
                 f"{PROD_STATION_ID}.json")  # 同站覆盖=gate 只见最新
@@ -2506,6 +2569,7 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         return payload
     finally:
         store.close()
+        cas.close()
 
 
 def _prod_main(argv: Optional[List[str]] = None) -> int:
