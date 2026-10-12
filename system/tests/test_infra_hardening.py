@@ -673,12 +673,49 @@ def _run_install(src_system, prefix, fake_home):
         "HOME": fake_home,
         "TMPDIR": tempfile.gettempdir(),
     }
+    # 环境前置密闭（CI macOS 红 2026-10-12 根治）：install.sh 的模块导入/CLI 验证腿
+    # 依赖受限 PATH 上的 /usr/bin/python3（Xcode CLT shim）。CI macOS 全量 acceptance
+    # 长载荷（P1f2 mutation 门 ~30 分钟）之后的首个 install 曾瞬态走错退出腿：rc≠0
+    # 且输出无 doctor「组件缺失」消息；同一 job 内 35 分钟前的 P1f 腿与随后两个
+    # install 测试均绿（run 38233412381 实证）——是 runner 环境瞬态而非代码回归，
+    # 本地（含全新 runner 上 80 连跑）不可复现。这里在同一受限 env 下显式预热
+    # python3 一次，把 shim 冷启动瞬态拦在 install.sh 之外；预热失败不阻断——
+    # 真故障由后续断言带完整输出取证变红。
+    try:
+        # 经 bash 在同一受限 env 内解析 python3——与 install.sh 各腿的解析路径
+        # 完全一致（不经测试进程的父 PATH）。
+        subprocess.run(["bash", "-c", "python3 -c 'print(\"warm\")'"],
+                       capture_output=True, env=env, timeout=60)
+    except Exception:
+        pass
     # cwd 固定到临时根：避免测试进程 cwd（repo system/）经 sys.path[0]='' 遮蔽 PREFIX
     # 安装副本，使「删模块后安装必败」负例被仓内源码洗白
     return subprocess.run(
         ["bash", os.path.join(src_system, "install.sh"), "--prefix", prefix],
         capture_output=True, text=True, env=env, timeout=180,
         cwd=os.path.dirname(prefix.rstrip("/")))
+
+
+def _run_install_expected(src_system, prefix, fake_home, outcome_ok):
+    """带瞬态密闭的 install 运行：结果与期望不符时取证重试恰好一次。
+
+    只救环境瞬态，绝不救真回归：真回归两次同败，仍红且 detail 附双次
+    rc+输出尾取证（此前 CI 红的断言无 detail，尾 40 行取证窗取不到安装段
+    ——2026-10-12 教训）。outcome_ok(r) 定义该测试的全部安装面合同。
+    """
+    attempts = []
+    for i in (1, 2):
+        r = _run_install(src_system, prefix, fake_home)
+        attempts.append(r)
+        if outcome_ok(r):
+            if i > 1:  # 瞬态被重试密闭——留痕（不改变断言，纯取证可见性）
+                print(f"    △ install 环境瞬态已重试密闭（try1 rc={attempts[0].returncode}"
+                      f" 尾部={(attempts[0].stdout + attempts[0].stderr)[-300:]!r}）")
+            return r, ""
+    forensics = " ‖ ".join(
+        f"[try{i} rc={a.returncode} 尾部={(a.stdout + a.stderr)[-500:]!r}"
+        for i, a in enumerate(attempts, 1))
+    return attempts[-1], forensics
 
 
 def _copy_system(td, name):
@@ -695,11 +732,14 @@ def test_install_missing_core_module_fails_closed():
         prefix = os.path.join(td, "prefix1")
         fake_home = os.path.join(td, "home1")
         os.makedirs(fake_home)
-        r = _run_install(syscopy, prefix, fake_home)
+        r, fore = _run_install_expected(
+            syscopy, prefix, fake_home,
+            lambda rr: rr.returncode != 0
+            and "wenqu_pipeline" in (rr.stdout + rr.stderr))
         _ck("F install 删 wenqu_pipeline 后 rc≠0（fail-closed）", r.returncode != 0,
-            f"rc={r.returncode}")
+            f"rc={r.returncode}{fore}")
         _ck("F install 明确报 wenqu_pipeline 导入失败",
-            "wenqu_pipeline" in (r.stdout + r.stderr))
+            "wenqu_pipeline" in (r.stdout + r.stderr), fore)
 
 
 def test_install_component_damage_fails_closed():
@@ -710,10 +750,13 @@ def test_install_component_damage_fails_closed():
         prefix = os.path.join(td, "prefix2")
         fake_home = os.path.join(td, "home2")
         os.makedirs(fake_home)
-        r = _run_install(syscopy, prefix, fake_home)
+        r, fore = _run_install_expected(
+            syscopy, prefix, fake_home,
+            lambda rr: rr.returncode != 0
+            and "组件缺失" in (rr.stdout + rr.stderr))
         _ck("F install 组件损坏后 rc≠0（doctor 不再被 || true 吞掉）",
-            r.returncode != 0, f"rc={r.returncode}")
-        _ck("F install 报组件缺失中止", "组件缺失" in (r.stdout + r.stderr))
+            r.returncode != 0, f"rc={r.returncode}{fore}")
+        _ck("F install 报组件缺失中止", "组件缺失" in (r.stdout + r.stderr), fore)
 
 
 def test_install_normal_succeeds():
@@ -723,11 +766,12 @@ def test_install_normal_succeeds():
         prefix = os.path.join(td, "prefix3")
         fake_home = os.path.join(td, "home3")
         os.makedirs(fake_home)
-        r = _run_install(syscopy, prefix, fake_home)
+        r, fore = _run_install_expected(
+            syscopy, prefix, fake_home, lambda rr: rr.returncode == 0)
         _ck("F install 完好安装 rc=0", r.returncode == 0,
-            (r.stdout + r.stderr)[-200:])
+            (r.stdout + r.stderr)[-200:] + fore)
         _ck("F install 全模块验证输出（含 wenqu_pipeline 语义）",
-            "wenqu_core" in (r.stdout + r.stderr))
+            "wenqu_core" in (r.stdout + r.stderr), fore)
         # tar 管道保 mode：bin 下可执行文件保持 exec 位
         wenqu_bin = os.path.join(prefix, "bin", "wenqu")
         _ck("F install tar 管道保 exec 位（bin/wenqu 可执行）",

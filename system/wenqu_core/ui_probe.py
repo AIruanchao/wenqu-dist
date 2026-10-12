@@ -439,7 +439,11 @@ def probe_health_watermark(host: str, port: int, expected: dict,
 
 
 def probe_ledger_drill(host: str, port: int, state: str) -> tuple[list[UIFinding], dict]:
-    """状态钻取：?items=STATE 必须返回该状态明细，且计数与聚合一致。"""
+    """状态钻取：?items=STATE 必须返回该状态明细，且计数与聚合一致。
+
+    W11-14：QUARANTINE 的期望计数来自 base 的 ``quarantine_total``（隔离面
+    独立计数——绝不进入有效 finding 分母 ``by_status``，方案 §W11-14 第 3 点）。
+    """
     import json
     f: list[UIFinding] = []
     st, _, b = raw_request(host, port, "GET", "/api/v1/bugscan-ledger")
@@ -448,7 +452,10 @@ def probe_ledger_drill(host: str, port: int, state: str) -> tuple[list[UIFinding
     except ValueError:
         return [UIFinding("LEDGER_BASE_MALFORMED", f"/api/v1/bugscan-ledger → {st} 非 JSON")], {}
     by_status = ((base.get("total") or {}).get("by_status")) if isinstance(base, dict) else None
-    expected_total = (by_status or {}).get(state, 0) if isinstance(by_status, dict) else None
+    if state == "QUARANTINE":
+        expected_total = base.get("quarantine_total") if isinstance(base, dict) else None
+    else:
+        expected_total = (by_status or {}).get(state, 0) if isinstance(by_status, dict) else None
 
     st2, _, b2 = raw_request(host, port, "GET", f"/api/v1/bugscan-ledger?items={state}")
     try:

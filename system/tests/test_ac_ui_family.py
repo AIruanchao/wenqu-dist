@@ -41,10 +41,11 @@ evidence）；设 WENQU_EVIDENCE_OUT_DIR 可显式指定输出目录（有意更
   2. UI-04 的浏览器侧同水位目视读数（总览页人眼看到的判定）未验证；
      已证 API 同水位（verdict/score/watermark 逐字透传）+ 前端判定优先级
      源码契约（policy_verdict 优先、失败渲染 errBox 绝不伪绿）。
-  3. UI-05「quarantine 钻取」：dashboard 状态机无 quarantine 表面（账本 fold
-     静默跳过非法行，无隔离区 UI）；ACCEPTED/OTHER 的 DOM 节点在当前 app.js
-     中无 click 接线（仅五链状态可点）。已激活 API 钻取（?items=STATE 计数与
-     明细一致性）+ 静态契约；浏览器点击链与 quarantine 表面登记未验证。
+  3. UI-05「quarantine 钻取」：W11-14（R9-UI-QUARANTINE-ABSENT-011）根修后
+     dashboard 已有一等隔离面（/api/v1/quarantine + ?items=QUARANTINE + 前端
+     可点击节点；坏 JSON 行不再被 fold 静默跳过）——API/源码契约在本件与
+     test_w11_14_quarantine.py 验证；浏览器点击链由 system/tests/browser_e2e.py
+     真实 Chromium 承载（独立运行件，不进 pytest 收集）。
   4. UI-06「DNS rebinding」需真实 DNS 解析+浏览器宿主；本件在协议级验证其
      产品防御（Host 白名单：伪 Host/无 Host/错端口 Host 全 403，数据面不可达）。
   5. UI-07 慢请求防御实测为 15s 连接读超时（REQUEST_TIMEOUT）；「超大日志」
@@ -133,13 +134,14 @@ _NOT_IMPLEMENTABLE = [
     },
     {
         "id": "UI-05",
-        "gap": "quarantine 状态的 UI 钻取表面；ACCEPTED/OTHER 节点的浏览器点击链",
-        "reason": "产品语义缺失：dashboard 状态机无 quarantine 表面（fold 静默跳过非法行，"
-                  "无隔离区查询端点）；app.js 中 ACCEPTED/OTHER 计数节点无 click 接线"
-                  "（仅 OPEN/FIXING/FIXED/VERIFIED/CLOSED 五链状态可点）",
-        "mitigation": "API 钻取已真激活（?items=ACCEPTED/OTHER 计数与明细一致、非法行不炸"
-                      "不计数）；静态契约证明钻取通道与两状态节点存在；浏览器点击链待 UI "
-                      "交互面产品化后补",
+        "gap": "ACCEPTED/OTHER/QUARANTINE 节点的浏览器点击链（真实渲染+点击+目视）",
+        "reason": "本件方法级 L2（HTTP+DOM）；W11-14 根修后 quarantine 一等面已在 "
+                  "API/前端源码契约层激活（test_w11_14_quarantine.py 全绿），"
+                  "浏览器点击链由 system/tests/browser_e2e.py 真实 Chromium 承载",
+        "mitigation": "API 钻取已真激活（?items=ACCEPTED/OTHER/QUARANTINE 计数与明细"
+                      "一致、非法行入隔离不计数、?items= 非法值 400）；静态契约证明"
+                      "三侧态节点可点击（零态可操作）；浏览器点击链在 browser_e2e.py "
+                      "（真实 Chromium console/network/DOM 取证）独立运行",
     },
     {
         "id": "UI-06",
@@ -810,6 +812,8 @@ def test_UI_05_accepted_other_and_quarantine_drilldown():
         "前端钻取通道（?items= 状态过滤）源码契约缺失"
     assert "'ACCEPTED'" in appjs and "'OTHER'" in appjs, \
         "ACCEPTED/OTHER 状态节点契约缺失"
+    assert "'QUARANTINE'" in appjs and "quarantine_total" in appjs, \
+        "W11-14：QUARANTINE 独立节点+隔离计数契约缺失"
 
     with tempfile.TemporaryDirectory(prefix="wq_ui05_") as tmp:
         with _Dash(Path(tmp)) as dash:
@@ -834,16 +838,26 @@ def test_UI_05_accepted_other_and_quarantine_drilldown():
             assert base["total"]["by_status"] == {"OPEN": 1, "ACCEPTED": 1, "OTHER": 1, "FIXED": 1}, \
                 f"状态聚合应恰四项各一（非法行不计数），实得 {base['total']['by_status']}"
             assert base["total"]["findings"] == 4, "非法行不得混入分母"
+            # W11-14：非法行入隔离面（不静默）；不进分母
+            assert base.get("quarantine_total") == 1, \
+                f"坏行必须入隔离面计数，实得 {base.get('quarantine_total')}"
 
             # 逐状态钻取：ACCEPTED / OTHER（注入点名）+ OPEN（链首对照）
-            for state, want_id in (("ACCEPTED", "D-2"), ("OTHER", "D-3"), ("OPEN", "D-1")):
+            # + QUARANTINE（W11-14 一等面）
+            for state, want_id in (("ACCEPTED", "D-2"), ("OTHER", "D-3"), ("OPEN", "D-1"),
+                                   ("QUARANTINE", None)):
                 f, d = probe_ledger_drill("127.0.0.1", dash.port, state)
                 assert f == [], f"{state} 钻取探针应零发现，实得 {[x.as_dict() for x in f]}"
-                ids = [x["id"] for x in d.get("items", [])]
-                assert ids == [want_id], f"{state} 钻取应恰得 {want_id}，实得 {ids}"
-                assert d["items_total"] == 1 and d["items_state"] == state
+                assert d["items_total"] == 1 and d["items_state"] == state, \
+                    f"{state} 钻取应恰 1 条，实得 {d.get('items_total')}"
                 item = d["items"][0]
-                assert item["st"] == state and item["title"], "钻取明细字段必须真实可读"
+                assert item["st"] == state and (item["title"] or item.get("preview")), \
+                    "钻取明细字段必须真实可读"
+                if want_id:
+                    assert item["id"] == want_id, f"{state} 钻取应得 {want_id}，实得 {item['id']}"
+                else:  # QUARANTINE：row_hash/reason/定位字段在场（W11-14 字段契约）
+                    for k in ("row_hash", "reason", "source", "line"):
+                        assert k in item, f"QUARANTINE 钻取明细缺 {k}: {item}"
 
     # 负例：任意状态都回 OPEN 明细+假计数——钻取探针必报
     with _VulnServer() as vuln:
@@ -852,10 +866,11 @@ def test_UI_05_accepted_other_and_quarantine_drilldown():
         assert {"LEDGER_DRILL_STATE_MISMATCH", "LEDGER_DRILL_COUNT_MISMATCH"} <= got, \
             f"钻取负例未被探针报出，实得 {sorted(got)}"
     _record("UI-05",
-            "ACCEPTED/OTHER（注入点名）+OPEN 钻取：?items= 计数与明细一致（各恰 1 条、字段真实）；"
-            "非法行被 fold 隔离（不计数不炸、分母=4）；前端 ?items= 通道与 ACCEPTED/OTHER 节点"
-            "源码契约在位；负例状态错配+假计数被探针双报。quarantine UI 表面缺失+两节点无 "
-            "click 接线（浏览器点击链）——如实登记 not_implementable")
+            "ACCEPTED/OTHER（注入点名）+OPEN+QUARANTINE（W11-14 一等面）钻取：?items= 计数与"
+            "明细一致（各恰 1 条、字段真实；QUARANTINE 明细含 row_hash/reason/定位）；"
+            "非法行被 fold 收入隔离面（quarantine_total=1、不进分母、端点不炸）；前端 ?items= "
+            "通道与 ACCEPTED/OTHER/QUARANTINE 三可点击节点源码契约在位；负例状态错配+假计数"
+            "被探针双报。浏览器点击链由 system/tests/browser_e2e.py 真实 Chromium 承载")
 
 
 def test_UI_06_dns_rebinding_fake_host_unauth_log_read_rejected():

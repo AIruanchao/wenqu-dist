@@ -42,9 +42,25 @@ W11-08｜日志密钥文件化、启动校验及强制轮换（R10-UI-LOGKEY-PLI
     rc=78/EX_CONFIG 且端口绝不监听。
   - 运行期 /api/v1/logs 鉴权只读启动时加载进内存的密钥（常量时间比较）；
     未配置密钥文件时该端点维持 R7 fail-closed 403（与 decide 同范式）。
+
+W11-14｜Quarantine 一等控制面（R9-UI-QUARANTINE-ABSENT-011 根修）：
+  - 主账本 fold 不再静默跳过坏 JSON 行：invalid_json / not_a_json_object /
+    missing_id 三类解析失败逐行入隔离面（row_hash=sha256(原始行)、project、
+    source basename、1-based 行号、reason、安全时间戳、脱敏截断 preview）。
+  - 新增只读 /api/v1/quarantine：sidecar（<project>/.quarantine.jsonl 或
+    .quarantine）+ fold 坏行合并的隔离面；?items=QUARANTINE 同口径钻取。
+    sidecar 坏 JSON → 503 QUARANTINE_SOURCE_MALFORMED 显式错误（base 端点
+    携带 quarantine_error 标记），绝不静默折算成 0。
+  - ?items= 状态白名单：OPEN/FIXING/FIXED/VERIFIED/CLOSED/ACCEPTED/OTHER/
+    QUARANTINE；非法过滤值 400 INVALID_STATE_FILTER（此前任意串 200 空集）。
+  - quarantine 不进入有效 finding 分母（total.findings / by_status 均不含），
+    以独立 quarantine_total 计数暴露；前端 QUARANTINE 节点零态仍可操作。
+  - 隔离记录脱敏：preview 剥离控制字符并截断（≤160 字符）、时间戳仅放行
+    [0-9A-Za-z:T+-. ] 白名单字符集（≤40 字符）——账本 XSS 注入面同 T-05 纪律。
 """
 import argparse
 import collections
+import hashlib
 import hmac
 import json
 import os
@@ -654,6 +670,53 @@ def read_decisions(want_all):
 _LEDGER_CACHE = {"stamp": None, "data": None}
 _LEDGER_LOCK = threading.Lock()
 
+# ── W11-14：Quarantine 一等控制面（R9-UI-QUARANTINE-ABSENT-011）──────────
+#: ?items= 状态钻取白名单（方案 §W11-14 第 4 点）；非法值 400
+QUARANTINE_STATE_WHITELIST = ("OPEN", "FIXING", "FIXED", "VERIFIED", "CLOSED",
+                              "ACCEPTED", "OTHER", "QUARANTINE")
+#: sidecar 文件名（项目目录内、findings.jsonl 旁；两者皆读）
+QUARANTINE_SIDECAR_NAMES = (".quarantine.jsonl", ".quarantine")
+_QUARANTINE_PREVIEW_MAX = 160     # 脱敏截断 preview 长度上限
+_QUARANTINE_TS_MAX = 40          # 安全时间戳长度上限
+_TS_SAFE_RE = re.compile(r"\A[0-9A-Za-z:T+\-. ]{1,%d}\Z" % _QUARANTINE_TS_MAX)
+_HEX64_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+def _sanitize_preview(v, limit=_QUARANTINE_PREVIEW_MAX):
+    """脱敏截断 preview：剥离全部控制字符（<0x20，含换行/制表）+ 长度截断。"""
+    if v is None:
+        return ""
+    t = "".join(ch for ch in str(v) if ord(ch) >= 0x20)
+    return t[:limit].strip()
+
+
+def _sanitize_ts(v):
+    """安全时间戳：仅放行白名单字符集（无换行/控制/标记字符），否则 None。"""
+    if v is None:
+        return None
+    t = str(v).strip()
+    return t if _TS_SAFE_RE.match(t) else None
+
+
+def _q_row_hash(raw):
+    return hashlib.sha256(str(raw).encode("utf-8", "replace")).hexdigest()
+
+
+def _q_record(project, source, reason, *, line=None, raw=None, ts=None,
+              row_hash=None, preview=None):
+    """构造一条隔离记录（W11-14 字段契约：row_hash/project/source/line/
+    reason/ts/preview；全部脱敏——preview 控制字符剥离+截断、ts 白名单字符集）。"""
+    rh = str(row_hash or "").strip().lower()
+    if not _HEX64_RE.match(rh):
+        rh = _q_row_hash(raw if raw is not None else json.dumps(
+            {"project": project, "source": source, "reason": reason, "line": line},
+            sort_keys=True, ensure_ascii=False))
+    ln = line if isinstance(line, int) and not isinstance(line, bool) and line > 0 else None
+    return {"row_hash": rh, "project": str(project), "source": str(source),
+            "line": ln, "reason": str(reason or "unspecified"),
+            "ts": _sanitize_ts(ts), "preview": _sanitize_preview(
+                preview if preview is not None else raw)}
+
 
 def _norm_status(s):
     """账本状态归一——多源异构历史归一到 §4 正源状态机五态+FIXED 过渡+OTHER 残差。"""
@@ -708,18 +771,34 @@ def _norm_sev(s):
 
 def _fold_project(f):
     """单项目账本折叠：finding 行按 id 去重取末次为初始态；同 id 末次 state_transition 的
-    目标态覆盖初始态（防幻影 OPEN）。"""
+    目标态覆盖初始态（防幻影 OPEN）。
+
+    W11-14（R9-UI-QUARANTINE-ABSENT-011）：解析失败行（invalid_json /
+    not_a_json_object / missing_id）不再静默跳过——逐行记入隔离面
+    （row_hash/project/source/行号/reason/ts/preview），由返回值第 7 项带出。"""
     cur, trans, sev_of, title_of, ts_of, last = {}, {}, {}, {}, {}, ""
+    qrows = []
+    project = os.path.basename(os.path.dirname(os.path.abspath(f)))
+    source = os.path.basename(f)
     with open(f, encoding="utf-8", errors="ignore") as fh:
-        for l in fh:
-            l = l.strip()
+        for lineno, raw in enumerate(fh, 1):
+            l = raw.strip()
             if not l:
                 continue
             try:
                 d = json.loads(l)
             except ValueError:
+                qrows.append(_q_record(project, source, "invalid_json",
+                                       line=lineno, raw=l))
                 continue
             if not isinstance(d, dict) or not ("id" in d or "finding_id" in d):
+                qrows.append(_q_record(project, source,
+                                       "not_a_json_object" if not isinstance(d, dict)
+                                       else "missing_id",
+                                       line=lineno, raw=l,
+                                       ts=(d.get("ts") or d.get("time"))
+                                       if isinstance(d, dict) else None,
+                                       preview=str(d)[:200] if isinstance(d, dict) else l))
                 continue
             fid = str(d.get("id") or d.get("finding_id"))
             ts = str(d.get("ts") or d.get("time") or "")
@@ -745,7 +824,7 @@ def _fold_project(f):
                 title_of[fid] = t
             if ts:
                 ts_of[fid] = ts
-    return cur, trans, sev_of, title_of, ts_of, last
+    return cur, trans, sev_of, title_of, ts_of, last, qrows
 
 
 def _ledger_files(root):
@@ -769,18 +848,82 @@ def _ledger_files(root):
     return files
 
 
+def _quarantine_sidecar_files(root):
+    """W11-14：发现各项目 sidecar（.quarantine.jsonl / .quarantine）及其签名。
+
+    与 _ledger_files 同纪律：basename 白名单（隐藏 sidecar 名除外——sidecar
+    本身即隐藏文件）、realpath 必须落在 root 内。"""
+    files = {}
+    real_root = os.path.realpath(root)
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return files
+    for name in names:
+        if name != os.path.basename(name) or ".." in name or name.startswith("."):
+            continue
+        for sc_name in QUARANTINE_SIDECAR_NAMES:
+            f = os.path.realpath(os.path.join(root, name, sc_name))
+            if not (f.startswith(real_root + os.sep)) or not os.path.isfile(f):
+                continue
+            try:
+                st = os.stat(f)
+            except OSError:
+                continue
+            files[f] = (st.st_mtime_ns, st.st_size)
+    return files
+
+
+def _read_quarantine_sidecars(sidecar_files):
+    """读 sidecar 记录 → (rows, error)。error 非 None = 源数据损坏（显式错误面，
+    绝不静默折算）；rows 为坏行出现前已解析的记录（供 quarantine_partial 计数）。"""
+    rows, error = [], None
+    for f in sorted(sidecar_files):
+        project = os.path.basename(os.path.dirname(os.path.abspath(f)))
+        source = os.path.basename(f)
+        try:
+            with open(f, encoding="utf-8", errors="replace") as fh:
+                for lineno, raw in enumerate(fh, 1):
+                    l = raw.strip()
+                    if not l:
+                        continue
+                    try:
+                        rec = json.loads(l)
+                    except ValueError:
+                        error = {"code": "QUARANTINE_SOURCE_MALFORMED",
+                                 "detail": "sidecar 坏 JSON：%s（%s）第 %d 行不可解析"
+                                           % (project, source, lineno)}
+                        continue
+                    if not isinstance(rec, dict):
+                        error = {"code": "QUARANTINE_SOURCE_MALFORMED",
+                                 "detail": "sidecar 非 JSON 对象：%s（%s）第 %d 行"
+                                           % (project, source, lineno)}
+                        continue
+                    rows.append(_q_record(
+                        project, source, str(rec.get("reason") or "sidecar"),
+                        line=rec.get("line") if isinstance(rec.get("line"), int) else None,
+                        raw=l, ts=rec.get("ts"),
+                        row_hash=rec.get("row_hash"),
+                        preview=rec.get("preview") if rec.get("preview") is not None else l))
+        except OSError as e:
+            error = {"code": "QUARANTINE_SOURCE_MALFORMED",
+                     "detail": "sidecar 不可读：%s（%s）" % (project, e)}
+    return rows, error
+
+
 def bugscan_ledger():
     root = os.path.realpath(os.path.expanduser(
         os.environ.get("WENQU_BUGSCAN_LEDGER", "~/.zcode/quality-system/bugscan-ledger")))
     if not os.path.isdir(root):
         return {"available": False}
     files = _ledger_files(root)
-    stamp = frozenset(files.items())
+    sidecars = _quarantine_sidecar_files(root)
+    stamp = frozenset(files.items()) | frozenset(sidecars.items())  # W11-14：sidecar 变化也触发重算
     with _LEDGER_LOCK:
         if _LEDGER_CACHE["stamp"] == stamp:
             return _LEDGER_CACHE["data"]
         try:
-            data = _bugscan_ledger_impl(files)
+            data = _bugscan_ledger_impl(files, sidecars)
         except Exception as e:  # 边缘兜底，不炸端点（fail-soft，返回稳定错误）
             return {"available": False, "error": f"{type(e).__name__}: {e}"}
         _LEDGER_CACHE["stamp"] = stamp
@@ -788,7 +931,7 @@ def bugscan_ledger():
         return data
 
 
-def _bugscan_ledger_impl(files):
+def _bugscan_ledger_impl(files, sidecars=None):
     projects = []
     tot_status, tot_sev = {}, {}
     tot_findings, tot_last = 0, ""
@@ -796,8 +939,12 @@ def _bugscan_ledger_impl(files):
     stale_open = 0
     STALE_DAYS = 14
     now = datetime.now()
+    # W11-14：sidecar 隔离行 + fold 坏行 → 隔离面；损坏显式错误（不静默）
+    q_sidecar, q_error = _read_quarantine_sidecars(sidecars or {})
+    q_all = list(q_sidecar)
     for f in files:
-        cur, trans, sev_of, title_of, ts_of, last = _fold_project(f)
+        cur, trans, sev_of, title_of, ts_of, last, qrows = _fold_project(f)
+        q_all.extend(qrows)
         if not cur:
             continue
         key = os.path.basename(os.path.dirname(f))
@@ -832,13 +979,21 @@ def _bugscan_ledger_impl(files):
     projects.sort(key=lambda p: -p["findings"])
     sev_rank = {"HIGH": 0, "MED": 1, "LOW": 2, "INFO": 3, "OTHER": 4}
     all_items.sort(key=lambda x: (sev_rank.get(x["sev"], 9), x["proj"]))
-    return {"available": True, "projects": projects,
-            "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev,
-                      "last_ts": tot_last[:16]},
-            "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
-            "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],
-            "stale_open": stale_open,
-            "_all_items": all_items}
+    out = {"available": True, "projects": projects,
+           "total": {"findings": tot_findings, "by_status": tot_status, "by_sev": tot_sev,
+                     "last_ts": tot_last[:16]},
+           "open_total": sum(1 for x in all_items if x["st"] == "OPEN"),
+           "open_items": [x for x in all_items if x["st"] == "OPEN"][:60],
+           "stale_open": stale_open,
+           "_all_items": all_items}
+    # W11-14：隔离面独立计数（绝不进入有效 finding 分母）；sidecar 损坏 →
+    # 显式 quarantine_error（count 不可信时 quarantine_partial=true，绝不静默）
+    out["quarantine_total"] = len(q_all) if q_error is None else len(q_all)
+    if q_error is not None:
+        out["quarantine_error"] = q_error
+        out["quarantine_partial"] = True
+    out["_quarantine_items"] = q_all
+    return out
 
 
 # ───────────────────────────── HTTP 处理器 ─────────────────────────────
@@ -1019,16 +1174,55 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, ri["data"])
         if ep == "health-history":
             return self._json(200, read_health_history())
+        if ep == "quarantine":
+            # W11-14：只读隔离面（sidecar + fold 坏行；源数据损坏显式 503）
+            d = bugscan_ledger()
+            qerr = d.get("quarantine_error")
+            if isinstance(qerr, dict):
+                return self._err(503, qerr.get("code", "QUARANTINE_SOURCE_MALFORMED"),
+                                 qerr.get("detail", "隔离 sidecar 损坏"))
+            items = d.get("_quarantine_items") or []
+            by_reason = {}
+            for it in items:
+                by_reason[it.get("reason", "?")] = by_reason.get(it.get("reason", "?"), 0) + 1
+            return self._json(200, {"available": bool(d.get("available")),
+                                    "total": len(items),
+                                    "by_reason": dict(sorted(by_reason.items(),
+                                                             key=lambda kv: -kv[1])),
+                                    "items": items[:60]})
         if ep == "bugscan-ledger":
             d = bugscan_ledger()
             if "_all_items" in d:  # 无参请求不下发内部全集；?items=STATE 按状态过滤钻取
                 want = (qs.get("items") or [""])[0]
                 d = dict(d)
                 full = d.pop("_all_items")
+                qitems = d.pop("_quarantine_items", [])
                 if want:
-                    d["items_state"] = want
-                    d["items_total"] = sum(1 for x in full if x["st"] == want)
-                    d["items"] = [x for x in full if x["st"] == want][:60]
+                    # W11-14：状态白名单（八态）——非法过滤值 400（不再任意串 200 空集）
+                    if want not in QUARANTINE_STATE_WHITELIST:
+                        self.close_connection = True
+                        return self._err(
+                            400, "INVALID_STATE_FILTER",
+                            "items 过滤值 %r 不在状态白名单 %s（W11-14：非法值显式拒绝）"
+                            % (want[:40], "/".join(QUARANTINE_STATE_WHITELIST)))
+                    if want == "QUARANTINE":
+                        qerr = d.get("quarantine_error")
+                        if isinstance(qerr, dict):  # 源数据损坏：钻取面同显式 503
+                            self.close_connection = True
+                            return self._err(503, qerr.get("code", "QUARANTINE_SOURCE_MALFORMED"),
+                                             qerr.get("detail", "隔离 sidecar 损坏"))
+                        d["items_state"] = "QUARANTINE"
+                        d["items_total"] = len(qitems)
+                        d["items"] = [{
+                            "st": "QUARANTINE", "id": q["row_hash"][:12], "sev": "QUAR",
+                            "title": q["preview"], "proj": q["project"],
+                            "ts": q.get("ts") or "", "row_hash": q["row_hash"],
+                            "source": q["source"], "line": q.get("line"),
+                            "reason": q["reason"]} for q in qitems[:60]]
+                    else:
+                        d["items_state"] = want
+                        d["items_total"] = sum(1 for x in full if x["st"] == want)
+                        d["items"] = [x for x in full if x["st"] == want][:60]
             return self._json(200, d)
         if ep == "decisions":
             return self._json(200, read_decisions(want_all="1" in (qs.get("all") or [])))
@@ -1345,6 +1539,57 @@ def self_check(port):
                 os.environ.pop("WENQU_GATE_AGGREGATE", None)
             else:
                 os.environ["WENQU_GATE_AGGREGATE"] = _saved_agg
+        # W11-14：quarantine 一等控制面三腿（隔离端点/白名单 400/QUARANTINE 钻取；
+        # 沙箱化 WENQU_BUGSCAN_LEDGER 现场注入——绝不读真实账本）
+        _saved_ledger = os.environ.get("WENQU_BUGSCAN_LEDGER")
+        try:
+            import tempfile as _tf2
+            with _tf2.TemporaryDirectory(prefix="wq-selfcheck-ql-") as _qd:
+                _qproj = os.path.join(_qd, "selfcheckQ")
+                os.makedirs(_qproj, exist_ok=True)
+                with open(os.path.join(_qproj, "findings.jsonl"), "w",
+                          encoding="utf-8") as _qf:
+                    _qf.write('{"id": "SC-1", "sev": "LOW", "status": "OPEN",'
+                              ' "title": "ok", "ts": "2026-10-05T10:00:00"}\n')
+                    _qf.write('{"id": broken malformed row\n')  # fold 坏行 → 隔离
+                with open(os.path.join(_qproj, ".quarantine.jsonl"), "w",
+                          encoding="utf-8") as _qf:
+                    _qf.write('{"reason": "unknown_status:token", "line": 7}\n')
+                os.environ["WENQU_BUGSCAN_LEDGER"] = _qd
+                s, _, _, j = req("GET", "/api/v1/quarantine")
+                ck("GET /api/v1/quarantine → 200（sidecar+fold 坏行入隔离面）",
+                   s == 200 and isinstance(j, dict) and j.get("total") == 2
+                   and all(all(k in it for k in ("row_hash", "project", "source",
+                                                 "line", "reason", "ts", "preview"))
+                           for it in j.get("items", [])))
+                s, _, _, j = req("GET", "/api/v1/bugscan-ledger")
+                ck("base 账本携带 quarantine_total 且隔离不进分母",
+                   s == 200 and isinstance(j, dict)
+                   and j.get("quarantine_total") == 2
+                   and j.get("total", {}).get("findings") == 1
+                   and "QUARANTINE" not in j.get("total", {}).get("by_status", {}))
+                s, _, _, j = req("GET", "/api/v1/bugscan-ledger?items=BOGUS")
+                ck("?items= 非法状态 → 400 INVALID_STATE_FILTER（W11-14 白名单）",
+                   s == 400 and isinstance(j, dict)
+                   and j.get("error", {}).get("code") == "INVALID_STATE_FILTER")
+                s, _, _, j = req("GET", "/api/v1/bugscan-ledger?items=QUARANTINE")
+                ck("?items=QUARANTINE → 200 钻取（st=QUARANTINE、计数=2）",
+                   s == 200 and isinstance(j, dict) and j.get("items_state") == "QUARANTINE"
+                   and j.get("items_total") == 2
+                   and all(x.get("st") == "QUARANTINE" for x in j.get("items", [])))
+                # 坏 sidecar → 显式 503（绝不静默折算）
+                with open(os.path.join(_qproj, ".quarantine.jsonl"), "w",
+                          encoding="utf-8") as _qf:
+                    _qf.write('{"reason": broken!!!\n')
+                s, _, _, j = req("GET", "/api/v1/quarantine")
+                ck("坏 sidecar → /api/v1/quarantine 503 QUARANTINE_SOURCE_MALFORMED",
+                   s == 503 and isinstance(j, dict)
+                   and j.get("error", {}).get("code") == "QUARANTINE_SOURCE_MALFORMED")
+        finally:
+            if _saved_ledger is None:
+                os.environ.pop("WENQU_BUGSCAN_LEDGER", None)
+            else:
+                os.environ["WENQU_BUGSCAN_LEDGER"] = _saved_ledger
         # 速率限制（放最后：耗尽窗口不影响前面用例）
         limited = 0
         for _ in range(RATE_MAX + 60):
