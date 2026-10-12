@@ -1618,6 +1618,32 @@ PROD_CHANNEL_MACOS = "macos"
 PROD_CHANNEL_ALERTBOX = "alertbox"
 
 # ---------------------------------------------------------------------------
+# W11-13 唯一 backup 作业：w4.backup-restore-drill 注册在现有 scheduler 内
+#（不新增第二个 cron/launchd——com.wenqu.scheduler tick 仍是唯一调度入口；
+# 见 system/launchd/README.md 注册表）。作业执行
+# system/sentinels/backup-restore-drill.sh --mode release-dr：
+#   - 语料 = Sfinal 最终字节（git archive $WENQU_RELEASE_SHA @ 受控 clone
+#     $WENQU_GIT_REPO——部署树无 .git，正源必须经受控 clone）；
+#   - 与手工演练共用 $WENQU_HOME/state/backup-drill.lock 进程锁（禁重叠）；
+#   - 仅完整 PASS+fsync 后原子推进 observation/drills/last-success.json；
+#   - rc3（权限/容量 BLOCKED）不在 expected_exit_set → FAIL 告警
+#     （fail-closed 可见）。
+# ---------------------------------------------------------------------------
+BACKUP_JOB_ID = "w4.backup-restore-drill"
+BACKUP_PROBE_ID = "w4-backup-restore-drill"
+BACKUP_STATION_ID = 0            # W4 备份面（与观察采样同为 W4 站位）
+#: 每日 03:17 UTC（避开整点与观察采样节奏；daily 墙钟语义见 ScheduleSpec）。
+BACKUP_SCHEDULE_HHMM = "03:17"
+#: backup 作业专用 runner 超时（Sfinal 全树归档+双解包+全量 sha 对账远长
+#: 于采样器 240s；独立 JobRunner 实例，不放大采样器超时面）。
+BACKUP_RUN_TIMEOUT_S = 1800.0
+#: backup 作业新鲜度窗口（每日作业 → 25h 内必须有一次成功，否则 watchdog
+#: 不健康告警——「唯一 backup 作业停摆」必须 fail-visible）。
+BACKUP_FRESHNESS_S = 90000.0
+#: 注册表 argv 审计锚（find_backup_drill_writers 的匹配特征）。
+BACKUP_DRILL_MARKER = "backup-restore-drill"
+
+# ---------------------------------------------------------------------------
 # W11-07 受管环境二跳（plist → scheduler → TrustedRunner → sampler）
 #
 # 十轮 W0 扣分「scheduler 环境二跳」根治：plist EnvironmentVariables 只
@@ -1710,6 +1736,7 @@ class ProductionPaths:
         "gate_aggregate", "station_results_dir", "observation_root",
         "samples_dir", "shadow_dir", "alerts_dir", "drills_dir", "logs_dir",
         "heartbeat", "observation_daily", "cli_py", "cas_root",
+        "drill_script", "backup_lock",
     )
 
     def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
@@ -1735,6 +1762,12 @@ class ProductionPaths:
                                                "observation_daily.py")
         self.cli_py = _os.path.join(repo_root, "system", "wenqu_core",
                                     "cli.py")
+        # W11-13：唯一 backup 作业的执行体与共用进程锁（scheduler/manual
+        # 同锁禁重叠——锁文件路径与 backup-restore-drill.sh 内部约定一致）
+        self.drill_script = _os.path.join(repo_root, "system", "sentinels",
+                                          "backup-restore-drill.sh")
+        self.backup_lock = _os.path.join(self.state_dir,
+                                         "backup-drill.lock")
 
     @staticmethod
     def from_env() -> "ProductionPaths":
@@ -1909,6 +1942,129 @@ def find_observation_writers(store: "SchedulerStore") -> List[str]:
                 or "/observation/shadow" in blob):
             out.append(str(job_id))
     return sorted(out)
+
+
+# ---------------------------------------------------------------------------
+# W11-13 唯一 backup 作业审计（scheduler DB / launchd / cron / argv 四面）
+# ---------------------------------------------------------------------------
+
+def find_backup_drill_writers(store: "SchedulerStore") -> List[str]:
+    """注册表内任何 argv 触及 backup-restore-drill 的 enabled 作业（argv 面）。
+
+    唯一合法 = BACKUP_JOB_ID（w4.backup-restore-drill）；出现其它 job_id
+    或数量 != 1 即第二 backup 作业（W11-13：重复 job 失败语义）。"""
+    rows = store.query(
+        "SELECT job_id, argv_json FROM scheduler_jobs WHERE enabled = 1"
+    )
+    out: List[str] = []
+    for job_id, argv_json in rows:
+        if BACKUP_DRILL_MARKER in str(argv_json):
+            out.append(str(job_id))
+    return sorted(out)
+
+
+def audit_backup_drill_writers_launchd(
+        launch_agents_dir: Optional[str] = None) -> List[Dict[str, Any]]:
+    """扫描 LaunchAgents plist：任何直接执行 backup-restore-drill 的作业。
+
+    唯一合法调度入口是 com.wenqu.scheduler tick（其 plist argv 只有
+    ``python -m wenqu_core.scheduler tick``，不含 drill 脚本路径）——
+    因此**任何** plist 的 Program/ProgramArguments 提及 backup-restore-drill
+    都等于第二个 backup 入口（W11-13：不得增加第二个 cron/launchd）。
+    只读不猜；plist 不可解析 → fail-visible 记 finding。"""
+    import plistlib
+
+    lad = launch_agents_dir or _os.path.expanduser(
+        "~/Library/LaunchAgents")
+    findings: List[Dict[str, Any]] = []
+    try:
+        names = sorted(_os.listdir(lad))
+    except OSError:
+        return findings
+    for n in names:
+        if not n.endswith(".plist"):
+            continue
+        p = _os.path.join(lad, n)
+        try:
+            with open(p, "rb") as fh:
+                pl = plistlib.load(fh)
+        except Exception:  # noqa: BLE001——畸形 plist 无法证明其不是入口
+            findings.append({"kind": "unparsable_plist", "label": n,
+                             "plist": p})
+            continue
+        if not isinstance(pl, dict):
+            continue
+        label = str(pl.get("Label", "") or "")
+        prog = str(pl.get("Program", "") or "")
+        argv = " ".join(str(a) for a in (pl.get("ProgramArguments") or []))
+        if BACKUP_DRILL_MARKER in (prog + " " + argv):
+            findings.append({
+                "kind": "second_backup_entry",
+                "label": label or n,
+                "plist": p,
+                "detail": "launchd 直跑 backup-restore-drill（唯一调度入口"
+                          " 是 com.wenqu.scheduler tick 内注册的作业）",
+            })
+    return findings
+
+
+def _read_crontab() -> str:
+    """读取当前用户 crontab（无 crontab/工具缺失 → 空串，不猜）。"""
+    import subprocess as _sp
+    try:
+        p = _sp.run(["crontab", "-l"], capture_output=True, text=True,
+                    timeout=10)
+    except (OSError, _sp.SubprocessError):
+        return ""
+    return p.stdout if p.returncode == 0 else ""
+
+
+def audit_backup_drill_writers_cron(
+        crontab_text: Optional[str] = None) -> List[Dict[str, Any]]:
+    """crontab 内任何提及 backup-restore-drill 的行 = 第二 backup 入口。
+
+    crontab_text 为 None 时读取真实 crontab（装配/巡检语义）；测试注入
+    文本以保持封闭。"""
+    text = _read_crontab() if crontab_text is None else crontab_text
+    findings: List[Dict[str, Any]] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        if BACKUP_DRILL_MARKER in line:
+            findings.append({"kind": "cron_backup_entry", "line": lineno,
+                             "detail": stripped[:200]})
+    return findings
+
+
+def audit_unique_backup_job(
+        store: "SchedulerStore",
+        *,
+        launch_agents_dir: Optional[str] = None,
+        crontab_text: Optional[str] = None,
+) -> Dict[str, Any]:
+    """W11-13 全系统唯一 backup 作业审计（scheduler DB + launchd + cron + argv）。
+
+    ok=True 当且仅当：
+      - 注册表内触及 backup-restore-drill 的 enabled 作业恰为
+        [BACKUP_JOB_ID]（argv 面随 DB 扫描天然覆盖）；
+      - launchd 无任何直跑 drill 的 plist；
+      - crontab 无任何 drill 条目。
+    返回结构化审计事实（装配/巡检/验收共用正源；rc 语义由调用方映射）。"""
+    db_jobs = find_backup_drill_writers(store)
+    launchd_findings = audit_backup_drill_writers_launchd(launch_agents_dir)
+    cron_findings = audit_backup_drill_writers_cron(crontab_text)
+    ok = (db_jobs == [BACKUP_JOB_ID]
+          and not launchd_findings and not cron_findings)
+    return {
+        "ok": ok,
+        "expected_job_id": BACKUP_JOB_ID,
+        "db_backup_jobs": db_jobs,
+        "enabled_backup_jobs": len(db_jobs),
+        "launchd_findings": launchd_findings,
+        "cron_findings": cron_findings,
+        "audit_faces": ["scheduler-db", "argv", "launchd", "cron"],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2265,21 +2421,88 @@ def _prod_job_definition(paths: "ProductionPaths",
     )
 
 
+def _backup_job_definition(paths: "ProductionPaths",
+                           argv: Optional[Tuple[str, ...]] = None
+                           ) -> JobDefinition:
+    """W11-13 唯一 backup 作业定义（注册在现有 scheduler 内，无第二 cron）。
+
+    argv 缺省 = bash + drill 脚本 --mode release-dr（Sfinal 最终字节 +
+    RPO/RTO 落证据 + last-success 原子推进）；repo/commit 绑定经
+    WENQU_GIT_REPO/WENQU_RELEASE_SHA env（PROD_ENV_PASSTHROUGH 已透传）
+    由 drill 脚本内部解析——受控 clone 正源，不信任部署树工作目录。"""
+    return JobDefinition(
+        job_id=BACKUP_JOB_ID,
+        owner="w4-production",
+        argv=argv or (
+            _shutil.which("bash") or "/bin/bash",
+            paths.drill_script,
+            "--mode", "release-dr",
+            "--wenqu-root", paths.wenqu_home,
+            "--report-dir", paths.drills_dir,
+        ),
+        schedule=ScheduleSpec.daily_at(BACKUP_SCHEDULE_HHMM),
+        environment="production",
+        probe_id=BACKUP_PROBE_ID,
+        station_id=BACKUP_STATION_ID,
+        cwd=paths.repo_root,
+        due_window_seconds=7200.0,          # 日作业宽窗：迟到 2h 内仍可跑
+        catch_up="COALESCE",
+        max_catch_up_runs=1,
+        watchdog=WatchdogPolicy(freshness_seconds=BACKUP_FRESHNESS_S,
+                                grace_seconds=BACKUP_FRESHNESS_S),
+        ttl_seconds=86400.0,
+        expected_exit_set=(0,),              # rc1/rc3（FAIL/BLOCKED）→ 告警
+        channels=(PROD_CHANNEL_MACOS, PROD_CHANNEL_ALERTBOX),
+    )
+
+
+def _register_job_preserving_state(registry: "ScheduleRegistry",
+                                   store: "SchedulerStore",
+                                   job: JobDefinition, *,
+                                   now: float) -> None:
+    """register(replace=True) 定义可升级（argv/指纹变更照常生效），但调度
+    状态（next_due_at / last_consumed_at / created_at=宽限锚点）必须跨 tick
+    保留——否则每个 tick 重置 next_due 会让作业永远不被判到期（2026-10-08
+    生产二跳实锄语义；观察采样与 backup 作业共用同一纪律）。"""
+    prev_state: Optional[Dict[str, Any]] = None
+    try:
+        prev_state = registry.job_state(job.job_id)
+    except SchedulerError:
+        prev_state = None
+    registry.register(job, replace=True, now=now)
+    if prev_state is not None and prev_state["next_due_at"] is not None:
+        with store.transaction() as conn:
+            conn.execute(
+                "UPDATE scheduler_jobs SET next_due_at=?,"
+                " last_consumed_at=?, created_at=? WHERE job_id=?",
+                (prev_state["next_due_at"],
+                 prev_state["last_consumed_at"],
+                 prev_state["registered_at"], job.job_id),
+            )
+
+
 def production_tick(*, paths: Optional["ProductionPaths"] = None,
                     now: Optional[float] = None,
                     runner: Optional[TrustedRunner] = None,
                     macos_sender: Optional[ChannelSender] = None,
                     job_argv: Optional[Tuple[str, ...]] = None,
+                    backup_job_argv: Optional[Tuple[str, ...]] = None,
                     ) -> Dict[str, Any]:
     """W4 生产 tick：采样 → 铸站结果 → gate 刷新 → 心跳 → 通知投递。
+
+    W11-13：同一 tick 内注册并调度唯一 backup 作业（w4.backup-restore-drill，
+    每日 release-dr Sfinal 字节演练）——不新增第二个 cron/launchd；backup
+    作业用独立 JobRunner（超时 1800s）执行，与手工演练共用 drill 脚本内
+    进程锁（互斥 fail-closed）。
 
     返回 tick 摘要（同时写 heartbeat.json + 当日 tick 日志一行）。
     tick 进程自身的成败与作业 verdict 分离：作业 FAIL 会体现在
     gate/心跳/通知里，但 tick 仍 rc=0（调度器活着就是它的职责）。
     首跑 bootstrap：该作业从未有过任何 run 时，本 tick 立即手动跑一次
-    （launchd RunAtLoad 首挂载即出首跑证据；此后走到期机制）。
-    job_argv/macdos_sender 为测试注入接缝（生产路径缺省用真采样器与
-    真 osascript 通道）。
+    （launchd RunAtLoad 首挂载即出首跑证据；此后走到期机制）。backup
+    作业不 bootstrap——按每日墙钟走到期（手工/巡检随时可跑，锁互斥）。
+    job_argv/backup_job_argv/macos_sender 为测试注入接缝（生产路径缺省
+    用真采样器/真 drill 与真 osascript 通道）。
     """
     paths = paths or ProductionPaths.from_env()
     paths.ensure_dirs()
@@ -2308,6 +2531,18 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             timeout=240.0, env_passthrough=PROD_ENV_PASSTHROUGH)
         jrunner = JobRunner(
             store, runner_impl, registry=registry, outbox=outbox,
+            heartbeat=heartbeat_mon,
+            evidence_store=cas, evidence_required=True,
+            commit_sha_provider=lambda: _git_head(paths.repo_root),
+        )
+        # W11-13：backup 作业专用 runner/JobRunner——Sfinal 全树演练耗时
+        # 远超采样器 240s；独立实例不放大采样超时面（同一 store/outbox/
+        # heartbeat/CAS，run evidence 同根入 CAS）。
+        runner_backup_impl = TrustedRunner(
+            timeout=BACKUP_RUN_TIMEOUT_S,
+            env_passthrough=PROD_ENV_PASSTHROUGH)
+        jrunner_backup = JobRunner(
+            store, runner_backup_impl, registry=registry, outbox=outbox,
             heartbeat=heartbeat_mon,
             evidence_store=cas, evidence_required=True,
             commit_sha_provider=lambda: _git_head(paths.repo_root),
@@ -2377,23 +2612,15 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         # 拿陈旧 run 刷新 gate（假 PASS）+ 心跳误告警（2026-10-08 生产二跳
         # 实锄：tick2 due=[]、runs 表零增长）。定义可升级（argv/指纹变更
         # 照常生效），但调度状态（next_due_at / last_consumed_at /
-        # created_at=宽限锚点）必须跨 tick 保留。
-        prev_state: Optional[Dict[str, Any]] = None
-        try:
-            prev_state = registry.job_state(PROD_JOB_ID)
-        except SchedulerError:
-            prev_state = None
-        registry.register(
-            _prod_job_definition(paths, argv=job_argv), replace=True, now=now)
-        if prev_state is not None and prev_state["next_due_at"] is not None:
-            with store.transaction() as conn:
-                conn.execute(
-                    "UPDATE scheduler_jobs SET next_due_at=?,"
-                    " last_consumed_at=?, created_at=? WHERE job_id=?",
-                    (prev_state["next_due_at"],
-                     prev_state["last_consumed_at"],
-                     prev_state["registered_at"], PROD_JOB_ID),
-                )
+        # created_at=宽限锚点）必须跨 tick 保留（观察采样与 backup 共用
+        # _register_job_preserving_state 同一纪律）。
+        _register_job_preserving_state(
+            registry, store, _prod_job_definition(paths, argv=job_argv),
+            now=now)
+        # W11-13：唯一 backup 作业注册进现有 scheduler（无第二 cron/launchd）
+        _register_job_preserving_state(
+            registry, store,
+            _backup_job_definition(paths, argv=backup_job_argv), now=now)
 
         due = registry.due_jobs(now=now)
         # ---- G9-02/D 唯一 writer 收敛审计：注册表内观察采样作业必须唯一
@@ -2416,6 +2643,32 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                 )
             except Exception:
                 log.exception("unique-writer CRITICAL notify failed")
+        # ---- W11-13 唯一 backup 作业审计（注册表面；fail-visible）：
+        # 触及 backup-restore-drill 的 enabled 作业必须恰为 BACKUP_JOB_ID；
+        # 出现第二 backup 作业 → CRITICAL 告警。launchd/cron 面审计由
+        # audit_unique_backup_job 承担（装配/巡检/验收入口）。----
+        bak_writers = find_backup_drill_writers(store)
+        backup_writers_block = {
+            "job_ids": bak_writers, "count": len(bak_writers),
+            "expected": BACKUP_JOB_ID,
+            "unique": bak_writers == [BACKUP_JOB_ID],
+        }
+        if not backup_writers_block["unique"]:
+            try:
+                outbox.notify(
+                    "CRITICAL",
+                    "[wenqu] backup 作业不唯一（注册表）",
+                    "scheduler 注册表内触及 backup-restore-drill 的 enabled "
+                    "作业=%s（期望恰为 [%s]）——W11-13 唯一 backup 作业纪律"
+                    "被破坏，重复 job 即失败。" % (bak_writers, BACKUP_JOB_ID),
+                    meta={"kind": "unique_backup_job",
+                          "job_ids": bak_writers},
+                    dedup_key="uniquebackup:%s:%d"
+                              % (",".join(bak_writers), int(now // 3600)),
+                    now=now,
+                )
+            except Exception:
+                log.exception("unique-backup-job CRITICAL notify failed")
         runs: List[Dict[str, Any]] = []
         bootstrapped = False
         ever_ran = store.query(
@@ -2428,9 +2681,13 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             bootstrapped = True
         for occ in due:
             if occ.run:
-                rec = jrunner.run_job(occ.job_id,
-                                      scheduled_at=occ.scheduled_at,
-                                      now=now)
+                # W11-13：backup 作业走专用 runner（长超时）；其余（观察
+                # 采样）走标准 runner——按 job_id 派发，不改变既有语义。
+                job_runner = (jrunner_backup if occ.job_id == BACKUP_JOB_ID
+                              else jrunner)
+                rec = job_runner.run_job(occ.job_id,
+                                         scheduled_at=occ.scheduled_at,
+                                         now=now)
                 runs.append(rec.__dict__)
             else:
                 registry.mark_skipped(occ.job_id, occ.scheduled_at,
@@ -2552,6 +2809,9 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             "observation_writers": {"count": len(obs_writers),
                                     "job_ids": obs_writers,
                                     "unique": len(obs_writers) <= 1},
+            # W11-13：唯一 backup 作业审计面（注册表；launchd/cron 面由
+            # audit_unique_backup_job 巡检/验收）
+            "backup_writers": backup_writers_block,
             "notifications": {"dispatch": dispatch, "outbox_stats": stats},
             "paths": {"scheduler_db": paths.scheduler_db,
                       "gate_aggregate": paths.gate_aggregate,

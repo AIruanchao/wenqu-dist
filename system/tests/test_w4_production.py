@@ -16,6 +16,16 @@
 3. 恢复演练对账（BAK 面）：真实跑 system/sentinels/backup-restore-drill.sh
    （临时 wenqu root 语料）→ 退出码 0 + 报告 JSON 四步齐 + 篡改实测生效
    + 恢复后逐文件字节级全等。
+4. Sfinal 字节备份恢复（W11-13 面）：release/release-dr 模式对
+   git archive <commit>（Sfinal 干净树字节）做快照→归档→独立解包→
+   篡改→全空隔离根恢复→missing/extra/hash/mode/类型 + release verifier
+   （wenqu_core.release_drift.audit_tree）双对账；报告绑定
+   run_id/commit/deployment epoch/manifest/tree root/身份 SHA；
+   仅完整 PASS+fsync 后原子推进 last-success.json；伪 tar/截断/mode/
+   extra/并发/容量不足全红。
+5. 唯一 backup 作业（W11-13 面）：现有 scheduler 内恰一个 enabled
+   w4.backup-restore-drill；不新增 launchd/cron 入口；DB/launchd/
+   cron/argv 四面审计红绿；作业经调度真实跑通。
 
 纯标准库；`python3 system/tests/test_w4_production.py`（exit 0=全绿）。
 测试全程使用临时 WENQU_HOME，绝不写真实 ~/.wenqu。
@@ -378,6 +388,481 @@ def test_backup_restore_drill_reconciliation():
             rep["byte_match_all"] == 1
             and all(f["cmp"] is True and f["sha_match"] is True
                     for f in rep["steps"]["reconcile"]["files"]))
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 面 4（W11-13）：Sfinal 字节备份恢复正演练——release/release-dr 模式
+#   语料 = git archive <commit>（Sfinal 干净树字节，与工作树无关）；
+#   恢复到全空隔离根；missing/extra/hash/mode/类型 + release verifier
+#   （wenqu_core.release_drift.audit_tree，激活只读不变量）双对账；
+#   报告绑定 run_id/commit/deployment epoch/manifest/tree root/身份 SHA；
+#   仅完整 PASS + fsync 后原子推进 last-success.json。
+# ══════════════════════════════════════════════════════════════════════
+
+REPO_ROOT = os.path.dirname(REPO)                      # wenqu-dist/
+DRILL_SH = os.path.join(REPO_ROOT, "system", "sentinels",
+                        "backup-restore-drill.sh")
+_SHA256_RE = __import__("re").compile(r"^[0-9a-f]{64}$")
+
+
+def _req(cond, msg, detail=""):
+    """硬断言（pytest 与 __main__ 双通道都真实红/绿——_ck 仅计数不阻断）。"""
+    if not cond:
+        raise AssertionError(f"{msg}: {detail}")
+
+
+def _fixture_repo(td):
+    """小体量 Sfinal 模拟仓：嵌套目录/0755 可执行/symlink/二进制字节。"""
+    repo = os.path.join(td, "fixture-repo")
+    os.makedirs(os.path.join(repo, "tools", "deep"))
+    os.makedirs(os.path.join(repo, "docs"))
+    def _w(rel, data, mode=None):
+        p = os.path.join(repo, rel)
+        with open(p, "wb") as fh:
+            fh.write(data)
+        if mode is not None:
+            os.chmod(p, mode)
+    _w("README.md", b"W11-13 Sfinal fixture corpus\n" * 8)
+    _w("tools/run.sh", b"#!/bin/sh\necho final-bytes\n" * 4, 0o755)
+    _w("tools/deep/data.bin", bytes(range(256)) * 16)
+    _w("docs/note.txt", "最终字节备份演练语料\n".encode("utf-8") * 6)
+    _w("docs/more.txt", b"second doc payload\n" * 5)
+    os.symlink("README.md", os.path.join(repo, "link-to-readme"))
+    os.symlink("docs", os.path.join(repo, "link-to-dir"))  # symlink→目录
+    env = dict(os.environ)
+    env.setdefault("GIT_AUTHOR_NAME", "w11-13-drill")
+    env.setdefault("GIT_AUTHOR_EMAIL", "drill@wenqu.local")
+    env.setdefault("GIT_COMMITTER_NAME", "w11-13-drill")
+    env.setdefault("GIT_COMMITTER_EMAIL", "drill@wenqu.local")
+    for args in (["git", "init", "-q"], ["git", "add", "-A"],
+                 ["git", "commit", "-q", "-m", "Sfinal fixture"]):
+        subprocess.run(args, cwd=repo, env=env, check=True,
+                       capture_output=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=env,
+                         check=True, capture_output=True, text=True
+                         ).stdout.strip()
+    return repo, sha
+
+
+def _epoch_file(td, epoch=7, source="operator-declared:test"):
+    p = os.path.join(td, "deployment-epoch.json")
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump({"schema": "activation-epoch/1", "generation": epoch,
+                   "epoch": epoch, "source": source}, fh)
+    return p
+
+
+def _fake_tar_dir(box, variant, real_tar, names_echo):
+    """红测假 tar：rc0 谎报/截断/mode 篡改/extra 注入（listing 对产物诚实）。"""
+    d = os.path.join(box, f"fake-{variant}")
+    os.makedirs(d, exist_ok=True)
+    s = f"""#!/bin/sh
+real="{real_tar}"
+case "$1" in
+  -tzf)
+    arc="$2"
+    if [ -f "$arc" ] && [ ! -L "$arc" ]; then
+      "$real" -tzf "$arc" 2>/dev/null && exit 0
+    fi
+    printf '%s\\n' {names_echo}
+    exit 0 ;;
+  -czf)
+    out="$2"; shift 2
+    dir=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -C) dir="$2"; shift 2 ;;
+        *) break ;;
+      esac
+    done
+    case "{variant}" in
+      lie) exit 0 ;;
+      truncate)
+        "$real" -czf "$out" -C "$dir" "$@" || exit 1
+        sz=$(wc -c < "$out"); keep=$(( sz * 2 / 5 ))
+        head -c "$keep" "$out" > "$out.t" && mv "$out.t" "$out"
+        exit 0 ;;
+      mode)
+        mut="$(dirname "$out")/mut-tree"; rm -rf "$mut"
+        cp -Rp "$dir" "$mut" || exit 1
+        chmod 0600 "$mut/tools/run.sh" 2>/dev/null || exit 1
+        "$real" -czf "$out" -C "$mut" "$@" || exit 1
+        exit 0 ;;
+      extra)
+        mut="$(dirname "$out")/mut-tree"; rm -rf "$mut"
+        cp -Rp "$dir" "$mut" || exit 1
+        echo "DRILL-EXTRA-PAYLOAD" > "$mut/docs/EXTRA-DRILL-FILE.txt"
+        "$real" -czf "$out" -C "$mut" "$@" || exit 1
+        exit 0 ;;
+    esac
+    exit 1 ;;
+esac
+exit 1
+"""
+    fp = os.path.join(d, "tar")
+    with open(fp, "w") as fh:
+        fh.write(s)
+    os.chmod(fp, 0o755)
+    return d
+
+
+def _run_drill(args, *, path_prepend=None, timeout=180):
+    env = dict(os.environ)
+    if path_prepend:
+        env["PATH"] = f"{path_prepend}{os.pathsep}{os.environ['PATH']}"
+    return subprocess.run(["bash", DRILL_SH] + args,
+                          capture_output=True, text=True, timeout=timeout,
+                          env=env)
+
+
+def _latest_report(rdir):
+    reps = sorted(p for p in os.listdir(rdir) if
+                  p.startswith("drill-") and p.endswith(".json"))
+    _req(reps, "面4 演练报告未落盘", rdir)
+    with open(os.path.join(rdir, reps[-1]), encoding="utf-8") as fh:
+        return json.load(fh), os.path.join(rdir, reps[-1])
+
+
+def test_backup_restore_drill_release_final_bytes():
+    """W11-13 正例：release-dr 对 Sfinal 字节（git archive）全链 PASS。"""
+    with tempfile.TemporaryDirectory(prefix="wq-w4-rel-") as td:
+        repo, commit = _fixture_repo(td)
+        root = os.path.join(td, "wenqu")
+        os.makedirs(root)
+        epoch = _epoch_file(td)
+        rdir = os.path.join(td, "reports")
+        p = _run_drill(["--mode", "release-dr", "--repo", repo,
+                        "--source-commit", commit, "--wenqu-root", root,
+                        "--report-dir", rdir, "--epoch-file", epoch,
+                        "--fault-delay", "1"])
+        _req(p.returncode == 0, "面4 release-dr 真实执行 rc=0",
+             p.stdout + p.stderr)
+        rep, rpath = _latest_report(rdir)
+        _req(rep.get("result") == "PASS", "面4 result=PASS", rep.get("reason"))
+        _req(rep.get("mode") == "release-dr", "面4 mode 记录",
+             rep.get("mode"))
+        rid = rep.get("run_id")
+        _req(isinstance(rid, str) and rid.startswith("baddrill-"),
+             "面4 run_id 绑定", rid)
+        rel = rep.get("release") or {}
+        _req(rel.get("source_commit") == commit,
+             "面4 报告绑定 Sfinal commit", rel.get("source_commit"))
+        _req(rel.get("deployment_epoch") == 7
+             and "epoch" in str(rel.get("deployment_epoch_source", "")),
+             "面4 报告绑定 deployment epoch", rel.get("deployment_epoch"))
+        _req(_SHA256_RE.match(str(rel.get("manifest_sha256", ""))),
+             "面4 release manifest sha256 绑定", rel.get("manifest_sha256"))
+        _req(rel.get("n_files", 0) >= 6 and rel.get("bytes", 0) > 0,
+             "面4 语料规模（含 symlink/0755）", rel.get("n_files"))
+        _req(bool(rel.get("tree_root")) and bool(rel.get("restore_root")),
+             "面4 tree root/restore root 绑定", rel)
+        _req(rel.get("restore_root_empty_before") is True,
+             "面4 恢复到全空隔离根", rel.get("restore_root_empty_before"))
+        checks = rel.get("checks") or {}
+        _req(checks.get("missing") == 0 and checks.get("extra") == 0
+             and checks.get("drifted") == 0 and checks.get("mode_drifted") == 0
+             and checks.get("type_mismatch") == 0
+             and checks.get("hash_ok") is True
+             and checks.get("mode_ok") is True
+             and checks.get("type_ok") is True,
+             "面4 missing/extra/hash/mode/类型 全对账", checks)
+        ver = rel.get("verifier") or {}
+        _req(ver.get("ok") is True
+             and "release_drift" in str(ver.get("tool", ""))
+             and _SHA256_RE.match(str(ver.get("tree_digest", "")))
+             and ver.get("checked") == rel.get("n_files"),
+             "面4 release verifier（release_drift.audit_tree）通过", ver)
+        ident = rep.get("identity") or {}
+        _req(_SHA256_RE.match(str(ident.get("drill_script_sha256", "")))
+             and _SHA256_RE.match(str(ident.get("scheduler_sha256", ""))),
+             "面4 身份 SHA（drill/scheduler）", ident)
+        arc = rep.get("archive") or {}
+        _req(arc.get("materialized") is True and arc.get("size", 0) > 0
+             and _SHA256_RE.match(str(arc.get("sha256", "")))
+             and _SHA256_RE.match(str(arc.get("extract_sha256", ""))),
+             "面4 归档实存合同（release 模式）", arc)
+        dr = rep.get("dr") or {}
+        _req(1.0 <= dr.get("rpo_seconds", -1) <= 300
+             and 0 < dr.get("rto_seconds", -1) <= 60
+             and dr.get("rpo_ok") is True and dr.get("rto_ok") is True,
+             "面4 RPO/RTO 实测入报告且达冻结目标", dr)
+        # last-success：仅 PASS 后原子推进，绑定全身份元组
+        ls_path = os.path.join(rdir, "last-success.json")
+        _req(os.path.isfile(ls_path), "面4 last-success.json 落盘", ls_path)
+        with open(ls_path, encoding="utf-8") as fh:
+            ls = json.load(fh)
+        _req(ls.get("result") == "PASS" and ls.get("run_id") == rid,
+             "面4 last-success 绑定 run_id", ls.get("run_id"))
+        _req(ls.get("source_commit") == commit
+             and ls.get("deployment_epoch") == 7
+             and ls.get("manifest_sha256") == rel.get("manifest_sha256")
+             and ls.get("archive_sha256") == arc.get("sha256")
+             and ls.get("tree_digest") == ver.get("tree_digest"),
+             "面4 last-success 绑定 commit/epoch/manifest/archive/tree", ls)
+        _req(isinstance(ls.get("rpo_seconds"), (int, float))
+             and isinstance(ls.get("rto_seconds"), (int, float)),
+             "面4 last-success 记录 RPO/RTO", ls)
+        # jsonl 事件日志存在且含 pass 事件
+        jpath = rep.get("jsonl")
+        _req(jpath and os.path.isfile(jpath), "面4 jsonl 事件日志", jpath)
+        with open(jpath, encoding="utf-8") as fh:
+            events = [json.loads(x) for x in fh if x.strip()]
+        _req(any(e.get("event") == "drill_pass" for e in events),
+             "面4 jsonl 含 drill_pass 事件", len(events))
+
+
+def test_backup_restore_drill_release_red_faults():
+    """W11-13 负例：伪 tar 四变体全 rc1，last-success 字节不变。"""
+    real_tar = subprocess.run(["which", "tar"], capture_output=True,
+                              text=True).stdout.strip()
+    with tempfile.TemporaryDirectory(prefix="wq-w4-rel-red-") as td:
+        repo, commit = _fixture_repo(td)
+        root = os.path.join(td, "wenqu")
+        os.makedirs(root)
+        epoch = _epoch_file(td)
+        rdir = os.path.join(td, "reports")
+        # 先出一次 PASS，固定 last-success 基线字节
+        p0 = _run_drill(["--mode", "release", "--repo", repo,
+                         "--source-commit", commit, "--wenqu-root", root,
+                         "--report-dir", rdir, "--epoch-file", epoch])
+        _req(p0.returncode == 0, "面4 红测基线 release PASS",
+             p0.stdout + p0.stderr)
+        ls_path = os.path.join(rdir, "last-success.json")
+        baseline = open(ls_path, "rb").read()
+        names_echo = " ".join(
+            "'README.md' 'docs' 'link-to-readme' 'tools'")
+        markers = {"lie": "not materialized",
+                   "truncate": "independent archive extraction failed",
+                   "mode": "mode",
+                   "extra": "extra"}
+        for variant in ("lie", "truncate", "mode", "extra"):
+            fdir = _fake_tar_dir(td, variant, real_tar, names_echo)
+            rdir_v = os.path.join(td, f"rep-{variant}")
+            home_v = os.path.join(td, f"home-{variant}")
+            os.makedirs(home_v)
+            pv = _run_drill(["--mode", "release", "--repo", repo,
+                             "--source-commit", commit,
+                             "--wenqu-root", home_v,
+                             "--report-dir", rdir_v,
+                             "--epoch-file", epoch],
+                            path_prepend=fdir)
+            _req(pv.returncode == 1,
+                 f"面4 fake-tar[{variant}] 产品负例 rc=1", pv.stdout + pv.stderr)
+            rep_v, _ = _latest_report(rdir_v)
+            _req(rep_v.get("result") == "FAIL",
+                 f"面4 fake-tar[{variant}] 报告 FAIL", rep_v.get("reason"))
+            _req(markers[variant] in str(rep_v.get("reason", "")),
+                 f"面4 fake-tar[{variant}] reason 点名",
+                 rep_v.get("reason"))
+            # last-success 不被失败运行推进（本根无成功历史则必须不存在）
+            _req(not os.path.exists(os.path.join(rdir_v,
+                                                 "last-success.json")),
+                 f"面4 fake-tar[{variant}] 不产 last-success", rdir_v)
+        # 基线根的 last-success 字节全程未变
+        _req(open(ls_path, "rb").read() == baseline,
+             "面4 失败运行不改写既有 last-success", ls_path)
+
+
+def test_backup_restore_drill_release_concurrency_and_capacity():
+    """W11-13 共用进程锁禁重叠 + 容量不足保持 BLOCKED（rc3，不删证据）。"""
+    with tempfile.TemporaryDirectory(prefix="wq-w4-rel-lock-") as td:
+        repo, commit = _fixture_repo(td)
+        root = os.path.join(td, "wenqu")
+        os.makedirs(os.path.join(root, "state"))
+        rdir = os.path.join(td, "reports")
+        # 后台长故障窗演练持有锁（release-dr --fault-delay 6）
+        bg = subprocess.Popen(
+            ["bash", DRILL_SH, "--mode", "release-dr", "--repo", repo,
+             "--source-commit", commit, "--wenqu-root", root,
+             "--report-dir", rdir, "--fault-delay", "6"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            lock = os.path.join(root, "state", "backup-drill.lock")
+            deadline = time.time() + 10
+            while time.time() < deadline and not os.path.exists(lock):
+                time.sleep(0.05)
+            _req(os.path.exists(lock), "面4 进程锁文件出现", lock)
+            time.sleep(0.4)   # 让前台完成锁获取
+            p2 = _run_drill(["--mode", "release", "--repo", repo,
+                             "--source-commit", commit, "--wenqu-root", root,
+                             "--report-dir", rdir], timeout=60)
+            _req(p2.returncode == 1,
+                 "面4 并发演练（共用锁）rc=1", p2.stdout + p2.stderr)
+            _req("concurrent" in (p2.stdout + p2.stderr).lower(),
+                 "面4 并发拒绝 reason 点名 concurrent", p2.stderr)
+        finally:
+            out, err = bg.communicate(timeout=120)
+        _req(bg.returncode == 0, "面4 后台演练 PASS", out + err)
+        _req(not os.path.exists(os.path.join(rdir, "last-success.json"))
+             or json.load(open(os.path.join(rdir, "last-success.json"),
+                               encoding="utf-8"))["result"] == "PASS",
+             "面4 last-success 仅由 PASS 推进", rdir)
+    with tempfile.TemporaryDirectory(prefix="wq-w4-rel-cap-") as td:
+        repo, commit = _fixture_repo(td)
+        root = os.path.join(td, "wenqu")
+        os.makedirs(root)
+        epoch = _epoch_file(td)
+        rdir = os.path.join(td, "reports")
+        p0 = _run_drill(["--mode", "release", "--repo", repo,
+                         "--source-commit", commit, "--wenqu-root", root,
+                         "--report-dir", rdir, "--epoch-file", epoch])
+        _req(p0.returncode == 0, "面4 容量腿基线 PASS", p0.stdout + p0.stderr)
+        before = sorted(os.listdir(rdir))
+        ls_baseline = open(os.path.join(rdir, "last-success.json"),
+                           "rb").read()
+        p1 = _run_drill(["--mode", "release", "--repo", repo,
+                         "--source-commit", commit, "--wenqu-root", root,
+                         "--report-dir", rdir, "--epoch-file", epoch,
+                         "--min-free-bytes", "1099511627777"])
+        _req(p1.returncode == 3, "面4 容量不足 rc=3 BLOCKED",
+             p1.stdout + p1.stderr)
+        rep1, _ = _latest_report(rdir)
+        _req(rep1.get("result") == "BLOCKED",
+             "面4 BLOCKED 报告（非 FAIL）", rep1.get("result"))
+        _req("容量" in str(rep1.get("reason", ""))
+             or "capacity" in str(rep1.get("reason", "")).lower(),
+             "面4 BLOCKED reason 点名容量", rep1.get("reason"))
+        _req(all(f in os.listdir(rdir) for f in before),
+             "面4 BLOCKED 不删除既有审计证据", os.listdir(rdir))
+        _req(open(os.path.join(rdir, "last-success.json"),
+                  "rb").read() == ls_baseline,
+             "面4 BLOCKED 不推进 last-success", rdir)
+        # 报告目录不可写（权限类）→ rc3
+        os.chmod(rdir, 0o500)
+        try:
+            p2 = _run_drill(["--mode", "release", "--repo", repo,
+                             "--source-commit", commit, "--wenqu-root", root,
+                             "--report-dir", rdir], timeout=60)
+            _req(p2.returncode == 3, "面4 目标不可写 rc=3",
+                 p2.stdout + p2.stderr)
+        finally:
+            os.chmod(rdir, 0o755)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 面 5（W11-13）：唯一 backup 作业——scheduler 内注册 + 全系统审计
+#   现有 scheduler 内恰一个 enabled w4.backup-restore-drill；不新增
+#   launchd/cron 入口；DB/launchd/cron/argv 四面审计；经调度真实跑通。
+# ══════════════════════════════════════════════════════════════════════
+
+def test_backup_unique_job_registry_and_scheduler():
+    with tempfile.TemporaryDirectory(prefix="wq-w4-job-") as td:
+        repo, commit = _fixture_repo(td)
+        paths = _make_paths(td)
+        stub_ok = _write_stub_sampler(td, rc=0)
+        sampler_argv = (sys.executable, stub_ok,
+                        paths.samples_dir, paths.shadow_dir)
+        backup_argv = ("bash", DRILL_SH, "--mode", "release-dr",
+                       "--repo", repo, "--source-commit", commit,
+                       "--wenqu-root", paths.wenqu_home,
+                       "--report-dir", paths.drills_dir)
+        t0 = time.time()
+        tick1 = sched.production_tick(
+            paths=paths, now=t0, job_argv=sampler_argv,
+            backup_job_argv=backup_argv)
+        # tick 注册两个作业：观察采样 + backup drill（唯一 backup 作业）
+        store = sched.SchedulerStore(paths.scheduler_db)
+        try:
+            rows = store.query(
+                "SELECT job_id, argv_json, enabled FROM scheduler_jobs")
+            bak = [(j, a, e) for j, a, _c, e in
+                   [(r[0], r[1], None, r[2]) for r in rows]
+                   if "backup-restore-drill" in str(a)]
+            _req(len(bak) == 1 and bak[0][0] == sched.BACKUP_JOB_ID
+                 and bak[0][2] == 1,
+                 "面5 DB 恰一个 enabled backup 作业", bak)
+            argv_blob = bak[0][1]
+            _req("--mode" in argv_blob and "release-dr" in argv_blob
+                 and paths.wenqu_home in argv_blob,
+                 "面5 注册 argv=drill 脚本 release-dr + wenqu-root 绑定",
+                 argv_blob)
+            # 唯一性审计：DB+launchd+cron+argv 四面（干净面=ok）
+            agents = os.path.join(td, "LaunchAgents")
+            os.makedirs(agents)
+            audit = sched.audit_unique_backup_job(
+                store, launch_agents_dir=agents, crontab_text="")
+            _req(audit.get("ok") is True
+                 and audit.get("enabled_backup_jobs") == 1
+                 and audit.get("db_backup_jobs") == [sched.BACKUP_JOB_ID],
+                 "面5 唯一 backup 作业审计 ok（干净面）", audit)
+            # 负例①：注册表出现第二 backup 作业 → 审计红 + tick 告警面
+            from wenqu_core.scheduler import (  # noqa: E402
+                JobDefinition, ScheduleSpec, WatchdogPolicy)
+            rogue = JobDefinition(
+                job_id="w4.backup-restore-drill-rogue", owner="rogue",
+                argv=("bash", DRILL_SH, "--mode", "release",
+                      "--wenqu-root", paths.wenqu_home),
+                schedule=ScheduleSpec.daily_at("04:00"),
+                environment="production", probe_id="rogue-backup",
+                station_id=0, watchdog=WatchdogPolicy())
+            store_registry = sched.ScheduleRegistry(store)
+            store_registry.register(rogue)
+            audit2 = sched.audit_unique_backup_job(
+                store, launch_agents_dir=agents, crontab_text="")
+            _req(audit2.get("ok") is False
+                 and audit2.get("enabled_backup_jobs") == 2,
+                 "面5 第二 backup 作业 → 审计红", audit2)
+            store_registry.unregister("w4.backup-restore-drill-rogue")
+        finally:
+            store.close()
+        _req(tick1.get("backup_writers", {}).get("unique") is True,
+             "面5 tick 心跳发布 backup writer 唯一性",
+             tick1.get("backup_writers"))
+        # 负例②：launchd 出现直跑 drill 的第二入口 → 审计红
+        agents2 = os.path.join(td, "LaunchAgents-rogue")
+        os.makedirs(agents2)
+        with open(os.path.join(agents2, "com.wenqu.rogue-backup.plist"),
+                  "w") as fh:
+            fh.write('<?xml version="1.0"?>\n<plist version="1.0"><dict>'
+                     '<key>Label</key><string>com.wenqu.rogue-backup'
+                     '</string><key>ProgramArguments</key><array>'
+                     '<string>bash</string><string>' + DRILL_SH +
+                     '</string></array></dict></plist>\n')
+        store2 = sched.SchedulerStore(paths.scheduler_db)
+        try:
+            a3 = sched.audit_unique_backup_job(
+                store2, launch_agents_dir=agents2, crontab_text="")
+            _req(a3.get("ok") is False and a3.get("launchd_findings"),
+                 "面5 launchd 第二入口 → 审计红", a3.get("launchd_findings"))
+            # 负例③：crontab 出现 drill 条目 → 审计红
+            a4 = sched.audit_unique_backup_job(
+                store2, launch_agents_dir=agents,
+                crontab_text="17 3 * * * bash "
+                             f"{DRILL_SH} --mode release\n")
+            _req(a4.get("ok") is False and a4.get("cron_findings"),
+                 "面5 cron 第二入口 → 审计红", a4.get("cron_findings"))
+        finally:
+            store2.close()
+        # 仓内 launchd 模板不得直接跑 drill（scheduler tick 是唯一调度入口）
+        import glob as _glob
+        for tpl in _glob.glob(os.path.join(
+                REPO_ROOT, "system", "launchd", "*.plist.template")):
+            text = open(tpl, encoding="utf-8").read()
+            _req("backup-restore-drill" not in text,
+                 "面5 launchd 模板不得直跑 drill（无第二入口）", tpl)
+        # 调度真实跑通：把 backup 作业 next_due 拨到过去 → tick 真跑 drill
+        store3 = sched.SchedulerStore(paths.scheduler_db)
+        try:
+            past = t0 - 3600
+            with store3.transaction() as conn:
+                conn.execute(
+                    "UPDATE scheduler_jobs SET next_due_at=? WHERE job_id=?",
+                    (past, sched.BACKUP_JOB_ID))
+        finally:
+            store3.close()
+        tick2 = sched.production_tick(
+            paths=paths, now=t0 + 60, job_argv=sampler_argv,
+            backup_job_argv=backup_argv)
+        bak_runs = [r for r in tick2.get("runs", [])
+                    if "w4.backup-restore-drill" in str(r.get("run_id", ""))]
+        _req(any(r.get("actual_exit_code") == 0
+                 and r.get("policy_verdict") == "PASS" for r in bak_runs),
+             "面5 backup 作业经调度真实执行 PASS", tick2.get("runs"))
+        ls_path = os.path.join(paths.drills_dir, "last-success.json")
+        _req(os.path.isfile(ls_path), "面5 调度腿产出 last-success", ls_path)
+        ls = json.load(open(ls_path, encoding="utf-8"))
+        _req(ls.get("source_commit") == commit and ls.get("result") == "PASS",
+             "面5 last-success 绑定 Sfinal commit", ls)
 
 
 if __name__ == "__main__":
