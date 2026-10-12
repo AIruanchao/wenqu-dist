@@ -558,12 +558,16 @@ fi
 
 echo "== P1e. F4-CI-001：基础设施加固自测接入 required CI（删 system/tests/test_infra_hardening.py 后此节必红）=="
 if [ -f "$ROOT/system/tests/test_infra_hardening.py" ]; then
-  python3 "$ROOT/system/tests/test_infra_hardening.py" >/dev/null 2>&1
+  INF_TMP="$(mktemp "${TMPDIR:-/tmp}/wq-p1e.XXXXXXXX")"
+  python3 "$ROOT/system/tests/test_infra_hardening.py" >"$INF_TMP" 2>&1
   INF_RC=$?
   if [ ${INF_RC} -eq 0 ]; then
+    rm -f "$INF_TMP"
     PASS_N=$((PASS_N+1)); echo "  ✅ 基础设施加固自测全绿（P0-3/5/6/7/F 洞复验+install 面在 required CI 内）"
   else
-    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归"
+    FAIL_N=$((FAIL_N+1)); echo "  ❌ 基础设施加固自测失败（exit=${INF_RC}）——洞修复行为回归；失败明细（尾 40 行）："
+    tail -40 "$INF_TMP" | sed 's/^/      | /'
+    rm -f "$INF_TMP"
   fi
 else
   FAIL_N=$((FAIL_N+1)); echo "  ❌ test_infra_hardening.py 不存在——加固测试被移出验收面（F4-CI-001 复发）"
