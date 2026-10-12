@@ -519,8 +519,13 @@ def _latest_report(rdir):
     reps = sorted(p for p in os.listdir(rdir) if
                   p.startswith("drill-") and p.endswith(".json"))
     _req(reps, "面4 演练报告未落盘", rdir)
-    with open(os.path.join(rdir, reps[-1]), encoding="utf-8") as fh:
-        return json.load(fh), os.path.join(rdir, reps[-1])
+    # 「最新」判定键=(mtime_ns, 名称)：报告写盘即 mtime 单调推进，不受
+    # 同秒时间戳/防覆写序号等命名歧义影响（W11-13 CI 慢机同秒竞态根修：
+    # 旧式取 sorted()[-1] 在 p0 PASS 与 p1 BLOCKED 同秒时会选中陈旧 PASS）。
+    latest = max(reps, key=lambda p: (
+        os.stat(os.path.join(rdir, p)).st_mtime_ns, p))
+    with open(os.path.join(rdir, latest), encoding="utf-8") as fh:
+        return json.load(fh), os.path.join(rdir, latest)
 
 
 def test_backup_restore_drill_release_final_bytes():

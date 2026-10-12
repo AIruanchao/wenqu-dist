@@ -157,11 +157,17 @@ REPORT_DIR="${REPORT_DIR:-$WENQU_ROOT/observation/drills}"
 #（含假 tar 子进程与解包侧；GNU tar 忽略此变量，跨平台无副作用）。
 export COPYFILE_DISABLE=1
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-# 同秒并发防覆写：工件名已存在则追加序号（drill-<stamp>-2.json），绝不覆盖既有演练证据
+# 同秒并发防覆写：工件名已存在则在 Z 后紧贴追加零填充序号
+# （drill-<stamp>02.json），绝不覆盖既有演练证据。
+# 序号必须紧贴 Z（无 '-' 分隔符）：'0'-'9'(0x30+) > '.'(0x2E)，保证
+# 词典序=时间序——同秒后到者排在基名之后、仍先于后秒基名。旧式
+# -<seq> 后缀因 '-'(0x2D) < '.' 排在基名之前，「取最新 drill-*.json」
+# 的词典序消费方（测试 _latest_report / drill_runner / ops 审计）会取到
+# 陈旧报告——CI 慢机 p0 PASS 与 p1 BLOCKED 同秒窗口实测红，W11-13 根修。
 _SEQ=1
 while [ -e "$REPORT_DIR/drill-$STAMP.json" ] || [ -e "$REPORT_DIR/drill-$STAMP.jsonl" ]; do
   _SEQ=$((_SEQ+1))
-  STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$_SEQ"
+  STAMP="$(date -u +%Y%m%dT%H%M%SZ)$(printf '%02d' "$_SEQ")"
 done
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wenqu-drill.XXXXXXXX")" || exit 1
 LIVE="$WORK/live"; BACKUP="$WORK/backup"
