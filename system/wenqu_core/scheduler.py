@@ -2276,6 +2276,41 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                 )
             except Exception:
                 log.exception("capacity gate CRITICAL notify enqueue failed")
+        # ---- W11-02：release 完整性哨兵快照消费（只读；漂移/熔断/停摆 →
+        # CRITICAL 告警移交人工）。state/release-integrity.json 的唯一
+        # writer 是 com.wenqu.integrity 哨兵——scheduler 只读（单一写纪律），
+        # 不在 tick 内做树对账（哨兵职责），只对快照裁决面告警。----
+        integrity = None
+        try:
+            from .release_drift import (  # 延迟导入：纯追加节不动模块顶
+                IntegrityPaths as _IntegrityPaths,
+                check_integrity_freshness as _check_integrity,
+            )
+            integrity = _check_integrity(
+                _IntegrityPaths.for_home(paths.wenqu_home), now=now)
+        except Exception:
+            log.exception("release integrity freshness check failed")
+            integrity = {"status": "error",
+                         "detail": "integrity check raised (see log)"}
+        if integrity.get("status") in ("drift", "blocked", "fuse_open",
+                                       "monitor_error", "stale",
+                                       "malformed"):
+            try:
+                outbox.notify(
+                    "CRITICAL",
+                    f"[wenqu] release 完整性异常：{integrity.get('status')}",
+                    f"哨兵快照 status={integrity.get('status')}\n"
+                    f"{integrity.get('detail', '')}\n"
+                    f"静态八站 PASS 不能覆盖运行时树完整性；激活/回滚入口"
+                    f"按哨兵熔断状态冻结。详情 /api/v1/integrity。",
+                    meta={"kind": "release_integrity",
+                          "status": integrity.get("status")},
+                    dedup_key="integrity:%s:%d" % (
+                        integrity.get("status"), int(now // 3600)),
+                    now=now,
+                )
+            except Exception:
+                log.exception("integrity CRITICAL notify enqueue failed")
         # 先取既有调度状态：register(replace=True) 会把 next_due_at 重置为
         # now+interval——若不保留，每个 tick 先注册再算到期，到期被永远
         # 推到未来 = 采样作业只在首跑 bootstrap 手动跑一次，此后每 tick 仅
@@ -2431,6 +2466,11 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             # W11-07：tick 存活（tick_rc）与采样 PASS/FRESH 显式分离——
             # tick rc0 不得掩盖 sampler rc3。
             "sampler": sampler_block,
+            # W11-02：release 完整性哨兵快照裁决面（drift/blocked/fuse_open
+            # 等异常态已在上方 CRITICAL 通道告警），心跳一并发布快照。
+            # 与 sampler 同为 scheduler 告警面：去重逻辑各自独立
+            # （sampler_rc3:* vs integrity:status:*），互不吞并。
+            "release_integrity": integrity,
             "capacity_gate": {
                 "gate": cap.get("capacity_gate"),
                 "code": cap.get("code"),

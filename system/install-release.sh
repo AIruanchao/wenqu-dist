@@ -394,6 +394,34 @@ print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])' "$NEW_KEY")"
   exit 0
 fi
 
+# ------------------------------------------------- W11-02 熔断门（先于一切）
+# R10-REL-ACTIVE-TREE-DRIFT-001：哨兵（com.wenqu.integrity）检测到现役树
+# 漂移/身份断裂/回滚场景污染时发布 state/release-integrity.json（fuse=OPEN）
+# ——漂移未处置前冻结激活/回滚入口（fail-closed；人工处置后经
+# release-integrity-watch unfuse 留痕解除）。状态文件缺失（哨兵未部署）
+# 不阻断（向后兼容）。
+INTEGRITY_STATE="$INSTALL_ROOT/state/release-integrity.json"
+if [ -f "$INTEGRITY_STATE" ]; then
+  "$PY" - "$INTEGRITY_STATE" <<'PYFUSE' || die "release-integrity 熔断开启——激活/回滚入口冻结（漂移未处置；人工处置后 release-integrity-watch unfuse）"
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        state = json.load(fh)
+except (OSError, ValueError) as exc:
+    print(f"install-release: ERROR: 哨兵状态不可读（fail-closed）: {exc}",
+          file=sys.stderr)
+    sys.exit(1)
+fuse = state.get("fuse")
+if fuse == "OPEN":
+    print(f"install-release: ERROR: fuse=OPEN reason="
+          f"{state.get('fuse_reason')!r} verdict={state.get('verdict')!r} "
+          f"——现役树漂移未处置，激活/回滚一律拒绝（W11-02）",
+          file=sys.stderr)
+    sys.exit(1)
+PYFUSE
+  log "integrity fuse 检查通过（verdict=$(python3 -c "import json;print(json.load(open('$INTEGRITY_STATE'))['verdict'])" 2>/dev/null || echo '?')）"
+fi
+
 # ---------------------------------------------------------------- 回滚模式
 # G9-13（R9-REL-ROLLBACK-ROOT-BYPASS-004 根修）：回滚不再「目录存在即切」，
 # 与正向安装链同一信任链六段 fail-closed（详见文件头注）。任一段失败=rc1，
@@ -1077,6 +1105,44 @@ if [ -n "$CONTROL_CLONE_REMOTE" ]; then
   fi
   log "受控 clone 冻结完成: $CONTROL_CLONE（receipt: $CONTROL_RECEIPT）"
   log "plist 须显式配置 WENQU_GIT_REPO=$CONTROL_CLONE 与 receipt/前置路径（见 system/launchd 模板）"
+fi
+
+# ------------------------------------------------- 6) W11-02 激活树完整性快扫
+# 安装后同步重验（方案 W11-02 入口清单）：对刚激活的树跑一次哨兵同源对账
+# （内容 sha256 + 可写位不变量）。发现漂移=安装窗口内并发篡改 → rc1 停止
+# （现场保留）；哨兵模块不可用（旧树未含 W11-02）→ 告警不阻断（证据边界：
+# 四件套 verify+树逐文件对账已在 [3/5] 完成，此处为纵深防御层）。
+echo "== [post] W11-02 激活树完整性快扫 =="
+if PYTHONPATH="$CURRENT/system" "$PY" - "$CURRENT" "$INSTALL_ROOT" <<'PYDRIFT'
+import os, sys
+try:
+    from wenqu_core import release_drift as rd
+except ImportError as exc:
+    print(f"  integrity scan unavailable: {exc}")
+    sys.exit(4)
+tree = os.path.realpath(sys.argv[1])
+paths = rd.IntegrityPaths.for_home(sys.argv[2])
+paths.release_attest_path = os.path.join(tree, "tools", "release_attest.py")
+report = rd.scan_cycle(paths, now=None)
+cur = report.get("current") or {}
+hard = (cur.get("drifted") or []) + (cur.get("mode_drifted") or []) \
+       + (cur.get("missing") or []) + (cur.get("extra") or [])
+if report["verdict"] == "DRIFT" or hard:
+    print("  ACTIVATED TREE DRIFT: %s" % hard[:5], file=sys.stderr)
+    sys.exit(3)
+print("  激活树完整性快扫 OK（verdict=%s checked=%s）"
+      % (report["verdict"], cur.get("checked")))
+sys.exit(0)
+PYDRIFT
+then
+  :
+else
+  rc=$?
+  if [ "$rc" = "3" ]; then
+    die "激活树完整性快扫发现漂移（安装窗口并发篡改?）——现场保留，人工核查"
+  else
+    log "WARNING: 完整性快扫不可用（rc=$rc，旧树无 W11-02 模块?）——[3/5] 四件套对账仍为正门"
+  fi
 fi
 
 # 可选：launchd 重载 + 立即 kickstart 一轮
