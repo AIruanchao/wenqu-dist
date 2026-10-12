@@ -114,6 +114,14 @@ pre{background:#0a0d12;border:1px solid var(--line);border-radius:6px;padding:10
 .stale-note{font-size:10px;color:#f0883e;flex:0 0 44px}
 .stale-row{border-left:2px solid #f0883e;padding-left:6px}
 .chip-stale{background:#f0883e33;color:#f0883e;border:1px dashed #f0883e}
+/* W11-14：quarantine 一等控制面——隔离行/隔离节点/损坏警示 */
+.chip.q{background:#d2992233;color:#d29922;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 0 auto}
+.qrow{align-items:center;gap:4px}
+.qrow .ell{font-size:12px}
+.bnode.qerr{border-color:#f85149}
+.bnode.qerr .cnt{color:#f85149}
+.bnode.side{cursor:pointer}
+.bnode.side:hover{border-color:var(--acc)}
 .dec-row{align-items:flex-start;flex-direction:column;gap:2px}
 .dec-overdue{background:#f8514922;padding:4px 6px;border-radius:6px}
 .dec-top{display:flex;justify-content:space-between;width:100%}

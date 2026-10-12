@@ -115,3 +115,49 @@ jobs:
             "$WQ_IMAGE" \
             python3 /wq/system/tests/restricted_container_probe.py
 
+
+  # ---- W11-14（十轮 W8「真实浏览器 UI 未验」扣分根治）：真实 Chromium required job ----
+  # 固定 digest 的 Playwright 官方镜像（含 Python playwright 1.63.0 + 匹配
+  # revision 的 Chromium）内真跑 system/tests/browser_e2e.py：
+  #   页面加载+四页签真实点击、QUARANTINE/ACCEPTED/OTHER/OPEN 钻取（含零态
+  #   可操作）、API/DOM 计数一致、console（pageerror=0；除 logs-403 fail-closed
+  #   首询与 meta-CSP 厂商提示外 error=0）、network 全同源（XSS fixture 零外部
+  #   请求）、XSS payload 不执行、W11-08 prompt 解锁链；截图/DOM/console/
+  #   network/脱敏 HAR 落 /out 工件。
+  # 退出码合同：0=全过 / 1=DOM·console·network 不符 / 3=浏览器或运行体不可用
+  # （rc3 也必须红——浏览器不可用绝不静默 SKIP）。job 按退出码直接红。
+  # 镜像 digest 固定（mcr.microsoft.com/playwright/python:v1.63.0-jammy）：
+  #   amd64=sha256:c40a9a29b64f07ba9303d48d232615880de57e9157aa6d9d3c0c5fdb36cdce87
+  #   （ubuntu-latest runner=amd64；arm64 本机预验同 tag digest=
+  #    sha256:6679b332bf4d772a9bf2bb3d7715f8e35bff5808c9d06e2599c767f828f8e3f1）
+  browser-e2e:
+    name: browser-e2e   # W11-14 exact required check context 同名
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 真实 Chromium 浏览器验证（固定 digest 容器）
+        env:
+          WQ_PW_IMAGE: mcr.microsoft.com/playwright/python@sha256:c40a9a29b64f07ba9303d48d232615880de57e9157aa6d9d3c0c5fdb36cdce87
+        run: |
+          set -euo pipefail
+          echo "commit_sha=${GITHUB_SHA} image=${WQ_PW_IMAGE}"
+          docker pull "$WQ_PW_IMAGE"
+          docker image inspect "$WQ_PW_IMAGE" --format 'pinned-digest={{index .RepoDigests 0}}'
+          CTR=wq-browser-e2e
+          trap 'docker rm -f "$CTR" >/dev/null 2>&1 || true' EXIT
+          mkdir -p /tmp/wq-browser-evidence && chmod 777 /tmp/wq-browser-evidence
+          timeout 600 docker run --rm --name "$CTR" \
+            --ipc=host \
+            -v "${GITHUB_WORKSPACE}:/wq:ro" \
+            -v "/tmp/wq-browser-evidence:/out" \
+            -e PYTHONDONTWRITEBYTECODE=1 \
+            "$WQ_PW_IMAGE" \
+            python3 /wq/system/tests/browser_e2e.py --out /out/browser
+      - name: 归档浏览器证据（截图/DOM/console/network/脱敏 HAR）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-evidence
+          path: /tmp/wq-browser-evidence/
+          retention-days: 30

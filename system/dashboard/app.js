@@ -261,7 +261,22 @@ renderBugDeck();
 
 /* ── bugscan-ledger 实数据（状态机） ── */
 let bglItemsShown=null;
+/* W11-14：隔离行渲染（reason/位置/row_hash/preview——全 textContent，零注入 API） */
+function qItemRow(x){
+  const r=el('div','row qrow');
+  const rs=el('span','chip q');rs.title=x.reason||'';rs.textContent=x.reason||'';
+  r.appendChild(rs);
+  const pj=el('span','dim ell w110');pj.title=x.proj||'';pj.textContent=x.proj||'';r.appendChild(pj);
+  const loc=el('span','dim w150');loc.textContent=(x.source||'')+(x.line?(':'+x.line):'');
+  loc.title='来源 basename:行号';r.appendChild(loc);
+  const ti=el('span','ell flex1');ti.title=x.title||x.preview||'';ti.textContent=x.title||x.preview||'';
+  r.appendChild(ti);
+  const h=el('span','dim fs11 w96');h.title='row_hash sha256：'+(x.row_hash||'');
+  h.textContent=(x.row_hash||'').slice(0,12);r.appendChild(h);
+  return r;
+}
 function bglItemRow(x){
+  if(x.st==='QUARANTINE')return qItemRow(x);
   const r=el('div','row'+(x.stale?' stale-row':''));
   const sevCls=x.sev==='HIGH'?'h':(x.sev==='MED'?'m':(x.sev==='LOW'?'l':''));
   r.appendChild(el('span','chip '+sevCls,x.sev));
@@ -288,7 +303,8 @@ async function toggleItems(stt,openItems,openTotal){
   if(bglItemsShown!==stt)return;  // 期间已切换
   const items=d2.items||[];
   const only=(d2.items_total||0)>items.length?('，仅列前 '+items.length+' 条'):'';
-  box.replaceChildren(el('div','dim fs11 mb4',stt+' 明细 '+(d2.items_total||0)+' 条（严重度序'+only+'）· 再点 '+stt+' 收起'));
+  const zero=(d2.items_total||0)===0?'（零态：该状态当前无条目）':'';
+  box.replaceChildren(el('div','dim fs11 mb4',stt+' 明细 '+(d2.items_total||0)+' 条'+(stt==='QUARANTINE'?'（隔离面——不进有效 finding 分母）':'')+only+zero+' · 再点 '+stt+' 收起'));
   for(const x of items)box.appendChild(bglItemRow(x));
 }
 async function loadBGL(){
@@ -298,7 +314,7 @@ async function loadBGL(){
   const box=$('bglstate');if(!box)return;
   if(!d.available){
     box.replaceChildren(el('span','dim',(d.error?('账本读取错误：'+d.error):'未发现 bugscan-ledger 账本目录（~/.zcode/quality-system/bugscan-ledger/）')));
-    const pb=$('bglproj');if(pb)pb.replaceChildren();return;
+    const pb=$('bglproj');if(pb)pb.replaceChildren();return
   }
   bglItemsShown=null;const old=$('bglitems');if(old)old.remove();
   const st=d.total.by_status||{};
@@ -315,15 +331,26 @@ async function loadBGL(){
     node.appendChild(el('span','hint',lab));
     frow.appendChild(node);
   });
+  /* W11-14：ACCEPTED/OTHER/QUARANTINE 三侧态节点——独立可点击（计数为 0
+   * 仍可点击钻取零态）；quarantine 不进分母、sidecar 损坏显式呈现不静默 */
   const frow2=el('div','frow mt8');
   frow2.appendChild(el('div','arrow','↳'));
-  const acc=el('div','bnode side');
-  acc.appendChild(el('b',null,'ACCEPTED'));acc.appendChild(el('span','cnt',st['ACCEPTED']||0));
-  acc.appendChild(el('span','hint','有条件接受（批准人+理由+到期日；到期未续自动重开）'));
-  const oth=el('div','bnode side');
-  oth.appendChild(el('b',null,'OTHER'));oth.appendChild(el('span','cnt',st['OTHER']||0));
-  oth.appendChild(el('span','hint','无状态字段/变体未归类'));
-  frow2.appendChild(acc);frow2.appendChild(oth);
+  const qErr=d.quarantine_error;
+  const qN=(typeof d.quarantine_total==='number')?d.quarantine_total:0;
+  const mkSide=(key,hint,cnt)=>{
+    const n=el('div','bnode side');
+    n.title='点击展开该状态明细（含零态）';
+    n.addEventListener('click',()=>{toggleItems(key,openItems,openTotal)});
+    n.appendChild(el('b',null,key+' ▾'));
+    n.appendChild(el('span','cnt',cnt));
+    n.appendChild(el('span','hint',hint));
+    return n;
+  };
+  frow2.appendChild(mkSide('ACCEPTED','有条件接受（批准人+理由+到期日；到期未续自动重开）',st['ACCEPTED']||0));
+  frow2.appendChild(mkSide('OTHER','无状态字段/变体未归类',st['OTHER']||0));
+  const qr=mkSide('QUARANTINE',qErr?('⚠ 隔离 sidecar 损坏（点击查看显式错误）'):'坏 JSON/sidecar 隔离（不进分母）',qN);
+  if(qErr)qr.classList.add('qerr');
+  frow2.appendChild(qr);
   const sv=d.total.by_sev||{};
   const chiprow=el('div','mt10');
   chiprow.appendChild(el('span','chip h','HIGH '+(sv.HIGH||0)));
