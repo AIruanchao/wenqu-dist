@@ -90,6 +90,13 @@ def validate_report(report: dict, *, mode: str) -> dict:
 
     只验结构不判语义（PASS/RPO 是否达标由调用方按场景断言）；任何结构
     缺失/类型漂移/数字非有限 → ValueError（fail-closed）。
+
+    W11-13：release/release-dr 模式另强制 ``release`` 块合同——
+    source_commit（40hex）/deployment epoch（int 或 null + source 字段）/
+    manifest sha256（64hex）/tree_root+restore_root/n_files/bytes/
+    missing-extra-hash-mode-type 全零全真 checks/verifier ok（工具名+
+    tree_digest 64hex）。restore_root_empty_before 必须为 true
+    （恢复必须落在全空隔离根）。
     """
     if not isinstance(report, dict):
         raise ValueError(f"报告必须是 JSON 对象，实得 {type(report).__name__}")
@@ -134,10 +141,10 @@ def validate_report(report: dict, *, mode: str) -> dict:
     if n_restored != len(snap_rels):
         raise ValueError(f"恢复计数 {n_restored} != 快照文件数 {len(snap_rels)}")
 
-    if mode == "dr":
+    if mode in ("dr", "release-dr"):
         dr = report.get("dr")
         if not isinstance(dr, dict):
-            raise ValueError("DR 模式报告缺 dr 计时块")
+            raise ValueError(f"{mode} 模式报告缺 dr 计时块")
         for key in ("rpo_seconds", "rto_seconds", "rpo_target_s",
                     "rto_target_s", "rpo_ok", "rto_ok"):
             if key not in dr:
@@ -171,19 +178,14 @@ def validate_report(report: dict, *, mode: str) -> dict:
             if not (isinstance(archive[key], str)
                     and _SHA256_RE.fullmatch(archive[key])):
                 raise ValueError(f"archive.{key} 非 64hex sha256: {archive[key]!r}")
-        arc_files = archive.get("files")
-        if not isinstance(arc_files, list) or not arc_files:
-            raise ValueError("archive.files（独立解包逐文件清单）必须非空")
-        arc_rels = set()
-        for f in arc_files:
-            if not (isinstance(f, dict) and {"rel", "sha256", "size"} <= set(f)
-                    and _SHA256_RE.fullmatch(str(f["sha256"]))):
-                raise ValueError(f"archive.files 条目结构漂移: {f!r}")
-            arc_rels.add(f["rel"])
-        if arc_rels != snap_rels:
+        arc_step = steps.get("archive")
+        if not (isinstance(arc_step, dict) and arc_step.get("ok") is True
+                and arc_step.get("materialized") is True):
+            raise ValueError(f"steps.archive 归档腿必须 ok+materialized: {arc_step!r}")
+        if steps["restore"].get("source") != "archive":
             raise ValueError(
-                f"独立解包文件集与快照不一致: 仅快照 {sorted(snap_rels - arc_rels)} "
-                f"仅解包 {sorted(arc_rels - snap_rels)}")
+                f"restore.source 必须 'archive'（恢复必须走归档，不得旁路复制）: "
+                f"{steps['restore']!r}")
         identity = report.get("identity")
         if not isinstance(identity, dict):
             raise ValueError("PASS 报告缺 identity 块（作业身份合同）")
@@ -201,14 +203,74 @@ def validate_report(report: dict, *, mode: str) -> dict:
             raise ValueError(
                 f"identity.scheduler_sha256 必须为 64hex 或 null: "
                 f"{identity['scheduler_sha256']!r}")
-        arc_step = steps.get("archive")
-        if not (isinstance(arc_step, dict) and arc_step.get("ok") is True
-                and arc_step.get("materialized") is True):
-            raise ValueError(f"steps.archive 归档腿必须 ok+materialized: {arc_step!r}")
-        if steps["restore"].get("source") != "archive":
-            raise ValueError(
-                f"restore.source 必须 'archive'（恢复必须走归档，不得旁路复制）: "
-                f"{steps['restore']!r}")
+        # backup/dr 模式：archive.files（独立解包逐文件清单）必须非空且与
+        # 快照一致（release 模式的逐文件清单在 manifest/steps 内，archive
+        # 块只记聚合 digest——由 release 块合同覆盖）。
+        if mode in ("backup", "dr"):
+            arc_files = archive.get("files")
+            if not isinstance(arc_files, list) or not arc_files:
+                raise ValueError("archive.files（独立解包逐文件清单）必须非空")
+            arc_rels = set()
+            for f in arc_files:
+                if not (isinstance(f, dict) and {"rel", "sha256", "size"} <= set(f)
+                        and _SHA256_RE.fullmatch(str(f["sha256"]))):
+                    raise ValueError(f"archive.files 条目结构漂移: {f!r}")
+                arc_rels.add(f["rel"])
+            if arc_rels != snap_rels:
+                raise ValueError(
+                    f"独立解包文件集与快照不一致: 仅快照 {sorted(snap_rels - arc_rels)} "
+                    f"仅解包 {sorted(arc_rels - snap_rels)}")
+        # W11-13 release/release-dr：release 块绑定合同
+        if mode in ("release", "release-dr"):
+            rel = report.get("release")
+            if not isinstance(rel, dict):
+                raise ValueError("release 模式 PASS 报告缺 release 块")
+            if not (isinstance(rel.get("source_commit"), str)
+                    and len(rel["source_commit"]) == 40
+                    and all(c in "0123456789abcdef"
+                            for c in rel["source_commit"])):
+                raise ValueError(
+                    f"release.source_commit 非 40hex: {rel.get('source_commit')!r}")
+            if rel.get("deployment_epoch") is not None \
+                    and not isinstance(rel.get("deployment_epoch"), int):
+                raise ValueError(
+                    f"release.deployment_epoch 必须 int 或 null: "
+                    f"{rel.get('deployment_epoch')!r}")
+            if not isinstance(rel.get("deployment_epoch_source"), str):
+                raise ValueError("release.deployment_epoch_source 缺失")
+            if not (isinstance(rel.get("manifest_sha256"), str)
+                    and _SHA256_RE.fullmatch(rel["manifest_sha256"])):
+                raise ValueError(
+                    f"release.manifest_sha256 非 64hex: "
+                    f"{rel.get('manifest_sha256')!r}")
+            if not rel.get("tree_root") or not rel.get("restore_root"):
+                raise ValueError("release.tree_root/restore_root 缺失")
+            if rel.get("restore_root_empty_before") is not True:
+                raise ValueError(
+                    "release.restore_root_empty_before 必须 true（恢复到全空"
+                    "隔离根）")
+            if not (isinstance(rel.get("n_files"), int) and rel["n_files"] > 0
+                    and isinstance(rel.get("bytes"), int) and rel["bytes"] > 0):
+                raise ValueError("release.n_files/bytes 必须为正整数")
+            checks = rel.get("checks")
+            if not isinstance(checks, dict):
+                raise ValueError("release.checks 缺失")
+            for key in ("missing", "extra", "drifted", "mode_drifted",
+                        "type_mismatch"):
+                if checks.get(key) != 0:
+                    raise ValueError(f"release.checks.{key} 必须 0: {checks!r}")
+            for key in ("hash_ok", "mode_ok", "type_ok"):
+                if checks.get(key) is not True:
+                    raise ValueError(f"release.checks.{key} 必须 true: {checks!r}")
+            ver = rel.get("verifier")
+            if not (isinstance(ver, dict) and ver.get("ok") is True
+                    and "release_drift" in str(ver.get("tool", ""))
+                    and isinstance(ver.get("tree_digest"), str)
+                    and _SHA256_RE.fullmatch(ver["tree_digest"])):
+                raise ValueError(f"release.verifier 合同破坏: {ver!r}")
+            run_id = report.get("run_id")
+            if not (isinstance(run_id, str) and run_id.startswith("baddrill-")):
+                raise ValueError(f"run_id 绑定缺失: {run_id!r}")
     return report
 
 
@@ -232,25 +294,43 @@ def read_events(jsonl_path: Path) -> list:
 
 def run_drill(*, wenqu_root, report_dir, mode: str = "backup",
               fault_delay_s: float = 1.0,
+              repo=None, source_commit=None, epoch_file=None,
+              min_free_bytes=None,
               timeout_s: float = DEFAULT_TIMEOUT_S) -> DrillOutcome:
     """真实跑一次备份/DR 演练并返回结构化结果。
 
-    wenqu_root/report_dir 接受 str 或 Path；mode 限 backup|dr；dr 模式
+    wenqu_root/report_dir 接受 str 或 Path；mode 限 backup|dr|release|
+    release-dr（release*=W11-13 Sfinal 字节演练）；dr/release-dr 模式
     fault_delay_s 为快照完成后注入的已知故障延迟窗口（秒）。
-    成功（退出 0 + 报告 result=PASS）→ DrillOutcome；失败 → DrillFailure。
+
+    release* 模式可选 repo/source_commit/epoch_file/min_free_bytes 透传
+    给演练脚本（None=脚本内缺省：$WENQU_GIT_REPO/$WENQU_RELEASE_SHA/HEAD、
+    epoch 探测、无容量覆盖）。
+
+    成功（退出 0 + 报告 result=PASS）→ DrillOutcome；失败 → DrillFailure
+    （BLOCKED rc3 同样以 DrillFailure 抛出，report.result=BLOCKED）。
     """
-    if mode not in ("backup", "dr"):
-        raise ValueError(f"mode 必须是 backup|dr，实得 {mode!r}")
+    if mode not in ("backup", "dr", "release", "release-dr"):
+        raise ValueError(f"mode 必须是 backup|dr|release|release-dr，"
+                         f"实得 {mode!r}")
     wenqu_root = Path(wenqu_root)
     report_dir = Path(report_dir)
     argv = ["bash", str(DRILL_SCRIPT),
             "--wenqu-root", str(wenqu_root),
             "--report-dir", str(report_dir),
             "--mode", mode]
-    if mode == "dr":
+    if mode in ("dr", "release-dr"):
         if not (isinstance(fault_delay_s, (int, float)) and fault_delay_s > 0):
             raise ValueError(f"fault_delay_s 必须为正数: {fault_delay_s!r}")
         argv += ["--fault-delay", str(fault_delay_s)]
+    if repo is not None:
+        argv += ["--repo", str(repo)]
+    if source_commit is not None:
+        argv += ["--source-commit", str(source_commit)]
+    if epoch_file is not None:
+        argv += ["--epoch-file", str(epoch_file)]
+    if min_free_bytes is not None:
+        argv += ["--min-free-bytes", str(int(min_free_bytes))]
 
     proc = subprocess.run(argv, capture_output=True, text=True,
                           timeout=timeout_s)
@@ -272,7 +352,8 @@ def run_drill(*, wenqu_root, report_dir, mode: str = "backup",
         ".json", ".jsonl")))
 
     if proc.returncode != 0:
-        if report.get("result") != "FAIL":  # 退出非零但报告自称 PASS=结构破坏
+        if report.get("result") not in ("FAIL", "BLOCKED"):
+            # 退出非零但报告自称 PASS=结构破坏
             raise DrillFailure(
                 f"drill 退出 {proc.returncode} 但报告 result="
                 f"{report.get('result')!r}（fail-closed 结构破坏）",
@@ -280,7 +361,7 @@ def run_drill(*, wenqu_root, report_dir, mode: str = "backup",
                 returncode=proc.returncode)
         reason = report.get("reason", "<无原因>")
         raise DrillFailure(
-            f"drill FAIL (exit {proc.returncode}): {reason}",
+            f"drill {report.get('result')} (exit {proc.returncode}): {reason}",
             report=report, report_path=report_path, jsonl_path=jsonl_path,
             returncode=proc.returncode)
 
@@ -294,7 +375,10 @@ def run_drill(*, wenqu_root, report_dir, mode: str = "backup",
 
     outcome = DrillOutcome(report=report, report_path=report_path,
                            jsonl_path=jsonl_path, mode=mode)
-    if mode == "dr":
+    if mode in ("dr", "release-dr"):
         outcome.rpo_seconds = float(report["dr"]["rpo_seconds"])
         outcome.rto_seconds = float(report["dr"]["rto_seconds"])
+    if mode in ("release", "release-dr"):
+        outcome.extra["release"] = report.get("release")
+        outcome.extra["run_id"] = report.get("run_id")
     return outcome

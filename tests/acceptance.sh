@@ -684,6 +684,246 @@ with tempfile.TemporaryDirectory(prefix="wq_acc_bak_") as td:
 sys.exit(0)
 BAKEOF
 
+echo "== BAK2. W11-13 Sfinal 字节备份正演练（release/release-dr + 唯一 backup 作业 + 共用锁 + last-success）=="
+# 对 Sfinal 字节（git archive <commit>）做全链演练：空根恢复全对账
+# （missing/extra/hash/mode/类型）+ release verifier（release_drift.audit_tree）
+# + 报告绑定 run_id/commit/epoch/manifest/tree/身份 SHA + RPO/RTO 实测；
+# 负例（伪 tar 谎报/截断/mode 篡改/extra 注入/并发重叠/容量 BLOCKED）产品面
+# 全 rc1/rc3 + last-success 不被触碰；scheduler 内恰一个 enabled backup 作业
+# （DB+launchd+cron+argv 四面审计红绿）。产品负例非零，本 harness 断言后 rc0。
+python3 - "$ROOT" >/dev/null 2>&1 <<'BAK2EOF'; ck "BAK2 Sfinal 正演练+五负例 fail-closed+唯一作业审计+last-success 合同" 0 $?
+import json, os, re, shutil, subprocess, sys, tempfile, time
+from pathlib import Path
+
+repo = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(repo / "system"))
+drill = repo / "system" / "sentinels" / "backup-restore-drill.sh"
+real_tar = shutil.which("tar")
+assert real_tar
+sha_re = re.compile(r"[0-9a-f]{64}")
+
+def build_fixture_repo(base: Path):
+    r = base / "sfinal-fixture"
+    (r / "tools" / "deep").mkdir(parents=True)
+    (r / "docs").mkdir()
+    (r / "README.md").write_bytes(b"W11-13 acceptance Sfinal corpus\n" * 8)
+    p = r / "tools" / "run.sh"; p.write_bytes(b"#!/bin/sh\necho final\n" * 3)
+    p.chmod(0o755)
+    (r / "tools" / "deep" / "data.bin").write_bytes(bytes(range(256)) * 8)
+    (r / "docs" / "a.txt").write_bytes(b"alpha doc\n" * 4)
+    (r / "docs" / "b.txt").write_bytes(b"beta doc\n" * 5)
+    os.symlink("README.md", r / "link-to-readme")
+    os.symlink("docs", r / "link-to-dir")  # symlink→目录（W11-13 真树回归）
+    env = dict(os.environ)
+    for k in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        env.setdefault(k, "w11-13-acc")
+    for k in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        env.setdefault(k, "acc@wenqu.local")
+    for args in (["git", "init", "-q"], ["git", "add", "-A"],
+                 ["git", "commit", "-q", "-m", "Sfinal fixture"]):
+        subprocess.run(args, cwd=str(r), env=env, check=True,
+                       capture_output=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(r), env=env,
+                         check=True, capture_output=True, text=True
+                         ).stdout.strip()
+    return r, sha
+
+def run_release(root, rdir, repo_p, sha, epoch=None, extra=(),
+                path_prepend=None, mode="release"):
+    argv = ["bash", str(drill), "--mode", mode, "--repo", str(repo_p),
+            "--source-commit", sha, "--wenqu-root", str(root),
+            "--report-dir", str(rdir)]
+    if epoch:
+        argv += ["--epoch-file", str(epoch)]
+    argv += list(extra)
+    env = dict(os.environ)
+    if path_prepend:
+        env["PATH"] = f"{path_prepend}{os.pathsep}{os.environ['PATH']}"
+    p = subprocess.run(argv, capture_output=True, text=True, timeout=300,
+                       env=env)
+    reps = sorted(Path(rdir).glob("drill-*.json"))
+    rep = json.loads(reps[-1].read_text(encoding="utf-8")) if reps else {}
+    return p.returncode, rep, (reps[-1] if reps else None)
+
+def fake_tar(d: Path, variant: str):
+    s = f"""#!/bin/sh
+real="{real_tar}"
+case "$1" in
+  -tzf)
+    arc="$2"
+    if [ -f "$arc" ] && [ ! -L "$arc" ]; then "$real" -tzf "$arc" 2>/dev/null && exit 0; fi
+    exit 0 ;;
+  -czf)
+    out="$2"; shift 2
+    dir=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -C) dir="$2"; shift 2 ;;
+        *) break ;;
+      esac
+    done
+    case "{variant}" in
+      lie) exit 0 ;;
+      truncate)
+        "$real" -czf "$out" -C "$dir" "$@" || exit 1
+        sz=$(wc -c < "$out"); keep=$(( sz * 2 / 5 ))
+        head -c "$keep" "$out" > "$out.t" && mv "$out.t" "$out"
+        exit 0 ;;
+      mode)
+        mut="$(dirname "$out")/mut-tree"; rm -rf "$mut"; cp -Rp "$dir" "$mut" || exit 1
+        chmod 0600 "$mut/tools/run.sh" || exit 1
+        "$real" -czf "$out" -C "$mut" "$@" || exit 1; exit 0 ;;
+      extra)
+        mut="$(dirname "$out")/mut-tree"; rm -rf "$mut"; cp -Rp "$dir" "$mut" || exit 1
+        echo "ACC-EXTRA" > "$mut/docs/ACC-EXTRA-FILE.txt"
+        "$real" -czf "$out" -C "$mut" "$@" || exit 1; exit 0 ;;
+    esac
+    exit 1 ;;
+esac
+exit 1
+"""
+    (d / "tar").write_text(s); (d / "tar").chmod(0o755)
+
+with tempfile.TemporaryDirectory(prefix="wq_acc_bak2_") as td:
+    box = Path(td)
+    fixture, commit = build_fixture_repo(box)
+    epoch = box / "deployment-epoch.json"
+    epoch.write_text(json.dumps({"schema": "activation-epoch/1",
+                                 "generation": 7, "epoch": 7,
+                                 "source": "operator-declared:acc"}))
+    root = box / "wenqu"; root.mkdir()
+    rdir = box / "reports"
+    # ---- 正例 release-dr：全链 PASS + 绑定 + RPO/RTO + last-success ----
+    rc, rep, rp = run_release(root, rdir, fixture, commit, epoch,
+                              mode="release-dr", extra=["--fault-delay", "1"])
+    assert rc == 0 and rep["result"] == "PASS", (rc, rep.get("reason"))
+    rel = rep["release"]
+    assert rel["source_commit"] == commit and rel["deployment_epoch"] == 7
+    assert sha_re.fullmatch(rel["manifest_sha256"])
+    assert rel["restore_root_empty_before"] is True
+    checks = rel["checks"]
+    assert all(checks[k] == 0 for k in
+               ("missing", "extra", "drifted", "mode_drifted", "type_mismatch"))
+    assert checks["hash_ok"] and checks["mode_ok"] and checks["type_ok"]
+    ver = rel["verifier"]
+    assert ver["ok"] is True and "release_drift" in ver["tool"] \
+        and sha_re.fullmatch(ver["tree_digest"]) \
+        and ver["checked"] == rel["n_files"]
+    assert rep["run_id"].startswith("baddrill-")
+    dr = rep["dr"]
+    assert 1.0 <= dr["rpo_seconds"] <= 300 and 0 < dr["rto_seconds"] <= 60 \
+        and dr["rpo_ok"] is True and dr["rto_ok"] is True, dr
+    assert rep["last_success"]["advanced"] is True
+    ls = json.loads((rdir / "last-success.json").read_text(encoding="utf-8"))
+    assert ls["run_id"] == rep["run_id"] and ls["source_commit"] == commit \
+        and ls["deployment_epoch"] == 7 \
+        and ls["manifest_sha256"] == rel["manifest_sha256"] \
+        and ls["archive_sha256"] == rep["archive"]["sha256"] \
+        and ls["tree_digest"] == ver["tree_digest"]
+    ls_baseline = (rdir / "last-success.json").read_bytes()
+    # ---- 负例：伪 tar 四变体（产品 rc1 + last-success 字节不变）----
+    markers = {"lie": "not materialized",
+               "truncate": "independent archive extraction failed",
+               "mode": "mode=", "extra": "extra="}
+    for variant in ("lie", "truncate", "mode", "extra"):
+        fd = box / f"fake2-{variant}"; fd.mkdir()
+        fake_tar(fd, variant)
+        home_v = box / f"home2-{variant}"; home_v.mkdir()
+        vrc, vrep, _ = run_release(home_v, box / f"rep2-{variant}",
+                                   fixture, commit, epoch,
+                                   path_prepend=str(fd))
+        assert vrc == 1 and vrep["result"] == "FAIL", (variant, vrc,
+                                                       vrep.get("reason"))
+        assert markers[variant] in vrep["reason"], (variant, vrep["reason"])
+        assert not (box / f"rep2-{variant}" / "last-success.json").exists()
+    assert (rdir / "last-success.json").read_bytes() == ls_baseline
+    # ---- 负例：并发重叠（共用锁）rc1 + reason 点名 concurrent ----
+    bg = subprocess.Popen(
+        ["bash", str(drill), "--mode", "release-dr", "--repo", str(fixture),
+         "--source-commit", commit, "--wenqu-root", str(root),
+         "--report-dir", str(rdir), "--fault-delay", "6"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.time() + 10
+        while time.time() < deadline \
+                and not (root / "state" / "backup-drill.lock").exists():
+            time.sleep(0.05)
+        assert (root / "state" / "backup-drill.lock").exists()
+        time.sleep(0.4)
+        crc, crep, _ = run_release(root, rdir, fixture, commit)
+        assert crc == 1 and "concurrent" in crep.get("reason", "").lower(), \
+            (crc, crep.get("reason"))
+    finally:
+        out, err = bg.communicate(timeout=120)
+    assert bg.returncode == 0, (bg.returncode, out + err)
+    # 后台 PASS 已按合同推进 last-success（新 run_id）——重捕基线再验 BLOCKED
+    ls_baseline = (rdir / "last-success.json").read_bytes()
+    ls_now = json.loads((rdir / "last-success.json").read_text(encoding="utf-8"))
+    assert ls_now["result"] == "PASS" and ls_now["run_id"] != rep["run_id"]
+    # ---- 负例：容量 BLOCKED rc3（不删证据 + 不推 last-success）----
+    before = sorted(os.listdir(rdir))
+    brc, brep, _ = run_release(root, rdir, fixture, commit, epoch,
+                               extra=["--min-free-bytes", "1099511627777"])
+    assert brc == 3 and brep["result"] == "BLOCKED", (brc, brep.get("result"))
+    assert "容量" in brep["reason"] or "capacity" in brep["reason"].lower()
+    assert all(f in os.listdir(rdir) for f in before)
+    assert (rdir / "last-success.json").read_bytes() == ls_baseline
+    # ---- 唯一 backup 作业：注册 + 四面审计红绿 ----
+    from wenqu_core import scheduler as sched
+    home3 = box / "wenqu-job"; home3.mkdir()
+    paths = sched.ProductionPaths(repo_root=str(repo), wenqu_home=str(home3))
+    stub = box / "stub-sampler.py"
+    stub.write_text("import sys; sys.exit(0)\n")
+    sched.production_tick(paths=paths, now=time.time(),
+                          job_argv=(sys.executable, str(stub),
+                                    paths.samples_dir, paths.shadow_dir))
+    (box / "agents-empty").mkdir(exist_ok=True)
+    store = sched.SchedulerStore(paths.scheduler_db)
+    try:
+        audit = sched.audit_unique_backup_job(
+            store, launch_agents_dir=str(box / "agents-empty"),
+            crontab_text="")
+        assert audit["ok"] is True and audit["db_backup_jobs"] == \
+            [sched.BACKUP_JOB_ID] and audit["enabled_backup_jobs"] == 1, audit
+        # 红：launchd 直跑 drill → 第二入口
+        agents_rogue = box / "agents-rogue"; agents_rogue.mkdir()
+        (agents_rogue / "com.wenqu.rogue-backup.plist").write_text(
+            '<?xml version="1.0"?><plist version="1.0"><dict><key>Label</key>'
+            '<string>com.wenqu.rogue-backup</string><key>ProgramArguments</key>'
+            '<array><string>bash</string><string>' + str(drill) +
+            '</string></array></dict></plist>\n')
+        a2 = sched.audit_unique_backup_job(
+            store, launch_agents_dir=str(agents_rogue), crontab_text="")
+        assert a2["ok"] is False and a2["launchd_findings"], a2
+        # 红：crontab 条目 → 第二入口
+        a3 = sched.audit_unique_backup_job(
+            store, launch_agents_dir=str(box / "agents-empty"),
+            crontab_text=f"17 3 * * * bash {drill} --mode release\n")
+        assert a3["ok"] is False and a3["cron_findings"], a3
+        # 红：注册表第二 backup 作业
+        from wenqu_core.scheduler import (JobDefinition, ScheduleSpec,
+                                           WatchdogPolicy)
+        sched.ScheduleRegistry(store).register(JobDefinition(
+            job_id="w4.backup-restore-drill-rogue", owner="rogue",
+            argv=("bash", str(drill), "--mode", "release"),
+            schedule=ScheduleSpec.daily_at("04:00"), environment="production",
+            probe_id="rogue", station_id=0,
+            watchdog=WatchdogPolicy()))
+        a4 = sched.audit_unique_backup_job(
+            store, launch_agents_dir=str(box / "agents-empty"),
+            crontab_text="")
+        assert a4["ok"] is False and a4["enabled_backup_jobs"] == 2, a4
+    finally:
+        store.close()
+    # 模板不得直跑 drill（无第二 launchd 入口——by construction）
+    import glob as _g
+    for tpl in _g.glob(str(repo / "system" / "launchd" / "*.plist.template")):
+        assert "backup-restore-drill" not in Path(tpl).read_text(
+            encoding="utf-8"), tpl
+    print("BAK2 matrix ok")
+sys.exit(0)
+BAK2EOF
+
 echo "================================"
 echo "RESULT: PASS=$PASS_N FAIL=$FAIL_N"
 [ $FAIL_N -eq 0 ] && echo "ALL GREEN" || exit 1
