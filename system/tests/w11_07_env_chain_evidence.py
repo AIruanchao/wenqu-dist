@@ -145,7 +145,8 @@ def main():
         saved[k] = os.environ.get(k)
         os.environ[k] = v
 
-    paths = sched.ProductionPaths(repo_root=REPO_ROOT, wenqu_home=wenqu_home)
+    paths = sched.ProductionPaths(repo_root=REPO_ROOT, wenqu_home=wenqu_home,
+                                   cas_root=os.path.join(td, "cas"))
     try:
         # hop2 正例：默认 runner（显式 passthrough）+ env-dump 采样器
         dump = os.path.join(td, "subprocess-env.json")

@@ -834,7 +834,8 @@ def test_scheduler_tick_wires_integrity(tmp_path):
     stub = tmp_path / "sampler.py"
     stub.write_text("import sys\nsys.exit(0)\n")
     sp = sched.ProductionPaths(repo_root=str(REPO_ROOT),
-                               wenqu_home=str(home))
+                               wenqu_home=str(home),
+                               cas_root=str(tmp_path / "cas"))
     tick = sched.production_tick(
         paths=sp, now=time.time(),
         job_argv=(sys.executable, str(stub), sp.samples_dir, sp.shadow_dir),

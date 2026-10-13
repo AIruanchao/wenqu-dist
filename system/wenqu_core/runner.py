@@ -53,9 +53,38 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 __all__ = ["TrustedRunner", "EvidenceStore", "Evidence", "IntegrityError",
-           "BindingError"]
+           "BindingError", "resolve_production_cas_root",
+           "WENQU_CAS_ROOT_ENV", "WENQU_RELEASE_HOME_ENV"]
 
 DEFAULT_FRESHNESS_SECONDS = 300.0
+
+# W12-05：CAS 生产位=受管持久化路径（R11 硬阻断⑤根修）。scratch 根
+# （WENQU_HOME=/tmp/... 的一次性 run）曾把全部站工件 .bin 连同 scratch
+# 一起被系统清理吞掉——station-*.json 里的 cas_digest 从此无人能回读。
+# 生产 CAS 根与 WENQU_HOME 解耦，落与 registry-root/release-keyring 同域的
+# 受管发行根（~/.wenqu-dist-release/cas/），分辨率：
+#   1. WENQU_CAS_ROOT（显式完整路径，最高优先）
+#   2. WENQU_RELEASE_HOME 环境变量 + "/cas"（受管根整体迁移面）
+#   3. 缺省 ~/.wenqu-dist-release/cas（与 tools/provision_registry_root.py
+#      的受管根约定一致）
+WENQU_CAS_ROOT_ENV = "WENQU_CAS_ROOT"
+WENQU_RELEASE_HOME_ENV = "WENQU_RELEASE_HOME"
+DEFAULT_RELEASE_HOME = "~/.wenqu-dist-release"
+
+
+def resolve_production_cas_root() -> str:
+    """解析生产 CAS 受管持久化根（scheduler production_tick 与 gate CLI
+    共用同一正源——两者必须对账同一根，否则 tick 写入与 gate 回读错位）。
+
+    环境读取即时求值（不缓存）：测试/部署可按进程注入隔离。
+    """
+    explicit = os.environ.get(WENQU_CAS_ROOT_ENV, "").strip()
+    if explicit:
+        return explicit
+    release_home = os.environ.get(WENQU_RELEASE_HOME_ENV, "").strip()
+    if not release_home:
+        release_home = os.path.expanduser(DEFAULT_RELEASE_HOME)
+    return os.path.join(release_home, "cas")
 
 # P0-5：子进程默认环境白名单——其余环境变量一律剥除（可经 env_passthrough 扩展）
 DEFAULT_ENV_KEYS: Tuple[str, ...] = ("PATH", "LANG", "LC_ALL", "TZ", "TMPDIR", "HOME")

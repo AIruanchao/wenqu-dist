@@ -72,6 +72,11 @@ outcome 别名表（大小写不敏感）：
        推导值）给定时，每个 v2 站结果 execution.ended_at + TTL ≥ gate
        时点；过期或 ended_at 不可解析 → evidence_ttl_violation 并整线
        BLOCKED。
+    C8 CAS receipt 强制回读（W12-05，R11 硬阻断⑤）：cas_receipt_verifier
+       给定（生产 gate CLI 必给）时，每个已登记 v2 站结果的 artifacts[]
+       cas_digest 必须能从 CAS 位回读 .bin 并验 hash——缺失=cas_orphan、
+       损坏=cas_corrupted、登记 size 与实际字节不符=cas_size_mismatch，
+       任一违例整线 BLOCKED（格式+大小合法不构成 receipt 在位证明）。
 
 ## 输出契约（P0-3 修：对齐 dashboard/server.py read_gate_aggregate 强制校验）
 
@@ -97,7 +102,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Mapping, Optional, Set
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
 __all__ = [
     "GateAggregator", "PASS", "CONDITIONAL", "BLOCKED",
@@ -477,14 +482,31 @@ class GateAggregator:
     gate 调用时点，过期/无法解析 ended_at 一律 BLOCKED（C7）。``now``
     可显式注入（测试时间旅行；缺省=真实当下，CLI 不注入）。legacy 条目
     无 ended_at 概念——正门下已由 C6 记违规，不重复计。
+
+    W12-05 CAS receipt 强制回读（C8，R11 硬阻断⑤）：cas_receipt_verifier
+    给定时（生产 gate CLI 一律给定），对每个已登记 v2 站结果的
+    artifacts[].cas_digest 逐个回读验证。verifier 契约：
+    ``callable(digest_hex) -> (status, actual_size)``，status ∈
+    {"ok", "missing", "corrupted"}（ok 时 actual_size=实际字节长度）。
+    缺失=cas_orphan、损坏=cas_corrupted、登记 size 与实际不符=
+    cas_size_mismatch——任一违例整线 BLOCKED；verifier 自身异常=
+    cas_verifier_error（fail-closed，不猜）。aggregate() 输出携带
+    ``cas_readback`` 记账（checked/ok/violations 明细）。
     """
+
+    #: CAS receipt 回读状态枚举（verifier 契约值域）
+    _CAS_OK = "ok"
+    _CAS_MISSING = "missing"
+    _CAS_CORRUPTED = "corrupted"
 
     def __init__(self, required_stations: Set[str], target_sha: str, environment: str,
                  *, expected_scope_hash: Optional[str] = None,
                  expected_denominator: Optional[int] = None,
                  expected_denominators: Optional[Mapping[str, int]] = None,
                  station_ttls: Optional[Mapping[str, int]] = None,
-                 now: Optional[datetime] = None) -> None:
+                 now: Optional[datetime] = None,
+                 cas_receipt_verifier: Optional[
+                     Callable[[str], Tuple[str, Optional[int]]]] = None) -> None:
         target_sha = str(target_sha or "").strip().lower()
         if not target_sha:
             raise ValueError("target_sha is required: gate evidence must be bound to a SHA")
@@ -542,6 +564,11 @@ class GateAggregator:
                                 or now.tzinfo is None):
             raise ValueError("now must be a timezone-aware datetime "
                              "(freshness time injection)")
+        # W12-05 C8：CAS receipt 回读 verifier（可选注入；CLI 生产路径必给）
+        if cas_receipt_verifier is not None \
+                and not callable(cas_receipt_verifier):
+            raise ValueError("cas_receipt_verifier must be callable: "
+                             "digest_hex -> (status, actual_size)")
 
         self.required_stations: frozenset = frozenset(
             str(s).strip() for s in required_stations
@@ -554,6 +581,7 @@ class GateAggregator:
         self.expected_denominators: Optional[Dict[str, int]] = denom_table
         self.station_ttls: Optional[Dict[str, int]] = ttl_table
         self.freshness_now: Optional[datetime] = now
+        self.cas_receipt_verifier = cas_receipt_verifier
 
         # 内部登记簿
         self._stations: Dict[str, Dict[str, Any]] = {}
@@ -691,6 +719,15 @@ class GateAggregator:
                 item.get("cas_digest") if isinstance(item, Mapping) else None
                 for item in raw_artifacts
             )
+        # W12-05 C8：receipt 回读原料（digest + 登记 size——宽松提取，
+        # None=缺失；畸形 digest 由镜像 schema_invalid 记账阻断）
+        artifact_records: Optional[tuple] = None
+        if isinstance(raw_artifacts, list):
+            artifact_records = tuple(
+                (item.get("cas_digest"), item.get("size"))
+                if isinstance(item, Mapping) else (None, None)
+                for item in raw_artifacts
+            )
         # R7-GATE-DUP-EQUIV-002：全语义身份原料（identity 的 ruleset/
         # data_config、tool name+version+digest、execution.argv_digest、
         # finding_ids 排序摘要）——任一漂移即非幂等重发
@@ -738,6 +775,7 @@ class GateAggregator:
             "scope_hash": scope_hash_value,
             "coverage": coverage_value,
             "artifact_digests": artifact_digests,
+            "artifact_records": artifact_records,
             "ruleset_hash": ruleset_hash_value,
             "data_config_hash": data_config_hash_value,
             "tool_identity": tool_identity,
@@ -783,6 +821,7 @@ class GateAggregator:
             "scope_hash": None,
             "coverage": None,
             "artifact_digests": None,
+            "artifact_records": None,
             "ruleset_hash": None,
             "data_config_hash": None,
             "tool_identity": None,
@@ -1000,6 +1039,84 @@ class GateAggregator:
                       "(R8 freshness: execution.ended_at + 站 TTL ≥ gate 时点"
                       "——过期证据不得上绿)")
 
+        # 1c) C8：CAS receipt 强制回读（W12-05，R11 硬阻断⑤——生产 gate
+        #     经 cas_receipt_verifier 注入激活；每个已登记 v2 站结果的
+        #     artifacts[].cas_digest 必须能从 CAS 位回读 .bin 并验 hash：
+        #     缺失=cas_orphan / 损坏=cas_corrupted / size 不符=
+        #     cas_size_mismatch / verifier 异常=cas_verifier_error）
+        cas_readback: Optional[Dict[str, Any]] = None
+        if self.cas_receipt_verifier is not None:
+            cas_violations: List[Dict[str, Any]] = []
+            cas_checked = cas_ok = 0
+            per_station_cas: Dict[str, Dict[str, int]] = {}
+            for station, entry in sorted(self._stations.items()):
+                records = entry.get("artifact_records")
+                if entry.get("input_version") != "v2" or not records:
+                    continue  # legacy 无 artifacts 概念（C6 已记违规）
+                st_checked = st_ok = 0
+                for digest_raw, declared_size in records:
+                    digest_hex = ""
+                    if isinstance(digest_raw, str) \
+                            and _MIRROR_CAS_RE.match(digest_raw):
+                        digest_hex = digest_raw.split(":", 1)[1]
+                    cas_checked += 1
+                    st_checked += 1
+                    detail_size: Optional[int] = None
+                    if not digest_hex:
+                        status = "cas_digest_unreadable"
+                    else:
+                        try:
+                            status, actual_size = self.cas_receipt_verifier(
+                                digest_hex)
+                        except Exception:  # fail-closed：不猜
+                            status = "cas_verifier_error"
+                            actual_size = None
+                        status = str(status or "cas_verifier_error")
+                        if status == self._CAS_OK:
+                            if isinstance(actual_size, int) \
+                                    and not isinstance(actual_size, bool) \
+                                    and isinstance(declared_size, int) \
+                                    and not isinstance(declared_size, bool) \
+                                    and actual_size != declared_size:
+                                status = "cas_size_mismatch"
+                                detail_size = actual_size
+                            else:
+                                cas_ok += 1
+                                st_ok += 1
+                                continue
+                    # 状态→违例 reason 归一（W12-05 契约 token：cas_orphan/
+                    # cas_corrupted/cas_size_mismatch/cas_verifier_error）
+                    reason_token = {
+                        self._CAS_MISSING: "cas_orphan",
+                        self._CAS_CORRUPTED: "cas_corrupted",
+                    }.get(status, status if status.startswith("cas_")
+                          else "cas_verifier_error")
+                    cas_violations.append({
+                        "station": station,
+                        "cas_digest": digest_raw if isinstance(
+                            digest_raw, str) else None,
+                        "reason": reason_token,
+                        **({"actual_size": detail_size}
+                           if detail_size is not None else {}),
+                    })
+                per_station_cas[station] = {"checked": st_checked,
+                                            "ok": st_ok}
+            cas_readback = {
+                "mode": "mandatory",
+                "checked": cas_checked,
+                "ok": cas_ok,
+                "violations": cas_violations,
+                "stations": per_station_cas,
+            }
+            if cas_violations:
+                detail = "; ".join(
+                    f"{v['station']}:{v['reason']}" for v in cas_violations)
+                block(f"cas_receipt_readback_violation [{detail}] "
+                      "(W12-05/R11-5: artifacts[].cas_digest 必须从生产 CAS "
+                      "位回读 .bin 并验 hash——cas_orphan（对象缺失）/"
+                      "cas_corrupted（损坏）不构成 receipt 在位证明，"
+                      "格式+大小合法不得上绿)")
+
         # 2) C3：分母缩水（required 站未全部上报）；空 required 同样拒绝（无真空 PASS）
         reported = set(self._stations)
         missing_required = sorted(self.required_stations - reported)
@@ -1056,6 +1173,13 @@ class GateAggregator:
                     "ttl_fresh": not any(
                         v["station"] == s for v in self._ttl_violations),
                 } if self.station_ttls is not None else {}),
+                **({
+                    "cas_receipts_ok": (
+                        (cas_readback or {}).get("stations", {}).get(
+                            s, {}).get("ok", 0)
+                        == (cas_readback or {}).get("stations", {}).get(
+                            s, {}).get("checked", 0)),
+                } if self.cas_receipt_verifier is not None else {}),
             }
             for s, e in sorted(self._stations.items())
         }
@@ -1081,6 +1205,9 @@ class GateAggregator:
                    if self.expected_scope_hash is not None else {}),
                 **({"ttl_violations": len(self._ttl_violations)}
                    if self.station_ttls is not None else {}),
+                **({"cas_readback_violations": len(
+                        (cas_readback or {}).get("violations", []))}
+                   if self.cas_receipt_verifier is not None else {}),
             },
             "stations": stations_summary,
             "target_sha": self.target_sha,
@@ -1109,6 +1236,10 @@ class GateAggregator:
                 "as_of": (self.freshness_now or datetime.now(timezone.utc)
                           ).astimezone(timezone.utc).isoformat(),
             }
+        if cas_readback is not None:
+            # W12-05 C8：CAS receipt 强制回读记账（root 等部署细节由调用方
+            # CLI 补充——聚合层只知 verifier 语义）
+            result["cas_readback"] = cas_readback
         return result
 
     def to_github_status(self, aggregate_result: Optional[Dict[str, Any]] = None) -> Dict[str, str]:

@@ -97,7 +97,21 @@ def _freeze_unsigned(run_id="run-r7-unsigned"):
         ruleset={"version": "w6a-r7"}, data_config={"profile": "default"})
 
 
-def _bound(manifest, station, **over):
+def _cas_receipt(cas_root, station):
+    """W12-05：真 CAS receipt（gate 强制回读后 rc0 正例必须可回读）。"""
+    from wenqu_core.runner import EvidenceStore
+    payload = json.dumps({"fixture": "r7-auth", "station": station},
+                         sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode("utf-8")
+    cas = EvidenceStore(cas_root)
+    try:
+        digest = cas.put_bytes(payload)
+    finally:
+        cas.close()
+    return {"cas_digest": f"sha256:{digest}", "size": len(payload)}
+
+
+def _bound(manifest, station, cas_root=None, **over):
     """与 manifest 完全对账的合法 station-result-v2（含全语义身份字段）。"""
     doc = {
         "schema_version": "2.0", "run_id": manifest.run_id,
@@ -118,7 +132,11 @@ def _bound(manifest, station, **over):
         "coverage": {"denominator": manifest.denominator,
                      "scanned": manifest.denominator},
         "finding_ids": [],
-        "artifacts": [{"cas_digest": "sha256:" + "c" * 64, "size": 128}],
+        # W12-05：cas_root 给定时用真 receipt（gate 强制回读面）
+        "artifacts": [(_cas_receipt(cas_root, station)
+                       if cas_root is not None
+                       else {"cas_digest": "sha256:" + "c" * 64,
+                             "size": 128})],
     }
     doc.update(over)
     return doc
@@ -152,10 +170,13 @@ def test_r7auth001_signed_manifest_front_door_pass():
         manifest.save(mpath)
         kpath = os.path.join(td, "keys.json")
         keyring.save_json(kpath)
-        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
-        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+        cas_root = os.path.join(td, "cas")
+        s0 = _write(_bound(manifest, 0, cas_root=cas_root),
+                    os.path.join(td, "s0.json"))
+        s1 = _write(_bound(manifest, 1, cas_root=cas_root),
+                    os.path.join(td, "s1.json"))
         rc, out = _gate(["--results", s0, s1, "--manifest", mpath,
-                         "--verify-key", kpath])
+                         "--verify-key", kpath, "--cas-root", cas_root])
         _ck("R7-AUTH-001 合法签名 manifest 正门 rc=0 PASS",
             rc == 0 and out.get("policy_verdict") == "PASS",
             f"rc={rc} {_tail(out.get('reason'))}")

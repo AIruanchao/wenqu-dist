@@ -1288,7 +1288,11 @@ def test_w11_10_production_tick_gate_red_when_cas_artifact_corrupt():
 
     with tempfile.TemporaryDirectory() as td:
         wh = os.path.join(td, "wenqu-home")
-        paths = _sched.ProductionPaths(repo_root=REPO, wenqu_home=wh)
+        # W12-05：cas_root 显式注入隔离（生产缺省=受管持久化位
+        # ~/.wenqu-dist-release/cas——测试不得写真实受管根）
+        cas_root = os.path.join(td, "cas")
+        paths = _sched.ProductionPaths(repo_root=REPO, wenqu_home=wh,
+                                       cas_root=cas_root)
         sample_bytes = b'{"kind": "w11-10-prod-sample", "v": 1}'
         writer = os.path.join(td, "sample-writer.py")
         with open(writer, "w", encoding="utf-8") as fh:
@@ -1321,8 +1325,8 @@ def test_w11_10_production_tick_gate_red_when_cas_artifact_corrupt():
                 run1[0].get("actual_exit_code"), int)
         _ck("W11-10 生产 tick run 完成态", rows_have_digest)
         # 生产接线点 2：工件 digest 是真实 CAS receipt（可回读验证）
-        cas_root = os.path.join(wh, "state", "evidence-cas")
-        cas = EvidenceStore(cas_root)
+        # （W12-05：读回 paths.cas_root——生产位已迁受管持久化根）
+        cas = EvidenceStore(paths.cas_root)
         if not arts:
             _ck("W11-10 生产工件 digest 真实 CAS 回读验证", False, "no artifact")
         else:

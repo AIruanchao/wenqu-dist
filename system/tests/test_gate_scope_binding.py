@@ -93,7 +93,22 @@ def _freeze(tmp):
     return manifest, path, keyring_path
 
 
-def _bound(manifest, station, **over):
+def _cas_receipt(cas_root, station):
+    """W12-05：真 CAS receipt（fixture 升级——gate 强制回读后，rc0 正例
+    的 artifacts[].cas_digest 必须能在 --cas-root 位回读 .bin 验 hash）。"""
+    from wenqu_core.runner import EvidenceStore
+    payload = json.dumps({"fixture": "f6-scope", "station": station},
+                         sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode("utf-8")
+    cas = EvidenceStore(cas_root)
+    try:
+        digest = cas.put_bytes(payload)
+    finally:
+        cas.close()
+    return {"cas_digest": f"sha256:{digest}", "size": len(payload)}
+
+
+def _bound(manifest, station, cas_root=None, **over):
     """与 manifest 完全对账的合法 station-result-v2（coverage 分母=冻结分母）。"""
     doc = {
         "schema_version": "2.0", "run_id": manifest.run_id,
@@ -110,7 +125,12 @@ def _bound(manifest, station, **over):
                       "assertion_verdict": "PASS"},
         "coverage": {"denominator": manifest.denominator,
                      "scanned": manifest.denominator},
-        "artifacts": [{"cas_digest": "sha256:" + "c" * 64, "size": 128}],
+        # W12-05：cas_root 给定时用真 receipt（gate 强制回读面）；缺省
+        # 保持旧假 digest（库面/阻断面 fixture——不经过回读）
+        "artifacts": [(_cas_receipt(cas_root, station)
+                       if cas_root is not None
+                       else {"cas_digest": "sha256:" + "c" * 64,
+                             "size": 128})],
     }
     doc.update(over)
     return doc
@@ -154,10 +174,13 @@ def test_f6_scope001_manifest_front_door_full_pass():
     """正门对照：required/分母/身份全部对账冻结 manifest → PASS rc=0。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6a_") as td:
         manifest, mpath, kpath = _freeze(td)
-        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
-        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+        cas_root = os.path.join(td, "cas")
+        s0 = _write(_bound(manifest, 0, cas_root=cas_root),
+                    os.path.join(td, "s0.json"))
+        s1 = _write(_bound(manifest, 1, cas_root=cas_root),
+                    os.path.join(td, "s1.json"))
         rc, out = _gate(["--results", s0, s1, "--manifest", mpath,
-                           "--verify-key", kpath])
+                           "--verify-key", kpath, "--cas-root", cas_root])
         _ck("F6-SCOPE-001 正门全对账 rc=0 PASS", rc == 0 and out.get("policy_verdict") == "PASS",
             f"rc={rc} {_tail(out.get('reason'))}")
         _ck("F6-SCOPE-001 mode=manifest + scope_binding 就位",
@@ -252,8 +275,11 @@ def test_f6_scope001_bare_invocation_refused_and_diagnostic():
     显式 --allow-self-declared 才走诊断路径（自报口径，仅诊断）。"""
     with tempfile.TemporaryDirectory(prefix="wq_f6e_") as td:
         manifest, _mpath, _kpath = _freeze(td)
-        s0 = _write(_bound(manifest, 0), os.path.join(td, "s0.json"))
-        s1 = _write(_bound(manifest, 1), os.path.join(td, "s1.json"))
+        cas_root = os.path.join(td, "cas")
+        s0 = _write(_bound(manifest, 0, cas_root=cas_root),
+                    os.path.join(td, "s0.json"))
+        s1 = _write(_bound(manifest, 1, cas_root=cas_root),
+                    os.path.join(td, "s1.json"))
         rc, out = _gate(["--results", s0, s1])
         _ck("F6-SCOPE-001 裸调用默认拒绝 rc=3",
             rc == 3 and out.get("mode") == "self_declared_refused",
@@ -265,7 +291,8 @@ def test_f6_scope001_bare_invocation_refused_and_diagnostic():
         _ck("F6-SCOPE-001 拒绝输出非绿（ERROR 不冒充 PASS）",
             out.get("policy_verdict") == "ERROR"
             and out.get("technical_eligible") is False)
-        rc2, out2 = _gate(["--results", s0, s1, "--allow-self-declared"])
+        rc2, out2 = _gate(["--results", s0, s1, "--allow-self-declared",
+                           "--cas-root", cas_root])
         _ck("F6-SCOPE-001 显式诊断豁免 rc=0（自报 required={0,1} 全报）",
             rc2 == 0 and out2.get("mode") == "self_declared_diagnostic"
             and out2.get("policy_verdict") == "PASS",
@@ -447,8 +474,15 @@ def test_f6_format002_cli_no_false_reject_schema_legal_nesting():
     except ImportError:
         print("  (skip) jsonschema 未安装，schema 断言降级")
     with tempfile.TemporaryDirectory(prefix="wq_f6h_") as td:
-        path = _write(doc, os.path.join(td, "nested.json"))
-        rc, out = _gate(["--results", path, "--allow-self-declared"])
+        # W12-05：gate 强制回读——rc0 正例的 artifact 用真 CAS receipt
+        # （保留 schema 合法附加键 path；size 由真字节长度登记）
+        cas_root = os.path.join(td, "cas")
+        art = _cas_receipt(cas_root, 2)
+        art["path"] = "out/report.json"
+        path = _write(dict(doc, artifacts=[art]),
+                      os.path.join(td, "nested.json"))
+        rc, out = _gate(["--results", path, "--allow-self-declared",
+                         "--cas-root", cas_root])
         _ck("F6-FORMAT-002 CLI 不再误拒 schema 合法嵌套（rc=0 PASS）",
             rc == 0 and out.get("policy_verdict") == "PASS"
             and out.get("inputs", {}).get("schema_invalid") == 0,
