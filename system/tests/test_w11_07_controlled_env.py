@@ -413,7 +413,8 @@ def test_env_two_hop_approved_visible_secret_stripped(td):
     ctl = _setup_controlled(td, tag="b2")
     stub = _write_env_dump_sampler(td)
     wh = os.path.join(td, "wh-b2")
-    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh)
+    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh,
+                                   cas_root=os.path.join(td, "cas-b2"))
     dump1 = os.path.join(td, "envdump-positive.json")
     dump2 = os.path.join(td, "envdump-negative.json")
     overrides = {
@@ -470,7 +471,8 @@ def test_real_sampler_full_chain_positive_negative(td):
     runner（负例必须失败）。"""
     ctl = _setup_controlled(td, tag="b3")
     wh = os.path.join(td, "wh-b3")
-    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh)
+    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh,
+                                   cas_root=os.path.join(td, "cas-b3"))
     obs_pos = os.path.join(td, "obs-b3-pos")
     obs_neg = os.path.join(td, "obs-b3-neg")
     overrides = {
@@ -691,7 +693,8 @@ def test_data_config_hash_binding_unit(td):
 def test_config_change_invalidates_fingerprint_and_heartbeat(td):
     ctl = _setup_controlled(td, tag="d1")
     wh = os.path.join(td, "wh-d1")
-    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh)
+    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh,
+                                   cas_root=os.path.join(td, "cas-d1"))
     stub_ok = _write_rc_sampler(td, 0)
     stub_bad = _write_rc_sampler(td, 3)
     overrides = {
@@ -757,7 +760,8 @@ def test_config_change_invalidates_fingerprint_and_heartbeat(td):
 
 def test_tick_alive_vs_sampler_freshness(td):
     wh = os.path.join(td, "wh-e")
-    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh)
+    paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh,
+                                   cas_root=os.path.join(td, "cas-e"))
     stub3 = _write_rc_sampler(td, 3)
     stub0 = _write_rc_sampler(td, 0)
     t0 = time.time()

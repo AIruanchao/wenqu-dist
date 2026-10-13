@@ -86,7 +86,8 @@ def _write_stub_sampler(td, *, rc):
 def _make_paths(td):
     return sched.ProductionPaths(
         repo_root=os.path.dirname(REPO),  # 仓根（真 cli.py 供 gate 子进程用）
-        wenqu_home=os.path.join(td, "wenqu-home"))
+        wenqu_home=os.path.join(td, "wenqu-home"),
+        cas_root=os.path.join(td, "cas"))
 
 
 # ══════════════════════════════════════════════════════════════════════

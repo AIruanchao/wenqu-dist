@@ -64,6 +64,9 @@ from wenqu_core.bugscan_orchestrator import (  # noqa: E402
 from wenqu_core.gate_aggregator import (  # noqa: E402
     BLOCKED, GateAggregator, mirror_validate_station_result_v2,
 )
+from wenqu_core.runner import (  # noqa: E402
+    EvidenceStore, IntegrityError, resolve_production_cas_root,
+)
 from wenqu_core.store import EventStore  # noqa: E402
 from wenqu_core.wenqu_pipeline import (  # noqa: E402
     ENVIRONMENTS, STAGES, STOP_PRECONDITION_SPECS, ApprovalBroker,
@@ -954,8 +957,40 @@ def cmd_gate(args: argparse.Namespace) -> int:
             semantic_violations = [
                 f"semantic_replay_internal_error: {type(exc).__name__}: {exc}"]
 
-    # 6. 聚合（GateAggregator 宽松读+严格出；C1-C7 全在 aggregate 内裁决）。
-    agg_kwargs: Dict[str, Any] = {}
+    # 5d. W12-05 CAS receipt 强制回读根（R11 硬阻断⑤根修）：--cas-root
+    #     显式给出时用之；缺省=resolve_production_cas_root 正源
+    #     （WENQU_CAS_ROOT > WENQU_RELEASE_HOME/cas > ~/.wenqu-dist-release/cas
+    #     ——与 scheduler production_tick 写入位同一分辨率，读写对账同根）。
+    #     EvidenceStore 构造失败（受管根不可建/不可开）= gate 工具自身
+    #     无法执行 → ERROR(3) fail-closed，绝不带着「无法回读」继续聚合。
+    cas_root = (args.cas_root or "").strip() or resolve_production_cas_root()
+    try:
+        cas_store = EvidenceStore(cas_root)
+    except (OSError, IntegrityError) as exc:
+        return _gate_error_json(
+            f"CAS 受管根不可用 ({cas_root}): {str(exc)[:200]}"
+            "（W12-05：gate 强制回读必须能打开生产 CAS 位——缺根即缺回读，"
+            "不得继续聚合）",
+            mode="cas_root_unavailable",
+            inputs={"paths": len(paths), "docs": len(docs),
+                    "load_errors": 0, "schema_invalid": 0})
+
+    def _cas_verify(digest_hex: str):
+        """verifier 契约：digest_hex -> (status, actual_size)。
+
+        get_bytes 单次读全量+sha256 复验（runner.W11-10 合同）——
+        缺对象 None=missing；毒化/symlink/hardlink IntegrityError=corrupted。
+        """
+        try:
+            data = cas_store.get_bytes(digest_hex)
+        except IntegrityError:
+            return ("corrupted", None)
+        if data is None:
+            return ("missing", None)
+        return ("ok", len(data))
+
+    # 6. 聚合（GateAggregator 宽松读+严格出；C1-C8 全在 aggregate 内裁决）。
+    agg_kwargs: Dict[str, Any] = {"cas_receipt_verifier": _cas_verify}
     if manifest is not None:
         agg_kwargs["expected_scope_hash"] = manifest.scope_hash
         agg_kwargs["expected_denominator"] = manifest.denominator
@@ -1080,6 +1115,14 @@ def cmd_gate(args: argparse.Namespace) -> int:
     else:
         result["mode"] = "self_declared_diagnostic"
 
+    # W12-05：cas_readback 记账补根信息（聚合层只知 verifier 语义；CLI 补
+    # 受管根正源——证据面可对账「哪个根被回读」）。
+    if isinstance(result.get("cas_readback"), dict):
+        result["cas_readback"]["root"] = cas_root
+    try:
+        cas_store.close()
+    except Exception:
+        pass
     print(json.dumps(result, ensure_ascii=False))
     return _gate_exit_code(result["aggregate_outcome"])
 
@@ -1227,6 +1270,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="目标环境（缺省从首个可绑定结果的 "
                         "identity.environment 推导；跨环境混报判 BLOCKED；"
                         "--manifest 模式下须与冻结值一致）")
+    p.add_argument("--cas-root", default=None, dest="cas_root",
+                   metavar="PATH",
+                   help="CAS 受管根（W12-05 强制回读位——gate 对每个 "
+                        "artifacts[].cas_digest 从该根回读 .bin 并验 hash，"
+                        "缺失=cas_orphan 整线 BLOCKED；缺省=生产正源 "
+                        "resolve_production_cas_root：WENQU_CAS_ROOT > "
+                        "WENQU_RELEASE_HOME/cas > ~/.wenqu-dist-release/cas"
+                        "——与 scheduler production_tick 写入位同根）")
     p.set_defaults(func=cmd_gate)
 
     p = sub.add_parser(

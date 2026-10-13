@@ -875,7 +875,10 @@ with tempfile.TemporaryDirectory(prefix="wq_acc_bak2_") as td:
     # ---- 唯一 backup 作业：注册 + 四面审计红绿 ----
     from wenqu_core import scheduler as sched
     home3 = box / "wenqu-job"; home3.mkdir()
-    paths = sched.ProductionPaths(repo_root=str(repo), wenqu_home=str(home3))
+    # W12-05：cas_root 显式注入隔离（生产缺省=受管持久化位——验收
+    # 脚本不得写真实 ~/.wenqu-dist-release/cas）
+    paths = sched.ProductionPaths(repo_root=str(repo), wenqu_home=str(home3),
+                                  cas_root=str(box / "cas"))
     stub = box / "stub-sampler.py"
     stub.write_text("import sys; sys.exit(0)\n")
     sched.production_tick(paths=paths, now=time.time(),

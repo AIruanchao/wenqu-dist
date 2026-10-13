@@ -47,6 +47,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .runner import (
     Evidence, EvidenceStore, IntegrityError, TrustedRunner,
+    resolve_production_cas_root,
 )
 from .store import EventStore
 
@@ -1765,7 +1766,8 @@ class ProductionPaths:
         "drill_script", "backup_lock",
     )
 
-    def __init__(self, *, repo_root: str, wenqu_home: str) -> None:
+    def __init__(self, *, repo_root: str, wenqu_home: str,
+                 cas_root: Optional[str] = None) -> None:
         self.repo_root = repo_root
         self.wenqu_home = wenqu_home
         self.state_dir = _os.path.join(wenqu_home, "state")
@@ -1774,9 +1776,13 @@ class ProductionPaths:
                                             "gate-aggregate.json")
         self.station_results_dir = _os.path.join(self.state_dir,
                                                  "station-results")
-        # W11-10：生产 CAS 根（run evidence + 站工件 receipt 同根分桶；
-        # _bindings/_quarantine 为内部区，不与 2-hex shard 冲突）
-        self.cas_root = _os.path.join(self.state_dir, "evidence-cas")
+        # W12-05（R11 硬阻断⑤根修）：生产 CAS 根=受管持久化位，与
+        # WENQU_HOME scratch 根解耦——resolve_production_cas_root 正源：
+        # WENQU_CAS_ROOT > WENQU_RELEASE_HOME/cas > ~/.wenqu-dist-release/cas。
+        # 显式 cas_root 构造参数供测试/部署整体注入隔离；run evidence 与
+        # 站工件 receipt 同根分桶（_bindings/_quarantine 为内部区，不与
+        # 2-hex shard 冲突）。
+        self.cas_root = cas_root or resolve_production_cas_root()
         self.observation_root = _os.path.join(wenqu_home, "observation")
         self.samples_dir = _os.path.join(self.observation_root, "samples")
         self.shadow_dir = _os.path.join(self.observation_root, "shadow")
@@ -2379,13 +2385,18 @@ def refresh_gate_aggregate(paths: "ProductionPaths", *,
                     or "python3", paths.cli_py, "gate", "--results",
                     (gate_results if gate_results and _os.path.isdir(gate_results)
                      else results_dir),
-                    "--manifest", gate_manifest, "--verify-key", gate_key]
+                    "--manifest", gate_manifest, "--verify-key", gate_key,
+                    # W12-05：tick 内 gate 子进程与 tick 写入对账同一 CAS
+                    # 受管根（显式传根，防环境分辨率错位造成假 cas_orphan）
+                    "--cas-root", paths.cas_root]
             if gate_registry and _os.path.isfile(gate_registry):
                 argv += ["--registry", gate_registry]
         else:
             argv = [_os.environ.get("WENQU_PYTHON") or _shutil.which("python3")
                     or "python3", paths.cli_py, "gate", "--results", results_dir,
-                    "--allow-self-declared"]
+                    "--allow-self-declared",
+                    # W12-05：诊断快照同样强制回读（观测面不得绿于证据面）
+                    "--cas-root", paths.cas_root]
         try:
             p = _subprocess.run(argv, capture_output=True, text=True,
                                 timeout=60, cwd=paths.repo_root)

@@ -231,7 +231,8 @@ def _tick_with_capacity(td, *, rc, capacity_sample):
     容量 BLOCKED（W12-04 现势）也能复现红态。"""
     import inspect
     paths = sched.ProductionPaths(
-        repo_root=ROOT, wenqu_home=os.path.join(str(td), f"wh-c{rc}"))
+        repo_root=ROOT, wenqu_home=os.path.join(str(td), f"wh-c{rc}"),
+        cas_root=os.path.join(str(td), f"cas-c{rc}"))
     stub = _write_rc_sampler(td, rc)
     argv = (sys.executable, stub, paths.samples_dir, paths.shadow_dir)
     kwargs = {}
