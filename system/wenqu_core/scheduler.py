@@ -389,7 +389,13 @@ class RunRecord:
 @dataclass(frozen=True)
 class HealthReport:
     """心跳健康报告。state ∈ FRESH | GRACE | STALE_NO_RESULT |
-    STALE_NO_SUCCESS | FUNCTION_DEAD。"""
+    STALE_NO_SUCCESS | FUNCTION_DEAD | BLOCKED。
+
+    W12-03 FUNCTION_DEAD 判定收窄：最近结果为 BLOCKED（rc3 统一退出码
+    契约）= 前置环境不满足（无有效窗/容量闸 BLOCKED/受管前置不可满足）——
+    进程活着且如实 fail-closed 上报，是**环境态**（BLOCKED/WARNING，
+    fail-visible 非 CRITICAL 误报）；FUNCTION_DEAD/CRITICAL 保留给
+    FAIL/ERROR/TIMEOUT 持续无 PASS（作业真坏）。"""
 
     job_id: str
     probe_id: str
@@ -1189,18 +1195,38 @@ class HeartbeatMonitor:
                 state, healthy, severity = "FRESH", True, None
                 detail = f"成功时间距今 {success_age:.0f}s（新鲜）"
             elif result_age is not None and result_age <= freshness:
-                state, healthy, severity = "FUNCTION_DEAD", False, "CRITICAL"
-                if success_age is None:
+                if last_status == "BLOCKED":
+                    # W12-03 FUNCTION_DEAD 判定收窄：最近结果为 BLOCKED
+                    # （rc3 统一退出码契约）= 前置环境不满足（无有效窗、
+                    # 容量闸 BLOCKED、受管前置不可满足）——进程活着且在
+                    # 如实上报阻断，这是环境态，不是「进程活、功能死」。
+                    # 报 BLOCKED/WARNING（fail-visible 但非 CRITICAL 误报）；
+                    # FUNCTION_DEAD/CRITICAL 保留给 FAIL/ERROR/TIMEOUT 持续
+                    # 无 PASS（作业真坏）。边界：本层无 rc3 失败正文，无法
+                    # 细分「环境前置」vs「配置篡改」——rc3 的 CRITICAL 升级
+                    # 由 production_tick 的容量归因分级承担（容量 OPEN 下的
+                    # rc3 仍照发 sampler_config_error CRITICAL），容量/完整性
+                    # 各有独立 CRITICAL 通道。
+                    state, healthy, severity = "BLOCKED", False, "WARNING"
                     detail = (
-                        f"持续有结果但从未 PASS（连续失败 {failures}）"
-                        "——进程活、功能死"
+                        f"持续上报 BLOCKED（rc3：前置环境不满足，连续 "
+                        f"{failures}）——环境态非功能死；作业活着且如实 "
+                        "fail-closed（无有效窗/容量 BLOCKED/受管前置不满足），"
+                        "等待前置恢复（容量清理见 W12-04）"
                     )
                 else:
-                    detail = (
-                        f"持续有结果但最近成功已 {success_age:.0f}s（>新鲜度"
-                        f" {freshness:.0f}s，连续失败 {failures}）"
-                        "——进程活、功能死"
-                    )
+                    state, healthy, severity = "FUNCTION_DEAD", False, "CRITICAL"
+                    if success_age is None:
+                        detail = (
+                            f"持续有结果但从未 PASS（连续失败 {failures}）"
+                            "——进程活、功能死"
+                        )
+                    else:
+                        detail = (
+                            f"持续有结果但最近成功已 {success_age:.0f}s（>新鲜度"
+                            f" {freshness:.0f}s，连续失败 {failures}）"
+                            "——进程活、功能死"
+                        )
             elif last_success is None and last_result is None:
                 if now - float(created_at) <= max(grace, freshness):
                     state, healthy, severity = "GRACE", False, "INFO"
@@ -1815,7 +1841,8 @@ def _git_head(repo_root: str) -> Optional[str]:
 
 
 def capacity_preflight(paths: "ProductionPaths", *,
-                       now: Optional[float] = None) -> Dict[str, Any]:
+                       now: Optional[float] = None,
+                       sample: Optional[Any] = None) -> Dict[str, Any]:
     """B5 容量闸前置检查（tick 级，2026-10-09 接线；语义登记于
     evidence/11-shadow-canary/README.md）。
 
@@ -1823,6 +1850,10 @@ def capacity_preflight(paths: "ProductionPaths", *,
       CapacityMonitor.judge()（默认规格 0.90 阈值/2GiB 最小余量；观察
       tick 无 §22 峰值预算，peak_budget=0）；severity=CRITICAL →
       capacity_gate=BLOCKED。
+    - sample：测试/演练注入接缝（DiskSample，如 capacity_monitor.
+      injected_sample——basis='injected' 可区分演练与真实现势）；
+      生产缺省 None = 真实采集。W12-03：本判定同时是 rc3 环境归因的
+      正源（容量 BLOCKED 下的采样 rc3 报环境态非 FUNCTION_DEAD）。
     - 处置边界（刻意不阻断观察采样）：§22「不足即 BLOCKED」的处置对象
       是迁移/发布峰值操作（legacy_snapshot+...+rollback_release 八分量）；
       观察 tick 是 KB 级 JSON 追加写——容量压力下停观测等于自毁唯一
@@ -1835,8 +1866,9 @@ def capacity_preflight(paths: "ProductionPaths", *,
             CapacityMonitor,
             collect_disk_sample,
         )
-        sample = collect_disk_sample(paths.wenqu_home)
-        finding = CapacityMonitor().judge(sample)
+        disk = sample if sample is not None else collect_disk_sample(
+            paths.wenqu_home)
+        finding = CapacityMonitor().judge(disk)
         return {
             "capacity_gate": "BLOCKED" if finding["severity"] == "CRITICAL"
                              else "OPEN",
@@ -2487,6 +2519,7 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                     macos_sender: Optional[ChannelSender] = None,
                     job_argv: Optional[Tuple[str, ...]] = None,
                     backup_job_argv: Optional[Tuple[str, ...]] = None,
+                    capacity_sample: Optional[Any] = None,
                     ) -> Dict[str, Any]:
     """W4 生产 tick：采样 → 铸站结果 → gate 刷新 → 心跳 → 通知投递。
 
@@ -2495,14 +2528,22 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
     作业用独立 JobRunner（超时 1800s）执行，与手工演练共用 drill 脚本内
     进程锁（互斥 fail-closed）。
 
+    W12-03 告警分级：采样 rc3（BLOCKED）在容量闸 BLOCKED 时按**环境态**
+    归因（无有效窗可开——T0 十前置 capacity_gate 必须 OPEN）：心跳面报
+    BLOCKED/WARNING（不再 FUNCTION_DEAD CRITICAL 误报）、sampler 面报
+    WARNING（sampler_environment_blocked）；容量 OPEN 下的 rc3 维持
+    CRITICAL（sampler_config_error：receipt 陈旧/篡改/链断照旧 fail-closed
+    可见，不得降级）。容量闸自身照旧 CRITICAL 告警（真实前置阻断移交
+    人类决策）。
+
     返回 tick 摘要（同时写 heartbeat.json + 当日 tick 日志一行）。
     tick 进程自身的成败与作业 verdict 分离：作业 FAIL 会体现在
     gate/心跳/通知里，但 tick 仍 rc=0（调度器活着就是它的职责）。
     首跑 bootstrap：该作业从未有过任何 run 时，本 tick 立即手动跑一次
     （launchd RunAtLoad 首挂载即出首跑证据；此后走到期机制）。backup
     作业不 bootstrap——按每日墙钟走到期（手工/巡检随时可跑，锁互斥）。
-    job_argv/backup_job_argv/macos_sender 为测试注入接缝（生产路径缺省
-    用真采样器/真 drill 与真 osascript 通道）。
+    job_argv/backup_job_argv/macos_sender/capacity_sample 为测试注入接缝
+    （生产路径缺省用真采样器/真 drill、真 osascript 通道与真实容量采集）。
     """
     paths = paths or ProductionPaths.from_env()
     paths.ensure_dirs()
@@ -2550,8 +2591,9 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
         # ---- B5 容量闸前置检查（2026-10-09 接线）：判定+记录+CRITICAL 告警；
         # 刻意不阻断观察采样（§22 BLOCKED 处置属迁移/发布峰值操作，观察
         # tick 是 KB 级写——容量压力下停观测=自毁唯一告警通道）。语义登记
-        # evidence/11-shadow-canary/README.md。 ----
-        cap = capacity_preflight(paths, now=now)
+        # evidence/11-shadow-canary/README.md。capacity_sample 为注入接缝
+        # （W12-03：rc3 环境归因测试用，生产 None=真实采集）。 ----
+        cap = capacity_preflight(paths, now=now, sample=capacity_sample)
         if cap.get("capacity_gate") == "BLOCKED":
             try:
                 outbox.notify(
@@ -2710,8 +2752,17 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
             _atomic_write_json(station_path, station_doc)
 
         # ---- W11-07 scheduler health 分离：tick 存活 ≠ 采样 PASS/FRESH ----
-        # tick rc0 只证明调度器活着；采样作业的真实 rc/verdict/新鲜度单列，
-        # rc3（配置缺失、陈旧或篡改）额外触发 CRITICAL——tick 绿不得掩盖。
+        # tick rc0 只证明调度器活着；采样作业的真实 rc/verdict/新鲜度单列。
+        # W12-03 rc3 告警分级（环境态 vs 配置错）：
+        #   - rc3 + 容量闸 BLOCKED → 环境归因（无有效窗可开：T0 十前置
+        #     capacity_gate 必须 OPEN——容量 BLOCKED 下 auto-open 必被拒）：
+        #     environment_blocked=True、config_error=False、WARNING 告警
+        #     （sampler_environment_blocked）；心跳面同步报 BLOCKED/WARNING
+        #     （check_health 收窄），不再 FUNCTION_DEAD CRITICAL×2 误报。
+        #     容量闸自身照旧 CRITICAL（真实前置阻断移交人类，W12-04 处置）。
+        #   - rc3 + 容量 OPEN → 配置缺失/陈旧/篡改（receipt/prereqs/链）：
+        #     维持 CRITICAL（sampler_config_error）——tick 绿不得掩盖，
+        #     不得被环境态降级放走。
         sampler_block: Dict[str, Any] = {"job_id": PROD_JOB_ID,
                                          "tick_alive": True,
                                          "last_run_rc": None,
@@ -2720,35 +2771,67 @@ def production_tick(*, paths: Optional["ProductionPaths"] = None,
                                          "finished_at": None,
                                          "watchdog_freshness_seconds": 1200.0,
                                          "fresh": False,
-                                         "config_error": False}
+                                         "config_error": False,
+                                         "environment_blocked": False}
         if rows:
             lr = JobRunner._row_to_record_dict(rows[0])
             lr_finished = lr.get("finished_at")
+            rc3 = lr.get("actual_exit_code") == 3
+            env_blocked = bool(
+                rc3 and cap.get("capacity_gate") == "BLOCKED")
             sampler_block.update({
                 "last_run_rc": lr.get("actual_exit_code"),
                 "execution_status": lr.get("execution_status"),
                 "policy_verdict": lr.get("policy_verdict"),
                 "finished_at": lr_finished,
-                "config_error": lr.get("actual_exit_code") == 3,
+                "config_error": bool(rc3 and not env_blocked),
+                "environment_blocked": env_blocked,
             })
             sampler_block["fresh"] = bool(
                 lr.get("execution_status") == "COMPLETED"
                 and lr.get("policy_verdict") == "PASS"
                 and isinstance(lr_finished, (int, float))
                 and (now - float(lr_finished)) <= 1200.0)
-            if sampler_block["config_error"]:
+            if env_blocked:
+                try:
+                    outbox.notify(
+                        "WARNING",
+                        "[wenqu] 采样器 rc3（环境前置 BLOCKED）：容量闸 BLOCKED",
+                        "job=%s run=%s rc=3：容量闸 BLOCKED（used_ratio=%s）"
+                        "下无有效窗可开（T0 十前置 capacity_gate 必须 OPEN）"
+                        "——采样器如实 fail-closed，环境态非功能死"
+                        "（FUNCTION_DEAD 不再误报）。容量恢复（W12-04 清理/"
+                        "扩容）后自动回 PASS。注意：容量 BLOCKED 期间无法"
+                        "完全排除并发配置损坏；恢复后首个 rc3 将按配置错"
+                        "CRITICAL 复核。"
+                        % (PROD_JOB_ID, lr.get("run_id"),
+                           cap.get("used_ratio")),
+                        meta={"kind": "sampler_environment_blocked",
+                              "job_id": PROD_JOB_ID,
+                              "run_id": lr.get("run_id"),
+                              "actual_exit_code": 3,
+                              "capacity_code": cap.get("code"),
+                              "used_ratio": cap.get("used_ratio")},
+                        dedup_key="sampler_rc3_env:%d" % int(now // 3600),
+                        now=now,
+                    )
+                except Exception:
+                    log.exception("sampler env-blocked WARNING notify failed")
+            elif sampler_block["config_error"]:
                 try:
                     outbox.notify(
                         "CRITICAL",
                         "[wenqu] 采样器 rc3：配置缺失/陈旧/篡改",
                         "job=%s run=%s rc=3（receipt 陈旧/ref 不匹配/"
-                        "prerequisite 改字节/透传断裂均归此类）——tick 存活"
-                        "不掩盖采样 fail-closed。"
-                        % (PROD_JOB_ID, lr.get("run_id")),
+                        "prerequisite 改字节/透传断裂均归此类；容量闸=%s "
+                        "非环境归因）——tick 存活不掩盖采样 fail-closed。"
+                        % (PROD_JOB_ID, lr.get("run_id"),
+                           cap.get("capacity_gate")),
                         meta={"kind": "sampler_config_error",
                               "job_id": PROD_JOB_ID,
                               "run_id": lr.get("run_id"),
-                              "actual_exit_code": 3},
+                              "actual_exit_code": 3,
+                              "capacity_gate": cap.get("capacity_gate")},
                         dedup_key="sampler_rc3:%d" % int(now // 3600),
                         now=now,
                     )
