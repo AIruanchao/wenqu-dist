@@ -53,13 +53,13 @@ def test_render_rejects_inline_secret_candidate():
 
 def test_render_contract_placeholders_and_paths():
     out = prov.render_template(
-        python="/opt/homebrew/bin/python3",
+        python=sys.executable,
         sentinel_script="/Users/x/.wenqu/releases/abc/tree/system/sentinels"
                         "/release-integrity-watch.py",
         wenqu_home="/Users/x/.wenqu", sentinel_tree="/Users/x/.wenqu/t")
     for ph in prov.PLACEHOLDERS:
         assert ph not in out
-    for needle in ("/opt/homebrew/bin/python3",
+    for needle in (sys.executable,
                    "release-integrity-watch.py",
                    "<string>/Users/x/.wenqu</string>",
                    "WENQU_RELEASE_ATTEST",
@@ -71,7 +71,7 @@ def test_render_contract_placeholders_and_paths():
 def test_dry_run_print_no_file_and_lint_ok():
     with tempfile.TemporaryDirectory() as td:
         out = os.path.join(td, "rendered.plist")
-        res = _run(["--python", "/opt/homebrew/bin/python3",
+        res = _run(["--python", sys.executable,
                     "--sentinel-script", os.path.join(
                         REPO_ROOT, "system", "sentinels",
                         "release-integrity-watch.py"),
