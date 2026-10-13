@@ -103,3 +103,14 @@
 - 保守原则：不扩冻结别名表、不引入猜测映射、**零 RECLASSIFY=零生产写**（后续人工升级 DONE 簇→FIXED_PENDING_VERIFY 须另行授权，M3 先例在案）
 - 人工 5 簇（79 行）保守裁定理由逐簇记录于 `conservative_note`
 - 抽查：13 簇×3 样本=39 行全过（row_id 存在性+preview 语义一致性）
+
+## W12-07｜canonical Ed25519 V3 正本签发（2026-10-13）
+
+- **V2 降级 historical**：`adjudication-final.json`（V2/HMAC）自本日起仅为历史证据，不具验签效力；验签一律走 V3 通道。
+- **V3 正本**：`adjudication-final-v3.json`（仓内副本与本目录并存；正本=`~/.wenqu-dist-audit/adjudication/S11/S11-adjudication-final-20261013/adjudication-final-v3.json`，sha256=fe91afec75ca84cff16b6af79994f89a8b5679cf671883bd3aae900d13bc22cd，与仓内副本字节一致）。
+- **签名面（根修）**：identity_context（Ed25519 签名，覆盖 schema/contract/algorithm/key-id、source SHA、environment、run_id、generated_at、proposal/report hash、report_git_head、authority/principal/production_write、clusters、conservation）入绑全部 1950 行签名与 corpus 根——任一顶层身份字段或任一行被改，验签非零。
+- **固定身份**：`source_sha=b88309e0440ba61ace5290e088ba9acc2ccd6c40`（exact S11 SHA）、`environment=production`、`run_id=S11-adjudication-final-20261013`、`key_id=wenqu-adjudication-ed25519-s11-prod-001`。
+- **密钥 custody**：私钥 `~/.wenqu-dist-release/adjudication-ed25519.key`（0600，仓外，不入仓/plist/环境/日志/Seal）；公钥经包外通道交付验收方（`~/.wenqu-dist-trust/adjudication/adjudication-ed25519-s11-prod-001.pub`，pub hex=677f05ebf69fc245571b6029a814c74ea5b5d9e6c377ac11001b0812d658bb21）。
+- **registry**：`~/.wenqu-dist-trust/adjudication/canonical-registry.json`；仓内仅保存 digest/registry 引用（`adjudication-final.status.json`）。
+- **验签命令**（独立验收方视角，四 pin 强制）：见 `adjudication-final.status.json` 的 `verify_command`；当前实测 rc=0（1950/1950、KEEP=1950、PENDING=0、missing/duplicate/extra=0）。
+- **范围声明**：本 V3 证明的是 S11 数据裁定（1950 行 quarantine 裁定内容与身份），**不证明 S12 部署能力**。

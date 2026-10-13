@@ -1696,9 +1696,19 @@ def _w11_run(args):
                           capture_output=True, text=True, timeout=600)
 
 
-def _w11_verify(final, pub, key_id=W11_KEY_ID, proposal=None, report=None):
+#: W12-07：四 pin（key_id/run_id/environment/source_sha）为验签强制面；
+#: fixture 的 pin 组独立冻结（full=真实 1950 行、mini=合成 3 行）。
+W11_PINS_FULL = ("run-w11-09-test", "test", "0" * 40)
+W11_PINS_MINI = ("run-w11-09-mini", "test", "1" * 40)
+
+
+def _w11_verify(final, pub, pins, key_id=W11_KEY_ID, proposal=None,
+                report=None):
+    run_id, environment, source_sha = pins
     args = [W11_VERIFIER, "--final", final, "--public-key", pub,
-            "--key-id", key_id]
+            "--key-id", key_id, "--expected-run-id", run_id,
+            "--expected-environment", environment,
+            "--expected-source-sha", source_sha]
     if proposal:
         args += ["--proposal", proposal]
     if report:
@@ -1813,8 +1823,8 @@ def test_W11_09_A_keypair_hygiene_and_real_roundtrip():
     with open(fx["v3"], encoding="utf-8") as fh:
         blob = fh.read()
     assert priv_hex not in blob and "PRIVATE KEY" not in blob, "私钥泄漏"
-    out = _w11_verify(fx["v3"], fx["pub"], proposal=W11_PROPOSAL,
-                      report=W11_REPORT)
+    out = _w11_verify(fx["v3"], fx["pub"], W11_PINS_FULL,
+                      proposal=W11_PROPOSAL, report=W11_REPORT)
     assert out.returncode == 0, "验签失败: %s%s" % (out.stderr, out.stdout)
     assert "1950/1950" in out.stdout
     return {"keep": 1950, "pending": 0, "verify_rc": 0}
@@ -1848,8 +1858,8 @@ def test_W11_09_B_conservation_no_dup_no_missing():
 def test_W11_09_C_tamper_matrix_all_rejected():
     """篡改/删行/重复/换签/错key/错key_id/旧report哈希 -> rc1 全拒。"""
     fx = _w11_mini_fixture()
-    ok = _w11_verify(fx["mv3"], fx["mpub"], proposal=fx["mprop"],
-                     report=fx["mrep"])
+    ok = _w11_verify(fx["mv3"], fx["mpub"], W11_PINS_MINI,
+                     proposal=fx["mprop"], report=fx["mrep"])
     assert ok.returncode == 0, ok.stdout + ok.stderr
     tmp = fx["mtmp"]
 
@@ -1871,16 +1881,17 @@ def test_W11_09_C_tamper_matrix_all_rejected():
     ]
     for name, mut in variants:
         p = _w11_mutate(fx["mv3"], tmp, name + ".json", mut)
-        out = _w11_verify(p, fx["mpub"], proposal=fx["mprop"],
-                          report=fx["mrep"])
+        out = _w11_verify(p, fx["mpub"], W11_PINS_MINI,
+                          proposal=fx["mprop"], report=fx["mrep"])
         assert out.returncode == 1, "%s 未被拒绝: %s%s" % (name, out.stdout,
                                                            out.stderr)
     k2 = os.path.join(tmp, "k2.key")
     assert _w11_run([W11_SIGNER, "--generate-keypair", k2]).returncode == 0
-    out = _w11_verify(fx["mv3"], k2 + ".pub", proposal=fx["mprop"],
-                      report=fx["mrep"])
+    out = _w11_verify(fx["mv3"], k2 + ".pub", W11_PINS_MINI,
+                      proposal=fx["mprop"], report=fx["mrep"])
     assert out.returncode == 1, "错公钥未被拒"
-    out = _w11_verify(fx["mv3"], fx["mpub"], key_id="rogue-key-id")
+    out = _w11_verify(fx["mv3"], fx["mpub"], W11_PINS_MINI,
+                      key_id="rogue-key-id")
     assert out.returncode == 1, "错 key_id 未被拒"
     stale = os.path.join(tmp, "stale-report.json")
     with open(fx["mrep"], encoding="utf-8") as fh:
@@ -1888,8 +1899,8 @@ def test_W11_09_C_tamper_matrix_all_rejected():
     srep["rows"][0]["state"] = "mapped"
     with open(stale, "w", encoding="utf-8") as fh:
         json.dump(srep, fh, ensure_ascii=False)
-    out = _w11_verify(fx["mv3"], fx["mpub"], proposal=fx["mprop"],
-                      report=stale)
+    out = _w11_verify(fx["mv3"], fx["mpub"], W11_PINS_MINI,
+                      proposal=fx["mprop"], report=stale)
     assert out.returncode == 1, "旧 report 哈希未被拒"
     return {"variants": 9, "all_rc": 1}
 
@@ -1900,26 +1911,29 @@ def test_W11_09_D_exit_code_semantics():
     fx = _w11_mini_fixture()
     tmp = fx["mtmp"]
     ghost = os.path.join(tmp, "ghost.json")
-    assert _w11_verify(ghost, fx["mpub"]).returncode == 3, "缺失 final!=3"
-    assert _w11_verify(fx["mv3"], ghost).returncode == 3, "缺失公钥!=3"
+    assert _w11_verify(ghost, fx["mpub"], W11_PINS_MINI).returncode == 3, "缺失 final!=3"
+    assert _w11_verify(fx["mv3"], ghost, W11_PINS_MINI).returncode == 3, "缺失公钥!=3"
     bad = os.path.join(tmp, "bad.pub")
     with open(bad, "w") as fh:
         fh.write("not-hex\n")
-    assert _w11_verify(fx["mv3"], bad).returncode == 3, "坏公钥!=3"
+    assert _w11_verify(fx["mv3"], bad, W11_PINS_MINI).returncode == 3, "坏公钥!=3"
     nj = os.path.join(tmp, "notjson.json")
     with open(nj, "w") as fh:
         fh.write("{broken")
-    assert _w11_verify(nj, fx["mpub"]).returncode == 2, "坏 JSON!=2"
+    assert _w11_verify(nj, fx["mpub"], W11_PINS_MINI).returncode == 2, "坏 JSON!=2"
     out = _w11_run([W11_VERIFIER, "--final", W11_FINAL_V2,
-                    "--public-key", fx["mpub"], "--key-id", W11_KEY_ID])
+                    "--public-key", fx["mpub"], "--key-id", W11_KEY_ID,
+                    "--expected-run-id", W11_PINS_MINI[0],
+                    "--expected-environment", W11_PINS_MINI[1],
+                    "--expected-source-sha", W11_PINS_MINI[2]])
     assert out.returncode == 2, "V2/HMAC 旧件!=2"
     p = _w11_mutate(fx["mv3"], tmp, "no-digest.json",
                     lambda d: d["rows"][0].pop("row_digest"))
-    assert _w11_verify(p, fx["mpub"]).returncode == 2, "缺字段!=2"
+    assert _w11_verify(p, fx["mpub"], W11_PINS_MINI).returncode == 2, "缺字段!=2"
     p = _w11_mutate(fx["mv3"], tmp, "wrong-canon.json",
                     lambda d: d.__setitem__("namespace",
                                             d["namespace"] + "x"))
-    assert _w11_verify(p, fx["mpub"]).returncode == 2, "错 canonicalization!=2"
+    assert _w11_verify(p, fx["mpub"], W11_PINS_MINI).returncode == 2, "错 canonicalization!=2"
     return {"rc3": 3, "rc2": 4, "rc1": "见 W11-09-C"}
 
 
@@ -1944,6 +1958,146 @@ def test_W11_09_E_schema_and_v2_demoted():
     except jsonschema.ValidationError:
         return {"v3": "PASS", "v2": "REJECTED（历史件不入 V3 通道）"}
     raise AssertionError("V2 旧件不应通过 V3 schema")
+
+
+# ---------------------------------------------------------------------- #
+# W12-07｜1950 条 canonical Ed25519 V3 正本签发——顶层身份上下文根修。
+# W11-09 缺口（实证红）：run_id/authority/principal/generated_at/
+# environment 等顶层身份字段被改后验签仍 rc0（签名面未覆盖身份）。
+# 根修：identity_context（tagged sha256+Ed25519 签名，覆盖 schema/
+# contract/algorithm/key-id、source SHA、environment、run_id、
+# generated_at、proposal/report hash、report_git_head、authority/
+# principal/production_write、clusters、conservation）入绑每行签名与
+# corpus 根；verifier 四 pin（key-id/source-sha/environment/run-id）
+# 强制化。被测体仍为 tools/adjudication_sign.py + verify_adjudication.py
+# + system/schemas/adjudication-final-v3.schema.json。
+W12_S11_SHA = "b88309e0440ba61ace5290e088ba9acc2ccd6c40"
+W12_PROD_KEY_ID = "wenqu-adjudication-ed25519-s11-prod-001"
+
+
+@_w11_skip_sandbox
+def test_W12_07_A_identity_tamper_matrix_all_rejected():
+    """顶层身份篡改矩阵全拒（不依赖 --proposal/--report——身份绑定独立
+    命中，红→绿对照面）。"""
+    fx = _w11_mini_fixture()
+    ok = _w11_verify(fx["mv3"], fx["mpub"], W11_PINS_MINI)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    tmp = fx["mtmp"]
+    variants = [
+        ("run-id", lambda d: d.__setitem__("run_id", "run-rogue")),
+        ("environment", lambda d: d.__setitem__("environment", "staging")),
+        ("source-sha", lambda d: d.__setitem__("source_sha", "f" * 40)),
+        ("generated-at", lambda d: d.__setitem__(
+            "generated_at", "2030-01-01T00:00:00+00:00")),
+        ("authority", lambda d: d.__setitem__("authority", "伪造审批链")),
+        ("principal", lambda d: d.__setitem__("principal", "rogue-agent")),
+        ("production-write", lambda d: d.__setitem__(
+            "production_write", "PROD-WRITTEN-BY-ROGUE")),
+        ("report-git-head", lambda d: d["inputs"].__setitem__(
+            "report_git_head", "0" * 40)),
+        ("report-hash", lambda d: d["inputs"].__setitem__(
+            "report_sha256", "f" * 64)),
+        ("cluster-rationale", lambda d: d["clusters"][0].__setitem__(
+            "rationale", "被改写的簇理由")),
+        ("cluster-extra-field", lambda d: d["clusters"][0].__setitem__(
+            "rogue_note", "x")),
+        ("conservation-keep", lambda d: d["conservation"].__setitem__(
+            "KEEP_QUARANTINE", 99)),
+        ("identity-sha-swap", lambda d: d["identity_context"].__setitem__(
+            "sha256", "f" * 64)),
+        ("identity-sig-swap", lambda d: d["identity_context"].__setitem__(
+            "signature", d["rows"][0]["signature"])),
+    ]
+    for name, mut in variants:
+        p = _w11_mutate(fx["mv3"], tmp, "w12-" + name + ".json", mut)
+        out = _w11_verify(p, fx["mpub"], W11_PINS_MINI)
+        assert out.returncode == 1, "%s 未被拒绝: %s%s" % (
+            name, out.stdout, out.stderr)
+    return {"identity_variants": len(variants), "all_rc": 1}
+
+
+@_w11_skip_sandbox
+def test_W12_07_B_pins_enforced():
+    """四 pin 强制化：缺任一 → rc2；错任一 → rc1。"""
+    fx = _w11_mini_fixture()
+    pin_pairs = [("--key-id", W11_KEY_ID),
+                 ("--expected-run-id", W11_PINS_MINI[0]),
+                 ("--expected-environment", W11_PINS_MINI[1]),
+                 ("--expected-source-sha", W11_PINS_MINI[2])]
+    for i in range(len(pin_pairs)):
+        pairs = pin_pairs[:i] + pin_pairs[i + 1:]
+        args = [W11_VERIFIER, "--final", fx["mv3"],
+                "--public-key", fx["mpub"]]
+        for flag, val in pairs:
+            args += [flag, val]
+        out = _w11_run(args)
+        assert out.returncode == 2, "缺 pin %s 应 rc2: %s%s" % (
+            pin_pairs[i][0], out.stdout, out.stderr)
+    base = dict(pin_pairs)
+    wrongs = [("--key-id", "rogue-key-id"),
+              ("--expected-run-id", "rogue-run"),
+              ("--expected-environment", "staging"),
+              ("--expected-source-sha", "f" * 40)]
+    for flag, rogue in wrongs:
+        over = dict(base)
+        over[flag] = rogue
+        args = [W11_VERIFIER, "--final", fx["mv3"],
+                "--public-key", fx["mpub"]]
+        for f2 in ("--key-id", "--expected-run-id",
+                   "--expected-environment", "--expected-source-sha"):
+            args += [f2, over[f2]]
+        out = _w11_run(args)
+        assert out.returncode == 1, "错 pin %s 应 rc1: %s%s" % (
+            flag, out.stdout, out.stderr)
+    return {"missing_pin_rc": 2, "wrong_pin_rc": 1}
+
+
+@_w11_skip_sandbox
+def test_W12_07_C_production_shaped_roundtrip():
+    """production 形态全链：仓外 0600 密钥 + exact S11 SHA（b88309e…）+
+    production 环境，真实 1950 行签发 → 四 pin 独立验签 rc0；无
+    identity_context 的旧形态件被 schema 拒（rc2）。测试密钥不晋升正本
+    （正本签发=运维受控私钥，仓外 $AUDIT_ROOT）。"""
+    tmp = tempfile.mkdtemp(prefix="w12-07-prod-")
+    key = os.path.join(tmp, "prod-shaped.key")
+    assert _w11_run([W11_SIGNER, "--generate-keypair", key]).returncode == 0
+    assert os.stat(key).st_mode & 0o777 == 0o600, "正式密钥形态须 0600"
+    v3 = os.path.join(tmp, "adjudication-final-v3.json")
+    key_id = "prod-shaped-test-key"
+    run_id = "S11-prod-shaped-test"
+    out = _w11_run([
+        W11_SIGNER, "--final-in", W11_FINAL_V2, "--proposal", W11_PROPOSAL,
+        "--report", W11_REPORT, "--private-key", key, "--key-id", key_id,
+        "--out", v3, "--run-id", run_id, "--environment", "production",
+        "--source-sha", W12_S11_SHA])
+    assert out.returncode == 0, "production 形态签发失败: %s%s" % (
+        out.stderr, out.stdout)
+    with open(v3, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    assert doc["environment"] == "production"
+    assert doc["source_sha"] == W12_S11_SHA
+    assert re.match(W11_HEX64, doc["identity_context"]["sha256"])
+    with open(key) as fh:
+        priv_hex = fh.read().strip()
+    assert priv_hex not in json.dumps(doc), "私钥泄漏入正本"
+    res = _w11_verify(v3, key + ".pub", (run_id, "production", W12_S11_SHA),
+                      key_id=key_id, proposal=W11_PROPOSAL,
+                      report=W11_REPORT)
+    assert res.returncode == 0, "production 形态验签失败: %s%s" % (
+        res.stderr, res.stdout)
+    assert "1950/1950" in res.stdout and "environment=production" in res.stdout
+    legacy = json.loads(json.dumps(doc))
+    legacy.pop("identity_context")
+    p = os.path.join(tmp, "legacy-no-identity.json")
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump(legacy, fh, ensure_ascii=False)
+    assert _w11_verify(p, key + ".pub",
+                       (run_id, "production", W12_S11_SHA),
+                       key_id=key_id).returncode == 2, \
+        "无 identity_context 旧形态件未被 schema 拒"
+    return {"rows": 1950, "keep": 1950, "environment": "production",
+            "verify_rc": 0, "legacy_shape_rc": 2}
+
 
 # ---------------------------------------------------------------------- #
 # 运行器 + 证据工件
@@ -1993,6 +2147,12 @@ TESTS = [
      test_W11_09_D_exit_code_semantics),
     ("W11-09-E", "schema 合法+V2 历史件不入通道",
      test_W11_09_E_schema_and_v2_demoted),
+    ("W12-07-A", "顶层身份篡改矩阵 14 变体全拒（identity 绑定根修）",
+     test_W12_07_A_identity_tamper_matrix_all_rejected),
+    ("W12-07-B", "四 pin 强制：缺=2/错=1（key-id/source/env/run-id）",
+     test_W12_07_B_pins_enforced),
+    ("W12-07-C", "production 形态全链：1950 行+exact S11 SHA+rc0",
+     test_W12_07_C_production_shaped_roundtrip),
 ]
 
 
