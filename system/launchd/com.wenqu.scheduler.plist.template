@@ -12,7 +12,12 @@
      透传承担（plist 与 passthrough 键集保持同源）。采样器收到
      WENQU_MANAGED_SAMPLER=1 后强制 receipt 前置闸（fail-closed）。
      WENQU_GIT_REPO 必须指向受控 clone 位（install-release.sh 的
-     control-clone-remote 冻结步），绝不指向共享开发树。 -->
+     control-clone-remote 冻结步），绝不指向共享开发树。
+     W12-03（模板同步 W11-07 全部受管 env）：补 WENQU_GIT_REF（受控
+     clone 冻结 ref，与 receipt.origin_ref 同源）与 WENQU_RELEASE_SHA
+     （release 身份第一跳显式化——backup drill / 采样器 release_sha
+     均消费，缺省时只能回退 current symlink 推断）。live plist 未同步
+     本键集时按 drift 处理（迁移 diff 见装配流程）。 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -36,8 +41,12 @@
         <string>1</string>
         <key>WENQU_GIT_REPO</key>
         <string>{{WENQU_CONTROL_CLONE}}</string>
+        <key>WENQU_GIT_REF</key>
+        <string>{{WENQU_GIT_REF}}</string>
         <key>WENQU_GIT_RECEIPT</key>
         <string>{{WENQU_HOME}}/control/clone-receipt.json</string>
+        <key>WENQU_RELEASE_SHA</key>
+        <string>{{WENQU_RELEASE_SHA}}</string>
         <key>WENQU_WINDOW_PREREQS_FILE</key>
         <string>{{WENQU_HOME}}/control/window-prereqs.json</string>
         <key>WENQU_SCHEDULER_CONFIG</key>

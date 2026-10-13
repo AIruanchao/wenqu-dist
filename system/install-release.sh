@@ -1104,7 +1104,7 @@ if [ -n "$CONTROL_CLONE_REMOTE" ]; then
     die "受控 clone receipt 复验失败（陈旧/ref 不匹配/前置改字节）——拒绝冻结"
   fi
   log "受控 clone 冻结完成: $CONTROL_CLONE（receipt: $CONTROL_RECEIPT）"
-  log "plist 须显式配置 WENQU_GIT_REPO=$CONTROL_CLONE 与 receipt/前置路径（见 system/launchd 模板）"
+  log "plist 须显式配置 WENQU_GIT_REPO=$CONTROL_CLONE、WENQU_GIT_REF=$CONTROL_CLONE_REF、WENQU_GIT_RECEIPT=$CONTROL_RECEIPT、WENQU_WINDOW_PREREQS_FILE=$CONTROL_PREREQS、WENQU_MANAGED_SAMPLER=1、WENQU_RELEASE_SHA=$FULL_SHA 与 WENQU_SCHEDULER_CONFIG/WENQU_OBSERVATION_ROOT（见 system/launchd 模板——W12-03 全键集同步）"
 fi
 
 # ------------------------------------------------- 6) W11-02 激活树完整性快扫
