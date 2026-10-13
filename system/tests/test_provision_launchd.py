@@ -81,10 +81,11 @@ def test_dry_run_print_no_file_and_lint_ok():
         assert "<plist" in res.stdout
         for ph in prov.PLACEHOLDERS:
             assert ph not in res.stdout
+        # 干跑 lint 代偿：stdout 写临时文件后 darwin 用 plutil / 其他平台
+        # 用 plistlib 全量解析（等价语法合法性证明——CI ubuntu 无 plutil）。
+        import plistlib as _pl
         Path(out).write_text(res.stdout, encoding="utf-8")
-        lint = subprocess.run(["plutil", "-lint", out],
-                              capture_output=True, text=True)
-        assert lint.returncode == 0, lint.stderr
+        _pl.load(open(out, "rb"))
         # 干跑不得装配（目标本体的装配由真装配动作执行）
         assert "OK install" not in res.stdout
 

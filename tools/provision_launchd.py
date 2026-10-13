@@ -85,11 +85,19 @@ def render_template(python: str, sentinel_script: str, wenqu_home: str,
 
 
 def _plutil_lint(plist_path: str) -> None:
-    proc = subprocess.run(["plutil", "-lint", plist_path],
-                          capture_output=True, text=True, timeout=30)
-    if proc.returncode != 0:
-        raise OSError("plutil -lint 失败: %s%s"
-                      % (proc.stdout.strip(), proc.stderr.strip()))
+    """macOS 用 plutil -lint；Linux CI 无 plutil → plistlib 全量解析校验
+    （等价语法合法性证明——plistlib 能完整读出即结构合法）。"""
+    import sys as _sys
+    if _sys.platform == "darwin":
+        proc = subprocess.run(["plutil", "-lint", plist_path],
+                              capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            raise OSError("plutil -lint 失败: %s%s"
+                          % (proc.stdout.strip(), proc.stderr.strip()))
+    else:
+        import plistlib as _pl
+        with open(plist_path, "rb") as fh:
+            _pl.load(fh)  # 解析失败=结构非法=与 plutil 拒绝等价
 
 
 def _install_plist(content: str, target: Path) -> None:
