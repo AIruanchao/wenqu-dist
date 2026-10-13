@@ -1,0 +1,18 @@
+{
+ "schema": "wenqu-adjudication-inrepo-reference/v1",
+ "canonical_v3": {
+  "run_id": "S11-adjudication-final-20261013",
+  "key_id": "wenqu-adjudication-ed25519-s11-prod-001",
+  "source_sha": "b88309e0440ba61ace5290e088ba9acc2ccd6c40",
+  "environment": "production",
+  "identity_context_sha256": "19f648252a74fec8b8bdd86a67004b5e3ae816d395f827f1c9006209c79422a7",
+  "canonical_sha256": "fe91afec75ca84cff16b6af79994f89a8b5679cf671883bd3aae900d13bc22cd",
+  "canonical_path": "/Users/maccc/.wenqu-dist-audit/adjudication/S11/S11-adjudication-final-20261013/adjudication-final-v3.json",
+  "in_repo_copy": "evidence/07-migration-reconcile/adjudication/adjudication-final-v3.json",
+  "public_key": "~/.wenqu-dist-trust/adjudication/adjudication-ed25519-s11-prod-001.pub",
+  "trust_registry": "~/.wenqu-dist-trust/adjudication/canonical-registry.json"
+ },
+ "v2_status": "historical",
+ "v2_note": "adjudication-final.json（V2/HMAC）自 V3 正本签发起降级为历史证据；验签一律走 adjudication-final-v3.json + 仓外 pin。",
+ "verify_command": "python3 tools/verify_adjudication.py --final evidence/07-migration-reconcile/adjudication/adjudication-final-v3.json --public-key ~/.wenqu-dist-trust/adjudication/adjudication-ed25519-s11-prod-001.pub --key-id wenqu-adjudication-ed25519-s11-prod-001 --expected-source-sha b88309e0440ba61ace5290e088ba9acc2ccd6c40 --expected-environment production --expected-run-id S11-adjudication-final-20261013"
+}

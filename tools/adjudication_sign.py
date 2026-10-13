@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""adjudication_sign.py - W11-09 V3 Ed25519 signer (private-key side).
+"""adjudication_sign.py - W11-09/W12-07 V3 Ed25519 signer (private-key side).
 
 V2/HMAC adjudication only has historical value now. V3 signs every row
 plus a corpus root with Ed25519; the private key never enters this repo
 (enforced below) and is never handed to the verifier. Independent
 verifier: tools/verify_adjudication.py (pins key_id + public key from
 outside the evidence package).
+
+W12-07 root fix: the V3 signature surface now covers the TOP-LEVEL
+IDENTITY, not just rows. A signed ``identity_context`` (tagged sha256 +
+Ed25519 signature over schema/contract/algorithm/key-id, source SHA,
+environment, run_id, generated_at, proposal/report hash, report_git_head,
+authority, principal, production_write, clusters, conservation) is bound
+into EVERY row signature and into the corpus root signature, so any
+top-level identity tamper breaks the whole chain (W11-09 gap: run_id /
+authority / principal / generated_at / environment edits verified rc0).
 """
 from __future__ import annotations
 
@@ -29,11 +38,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_VERSION = "adjudication-final-v3"
 ALGORITHM = "Ed25519"
 NAMESPACE = "wenqu-dist.migration-reconcile.adjudication"
+IDENTITY_TAG = "wenqu-adjudication-identity-context-v1"
 FIELD_ORDER = ["row_id", "row_digest", "cluster_id", "decision", "reason",
-               "principal", "reviewed_at", "proposal_sha256",
-               "report_sha256", "contract_version", "key_id", "namespace"]
+               "principal", "reviewed_at", "identity_context_sha256",
+               "proposal_sha256", "report_sha256", "contract_version",
+               "key_id", "namespace"]
 CANONICALIZATION = "lp-utf8-v1;fields=" + ",".join(FIELD_ORDER)
-CORPUS_TAG = "wenqu-adjudication-corpus-root-v1"
+CORPUS_TAG = "wenqu-adjudication-corpus-root-v2"
 ROW_KEYS = ("row_id", "row_digest", "cluster_id", "decision", "reason",
             "principal", "reviewed_at")
 DECISIONS = ("KEEP_QUARANTINE", "RECLASSIFY")
@@ -52,16 +63,51 @@ def canon(fields):
     return bytes(out)
 
 
-def row_payload(row, proposal_sha, report_sha, key_id):
+def canon_value(value):
+    """Identity-context 字段值 → 确定性字符串（None→"null"，非 str 走
+    sort_keys JSON——list/dict 全展开，跨实现稳定）。"""
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True, ensure_ascii=False)
+
+
+def _mapping_parts(mapping):
+    parts = []
+    for k in sorted(mapping):
+        parts += [k, canon_value(mapping[k])]
+    return parts
+
+
+def identity_payload(*, schema, contract_version, algorithm, key_id,
+                     namespace, canonicalization, source_sha, environment,
+                     run_id, generated_at, proposal_sha, report_sha,
+                     report_git_head, authority, principal,
+                     production_write, clusters, conservation):
+    """W12-07 顶层身份上下文 canonical 载荷（tagged，逐字段长度前缀）。"""
+    parts = [IDENTITY_TAG, schema, contract_version, algorithm, key_id,
+             namespace, canonicalization, source_sha, environment, run_id,
+             generated_at, proposal_sha, report_sha,
+             canon_value(report_git_head), canon_value(authority),
+             canon_value(principal), canon_value(production_write)]
+    for c in clusters:
+        parts += ["cluster"] + _mapping_parts(c)
+    parts += ["conservation"] + _mapping_parts(conservation)
+    return canon(parts)
+
+
+def row_payload(row, proposal_sha, report_sha, key_id, identity_sha):
     vals = [row["row_id"], row["row_digest"], row["cluster_id"],
             row["decision"], row["reason"], row["principal"],
-            row["reviewed_at"], proposal_sha, report_sha,
+            row["reviewed_at"], identity_sha, proposal_sha, report_sha,
             CONTRACT_VERSION, key_id, NAMESPACE]
     return canon(vals)
 
 
-def corpus_payload(rows, clusters, counts, proposal_sha, report_sha, key_id):
-    parts = [CORPUS_TAG, str(len(rows))]
+def corpus_payload(rows, clusters, counts, proposal_sha, report_sha, key_id,
+                   identity_sha):
+    parts = [CORPUS_TAG, identity_sha, str(len(rows))]
     for r in rows:
         parts += [r["row_id"], r["row_digest"], r["signature"]]
     for c in clusters:
@@ -217,15 +263,37 @@ def main(argv=None):
     if len({c["cluster_id"] for c in clusters}) != len(clusters):
         print("FAIL duplicate cluster_id", file=sys.stderr)
         return 1
+    n = len(rows)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    conservation = {"total": n,
+                    "KEEP_QUARANTINE": counts.get("KEEP_QUARANTINE", 0),
+                    "RECLASSIFY": counts.get("RECLASSIFY", 0),
+                    "PENDING": 0, "contract": CONTRACT_VERSION,
+                    "rows_with_signature": n}
+    # W12-07：顶层身份上下文先签（clusters/conservation 全量入绑），
+    # 其 sha256 再入每行与 corpus 载荷——任一顶层身份字段被改，
+    # identity 重算不匹配 + 全部行签名 + corpus 根同时失效。
+    id_bytes = identity_payload(
+        schema="adjudication-final-v3", contract_version=CONTRACT_VERSION,
+        algorithm=ALGORITHM, key_id=args.key_id, namespace=NAMESPACE,
+        canonicalization=CANONICALIZATION, source_sha=args.source_sha,
+        environment=args.environment, run_id=args.run_id,
+        generated_at=generated_at, proposal_sha=proposal_sha,
+        report_sha=report_sha, report_git_head=report_git,
+        authority=doc.get("authority"), principal=doc.get("principal"),
+        production_write=doc.get("production_write"), clusters=clusters,
+        conservation=conservation)
+    identity_sha = hashlib.sha256(id_bytes).hexdigest()
+    identity_sig = ed25519.sign(secret, id_bytes)
     for r in rows:
         sig = ed25519.sign(
-            secret, row_payload(r, proposal_sha, report_sha, args.key_id))
+            secret, row_payload(r, proposal_sha, report_sha, args.key_id,
+                                identity_sha))
         r["signature"] = base64.b64encode(sig).decode("ascii")
     corpus_sig = ed25519.sign(
         secret,
         corpus_payload(rows, clusters, counts, proposal_sha, report_sha,
-                       args.key_id))
-    n = len(rows)
+                       args.key_id, identity_sha))
     out = {
         "artifact": "quarantine-adjudication-final-v3",
         "schema": "adjudication-final-v3",
@@ -237,7 +305,10 @@ def main(argv=None):
         "run_id": args.run_id,
         "environment": args.environment,
         "source_sha": args.source_sha,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at,
+        "identity_context": {"tag": IDENTITY_TAG, "sha256": identity_sha,
+                             "signature": base64.b64encode(
+                                 identity_sig).decode("ascii")},
         "inputs": {"proposal_sha256": proposal_sha,
                    "report_sha256": report_sha,
                    "report_git_head": report_git},
@@ -245,12 +316,7 @@ def main(argv=None):
         "principal": doc.get("principal"),
         "production_write": doc.get("production_write"),
         "clusters": clusters,
-        "conservation": {"total": n,
-                         "KEEP_QUARANTINE": counts.get(
-                             "KEEP_QUARANTINE", 0),
-                         "RECLASSIFY": counts.get("RECLASSIFY", 0),
-                         "PENDING": 0, "contract": CONTRACT_VERSION,
-                         "rows_with_signature": n},
+        "conservation": conservation,
         "rows": rows,
         "corpus": {"row_count": n, "decision_counts": counts,
                    "corpus_root_signature": base64.b64encode(
@@ -258,10 +324,11 @@ def main(argv=None):
     }
     Path(args.out).write_text(
         json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-    print("OK signed %d rows + corpus root (backend=%s)" % (
-        n, ed25519.BACKEND))
+    print("OK signed %d rows + identity context + corpus root (backend=%s)"
+          % (n, ed25519.BACKEND))
     print("  key_id : %s" % args.key_id)
     print("  pub hex: %s" % pub.hex())
+    print("  identity_context_sha256: %s" % identity_sha)
     print("  out    : %s" % args.out)
     return 0
 
