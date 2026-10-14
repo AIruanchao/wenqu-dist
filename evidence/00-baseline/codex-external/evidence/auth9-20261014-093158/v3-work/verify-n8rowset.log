@@ -1,0 +1,4 @@
+FAIL report sha256 drift: 35efb288d25f5bc468eee712c3e4f1778ae977d492b1bf383f31833beb4e5e7a != ab06ab5096c8f08075616faa673edc04d832d1a147e3813296f6bd8e12535ec3
+ok row-signatures 2/2
+ok corpus-root-signature
+ok proposal-hash

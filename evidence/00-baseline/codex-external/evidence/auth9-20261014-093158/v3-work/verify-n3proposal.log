@@ -1,0 +1,3 @@
+FAIL proposal sha256 drift: 8e9b80fd05a2d9b2f8d9d3538aea129db4a8a8408308cacd4829ff8f4e89dfcc != 7aef64a1ccb155db6080a26f669bec1ec492649f0dbb620cd6d5db31e4245e6e
+ok row-signatures 2/2
+ok corpus-root-signature

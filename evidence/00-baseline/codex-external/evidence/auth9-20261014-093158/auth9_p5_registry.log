@@ -1,0 +1,10 @@
+  [PASS] P5-pos1 异钥 registry 快照加载可信（source=signed_snapshot） 
+  [PASS] P5-N1 同钥双签（manifest_key_id==快照 key）→拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-root.json: reg
+  [PASS] P5-N2 快照 signature 篡改 →拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-tampered-sig.j
+  [PASS] P5-N3 registry_digest 自报篡改（重算不符）→拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-tampered-diges
+  [PASS] P5-N4 manifest 域 key 签发 registry 快照 →签发面拒 :: RegistryTrustError: registry 快照签发 key 用途域不符（'key_p5_r2' purposes=['manifest'] 不含 'registry'）——manifest 域 key 不
+  [PASS] P5-N5 验证面 purposes 不含 registry 域 →拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-handmade.json:
+  [PASS] P5-N6 stations 内容篡改（digest 重算不符）→拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-tampered-stati
+  [PASS] P5-N7 未知快照 key →拒 :: RegistryTrustError: /var/folders/w1/3m09bxxd0g9byhnqzc5_7sqw0000gp/T/auth9-p5-cg9mj9sw/registry-root.json: reg
+
+P5 SUMMARY: total=8 pass=8 fail=0

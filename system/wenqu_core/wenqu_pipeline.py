@@ -189,6 +189,17 @@ R8 审批消费三洞根修（Codex 第八轮 P0-2 残余，2026-10-08）：
     受保护链上追加合法 receipt。``approval_keys.IssueReceiptLedger``
     为单一正源（签发端 ``ApprovalIssuer`` 落链，消费端
     ``_verify_signature`` 重放校验）。
+  - R9-AUTH-RECEIPT-REUSE-001（第九轮 F-1 根修：receipt 不绑信封内容）
+    ——receipt 行落 ``envelope_digest``（信封去 signature/cosignatures 的
+    canonical sha256，``approval_keys.envelope_content_digest`` 单一正源），
+    消费端 ``issue_receipt_rejection`` 在四元等值后追加速度第五腿等值
+    校验：持旧 secret 者对合法签发未消费信封做 payload/绑定字段/
+    expires_at 变异后保留四元重签 → 摘要断裂即 ApprovalRejected（零
+    副作用）；旧格式 receipt 行（无摘要）fail-closed 拒（诊断开关
+    ``WENQU_NO_RECEIPT_BINDING=1`` 只豁免本腿）。同轮配套：受管 keyring
+    消费侧 TTL 时长硬顶（``MAX_CONSUMABLE_TTL_SECONDS``=7 天——
+    ``_verify_signature`` 内 ``_ttl_cap_rejection`` 执法，十年级延寿
+    死路）；``reconcile_issuance`` 对账补 payload_digest 等值腿。
   - G9-04/C：联签 key 的 principal **强制登记**——无 ``owner``/``actors``
     登记面的 key 参与联签即拒（两把无登记 key 自报不同人名不构成真
     双人）；签发端双人路径对称执法（``_require_two_person_principal``）。
@@ -1271,6 +1282,16 @@ class _PipelineDb:
 # ====================================================================== #
 
 
+#: R9-AUTH-RECEIPT-REUSE-001（第九轮 F-1 根修）：消费侧 TTL 时长硬顶——
+#: ``expires_at - issued_at`` 超过该上限的信封在受管（目录型）keyring 的
+#: 消费路径一律拒绝（结构层只查「expires 晚于 issued」，变异信封可把任意
+#: 存量审批延寿到十年级窗口——本硬顶使其死路）。默认 7 天（604800s），
+#: 可按部署策略调整的模块级常量。作用域与签发 receipt regime 同界
+#: （受管 keyring）：文件型/内存 keyring（fixtures/dev）保持既有语义
+#: （诚实边界，同 R8-AUTH-RETIRED-KEY-005 的 regime 划界）。
+MAX_CONSUMABLE_TTL_SECONDS = 7 * 24 * 3600  # 604800
+
+
 class ApprovalBroker:
     """消费 approval-v2 审批事件：fail-closed 校验 + 一次性原子消费。
 
@@ -1283,7 +1304,9 @@ class ApprovalBroker:
         3. API 路由（Codex 实锤 #2）：consume() 只收 approval_type=resume，
            consume_authorization() 只收其 expected_type（默认 risk）；
         4. decision 必须为 approve（deny/conditional 不足以消费）；
-        5. TTL：issued_at <= now < expires_at；
+        5. TTL：issued_at <= now < expires_at；受管 keyring 另有 TTL 时长
+           硬顶（R9-AUTH-RECEIPT-REUSE-001：expires-issued 超过
+           ``MAX_CONSUMABLE_TTL_SECONDS``（默认 7 天）即拒）；
         6. run 绑定（全 required，exact 比较——Codex 实锤 #1/#4）：
            run_id / task_id / stop_event_id / stop_type / stage /
            environment / authorized_scope(=scope_hash) / policy_hash /
@@ -1594,6 +1617,21 @@ class ApprovalBroker:
                 f"{receipt_reason}",
                 {"key_id": key_id, "approval_id": ap.get("approval_id"),
                  "issue_receipt": ap.get("issue_receipt")})
+        # R9-AUTH-RECEIPT-REUSE-001：受管（目录型）keyring 的消费侧 TTL
+        # 时长硬顶——expires_at - issued_at 超顶即拒（十年级延寿信封死路）。
+        # 作用域与 receipt regime 同界；文件型/内存 keyring（fixtures/dev）
+        # 不受影响（既有测试/开发语义零回退）。
+        if self._keyring.receipts_ledger_path() is not None:
+            ttl_reason = self._ttl_cap_rejection(ap)
+            if ttl_reason is not None:
+                raise ApprovalRejected(
+                    ttl_reason,
+                    {"key_id": key_id,
+                     "approval_id": ap.get("approval_id"),
+                     "issued_at": ap.get("issued_at"),
+                     "expires_at": ap.get("expires_at"),
+                     "max_consumable_ttl_seconds":
+                         MAX_CONSUMABLE_TTL_SECONDS})
         if not self._keyring.verify(ap):
             # 失败归因（G9-04 排序裁定）：纯密码学复核过=membership 因
             # （HMAC 真而 actor 冒用）→ 报 principal 拒绝；密码学复核败
@@ -1611,6 +1649,36 @@ class ApprovalBroker:
             raise ApprovalRejected(
                 "HMAC-SHA256 signature verification failed（伪签名拒绝）",
                 {"key_id": key_id, "approval_id": ap.get("approval_id")})
+
+    # ------------------------------------------------------------------ #
+    # R9-AUTH-RECEIPT-REUSE-001：消费侧 TTL 时长硬顶（受管 keyring 专属）
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _ttl_cap_rejection(ap: Mapping[str, Any]) -> Optional[str]:
+        """``expires_at - issued_at`` 超过 ``MAX_CONSUMABLE_TTL_SECONDS``
+        （默认 7 天）即返回拒绝原因；未超顶/无从执法返回 ``None``。
+
+        结构校验（validate_structure）只保证 expires 晚于 issued——
+        ``issued 2026-10-01 / expires 2036-10-01`` 的十年期信封结构合法；
+        本硬顶在消费门（``_verify_signature``，receipt 门之后）执法时长
+        上限，变异信封「延寿任意存量审批」的放大面关闭。时间戳畸形/
+        缺失时返回 None（消费路径的结构校验已强制其在位并 fail-closed，
+        本方法不重复报错以保拒绝消息归因清晰）。
+        """
+        try:
+            issued = _parse_iso_ts(ap["issued_at"]).timestamp()
+            expires = _parse_iso_ts(ap["expires_at"]).timestamp()
+        except (ValueError, KeyError, TypeError):
+            return None
+        span = expires - issued
+        if span > MAX_CONSUMABLE_TTL_SECONDS:
+            return (
+                f"消费侧 TTL 时长硬顶拒绝（R9-AUTH-RECEIPT-REUSE-001）："
+                f"expires_at - issued_at = {span:.0f}s > "
+                f"{MAX_CONSUMABLE_TTL_SECONDS}s（7 天硬顶）——超长有效期"
+                "信封不得消费（十年级延寿死路；部署策略可调常量 "
+                "MAX_CONSUMABLE_TTL_SECONDS）")
+        return None
 
     # ------------------------------------------------------------------ #
     # R7-AUTH-DUAL-CONSUME-005：高危联签消费门（在 envelope 绑定校验之后、

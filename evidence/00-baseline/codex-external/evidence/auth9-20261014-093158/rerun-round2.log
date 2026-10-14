@@ -1,0 +1,9 @@
+=== 探针复跑汇总（收敛第二轮） 2026-10-14 09:52:54 ===
+auth9_p1_lifecycle rc=0
+auth9_p2_actual_target rc=0
+auth9_p3_principal rc=0
+auth9_p4_cosign rc=0
+auth9_p5_registry rc=0
+auth9_p6_cas_gate rc=0
+auth9_p6b_v3 rc=0
+P7 VERDICT: receipt_reuse_attack_bypassed=True

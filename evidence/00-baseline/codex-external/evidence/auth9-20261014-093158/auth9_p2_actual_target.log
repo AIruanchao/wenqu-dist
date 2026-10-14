@@ -1,0 +1,21 @@
+  [PASS] P2-pos1 prod_write 全字段 evidence → RESERVED (expect=accept) 
+  [PASS] P2-pos1b 消费留痕（1 个 APPROVAL_CONSUMED） (expect=accept) 
+    (N1) rejected=True zero_side_effect=True nonce_still_usable=True :: approval rejected: runtime_evidence 未覆盖 payload 判别字段 ['conservation_hash']（appro
+  [PASS] P2-N1 拒绝+零副作用+nonce 未烧 (expect=reject) 
+    (N2) rejected=True zero_side_effect=True nonce_still_usable=True :: approval rejected: actual-target 绑定拒绝（R8-ACTUAL-TARGET-003）：审批 payload 的 'operat
+  [PASS] P2-N2 拒绝+零副作用+nonce 未烧 (expect=reject) 
+    (N3) rejected=True zero_side_effect=True nonce_still_usable=True :: approval rejected: actual-target 绑定拒绝（R8-AUTH-TARGET-UNBOUND-006）：runtime_eviden
+  [PASS] P2-N3 拒绝+零副作用+nonce 未烧 (expect=reject) 
+    (N3b) rejected=True zero_side_effect=True nonce_still_usable=True :: approval rejected: actual-target 绑定拒绝（R8-AUTH-TARGET-UNBOUND-006）：runtime_eviden
+  [PASS] P2-N3b 拒绝+零副作用+nonce 未烧 (expect=reject) 
+    (N9) rejected=True zero_side_effect=True nonce_still_usable=True :: approval rejected: runtime evidence 缺失=ApprovalRejected（R8-AUTH-TARGET-UNBOUND-0
+  [PASS] P2-N9 拒绝+零副作用+nonce 未烧 (expect=reject) 
+  [PASS] P2-pos2 release 双 artifact 真文件实算 → RESERVED (expect=accept) 
+  [PASS] P2-N4 artifact 调包（真文件实算不符）→拒+零副作用 (expect=reject) 
+  [PASS] P2-N5 release payload.environment=production≠run staging →拒 (expect=reject) 
+  [PASS] P2-N6 evidence 自报 artifact_sha256（无 artifact_paths）→拒 (expect=reject) 
+  [PASS] P2-N7 artifact 路径不存在 →拒（fail-closed 实算） (expect=reject) 
+  [PASS] P2-pos3 RUN_HEAD 哨兵实查替换（payload==commit_sha）→ RESERVED (expect=accept) 
+  [PASS] P2-N8 RUN_HEAD 实查≠payload 旧 backup_id →拒+零副作用 (expect=reject) 
+
+P2 SUMMARY: total=14 pass=14 fail=0

@@ -1,0 +1,20 @@
+{
+ "rows": [
+  {"row_id": "aaaa111111111111111111111111111111111111111111111111111111111111",
+   "row_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+   "cluster_id": "c-auth9-keep", "decision": "KEEP_QUARANTINE",
+   "reason": "probe keep", "principal": "auditor-a",
+   "reviewed_at": "2026-10-14T00:00:00Z"},
+  {"row_id": "bbbb222222222222222222222222222222222222222222222222222222222222",
+   "row_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+   "cluster_id": "c-auth9-reclass", "decision": "RECLASSIFY",
+   "reason": "probe reclass", "principal": "auditor-b",
+   "reviewed_at": "2026-10-14T00:00:00Z"}
+ ],
+ "clusters": [
+  {"cluster_id": "c-auth9-keep", "decision": "KEEP_QUARANTINE", "row_count": 1},
+  {"cluster_id": "c-auth9-reclass", "decision": "RECLASSIFY", "row_count": 1}
+ ],
+ "authority": "ninth-round-probe", "principal": "probe-principal",
+ "production_write": "none"
+}

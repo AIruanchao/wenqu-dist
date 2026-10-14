@@ -32,6 +32,7 @@
 """
 import json
 import os
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -44,11 +45,11 @@ sys.path.insert(0, REPO)
 
 from wenqu_core.approval_keys import (  # noqa: E402
     ISSUE_RECEIPTS_FILENAME, KEYRING_EVENTS_FILENAME,
-    RECEIPT_GENESIS_RECORD_TYPE, ApprovalKeyring, IssueReceiptLedger,
-    KeyExpiredError, KeyNotFoundError, KeyRevokedError,
+    RECEIPT_GENESIS_RECORD_TYPE, RECEIPT_NO_BINDING_ENV, ApprovalKeyring,
+    IssueReceiptLedger, KeyExpiredError, KeyNotFoundError, KeyRevokedError,
     KeyRotatedError, KeyStateError, append_keyring_event, ensure_keyring_dir,
-    generate_secret, save_key_meta, sign_envelope, verify_envelope,
-    write_key_to_dir,
+    envelope_content_digest, generate_secret, save_key_meta, sign_envelope,
+    verify_envelope, write_key_to_dir,
 )
 from wenqu_core.approval_issue import (  # noqa: E402
     HIGH_RISK_APPROVAL_TYPES, PAYLOAD_FIELDS_FOR_TYPE, ApprovalIssuer,
@@ -58,8 +59,8 @@ from wenqu_core.approval_issue import (  # noqa: E402
 )
 from wenqu_core.store import EventStore  # noqa: E402
 from wenqu_core.wenqu_pipeline import (  # noqa: E402
-    _APPROVAL_PAYLOAD_DISCRIMINATOR, ApprovalBroker, ApprovalRejected,
-    ApprovalReuseError, RunManager,
+    MAX_CONSUMABLE_TTL_SECONDS, _APPROVAL_PAYLOAD_DISCRIMINATOR,
+    ApprovalBroker, ApprovalRejected, ApprovalReuseError, RunManager,
 )
 
 PASS_N, FAIL_N, SKIP_N = 0, 0, 0
@@ -1322,6 +1323,262 @@ def test_r9_t1_receipt_genesis_failclosed_concurrency():
 
 
 # ====================================================================== #
+# 11b4. R10（第九轮 F-1 整改）：receipt 绑定信封内容摘要 + 消费侧 TTL
+#       硬顶 + 对账 payload_digest——R9-AUTH-RECEIPT-REUSE-001
+#       对抗复验四腿（报告 auth9_p7 场景复刻）：
+#       A 合法链：正门签发行内 envelope_digest → 6 天期（<7 天硬顶）消费过；
+#       B 变异重签：轮换 key 后变异 payload/head_sha/expires 保留四元重签
+#         → 全链拒（lifecycle/验签全过，死在 receipt 摘要腿）+ 零副作用
+#         + 原信封仍可消费（nonce 未被变异件烧掉——报告对照 2 的反转）；
+#       C 十年延寿：expires 延 10 年重签 → 摘要腿拒；诊断开关隔离后
+#         TTL 硬顶腿拒；原信封仍可消费；7 天边界（恰好 604800s 放行 /
+#         +1s 拒）单元腿；
+#       D 对账：payload_digest 不匹配 → digest_mismatch（leg=payload_digest）
+#         且 ok=False；等值 → used_ok；
+#       E 存量兼容：旧格式 receipt 行（无 envelope_digest）默认拒，
+#         WENQU_NO_RECEIPT_BINDING=1 诊断路径放行（只豁免摘要腿）。
+# ====================================================================== #
+def test_r10_f1_receipt_binding_ttl_reconcile():
+    import hashlib as _hl
+    tmp = tempfile.mkdtemp(prefix="wenqu-r10-")
+    kdir = os.path.join(tmp, "keyring")
+    write_key_to_dir(kdir, "key_r10_m", generate_secret(),
+                     {"status": "active", "owner": "alice",
+                      "actors": ["alice"]})
+    kr = ApprovalKeyring.from_path(kdir)
+    secret = kr.get("key_r10_m")
+    store = EventStore(os.path.join(tmp, "events.db"))
+    mgr = RunManager(store, keyring=kr)
+    issuer = ApprovalIssuer(kr, os.path.join(kdir, "issuance-audit.jsonl"))
+    run_id = mgr.create_run("task_r10", IDENT)["run_id"]
+    mgr.advance_stage(run_id)
+    MERGE_PAYLOAD = {"repo_id": "qisemi-erp", "base_sha": "1" * 40,
+                     "head_sha": "2" * 40, "merge_method": "squash"}
+
+    def _issue_merge(ttl_seconds):
+        return issuer.issue(
+            actor="alice", approval_type="merge", run_id=run_id,
+            task_id="task_r10", stop_type="scope", stage="S1_REQUIREMENT",
+            environment=IDENT["environment"],
+            authorized_scope=IDENT["scope_hash"],
+            policy_hash=IDENT["policy_hash"],
+            ruleset_hash=IDENT["ruleset_hash"],
+            input_watermark=IDENT["commit_sha"],
+            expected_state_version=mgr.get_run(run_id).state_version,
+            payload=dict(MERGE_PAYLOAD), key_id="key_r10_m",
+            ttl_seconds=ttl_seconds)["approval"]
+
+    def _reserve(m, ap, target):
+        return m.reserve_action(
+            run_id, "merge", target, ap, actor="probe",
+            action_descriptor=dict(ap["payload"]),
+            runtime_evidence={**ap["payload"], "action_target": target})
+
+    def _event_count():
+        return store._conn.execute(  # noqa: SLF001
+            "SELECT COUNT(*) FROM pipeline_events").fetchone()[0]
+
+    # ---- A 合法链：receipt 行带 envelope_digest → 6 天期消费通过 ----
+    ap1 = _issue_merge(6 * 86400)  # 6 天 < 7 天硬顶 → 消费侧必须放行
+    ledger = IssueReceiptLedger(
+        os.path.join(kdir, ISSUE_RECEIPTS_FILENAME),
+        secret_of={k: kr.get(k) for k in kr.key_ids()})
+    row1 = ledger.by_seq(ap1["issue_receipt"]["seq"])
+    assert row1.get("envelope_digest") == envelope_content_digest(ap1), \
+        "receipt 行必须绑定信封内容摘要（去 signature/cosignatures 的 " \
+        "canonical sha256——issue_receipt 计入摘要）"
+    assert ledger.verify_chain()["ok"] is True  # 摘要入行不破链（HMAC 覆盖）
+    target1 = "https://vcs.example/qisemi-erp/pr/101"
+    assert _reserve(mgr, ap1, target1)["action_state"] == "RESERVED"
+
+    # ---- C 十年延寿：变异 expires_at 重签 → 摘要腿拒；诊断隔离后 TTL 拒 ----
+    ap3 = _issue_merge(600)
+    forged3 = json.loads(json.dumps(ap3))
+    forged3["expires_at"] = time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ",
+        time.gmtime(time.time() + 10 * 365 * 86400))  # 十年期延寿
+    forged3.pop("signature", None)
+    forged3["signature"] = sign_envelope(secret, forged3)  # 旧 secret 真重签
+    assert kr.verify_signature_only(forged3) is True  # HMAC 真（死因不在密码学）
+    reason3 = kr.issue_receipt_rejection(forged3)
+    assert reason3 is not None and "envelope_digest" in reason3, \
+        f"延寿变异必须死在 receipt 摘要腿: {reason3}"
+    before_c = _event_count()
+    exc = None
+    try:
+        _reserve(mgr, forged3, "https://vcs.example/qisemi-erp/pr/103")
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "envelope_digest" in str(exc), \
+        f"十年延寿重签全链消费必须拒绝: {exc}"
+    assert _event_count() == before_c  # 零副作用（无消费事件）
+    # 诊断开关隔离 TTL 腿（只豁免摘要腿——十年期信封仍不得消费）
+    os.environ[RECEIPT_NO_BINDING_ENV] = "1"
+    try:
+        assert kr.issue_receipt_rejection(forged3) is None
+        exc = None
+        try:
+            _reserve(mgr, forged3, "https://vcs.example/qisemi-erp/pr/103")
+        except ApprovalRejected as e:
+            exc = e
+        assert exc is not None and "TTL 时长硬顶" in str(exc) and \
+            "RECEIPT-REUSE-001" in str(exc), \
+            f"十年期延寿必须被消费侧 TTL 硬顶拒绝: {exc}"
+        assert _event_count() == before_c  # 两次拒绝均零副作用
+    finally:
+        os.environ.pop(RECEIPT_NO_BINDING_ENV, None)
+    # TTL 硬顶边界单元腿：恰 7 天（604800s）放行，+1s 即拒
+    assert ApprovalBroker._ttl_cap_rejection(  # noqa: SLF001 —— 单元边界腿
+        {"issued_at": "2026-10-14T00:00:00Z",
+         "expires_at": "2026-10-21T00:00:00Z"}) is None
+    assert ApprovalBroker._ttl_cap_rejection(  # noqa: SLF001
+        {"issued_at": "2026-10-14T00:00:00Z",
+         "expires_at": "2026-10-21T00:00:01Z"}) is not None
+    assert MAX_CONSUMABLE_TTL_SECONDS == 604800  # 默认 7 天硬顶
+    # 原信封未被两次拒绝烧 nonce → 仍可消费（拒绝零副作用反证）
+    rec3 = _reserve(mgr, ap3, "https://vcs.example/qisemi-erp/pr/102")
+    assert rec3["action_state"] == "RESERVED"
+
+    # ---- B 变异重签（报告 auth9_p7 场景复刻）：轮换 key → 变异四保重签
+    #      → 全链拒 + 零副作用 + 原信封仍可消费 ----
+    ap2 = _issue_merge(600)
+    save_key_meta(kdir, "key_r10_m", {
+        **kr.meta("key_r10_m"), "status": "rotated",
+        "rotated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "rotated_to": "key_r10_next", "owner": "alice",
+        "actors": ["alice"]})
+    kr_rot = ApprovalKeyring.from_path(kdir)
+    assert kr_rot.meta("key_r10_m")["retired_receipt_seq"] >= \
+        ap2["issue_receipt"]["seq"]  # 轮换盘点在位
+    mgr_rot = RunManager(store, keyring=kr_rot)
+    forged2 = json.loads(json.dumps(ap2))
+    forged2["payload"]["merge_method"] = "merge"   # 内容变异（squash→merge）
+    forged2["payload"]["head_sha"] = "e" * 40      # 目标变异
+    forged2["expires_at"] = time.strftime(         # 延寿 1 天（<7 天——隔离
+        "%Y-%m-%dT%H:%M:%SZ",                      # TTL 腿，只打摘要腿）
+        time.gmtime(time.time() + 86400))
+    # 保留 receipt 四绑定字段（approval_id/nonce/issued_at/issue_receipt）
+    forged2.pop("signature", None)
+    forged2["signature"] = sign_envelope(secret, forged2)  # 旧 secret 重签
+    # 单步门解剖：其余门全过，死因必须是 receipt 摘要腿（非密码学/生命周期）
+    assert kr_rot.key_lifecycle_rejection(
+        "key_r10_m", forged2["issued_at"]) is None
+    assert kr_rot.verify_signature_only(forged2) is True
+    reason2 = kr_rot.issue_receipt_rejection(forged2)
+    assert reason2 is not None and "envelope_digest" in reason2 \
+        and "RECEIPT-REUSE-001" in reason2, \
+        f"变异重签必须死在 receipt 摘要腿: {reason2}"
+    before_b = _event_count()
+    before_actions = len(mgr_rot.get_run(run_id).actions)
+    exc = None
+    try:
+        _reserve(mgr_rot, forged2, "https://vcs.example/qisemi-erp/pr/9")
+    except ApprovalRejected as e:
+        exc = e
+    assert exc is not None and "envelope_digest" in str(exc), \
+        f"变异重签全链消费必须拒绝: {exc}"
+    assert _event_count() == before_b  # 零消费事件
+    assert len(mgr_rot.get_run(run_id).actions) == before_actions  # 零预留
+    # 原信封（未动+receipt 绑定齐）→ 轮换后存量消费通过（nonce 未被烧）
+    rec2 = _reserve(mgr_rot, ap2, "https://vcs.example/qisemi-erp/pr/8")
+    assert rec2["action_state"] == "RESERVED"
+
+    # ---- D 对账：payload_digest 等值腿（批了 A 用了 B 的变异消费检出） ----
+    rec_db = os.path.join(tmp, "rec-events.db")
+    conn = sqlite3.connect(rec_db)
+    conn.execute(
+        "CREATE TABLE pipeline_events ("
+        " seq INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " event_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL,"
+        " prev_event_hash TEXT NOT NULL, event_hash TEXT NOT NULL UNIQUE,"
+        " created_at REAL NOT NULL)")
+    for aid, nd, pd in (("apr_r10_rec_ok", "c" * 64, "a" * 64),
+                        ("apr_r10_rec_bad", "d" * 64, "b" * 64)):
+        ev = {"event_type": "APPROVAL_CONSUMED", "approval_id": aid,
+              "approval_type": "merge", "nonce_digest": nd,
+              "payload_digest": pd, "run_id": "run_r10_rec",
+              "ts": "2026-10-14T00:00:00Z"}
+        conn.execute(
+            "INSERT INTO pipeline_events (event_id, payload, prev_event_hash,"
+            " event_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+            (f"ev-{aid}", json.dumps(ev), "0" * 64, f"h-{aid}", 0.0))
+    conn.commit()
+    conn.close()
+    rec_audit = os.path.join(tmp, "rec-audit.jsonl")
+    audit_r = IssuanceAudit(rec_audit)
+    for aid, nd in (("apr_r10_rec_ok", "c" * 64),
+                    ("apr_r10_rec_bad", "d" * 64)):
+        audit_r.append({"record_type": "APPROVAL_ISSUED",
+                        "approval_id": aid, "approval_type": "merge",
+                        "run_id": "run_r10_rec", "nonce_digest": nd,
+                        "payload_digest": "a" * 64,
+                        "expires_at": "2026-10-15T00:00:00Z"})
+    report = reconcile_issuance(rec_audit, rec_db)
+    assert report["ok"] is False
+    assert report["used_ok"] == ["apr_r10_rec_ok"]  # 等值 → 双匹配
+    dm = report["digest_mismatch"]
+    assert len(dm) == 1 and dm[0]["approval_id"] == "apr_r10_rec_bad" \
+        and dm[0].get("leg") == "payload_digest" \
+        and dm[0]["issued_payload_digest"] == "a" * 64 \
+        and dm[0]["consumed_payload_digest"] == "b" * 64, \
+        f"payload 摘要不匹配必须显式报差异: {dm}"
+
+    # ---- E 存量兼容：旧格式 receipt 行默认拒，诊断路径显式放行 ----
+    old_dir = os.path.join(tmp, "oldchain")
+    old_secret = generate_secret()
+    write_key_to_dir(old_dir, "key_r10_old", old_secret,
+                     {"status": "active", "owner": "legacy",
+                      "actors": ["legacy"]})
+    old_kr = ApprovalKeyring.from_path(old_dir)
+    legacy = {
+        "schema_version": "2.0", "approval_id": "apr_r10_legacy",
+        "approval_type": "merge", "key_id": "key_r10_old",
+        "run_id": run_id, "task_id": "task_r10",
+        "stop_event_id": "n/a-merge", "stop_type": "scope",
+        "stage": "S1_REQUIREMENT", "environment": IDENT["environment"],
+        "authorized_scope": IDENT["scope_hash"],
+        "policy_hash": IDENT["policy_hash"],
+        "ruleset_hash": IDENT["ruleset_hash"],
+        "input_watermark": IDENT["commit_sha"],
+        "expected_state_version": mgr.get_run(run_id).state_version,
+        "actor": "legacy", "issued_at": "2026-10-14T00:00:00Z",
+        "expires_at": "2026-10-14T01:00:00Z",
+        "nonce": "nonce-r10-legacy-0001", "decision": "approve",
+        "payload": dict(MERGE_PAYLOAD),
+    }
+    # 旧调用面 append（无 envelope_body）→ 行内无 envelope_digest
+    old_row = old_kr.receipts_ledger().append(
+        key_id="key_r10_old", approval_id="apr_r10_legacy",
+        nonce_digest=_hl.sha256(
+            legacy["nonce"].encode()).hexdigest(),
+        issued_at=legacy["issued_at"])
+    assert "envelope_digest" not in old_row  # 旧格式行（链/HMAC 自洽）
+    assert old_kr.receipts_ledger().verify_chain()["ok"] is True
+    legacy["issue_receipt"] = {"seq": old_row["seq"]}
+    legacy.pop("signature", None)
+    legacy["signature"] = sign_envelope(old_secret, legacy)
+    reason = old_kr.issue_receipt_rejection(legacy)
+    assert reason is not None and "envelope_digest" in reason, \
+        f"旧格式 receipt 行（无摘要）默认必须 fail-closed 拒: {reason}"
+    os.environ[RECEIPT_NO_BINDING_ENV] = "1"
+    try:
+        # 诊断路径只豁免摘要腿：四元等值/链校验/退休盘点执法不变
+        assert old_kr.issue_receipt_rejection(legacy) is None
+    finally:
+        os.environ.pop(RECEIPT_NO_BINDING_ENV, None)
+    # 诊断开关不豁免变异信封的其余执法（摘要腿外的内容变异仍由 HMAC 拒）
+    legacy_tampered = json.loads(json.dumps(legacy))
+    legacy_tampered["payload"]["head_sha"] = "f" * 40
+    legacy_tampered.pop("signature", None)
+    legacy_tampered["signature"] = sign_envelope("wrong-secret-0123456789",
+                                                 legacy_tampered)
+    assert old_kr.verify(legacy_tampered) is False
+
+    assert store.verify_chain()["ok"]
+    store.close()
+
+
+# ====================================================================== #
 # 11. CLI 端到端：keys/approve/消费/对账/来源占位（子进程 bash wenquctl）
 # ====================================================================== #
 CTL = os.path.join(REPO, "bin", "wenquctl")
@@ -1505,6 +1762,7 @@ TESTS = [
     ("R8：principal 登记面（owner/actors）+同 actor 假双人+生命周期过期边界", test_r8_principal_registration_and_issuance_gates),
     ("G9-04：退休key receipt不可回填+actual-target强制绑定+principal强制登记", test_r9_g9_04_receipts_target_principal),
     ("T1：receipt genesis锚fail-closed（冷启动/截断/盘点缺失）+并发分配安全", test_r9_t1_receipt_genesis_failclosed_concurrency),
+    ("R10-F1：receipt绑定信封摘要+消费侧TTL硬顶+对账payload摘要（变异重签/十年延寿/诊断腿）", test_r10_f1_receipt_binding_ttl_reconcile),
     ("审计对账：批了/用了/未用过期/旁路签发/篡改断链", test_audit_reconciliation),
     ("CLI 端到端：keys/approve/消费/重放拒/联签/feishu 占位/对账", test_cli_end_to_end),
     ("FeishuApprovalSource 占位接口（SKIP）", test_feishu_source_placeholder),

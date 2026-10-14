@@ -111,6 +111,20 @@ R9-AUTH-RECEIPT-CONCURRENCY-013（G9 后续 T1 根修，2026-10-10）：receipt
 （genesis 在位/seq 严格递增/链衔接/HMAC 一致），单次 ``os.write`` 落行；
 ``save_key_meta`` 的退休盘点（``retired_receipt_seq``）同样在锁内读取
 ``max_seq``——并发签发下的盘点不再取到撕裂值。
+
+R9-AUTH-RECEIPT-REUSE-001（第九轮 F-1 根修，2026-10-14）：receipt 行
+绑定**信封内容摘要**——``append`` 新增 ``envelope_body`` 入参（签发端传
+「信封去除 signature/cosignatures/issue_receipt 后的体」），锁内 seq
+分配后以 ``issue_receipt={"seq": seq}`` 补全体并落
+``envelope_digest = sha256(canonical_json(体))``（入行且被 receipt_hmac
+与哈希链覆盖）。消费端 ``issue_receipt_rejection`` 在四元等值绑定
+（key_id/approval_id/nonce_digest/issued_at）之后追加速度第五腿：receipt
+行的 ``envelope_digest`` 必须与当前信封实算摘要等值——持旧 secret 者对
+合法信封做 payload/绑定字段/expires_at 变异后保留四元重签的死路关闭
+（变异即断摘要）。旧格式 receipt 行（无 ``envelope_digest``）一律
+fail-closed 拒；存量链排查走显式诊断开关
+``WENQU_NO_RECEIPT_BINDING=1``（只跳过摘要等值腿，其余 receipt 执法
+不变——诊断路径不是正门）。
 """
 
 from __future__ import annotations
@@ -143,9 +157,11 @@ __all__ = [
     "KEYRING_EVENTS_FILENAME",
     "DEV_FIXTURE_EXEMPT_ROOTS",
     "KEYRING_DEV_FIXTURES_ENV",
+    "RECEIPT_NO_BINDING_ENV",
     "generate_secret",
     "sign_envelope",
     "verify_envelope",
+    "envelope_content_digest",
     "ensure_keyring_dir",
     "write_key_to_dir",
     "save_key_meta",
@@ -220,10 +236,12 @@ class KeyringPermissionError(ValueError):
 # ——受控 issuer 侧追加、消费侧（broker→keyring）重放校验的单一正源。
 # ====================================================================== #
 
-#: receipt 行键集封闭（additionalProperties 语义）
+#: receipt 行键集封闭（additionalProperties 语义）。``envelope_digest``
+#: 为 R9-AUTH-RECEIPT-REUSE-001 新增（旧格式行无该键——消费端对缺键行
+#: fail-closed 拒，诊断开关见 ``RECEIPT_NO_BINDING_ENV``）。
 _ISSUE_RECEIPT_FIELDS = frozenset({
     "record_type", "key_id", "seq", "approval_id", "nonce_digest",
-    "issued_at", "ts", "chain_prev", "receipt_hmac",
+    "issued_at", "ts", "chain_prev", "receipt_hmac", "envelope_digest",
 })
 
 #: genesis 锚行键集封闭（R9-AUTH-RECEIPT-COLDSTART-001）
@@ -234,6 +252,17 @@ _RECEIPT_GENESIS_FIELDS = frozenset({
 
 #: 链起点零值（genesis.chain_prev——genesis 之前无行）
 _ZERO_PREV = "0" * 64
+
+#: R9-AUTH-RECEIPT-REUSE-001 诊断开关：``=1`` 显式跳过 receipt 的信封
+#: 内容摘要（envelope_digest）等值校验——仅供存量旧格式 receipt 链的
+#: 排查/迁移诊断（缺省严格执行：旧格式行无 envelope_digest 一律
+#: fail-closed 拒）。诊断路径只跳过摘要腿，receipt 链校验/四元等值/
+#: 退休盘点执法不变；不是消费正门。
+RECEIPT_NO_BINDING_ENV = "WENQU_NO_RECEIPT_BINDING"
+
+
+def _no_receipt_binding_mode() -> bool:
+    return os.environ.get(RECEIPT_NO_BINDING_ENV, "").strip() == "1"
 
 
 class IssueReceiptLedger:
@@ -480,7 +509,9 @@ class IssueReceiptLedger:
 
     # ------------------------------------------------------------------ #
     def append(self, *, key_id: str, approval_id: str, nonce_digest: str,
-               issued_at: str) -> Dict[str, Any]:
+               issued_at: str,
+               envelope_body: Optional[Mapping[str, Any]] = None
+               ) -> Dict[str, Any]:
         """追加一条签发 receipt（flock 临界区：genesis 保障→全链验证→
         seq=max+1 唯一分配→单次 write；0600）。
 
@@ -488,6 +519,14 @@ class IssueReceiptLedger:
         ``fcntl.flock`` 排他锁——并发 issuer 串行进入临界区，seq 唯一且
         链无分叉；锁内全链 prev 验证保证绝不向破损/截断（无 genesis）的
         账本续签（fail-closed）。
+
+        R9-AUTH-RECEIPT-REUSE-001：``envelope_body``（签发端传「信封去除
+        signature/cosignatures/issue_receipt 后的体」）在锁内 seq 分配后
+        以 ``issue_receipt={"seq": seq}`` 补全体并计算
+        ``envelope_digest = sha256(canonical_json(体))`` 入行——被
+        receipt_hmac 与哈希链双重覆盖，消费端据以等值执法（变异信封对
+        合法 receipt 重签死路）。省略 ``envelope_body``（旧调用面）时行为
+        与旧版逐字节一致（行内无 envelope_digest——消费端 fail-closed）。
         """
         record: Dict[str, Any] = {
             "record_type": "ISSUE_RECEIPT",
@@ -523,6 +562,14 @@ class IssueReceiptLedger:
                     f"（R9-AUTH-RECEIPT-CONCURRENCY-013 fail-closed）")
             record["seq"] = seq
             record["chain_prev"] = chain_prev
+            if envelope_body is not None:
+                # R9-AUTH-RECEIPT-REUSE-001：摘要体=信封体（去 signature/
+                # cosignatures）+ 本次 seq 的 issue_receipt 锚——与签发端
+                # 最终签名体逐字段一致（sign_envelope 同一排除面）。
+                digest_body = dict(envelope_body)
+                digest_body["issue_receipt"] = {"seq": seq}
+                record["envelope_digest"] = envelope_content_digest(
+                    digest_body)
             record["receipt_hmac"] = self._receipt_hmac(record)
             data = prefix + (self._canonical(record) + "\n").encode("utf-8")
             os.lseek(fd, 0, os.SEEK_END)
@@ -705,6 +752,21 @@ def verify_envelope(secret: str, envelope: Mapping[str, Any],
     except (TypeError, ValueError):
         return False
     return hmac.compare_digest(expected, signature)
+
+
+def envelope_content_digest(envelope: Mapping[str, Any]) -> str:
+    """信封内容摘要（R9-AUTH-RECEIPT-REUSE-001）：sha256(canonical_json(
+    信封去除 ``signature``/``cosignatures`` 后的内容))。
+
+    与 ``sign_envelope`` 的签名体同一排除面（主签/联签不改变摘要），
+    ``issue_receipt`` **参与**摘要——receipt 行绑定的就是「签发时刻
+    信封体（含自身 seq 锚）」的完整内容指纹。持旧 secret 者保留
+    (key_id, approval_id, nonce, issued_at, issue_receipt) 四元半而变异
+    payload/绑定字段/expires_at 后重签，摘要即断——消费端据此等值执法。
+    """
+    body = {k: v for k, v in dict(envelope).items()
+            if k not in ("signature", "cosignatures")}
+    return hashlib.sha256(_canonical_json(body).encode("utf-8")).hexdigest()
 
 
 class ApprovalKeyring:
@@ -1067,6 +1129,12 @@ class ApprovalKeyring:
         盘点，一律 fail-closed 拒绝；不再存在「regime 未激活」放行分支
         （旧洞：删账本后旧 key 新签+回填 issued_at 旁路通过）。
         文件型/内存 keyring（无受控审计根）仍返回 None（不受管，不适用）。
+
+        R9-AUTH-RECEIPT-REUSE-001（第九轮 F-1 根修）：第 5 腿——receipt
+        行的 ``envelope_digest`` 必须与当前信封实算内容摘要等值（变异
+        payload/绑定字段/expires_at 后保留四元重签的死路）；旧格式行
+        （无 envelope_digest）同样 fail-closed 拒。存量链排查走显式诊断
+        开关 ``WENQU_NO_RECEIPT_BINDING=1``（只跳过本腿；其余执法不变）。
         """
         if self._receipts_path is None:
             return None
@@ -1131,6 +1199,20 @@ class ApprovalKeyring:
                     "retired_receipt_seq 退休盘点——regime 激活下的轮换/吊销"
                     "必须落盘点（缺失=元数据被篡改或账本被抹，fail-closed，"
                     "R9-AUTH-RECEIPT-COLDSTART-001）")
+        # R9-AUTH-RECEIPT-REUSE-001（第 5 腿）：receipt 行绑定信封内容摘要
+        # ——与当前信封实算等值。旧格式行（无 envelope_digest）与任何内容
+        # 变异（payload/run 绑定/expires_at——保留四元重签）在此一并死路；
+        # 显式诊断开关只豁免本腿（存量链排查），不豁免其余执法。
+        line_digest = line.get("envelope_digest")
+        actual_digest = envelope_content_digest(approval)
+        if line_digest != actual_digest and not _no_receipt_binding_mode():
+            return (
+                f"receipt 未绑定本信封内容（envelope_digest: receipt="
+                f"{line_digest!r} != 信封实算 {actual_digest!r}）——receipt "
+                "只锚定签发时刻的原信封，变异/挪用信封对合法 receipt 重签"
+                "一律 fail-closed（R9-AUTH-RECEIPT-REUSE-001；存量旧格式"
+                "receipt 行无 envelope_digest 同样拒，排查走诊断开关 "
+                f"{RECEIPT_NO_BINDING_ENV}=1）")
         return None
 
     def _record_principal_rejection(self, key_id: str,
