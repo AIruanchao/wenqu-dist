@@ -1,0 +1,16 @@
+  [PASS] P6-pos1 put_bytes 生产位持久化（对象文件落盘）+回读一致 
+  [PASS] P6-pos2 同内容幂等重发（digest 不变） 
+  [PASS] P6-N1 毒对象（同 digest 异内容）重发布 →IntegrityError :: IntegrityError: corrupted CAS object at 9fea2fae4192c404d5a8e2b98e1bceb68b7b2da1acd85dcc1026c0b5
+  [PASS] P6-N1b 毒对象不被自愈覆盖（原字节不动） 
+  [PASS] P6-N1c 还原后可用 
+  [PASS] P6-N2 磁盘对象篡改 →contains()=False（全量重验） 
+  [PASS] P6-N2b 篡改对象 get_bytes →IntegrityError :: IntegrityError: corrupted CAS object at 9fea2fae4192c404d5a8e2b98e1bceb68b7b2da1acd85dcc1026c0b5
+  [PASS] P6-N3 对象替换为 symlink →get_bytes IntegrityError :: IntegrityError: symlink planted at content path 4f7de66bf40725365ff19d15d28507eb334bd6dc233200d2
+  [PASS] P6-pos4 逻辑绑定同 digest 幂等 
+  [PASS] P6-N5 异 digest 重绑定 →BindingError :: BindingError: logical key 'job/auth9/x' is already bound to content 140deeafa795a7e7f261c182b0
+  [PASS] P6-N6 evidence_required=True 无 CAS →拒绝构造 :: SchedulerError: evidence_required=True demands an EvidenceStore: production JobRunner 
+  [PASS] P6-pos3 真实 CAS：artifacts 带 cas_digest receipt + scanned=1 
+  [PASS] P6-N4 回读不一致 →无 receipt、scanned 降级 0、verdict 不上绿 
+  [PASS] P6-N5 CAS 写失败 →无 receipt、scanned 降级 0 
+
+P6a SUMMARY: total=14 pass=14 fail=0

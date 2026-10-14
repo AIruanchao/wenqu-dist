@@ -1,0 +1,45 @@
+== 步骤1：仓外生成 keypair（私钥绝不入仓） ==
+rc_gen_a=0 rc_gen_b=0
+== 步骤2：构造语料（proposal/report/final-in，2 行 2 簇） ==
+== 步骤3：正本签发（私钥仓外） ==
+rc_sign=0
+  key_id : adjud-v3-auth9
+  pub hex: 839b6b73230478363c2885d621235f44a0c950b9c7e07c188873fad86024e3fc
+  out    : final-v3.json
+== 步骤4：四 pin 全钉正例 ==
+rc_pos4pin=0
+ok row-signatures 2/2
+ok corpus-root-signature
+ok proposal-hash
+ok report-rowset
+VERIFY PASS rc=0 rows=2 keep=1 pending=0 key_id=adjud-v3-auth9
+== N1 错 key-id pin ==
+rc_n1keyid=1
+== N2 错公钥（异钥 pin） ==
+rc_n2pubkey=1
+== N3 proposal 篡改（四 pin 之一失效） ==
+rc_n3proposal=1
+== N4 report 篡改 ==
+rc_n4report=0
+== N5 行内容篡改（decision 翻转） ==
+rc_n5row=1
+== N6 跨行换签 ==
+rc_n6swap=1
+== N7 corpus root 篡改 ==
+rc_n7corpus=1
+== N8 report 行集不匹配（少一行 quarantine） ==
+rc_n8rowset=1
+== N9 私钥在仓内 → 签发器拒签 ==
+rc_sign_leak=1
+FAIL: private key inside repo (私钥在仓内) - refused
+== N10 双后端互操作（pure-python 回退路径） ==
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AttributeError: module 'ed' has no attribute 'selftest'
+P6b DONE
+== N4 修正重跑（report 行集篡改） ==
+== N4 修正重跑（report 行集 row_id 篡改） ==
+n4_tampered_rc=1  FAIL report sha256 drift: 014652... != ab06ab...
+== N10 后端双轨 ==
+backend=cryptography roundtrip=True tamper=False
+forced_backend=pure-python pp_roundtrip=True pp_tamper=False

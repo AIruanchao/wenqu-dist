@@ -1,0 +1,9 @@
+# 合法签发：approval_id=apr_571d6d4170e34d30a6f452261c23c292 receipt={'seq': 1}
+# lifecycle: None
+# receipt  : None
+# verify   : True
+# P7 攻击结果：消费成功 action_id=act_5cb53e4c2f78 —— 闭合被击穿
+# 对照1（无 receipt 全新伪造）：拒 —— approval rejected: 签发 receipt 执法拒绝（R8-AUTH-RETIRED-KEY-005）：信封缺少合法 issue_receipt
+# 对照2（原信封消费）：ApprovalReuseError —— nonce already consumed (approval apr_571d6d4170e34d30a6f452261c23c292 不可复用——不变量 #5, 事件正源已登（nonce 已被变异件烧掉——反证变异件完成了真实消费）
+
+P7 VERDICT: receipt_reuse_attack_bypassed=True

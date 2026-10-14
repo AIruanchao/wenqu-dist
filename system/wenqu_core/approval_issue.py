@@ -38,7 +38,8 @@ NotImplemented 占位），后续接线时替换实现、签发语义不变。
 4. 对账（``reconcile_issuance``）：签发审计（批了）× EventStore
    APPROVAL_CONSUMED 事件（用了）双向核对——批了未用（在期/已过期）、
    用了没批（无签发记录的消费=旁路签发或账本损坏）、nonce 指纹不匹配、
-   审计链断裂，全部显式分类报告。
+   payload 摘要不匹配（R9-AUTH-RECEIPT-REUSE-001：批了 A 用了 B 的变异
+   消费检出腿）、审计链断裂，全部显式分类报告。
 
 纯标准库实现；不触碰 wenqu_pipeline.py（消费端零改动）。
 """
@@ -647,7 +648,15 @@ class ApprovalIssuer:
                 approval_id=envelope["approval_id"],
                 nonce_digest=hashlib.sha256(
                     nonce.encode("utf-8")).hexdigest(),
-                issued_at=issued_at)
+                issued_at=issued_at,
+                # R9-AUTH-RECEIPT-REUSE-001：receipt 行绑定信封内容摘要——
+                # 传「信封去除 signature/cosignatures/issue_receipt 后的体」
+                # （此刻三键均不在信封上，过滤为防御性不变式），append 锁内
+                # 以本次 seq 补全 issue_receipt 后计算 envelope_digest，
+                # 与随后签名体逐字段一致（sign_envelope 同一排除面）。
+                envelope_body={k: v for k, v in envelope.items()
+                               if k not in ("signature", "cosignatures",
+                                            "issue_receipt")})
             envelope["issue_receipt"] = {"seq": receipt["seq"]}
         envelope["signature"] = sign_envelope(secret, envelope)
 
@@ -761,6 +770,9 @@ def _load_consumed_from_eventstore(
                 "approval_id": payload.get("approval_id"),
                 "approval_type": payload.get("approval_type"),
                 "nonce_digest": payload.get("nonce_digest"),
+                # R9-AUTH-RECEIPT-REUSE-001：消费事件携带的 payload 摘要
+                # （与签发审计 payload_digest 对账——变异消费的检出腿）。
+                "payload_digest": payload.get("payload_digest"),
                 "run_id": payload.get("run_id"),
                 "ts": payload.get("ts"),
             })
@@ -774,11 +786,15 @@ def reconcile_issuance(audit_path: str, db_path: str, *,
 
     分类：
     - ``used_ok``                     签发记录 × 消费事件 双匹配
-                                       （approval_id + nonce 摘要均一致）；
+                                       （approval_id + nonce 摘要 + payload
+                                       摘要均一致——R9-AUTH-RECEIPT-REUSE-001
+                                       起 payload_digest 同入对账）；
     - ``consumed_without_issuance``   消费事件无对应签发记录（旁路签发/
                                        审计账本损坏——审计链同查）；
-    - ``digest_mismatch``             approval_id 匹配但 nonce 摘要不一致
-                                       （重造信封/账本被改）；
+    - ``digest_mismatch``             approval_id 匹配但摘要不一致：nonce
+                                       摘要腿（重造信封/账本被改）或
+                                       payload 摘要腿（``leg="payload_digest"``
+                                       ——批了 A 用了 B 的变异消费检出）；
     - ``issued_unused_active``        批了未用，TTL 内（在期未消费）；
     - ``issued_unused_expired``       批了未用，已过期（未用过期）；
     - ``duplicate_approval_ids``      同一 approval_id 签发多次（签发端异常）；
@@ -819,6 +835,16 @@ def reconcile_issuance(audit_path: str, db_path: str, *,
                 {"approval_id": approval_id,
                  "issued_nonce_digest": rec.get("nonce_digest"),
                  "consumed_nonce_digest": c.get("nonce_digest")})
+        elif rec.get("payload_digest") != c.get("payload_digest"):
+            # R9-AUTH-RECEIPT-REUSE-001：payload 摘要腿——nonce 指纹一致而
+            # 批准内容与消费内容不一致（变异信封消费/两侧账本单边被改）。
+            # 单边缺 payload_digest（两侧不对称）同样判差异（fail-closed）；
+            # 双侧均缺（远古存量对）维持 used_ok 不回退既有对账语义。
+            digest_mismatch.append(
+                {"approval_id": approval_id,
+                 "leg": "payload_digest",
+                 "issued_payload_digest": rec.get("payload_digest"),
+                 "consumed_payload_digest": c.get("payload_digest")})
         else:
             used_ok.append(approval_id)
 

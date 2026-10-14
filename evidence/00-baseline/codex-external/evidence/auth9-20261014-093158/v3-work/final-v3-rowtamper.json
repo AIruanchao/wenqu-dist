@@ -1,0 +1,71 @@
+{
+ "artifact": "quarantine-adjudication-final-v3",
+ "schema": "adjudication-final-v3",
+ "contract_version": "adjudication-final-v3",
+ "algorithm": "Ed25519",
+ "namespace": "wenqu-dist.migration-reconcile.adjudication",
+ "canonicalization": "lp-utf8-v1;fields=row_id,row_digest,cluster_id,decision,reason,principal,reviewed_at,proposal_sha256,report_sha256,contract_version,key_id,namespace",
+ "key_id": "adjud-v3-auth9",
+ "run_id": "auth9-run-1",
+ "environment": "staging",
+ "source_sha": "b88309e0000000000000000000000000000000000",
+ "generated_at": "2026-10-14T01:52:55.474958+00:00",
+ "inputs": {
+  "proposal_sha256": "7aef64a1ccb155db6080a26f669bec1ec492649f0dbb620cd6d5db31e4245e6e",
+  "report_sha256": "ab06ab5096c8f08075616faa673edc04d832d1a147e3813296f6bd8e12535ec3",
+  "report_git_head": "b88309e0000000000000000000000000000000000"
+ },
+ "authority": "ninth-round-probe",
+ "principal": "probe-principal",
+ "production_write": "none",
+ "clusters": [
+  {
+   "cluster_id": "c-auth9-keep",
+   "decision": "RECLASSIFY",
+   "row_count": 1
+  },
+  {
+   "cluster_id": "c-auth9-reclass",
+   "decision": "RECLASSIFY",
+   "row_count": 1
+  }
+ ],
+ "conservation": {
+  "total": 2,
+  "KEEP_QUARANTINE": 1,
+  "RECLASSIFY": 1,
+  "PENDING": 0,
+  "contract": "adjudication-final-v3",
+  "rows_with_signature": 2
+ },
+ "rows": [
+  {
+   "row_id": "aaaa111111111111111111111111111111111111111111111111111111111111",
+   "row_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+   "cluster_id": "c-auth9-keep",
+   "decision": "RECLASSIFY",
+   "reason": "probe keep",
+   "principal": "auditor-a",
+   "reviewed_at": "2026-10-14T00:00:00Z",
+   "signature": "S1oZsttouEZiaRh/Jv+pWyttSvAlNEDvXxv7DibftEoofdn2pEFhc2khVB/UvvG4yHfeyl5Mj23QiQ1RF2iIDg=="
+  },
+  {
+   "row_id": "bbbb222222222222222222222222222222222222222222222222222222222222",
+   "row_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+   "cluster_id": "c-auth9-reclass",
+   "decision": "RECLASSIFY",
+   "reason": "probe reclass",
+   "principal": "auditor-b",
+   "reviewed_at": "2026-10-14T00:00:00Z",
+   "signature": "L98bt66SXtVYG3fE0dOGbrgv9LGAxRTmfUwFIR3gbGy97ovj+ZFvO9x0X0n1DMwD8FWjSr8NTmxr40EuEy1wDA=="
+  }
+ ],
+ "corpus": {
+  "row_count": 2,
+  "decision_counts": {
+   "KEEP_QUARANTINE": 1,
+   "RECLASSIFY": 1
+  },
+  "corpus_root_signature": "YfCAL51GEAu0knXeAYrXB4lZYOJd+f6tyWFn/kB/f/7nK83EWVTvEFPusln5ytTlo3LPTeaaDRFjZSZXAg0/Ag=="
+ }
+}

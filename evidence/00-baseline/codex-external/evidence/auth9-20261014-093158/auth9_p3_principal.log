@@ -1,0 +1,11 @@
+  [PASS] P3-pos1 非 owner 成员 bob∈actors 单签验签放行 
+  [PASS] P3-pos2 未登记 actors 的 key（opt-in 边界）放行（登记面未强制） 
+  [PASS] P3-N1 大小写变体 Alice（HMAC 重算真）→拒 
+  [PASS] P3-N2 尾随空格 actor →拒（精确 membership） 
+  [PASS] P3-N3 冒用 mallory（HMAC 真）→拒+账本落 PRINCIPAL 拒绝 
+  [PASS] P3-N4 篡改 actor 不重签 →验签失败拒（crypto 先于 membership） 
+    (N5 broker) approval rejected: signer principal 绑定拒绝（R8-SIGNER-PRINCIPAL-004）：envelope.actor 'carol' 不在 key 'key_p3_ab' 的 
+  [PASS] P3-N5 broker 消费路径冒用 actor →principal 拒 
+  [PASS] P3-N6 签发端预检 actor∉actors →IssuanceError 
+
+P3 SUMMARY: total=8 pass=8 fail=0

@@ -1,0 +1,17 @@
+# retired_receipt_seq after rotation: 1
+  [PASS] P1-pos1 轮换前签发存量验签放行 (expect=accept) 
+  [PASS] P1-pos2 受管 keyring 上带 receipt 的存量通过 receipt 门 (expect=accept) 
+  [PASS] P1-N1a 时区伪装：字典序早但 epoch 晚于轮换（裸 keyring）→拒 (expect=reject) returned False
+  [PASS] P1-N1b 时区伪装走 broker 消费路径（lifecycle 先于 receipt）→拒 (expect=reject) returned False
+  [PASS] P1-N2 小数秒晚于轮换点 →拒（epoch 解析不受小数干扰） (expect=reject) returned False
+  [PASS] P1-B1 issued_at==rotated_at 闭区间存量 →放行 (expect=accept) 
+  [PASS] P1-B2 issued_at==created_at 边界 →放行 (expect=accept) 
+  [PASS] P1-B3 +09:00 表示的轮换前存量（epoch 早于轮换）→放行 (expect=accept) 
+  [PASS] P1-N3 created_at 前 1 秒时间穿越 →拒 (expect=reject) returned False
+  [PASS] P1-N4 expiry 后签发（HMAC 真）→拒 (expect=reject) returned False
+  [PASS] P1-N4b expiry 前签发 →放行 (expect=accept) 
+  [PASS] P1-N5 删除 issue-receipts.jsonl 后存量消费 →拒（fail-closed） (expect=reject) returned False
+  [PASS] P1-N6 退休 key 抹掉 retired_receipt_seq →拒 (expect=reject) returned False
+  [PASS] P1-N7 退休后手签无 receipt（裸 secret 回填）→拒 (expect=reject) returned False
+
+P1 SUMMARY: total=14 pass=14 fail=0

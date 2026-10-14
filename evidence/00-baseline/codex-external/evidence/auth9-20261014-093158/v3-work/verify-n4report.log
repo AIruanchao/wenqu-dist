@@ -1,0 +1,5 @@
+ok row-signatures 2/2
+ok corpus-root-signature
+ok proposal-hash
+ok report-rowset
+VERIFY PASS rc=0 rows=2 keep=1 pending=0 key_id=adjud-v3-auth9

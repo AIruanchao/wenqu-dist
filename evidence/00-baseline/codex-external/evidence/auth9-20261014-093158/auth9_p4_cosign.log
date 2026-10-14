@@ -1,0 +1,13 @@
+  [PASS] P4-pos1-标准双联签 :: RESERVED + 1 APPROVAL_CONSUMED
+  [PASS] P4-N1-跨行换签 :: rejected(0-consumed): approval rejected: 联签验签失败（cosignatures[0] key_id=key_p4_one）——revoked key / 伪联签一律拒绝
+  [PASS] P4-N2-同key双签 :: rejected(0-consumed): approval rejected: cosignatures[1] 与此前条目同 key（'key_p4_one'）——同 key 双签不是联签（真双人，R7-AUTH-DUAL-CONSUME-0
+  [PASS] P4-N3-同actor两key :: rejected(0-consumed): approval rejected: cosignatures[1] 与此前条目同 actor（'alice'）——联签两条目的 actor 必须不同（同一 actor 不能用两把 key 凑联签，R
+  [PASS] P4-N4-第二key无登记面 :: rejected(0-consumed): approval rejected: 联签 key 'key_p4_two' 无 owner/actors principal 登记面——参与联签的每把 key 都必须登记 principal（G9-
+  [PASS] P4-N5-退休key联签 :: rejected(0-consumed): approval rejected: 联签 key 生命周期执法拒绝（R8-KEY-LIFECYCLE-001）：envelope issued_at 2026-10-14T01:40:31Z 晚于 
+  [PASS] P4-N6-三条目重复key :: rejected(0-consumed): approval rejected: cosignatures[2] 与此前条目同 key（'key_p4_one'）——同 key 双签不是联签（真双人，R7-AUTH-DUAL-CONSUME-0
+  [PASS] P4-N7-无联签高危消费 :: rejected(0-consumed): approval rejected: 高危类型 'prod_write' 必须携带 ≥2 名不同 key 的 cosignatures 联签（R7-AUTH-DUAL-CONSUME-005：缺失/单
+  [PASS] P4-N8-主签actor冒用 :: rejected(0-consumed): approval rejected: signer principal 绑定拒绝（R8-SIGNER-PRINCIPAL-004）：envelope.actor 'mallory' 不在 key 'k
+  [PASS] P4-N9-broker直连无联签 :: rejected(0-consumed): approval rejected: 高危类型 'prod_write' 必须携带 ≥2 名不同 key 的 cosignatures 联签（R7-AUTH-DUAL-CONSUM
+  [PASS] P4-N10-主key重复计入联签 :: rejected(0-consumed): approval rejected: cosignatures[1] 与此前条目同 key（'key_p4_one'）——同 key 双签不是联签（真双人，R7-AUTH-DUAL-CONSUME-0
+
+P4 SUMMARY: total=11 pass=11 fail=0

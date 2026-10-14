@@ -1,0 +1,4 @@
+OK signed 2 rows + corpus root (backend=cryptography)
+  key_id : adjud-v3-auth9
+  pub hex: 25c95702ce66193d13f7463b7f55e4addbb8587e56119976b9d24a787338333c
+  out    : final-v3.json
