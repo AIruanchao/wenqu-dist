@@ -75,6 +75,9 @@
 #   fsync 后原子推进（tmp+fsync+rename+dir fsync）；FAIL/BLOCKED 绝不触碰。
 #   进程锁：$WENQU_ROOT/state/backup-drill.lock（fd 级 flock，进程生存期）
 #   ——scheduler 作业与手工演练共用，重叠即 rc1 fail-closed。
+#   W12-06：tar 文本清单腿（3c/1b 清单回读）统一在探测到的 UTF-8 locale 下
+#   渲染——调度进程无 LANG/LC_ALL（C locale）时 bsdtar 把非 ASCII 文件名
+#   转义为 \NNN，清单对账必失配=rc1（2026-10-13/14 生产根因）。
 #   退出码：0=PASS；1=归档/恢复/完整性/并发重叠失败；3=权限/容量/目标不可用。
 #
 # 故障注入模式（--fault，R7-BAK-01 三腿补齐；演练在故障下必须 FAIL 且
@@ -156,6 +159,34 @@ REPORT_DIR="${REPORT_DIR:-$WENQU_ROOT/observation/drills}"
 # Sfinal 树字节的一部分（manifest 不含），会让归档对账出现 extra。全局关闭
 #（含假 tar 子进程与解包侧；GNU tar 忽略此变量，跨平台无副作用）。
 export COPYFILE_DISABLE=1
+# ---- W12-06 根修：tar 文本清单腿的 locale 绑定 ---------------------------
+# 根因（R11 硬阻断⑧，2026-10-13/14 生产两日调度 rc1）：libarchive/bsdtar 的
+# -tzf 清单输出是 locale 依赖的——非 UTF-8 locale（launchd 调度进程不设
+# LANG/LC_ALL，TrustedRunner 白名单透传后子进程即 C locale）下，非 ASCII
+# 文件名被渲染为 \NNN 八进制转义，与 manifest 路径集永不匹配 → 「清单回读
+# 未覆盖全部成员」rc1 FAIL。归档本体无损（python tarfile 独立解包对账全绿），
+# 纯文本渲染失配。根修=凡以 tar 文本清单作对账的腿，统一在探测到的 UTF-8
+# locale 下执行（仅作用于该次 tar 调用，不全局 export——不影响其余腿的
+# 排序/python 子进程语义）；探测不到任何 UTF-8 locale 时保持原样并在失配处
+# 如实 FAIL（fail-closed 不降级）。
+WQ_TAR_LOCALE=""
+if [ "$(locale charmap 2>/dev/null || true)" != "UTF-8" ]; then
+  for _wq_loc in C.UTF-8 en_US.UTF-8 en_US.utf8 \
+      $(locale -a 2>/dev/null | grep -iE '\.utf-?8$' | head -3 || true); do
+    [ -n "$_wq_loc" ] || continue
+    if [ "$(LC_ALL="$_wq_loc" locale charmap 2>/dev/null || true)" = "UTF-8" ]; then
+      WQ_TAR_LOCALE="$_wq_loc"
+      break
+    fi
+  done
+fi
+_tar_list() {  # $@=tar 参数——文本清单统一 UTF-8 locale 渲染（W12-06）
+  if [ -n "$WQ_TAR_LOCALE" ]; then
+    LC_ALL="$WQ_TAR_LOCALE" "$TAR_BIN" "$@"
+  else
+    "$TAR_BIN" "$@"
+  fi
+}
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 # 同秒并发防覆写：工件名已存在则在 Z 后紧贴追加零填充序号
 # （drill-<stamp>02.json），绝不覆盖既有演练证据。
@@ -613,8 +644,10 @@ ARCHIVE_JSON=$(cat <<EOF
 EOF
 )
 ev extract_reconcile - true "\"files\": $N_FILES, \"extract_sha256\": \"$EXTRACT_SHA\""
-# 3c 清单回读（最后道闸：tar -tzf 输出必须覆盖全部 manifest 成员）
-"$TAR_BIN" -tzf "$ARCHIVE" > "$WORK/archive.list" 2>/dev/null \
+# 3c 清单回读（最后道闸：tar -tzf 输出必须覆盖全部 manifest 成员；
+# W12-06：文本清单统一经 _tar_list 在 UTF-8 locale 下渲染——非 ASCII
+# 文件名在 C locale 下被 bsdtar 转义为 \NNN，清单对账必失配=调度路径 rc1）
+_tar_list -tzf "$ARCHIVE" > "$WORK/archive.list" 2>/dev/null \
   || fail "release archive listing tar -tzf failed (rc=$?)"
 LISTING_OK="$(python3 - "$MANIFEST_PATH" "$WORK/archive.list" <<'PYLIST'
 import json, sys
@@ -1031,7 +1064,7 @@ fi
 ARCHIVE="$WORK/backup.tar.gz"
 "$TAR_BIN" -czf "$ARCHIVE" -C "$BACKUP" "${CORPUS_REL[@]}" \
   || fail "archive tar leg failed under fault=$FAULT (rc=$?)"
-"$TAR_BIN" -tzf "$ARCHIVE" > "$WORK/archive.list" 2>/dev/null \
+_tar_list -tzf "$ARCHIVE" > "$WORK/archive.list" 2>/dev/null \
   || fail "archive listing tar -tzf failed under fault=$FAULT (rc=$?)"
 ARCHIVE_LIST_OK=1
 for rel in "${CORPUS_REL[@]}"; do

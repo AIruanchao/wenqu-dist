@@ -16,13 +16,15 @@
 3. 恢复演练对账（BAK 面）：真实跑 system/sentinels/backup-restore-drill.sh
    （临时 wenqu root 语料）→ 退出码 0 + 报告 JSON 四步齐 + 篡改实测生效
    + 恢复后逐文件字节级全等。
-4. Sfinal 字节备份恢复（W11-13 面）：release/release-dr 模式对
+4. Sfinal 字节备份恢复（W11-13 面 + W12-06 调度 locale 回归锁）：
+   release/release-dr 模式对
    git archive <commit>（Sfinal 干净树字节）做快照→归档→独立解包→
    篡改→全空隔离根恢复→missing/extra/hash/mode/类型 + release verifier
    （wenqu_core.release_drift.audit_tree）双对账；报告绑定
    run_id/commit/deployment epoch/manifest/tree root/身份 SHA；
    仅完整 PASS+fsync 后原子推进 last-success.json；伪 tar/截断/mode/
-   extra/并发/容量不足全红。
+   extra/并发/容量不足全红；W12-06 另锁「无 LANG/LC_ALL 调度环境 +
+   非 ASCII 文件名」直接腿与调度腿 rc0（bsdtar 清单 locale 转义根因）。
 5. 唯一 backup 作业（W11-13 面）：现有 scheduler 内恰一个 enabled
    w4.backup-restore-drill；不新增 launchd/cron 入口；DB/launchd/
    cron/argv 四面审计红绿；作业经调度真实跑通。
@@ -412,8 +414,12 @@ def _req(cond, msg, detail=""):
         raise AssertionError(f"{msg}: {detail}")
 
 
-def _fixture_repo(td):
-    """小体量 Sfinal 模拟仓：嵌套目录/0755 可执行/symlink/二进制字节。"""
+def _fixture_repo(td, cjk_names=False):
+    """小体量 Sfinal 模拟仓：嵌套目录/0755 可执行/symlink/二进制字节。
+
+    cjk_names=True（W12-06）：另加非 ASCII 文件名成员（中文名常规文件 +
+    中文名 symlink）——真实 Sfinal 树含 26+ 个中文证据/文档文件名，
+    tar -tzf 文本清单腿的 locale 渲染只有此类语料才能压住（回归锁）。"""
     repo = os.path.join(td, "fixture-repo")
     os.makedirs(os.path.join(repo, "tools", "deep"))
     os.makedirs(os.path.join(repo, "docs"))
@@ -430,6 +436,15 @@ def _fixture_repo(td):
     _w("docs/more.txt", b"second doc payload\n" * 5)
     os.symlink("README.md", os.path.join(repo, "link-to-readme"))
     os.symlink("docs", os.path.join(repo, "link-to-dir"))  # symlink→目录
+    if cjk_names:
+        os.makedirs(os.path.join(repo, "evidence", "00"), exist_ok=True)
+        _w("docs/条件放行说明-fixture.md",
+           "非 ASCII 文件名语料（W12-06 调度 locale 根因回归锁）\n"
+           .encode("utf-8") * 4)
+        _w("evidence/00/验收报告-第N轮-fixture.md",
+           "中文证据文件名语料\n".encode("utf-8") * 4)
+        os.symlink("docs/条件放行说明-fixture.md",
+                   os.path.join(repo, "链接-to-docs"))
     env = dict(os.environ)
     env.setdefault("GIT_AUTHOR_NAME", "w11-13-drill")
     env.setdefault("GIT_AUTHOR_EMAIL", "drill@wenqu.local")
@@ -507,8 +522,10 @@ exit 1
     return d
 
 
-def _run_drill(args, *, path_prepend=None, timeout=180):
+def _run_drill(args, *, path_prepend=None, timeout=180, drop_env=()):
     env = dict(os.environ)
+    for k in drop_env:                 # W12-06：剥离 locale 仿真 launchd 调度环境
+        env.pop(k, None)
     if path_prepend:
         env["PATH"] = f"{path_prepend}{os.pathsep}{os.environ['PATH']}"
     return subprocess.run(["bash", DRILL_SH] + args,
@@ -743,6 +760,112 @@ def test_backup_restore_drill_release_concurrency_and_capacity():
                  p2.stdout + p2.stderr)
         finally:
             os.chmod(rdir, 0o755)
+
+
+# ---- W12-06（R11 硬阻断⑧）：调度环境 locale 根因回归锁 -------------------
+# 根因：launchd 调度进程不设 LANG/LC_ALL（plist 模板与实装机均无），
+# TrustedRunner 白名单透传后 drill 子进程即 C locale——bsdtar 的
+# tar -tzf 文本清单在 C locale 下把非 ASCII 文件名渲染为 \NNN 八进制转义，
+# 与 manifest 路径集永不匹配 → 「清单回读未覆盖全部成员」rc1（2026-10-13/14
+# 生产两日调度红；同 commit 同 manifest 的手工 UTF-8 终端跑 PASS——差异
+# 仅在进程 locale）。根修=drill 脚本对 tar 文本清单腿统一探测并以 UTF-8
+# locale 渲染（backup-restore-drill.sh WQ_TAR_LOCALE/_tar_list）。本测试
+# 双腿锁根因：直接腿 + 调度腿，语料必须含非 ASCII 文件名成员。
+def test_backup_drill_cjk_names_launchd_locale_env():
+    """W12-06 直接腿：无 LANG/LC_ALL 环境 + 非 ASCII 文件名 → 全链 rc0 PASS。"""
+    with tempfile.TemporaryDirectory(prefix="wq-w4-cjk-") as td:
+        repo, commit = _fixture_repo(td, cjk_names=True)
+        root = os.path.join(td, "wenqu")
+        os.makedirs(root)
+        epoch = _epoch_file(td)
+        rdir = os.path.join(td, "reports")
+        drop = ("LANG", "LC_ALL", "LC_CTYPE")
+        p = _run_drill(["--mode", "release-dr", "--repo", repo,
+                        "--source-commit", commit, "--wenqu-root", root,
+                        "--report-dir", rdir, "--epoch-file", epoch,
+                        "--fault-delay", "1"], drop_env=drop)
+        _req(p.returncode == 0,
+             "W12-06 直接腿：无 locale 环境 + 中文名语料 rc=0（清单回读"
+             "以 UTF-8 渲染）", p.stdout + p.stderr)
+        rep, _ = _latest_report(rdir)
+        _req(rep.get("result") == "PASS", "W12-06 直接腿 result=PASS",
+             rep.get("reason"))
+        rel = rep.get("release") or {}
+        cjk_members = [f for f in ("docs/条件放行说明-fixture.md",
+                                   "evidence/00/验收报告-第N轮-fixture.md",
+                                   "链接-to-docs")
+                       if f in json.dumps(rep.get("steps", {})
+                                          .get("snapshot", {}).get("files", []),
+                                          ensure_ascii=False)]
+        _req(len(cjk_members) == 3, "W12-06 非 ASCII 成员（含 symlink）入清单",
+             cjk_members)
+        _req(rel.get("checks", {}).get("missing") == 0
+             and rel.get("checks", {}).get("extra") == 0,
+             "W12-06 全对账（含非 ASCII 成员）", rel.get("checks"))
+        ls_path = os.path.join(rdir, "last-success.json")
+        _req(os.path.isfile(ls_path)
+             and json.load(open(ls_path, encoding="utf-8"))
+             .get("source_commit") == commit,
+             "W12-06 直接腿 last-success 推进并绑定 commit", ls_path)
+
+
+def test_backup_job_scheduler_path_launchd_locale_env_cjk():
+    """W12-06 调度腿：launchd 形环境（scheduler 进程无 LANG/LC_ALL）经
+    production_tick 调度 backup 作业对非 ASCII 文件名树 release-dr 真跑
+    rc0/PASS → last_success_at 推进 → watchdog FRESH（不再 FUNCTION_DEAD）。"""
+    saved = {k: os.environ.pop(k) for k in ("LANG", "LC_ALL", "LC_CTYPE")
+             if k in os.environ}
+    try:
+        with tempfile.TemporaryDirectory(prefix="wq-w4-cjk-sched-") as td:
+            repo, commit = _fixture_repo(td, cjk_names=True)
+            paths = _make_paths(td)
+            stub_ok = _write_stub_sampler(td, rc=0)
+            sampler_argv = (sys.executable, stub_ok,
+                            paths.samples_dir, paths.shadow_dir)
+            backup_argv = ("bash", DRILL_SH, "--mode", "release-dr",
+                           "--repo", repo, "--source-commit", commit,
+                           "--wenqu-root", paths.wenqu_home,
+                           "--report-dir", paths.drills_dir)
+            t0 = time.time()
+            sched.production_tick(paths=paths, now=t0,
+                                  job_argv=sampler_argv,
+                                  backup_job_argv=backup_argv)
+            # 拨 due 到过去 → 下一 tick 经调度器真实执行 backup 作业
+            #（TrustedRunner 白名单环境自本进程 os.environ 构造——已剥
+            # locale，等价 launchd 实装进程面）。
+            store = sched.SchedulerStore(paths.scheduler_db)
+            try:
+                with store.transaction() as conn:
+                    conn.execute(
+                        "UPDATE scheduler_jobs SET next_due_at=? WHERE job_id=?",
+                        (t0 - 3600, sched.BACKUP_JOB_ID))
+            finally:
+                store.close()
+            tick2 = sched.production_tick(paths=paths, now=t0 + 60,
+                                          job_argv=sampler_argv,
+                                          backup_job_argv=backup_argv)
+            bak_runs = [r for r in tick2.get("runs", [])
+                        if "backup-restore-drill" in str(r.get("run_id", ""))]
+            _req(len(bak_runs) == 1, "W12-06 调度腿恰一次 backup run",
+                 tick2.get("runs"))
+            _req(bak_runs[0].get("actual_exit_code") == 0
+                 and bak_runs[0].get("policy_verdict") == "PASS",
+                 "W12-06 调度腿 rc=0/PASS（无 locale 环境下清单回读以 "
+                 "UTF-8 渲染）", bak_runs[0])
+            ls_path = os.path.join(paths.drills_dir, "last-success.json")
+            _req(os.path.isfile(ls_path), "W12-06 调度腿 last-success 推进",
+                 ls_path)
+            _req(json.load(open(ls_path, encoding="utf-8"))
+                 .get("source_commit") == commit,
+                 "W12-06 调度腿 last-success 绑定 Sfinal commit", ls_path)
+            bak_health = [h for h in tick2.get("health", [])
+                          if h.get("job_id") == sched.BACKUP_JOB_ID]
+            _req(bak_health and bak_health[0].get("state") == "FRESH"
+                 and bak_health[0].get("healthy") is True,
+                 "W12-06 PASS 后 backup 作业 watchdog FRESH（非 "
+                 "FUNCTION_DEAD）", bak_health)
+    finally:
+        os.environ.update(saved)
 
 
 # ══════════════════════════════════════════════════════════════════════
