@@ -153,7 +153,7 @@ jobs:
             -v "/tmp/wq-browser-evidence:/out" \
             -e PYTHONDONTWRITEBYTECODE=1 \
             "$WQ_PW_IMAGE" \
-            bash -c "python3 -c 'import playwright' 2>/dev/null || pip3 install -q playwright ; python3 /wq/system/tests/browser_e2e.py --out /out/browser"
+            bash -c "python3 -c 'import playwright' 2>/dev/null || pip3 install -q 'playwright==1.63.0' ; python3 /wq/system/tests/browser_e2e.py --out /out/browser"
       - name: 归档浏览器证据（截图/DOM/console/network/脱敏 HAR）
         if: always()
         uses: actions/upload-artifact@v4
