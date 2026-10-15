@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "description": "P1f2 mutation 集冻结（G9-07：R8-TRC-TRUTHY-ASSERT-012 根修）。对 system/wenqu_core 产品函数做三类机械变异——negate_return（返回值取反）/ flip_compare（比较符翻转）/ drop_raise（删关键守卫行）——逐 mutation 在沙箱副本上运行映射的专属测试文件，必须至少杀死一个测试（mutation score 100%）。每个八专属文件至少被一条 mutation 覆盖（覆盖门）。只增不减：新增 mutation 须同步验证 100% kill 后再冻结；删减即 acceptance P1f2 节红。",
+  "description": "P1f2 mutation 集冻结（G9-07：R8-TRC-TRUTHY-ASSERT-012 根修；2026-10-15 R9-INFRA-MUT-GRANULARITY-002 升级为逐作用点计分）。对 system/wenqu_core 产品函数做三类机械变异——negate_return（返回值取反）/ flip_compare（比较符翻转）/ drop_raise（删关键守卫行）——每条记录函数体内的每个作用点单独翻转、在独立沙箱副本上运行映射的专属测试文件单独判死活，逐点必须至少杀死一个测试（mutation score=死点/总点 100%）。每个八专属文件至少被一条 mutation 覆盖（覆盖门）。只增不减：新增 mutation 须同步验证逐点 100% kill 后再冻结；删减即 acceptance P1f2 节红。",
   "frozen_min_mutations": 18,
   "mutations": [
     {

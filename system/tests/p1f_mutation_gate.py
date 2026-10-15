@@ -11,10 +11,14 @@
 
 本工具把完成标准从「形态」换成「行为」：对产品函数做机械变异（三类：
 返回值取反 negate_return / 比较符翻转 flip_compare / 删关键守卫行
-drop_raise），逐 mutation 在沙箱副本树上运行其映射的专属测试文件——
-每个 mutation 必须至少杀死一个测试（对应文件 exit != 0），mutation
-score 必须 100%（于 tests/p1f-mutations.json 所选集）。空壳化/恒真化/
-假测试替换的专属测试文件将杀不死任何 mutation → 本门 rc1。
+drop_raise），**逐作用点独立计分**（R9-INFRA-MUT-GRANULARITY-002 根修，
+2026-10-15：一条 mutant 记录的函数体内可能有多个可作用点，旧实现整函数
+批量翻转、按记录数计分——单易杀点可掩盖同函数其余存活点。现改为每个
+作用点单独翻转 + 单独判死活，mutation score = 死点数/总点数而非死记录
+数/总记录数），逐点在沙箱副本树上运行其映射的专属测试文件——每个
+作用点变异必须至少杀死一个测试（对应文件 exit != 0），逐点 mutation
+score 必须 100%（于 tests/p1f-mutations.json 所选集的全部作用点）。
+空壳化/恒真化/假测试替换的专属测试文件将杀不死作用点变异 → 本门 rc1。
 
 与两道既有闸的关系（G9-07 定版：三道闸并存，棘轮只增不减）：
   第一道（主）：本 mutation gate——行为敏感度；
@@ -80,114 +84,130 @@ class MutationSpecError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# AST 机械变异
+# AST 机械变异（逐作用点：R9-INFRA-MUT-GRANULARITY-002）
 # ---------------------------------------------------------------------------
-class _OpCounter(ast.NodeVisitor):
-    """统计目标函数体内各 op 的可作用点数（0=mutation 无法落地）。"""
+class _PointCollector(ast.NodeVisitor):
+    """收集目标函数体内 op 的全部可作用点节点（计数=可选点，同源同序）。
 
-    def __init__(self) -> None:
-        self.returns_with_value = 0
-        self.flippable_compares = 0
-        self.raises = 0
+    遍历语义与作用点判定成对：collector 不下降进 Compare/Return/Raise 的
+    子节点（对应三类 op 的变换器同样不进入未命中节点的子树）——计数与
+    选择共享同一可达集，计数永不与可翻转点漂移。
+    """
+
+    def __init__(self, op: str) -> None:
+        self.op = op
+        self.points: List[ast.AST] = []
 
     def visit_Return(self, node: ast.Return) -> None:
-        if node.value is not None:
-            self.returns_with_value += 1
+        if self.op == "negate_return" and node.value is not None:
+            self.points.append(node)
 
     def visit_Compare(self, node: ast.Compare) -> None:
-        if node.ops and all(type(op) in _FLIP for op in node.ops):
-            self.flippable_compares += 1
+        if (self.op == "flip_compare" and node.ops
+                and all(type(op) in _FLIP for op in node.ops)):
+            self.points.append(node)
 
     def visit_Raise(self, node: ast.Raise) -> None:
-        self.raises += 1
+        if self.op == "drop_raise":
+            self.points.append(node)
 
 
-class _NegateReturn(ast.NodeTransformer):
-    """return V → return not (V)——返回值取反（布尔语义翻转）。"""
+class _TargetedNegateReturn(ast.NodeTransformer):
+    """只把 target（节点身份命中）的 return V 改为 return not (V)。"""
+
+    def __init__(self, target: ast.Return) -> None:
+        self.target = target
 
     def visit_Return(self, node: ast.Return) -> ast.Return:
-        if node.value is None:
-            return node
-        return ast.copy_location(
-            ast.Return(value=ast.UnaryOp(op=ast.Not(), operand=copy.deepcopy(node.value))),
-            node)
+        if node is self.target:
+            return ast.copy_location(
+                ast.Return(value=ast.UnaryOp(
+                    op=ast.Not(), operand=copy.deepcopy(node.value))), node)
+        return node
 
 
-class _FlipCompare(ast.NodeTransformer):
-    """比较符翻转：<↔>=、>↔<=、==↔!=、in↔not in、is↔is not。"""
+class _TargetedFlipCompare(ast.NodeTransformer):
+    """只翻转 target（节点身份命中）的比较符：<↔>=、>↔<=、==↔!=、
+    in↔not in、is↔is not；其余 Compare 不动。"""
+
+    def __init__(self, target: ast.Compare) -> None:
+        self.target = target
 
     def visit_Compare(self, node: ast.Compare) -> ast.Compare:
-        new_ops = [_FLIP[type(op)]() for op in node.ops]
-        return ast.copy_location(
-            ast.Compare(left=node.left, ops=new_ops, comparators=node.comparators),
-            node)
+        if node is self.target:
+            new_ops = [_FLIP[type(op)]() for op in node.ops]
+            return ast.copy_location(
+                ast.Compare(left=node.left, ops=new_ops,
+                            comparators=node.comparators), node)
+        return node
 
 
-class _DropRaise(ast.NodeTransformer):
-    """删除函数体内第一个 Raise 语句（关键守卫行删除；后续 raise 保留）。"""
+class _TargetedDropRaise(ast.NodeTransformer):
+    """只删除 target（节点身份命中）的 Raise 语句，替换为 Pass。"""
 
-    def __init__(self) -> None:
-        self.dropped = False
+    def __init__(self, target: ast.Raise) -> None:
+        self.target = target
 
     def visit_Raise(self, node: ast.Raise) -> ast.stmt:
-        if not self.dropped:
-            self.dropped = True
+        if node is self.target:
             return ast.copy_location(ast.Pass(), node)
         return node
 
 
-def _make_scoped(function: str, inner: ast.NodeTransformer) -> ast.NodeTransformer:
-    """构造只作用于同名函数体的变换器（其余源码不动）。"""
+def collect_points(tree: ast.AST, function: str, op: str) -> List[ast.AST]:
+    """收集全部同名函数体内 op 的可作用点（按遍历序、按节点身份去重）。"""
+    collector = _PointCollector(op)
+    matched = 0
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                and node.name == function:
+            matched += 1
+            collector.visit(node)  # 嵌套/方法同名同治（与旧计数器同界）
+    if matched == 0:
+        return []
+    seen: set = set()
+    points: List[ast.AST] = []
+    for p in collector.points:  # 嵌套同名函数会被外层计数重复收录——去重
+        if id(p) not in seen:
+            seen.add(id(p))
+            points.append(p)
+    return points
 
-    class _Scoped(ast.NodeTransformer):
-        def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
-            self.generic_visit(node)  # 先递归（嵌套/方法同名同治）
-            if node.name == function:
-                return ast.copy_location(inner.visit(node), node)
-            return node
 
-    return _Scoped()
+def apply_mutation(src: str, module_path: str, function: str, op: str,
+                   point_index: int = 0) -> Tuple[str, int]:
+    """对 module 源码中指定函数的**第 point_index 个作用点**（0 起）应用
+    机械变异（其余作用点不动），返回 (变异后源码, 作用点总数)。
 
-
-def apply_mutation(src: str, module_path: str, function: str,
-                   op: str) -> Tuple[str, int]:
-    """对 module 源码中指定函数应用机械变异，返回 (变异后源码, 作用点数)。
-
-    函数不存在 / op 无处落地 / 变异后源码无变化 → MutationSpecError。
+    函数不存在 / op 无处落地 / point_index 越界 / 变异后源码无变化
+    → MutationSpecError。
     """
     try:
         tree = ast.parse(src, filename=module_path)
     except SyntaxError as exc:
         raise MutationSpecError(f"{module_path}: 源码不可解析: {exc}") from exc
 
-    counter = _OpCounter()
-    matched = 0
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function:
-            matched += 1
-            counter.visit(node)
-    if matched == 0:
+    points = collect_points(tree, function, op)
+    if not points:
         raise MutationSpecError(
-            f"{module_path}: 未找到目标函数 {function!r}——mutation 集与产品码脱锚")
-    points = {
-        "negate_return": counter.returns_with_value,
-        "flip_compare": counter.flippable_compares,
-        "drop_raise": counter.raises,
-    }[op]
-    if points == 0:
+            f"{module_path}: 未找到目标函数 {function!r} 或 op={op} 无处落地"
+            "（产品码已变？mutation 集需同步）")
+    if not 0 <= point_index < len(points):
         raise MutationSpecError(
-            f"{module_path}#{function}: op={op} 无处落地（产品码已变？mutation 集需同步）")
+            f"{module_path}#{function}: op={op} 作用点索引 {point_index} 越界"
+            f"（共 {len(points)} 点）")
 
-    inner = {"negate_return": _NegateReturn, "flip_compare": _FlipCompare,
-             "drop_raise": _DropRaise}[op]()
-    scoped = _make_scoped(function, inner)
+    inner = {"negate_return": _TargetedNegateReturn,
+             "flip_compare": _TargetedFlipCompare,
+             "drop_raise": _TargetedDropRaise}[op](points[point_index])
     baseline_unparsed = ast.unparse(tree)  # 先快照（NodeTransformer 原地改树）
-    mutated = ast.fix_missing_locations(scoped.visit(tree))
+    mutated = ast.fix_missing_locations(inner.visit(tree))
     out = ast.unparse(mutated)
     if out == baseline_unparsed:
         raise MutationSpecError(
-            f"{module_path}#{function}: op={op} 变异后源码无变化（无效 mutation）")
-    return out, points
+            f"{module_path}#{function}: op={op} point={point_index} "
+            "变异后源码无变化（无效 mutation）")
+    return out, len(points)
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +274,10 @@ def run_gate(root: Path, mutations_path: Path, json_out: Optional[Path],
     mutations = load_mutations(mutations_path)
     needed_files = sorted({tf for m in mutations for tf in m["test_files"]})
 
-    rows: List[Dict[str, Any]] = []
-    killed = 0
+    point_rows: List[Dict[str, Any]] = []   # 逐作用点判定（计分原子）
+    record_rows: List[Dict[str, Any]] = []  # 逐记录汇总（读数用）
+    killed_points = 0
+    total_points = 0
     vacuous: List[str] = []
     t0 = time.monotonic()
 
@@ -278,62 +300,116 @@ def run_gate(root: Path, mutations_path: Path, json_out: Optional[Path],
             return 2
         shutil.rmtree(control, ignore_errors=True)
 
-        # —— 变异腿：逐 mutation 沙箱执行 ——
-        for idx, m in enumerate(mutations, 1):
-            module_rel = m["module"]  # wenqu_core/xxx.py
-            sandbox = _sandbox_copy(root, tmpd / f"mut-{idx:02d}")
-            target = sandbox / "system" / module_rel
+        # —— 变异腿：逐 mutation 记录 × 逐作用点 独立沙箱判定 ——
+        # R9-INFRA-MUT-GRANULARITY-002 根修：旧实现一条记录整函数批量翻转、
+        # 按记录数计分（单易杀点掩盖存活点）；现每作用点单独翻转+单独判
+        # 死活，score=死点/总点。每点独立沙箱（copytree 实测 <0.1s，隔离
+        # 语义与旧逐记录腿完全一致，零跨点状态复用）。
+        # 预扫：锚定校验（rc2 语义前置）+ 总作用点数（进度分母）。
+        plan: List[Tuple[Dict[str, Any], int]] = []
+        for m in mutations:
+            src_probe = (root / "system" / m["module"]).read_text(
+                encoding="utf-8")
             try:
-                src = target.read_text(encoding="utf-8")
-                mutated, points = apply_mutation(src, str(target), m["function"], m["op"])
-                target.write_text(mutated + "\n", encoding="utf-8")
-            except MutationSpecError as exc:
-                print(f"❌ {m['id']}: mutation 集失效——{exc}")
-                shutil.rmtree(sandbox, ignore_errors=True)
-                return 2
-            kill_rc: Optional[int] = None
-            killer: Optional[str] = None
-            for tf in m["test_files"]:
-                rc, _dt = _run_test_file(sandbox, tf, tmpd / f"art-{idx:02d}")
-                if rc != 0:
-                    kill_rc, killer = rc, tf
-                    break  # 至少一个转红即杀死
-            is_killed = kill_rc is not None
-            killed += 1 if is_killed else 0
-            rows.append({
-                "id": m["id"], "module": module_rel, "function": m["function"],
-                "op": m["op"], "points": points,
-                "killed": is_killed, "killer": killer,
-                "kill_rc": kill_rc, "test_files": m["test_files"],
-            })
-            mark = "✅ KILLED" if is_killed else "❌ SURVIVED"
-            line = (f"  [{idx}/{len(mutations)}] {mark} {m['id']} "
-                    f"{module_rel}#{m['function']} op={m['op']}"
-                    + (f" killer={killer}(exit={kill_rc})" if is_killed else ""))
-            print(line)
-            if verbose:
-                print(f"      {m['description']}")
-            shutil.rmtree(sandbox, ignore_errors=True)
+                probe_tree = ast.parse(src_probe)
+            except SyntaxError as exc:
+                raise MutationSpecError(
+                    f"{m['module']}: 源码不可解析: {exc}") from exc
+            n_points = len(collect_points(probe_tree, m["function"], m["op"]))
+            if n_points == 0:
+                raise MutationSpecError(
+                    f"{m['module']}#{m['function']}: op={m['op']} 无处落地"
+                    "（产品码已变？mutation 集需同步）")
+            plan.append((m, n_points))
+        grand_points = sum(n for _m, n in plan)
 
-    total = len(mutations)
-    score = (100.0 * killed / total) if total else 0.0
+        point_seq = 0
+        for idx, (m, n_points) in enumerate(plan, 1):
+
+            module_rel = m["module"]  # wenqu_core/xxx.py
+            record_killed = 0
+            record_points = 0
+            for point_index in range(n_points):
+                point_seq += 1
+                sandbox = _sandbox_copy(root, tmpd / f"pt-{point_seq:03d}")
+                target = sandbox / "system" / module_rel
+                try:
+                    src = target.read_text(encoding="utf-8")
+                    mutated, points = apply_mutation(
+                        src, str(target), m["function"], m["op"],
+                        point_index=point_index)
+                    if points != n_points:
+                        raise MutationSpecError(
+                            f"{module_rel}#{m['function']}: 沙箱作用点数 "
+                            f"{points} != 预扫 {n_points}（沙箱与工作树不同源？）")
+                    target.write_text(mutated + "\n", encoding="utf-8")
+                except MutationSpecError as exc:
+                    print(f"❌ {m['id']}#p{point_index:02d}: mutation 集失效——{exc}")
+                    shutil.rmtree(sandbox, ignore_errors=True)
+                    return 2
+                kill_rc: Optional[int] = None
+                killer: Optional[str] = None
+                for tf in m["test_files"]:
+                    rc, _dt = _run_test_file(sandbox, tf,
+                                             tmpd / f"art-{point_seq:03d}")
+                    if rc != 0:
+                        kill_rc, killer = rc, tf
+                        break  # 至少一个转红即杀死该作用点
+                is_killed = kill_rc is not None
+                total_points += 1
+                record_points += 1
+                killed_points += 1 if is_killed else 0
+                record_killed += 1 if is_killed else 0
+                point_id = f"{m['id']}#p{point_index:02d}"
+                point_rows.append({
+                    "id": point_id, "mutation_id": m["id"],
+                    "point": point_index, "module": module_rel,
+                    "function": m["function"], "op": m["op"],
+                    "killed": is_killed, "killer": killer,
+                    "kill_rc": kill_rc, "test_files": m["test_files"],
+                })
+                mark = "✅ KILLED" if is_killed else "❌ SURVIVED"
+                line = (f"  [{point_seq}/{grand_points}] {mark} "
+                        f"{point_id} {module_rel}#{m['function']}"
+                        f" op={m['op']} (point {point_index + 1}/{n_points})"
+                        + (f" killer={killer}(exit={kill_rc})"
+                           if is_killed else ""))
+                print(line)
+                if verbose:
+                    print(f"      {m['description']}")
+                shutil.rmtree(sandbox, ignore_errors=True)
+            record_rows.append({
+                "id": m["id"], "module": module_rel, "function": m["function"],
+                "op": m["op"], "points": record_points,
+                "points_killed": record_killed,
+                "killed": record_killed == record_points,
+            })
+
+    score = (100.0 * killed_points / total_points) if total_points else 0.0
     elapsed = time.monotonic() - t0
     print("-" * 72)
-    print(f"mutation score: {killed}/{total} = {score:.1f}%（{elapsed:.1f}s，沙箱全临时）")
+    print(f"mutation score: {killed_points}/{total_points} = {score:.1f}%"
+          f"（逐作用点计分；{len(mutations)} 条记录、{elapsed:.1f}s，沙箱全临时）")
     if json_out is not None:
         json_out.parent.mkdir(parents=True, exist_ok=True)
         json_out.write_text(json.dumps({
-            "tool": "p1f_mutation_gate", "killed": killed, "total": total,
-            "score": round(score, 2), "control_green": {tf: 0 for tf in needed_files},
-            "rows": rows,
+            "tool": "p1f_mutation_gate",
+            "scoring": "per-point（R9-INFRA-MUT-GRANULARITY-002 根修）",
+            "killed": killed_points, "total": total_points,
+            "score": round(score, 2),
+            "records": len(mutations),
+            "control_green": {tf: 0 for tf in needed_files},
+            "rows": point_rows,
+            "record_rows": record_rows,
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"报告已写: {json_out}")
-    if killed != total:
-        survivors = [r["id"] for r in rows if not r["killed"]]
-        print(f"❌ mutation gate 失败——存活 {len(survivors)}: {survivors}")
-        print("   （专属测试空壳化/恒真化/假测试替换会杀不死 mutation——行为覆盖被掏空）")
+    if killed_points != total_points:
+        survivors = [r["id"] for r in point_rows if not r["killed"]]
+        print(f"❌ mutation gate 失败——存活作用点 {len(survivors)}: {survivors}")
+        print("   （专属测试空壳化/恒真化/假测试替换会杀不死作用点变异——行为覆盖被掏空）")
         return 1
-    print("✅ mutation gate 通过（所选集 mutation score 100%，每个变异至少杀一个专属测试）")
+    print("✅ mutation gate 通过（所选集逐作用点 mutation score 100%，"
+          "每个作用点变异至少杀一个专属测试）")
     return 0
 
 
@@ -345,7 +421,8 @@ def _sandbox_copy(root: Path, dest: Path) -> Path:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="P1f2 mutation 门（八专属文件行为敏感度棘轮）")
+    ap = argparse.ArgumentParser(
+        description="P1f2 mutation 门（八专属文件行为敏感度棘轮；逐作用点独立计分）")
     ap.add_argument("--root", required=True, help="repo 根目录（wenqu-dist）")
     ap.add_argument("--mutations", required=True, help="mutation 集文件（tests/p1f-mutations.json）")
     ap.add_argument("--json", help="结构化报告输出路径（临时目录，勿指向 tracked evidence）")

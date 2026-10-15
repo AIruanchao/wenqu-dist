@@ -1,9 +1,13 @@
 # P1f 断言语义棘轮基线（R7-TRC-VACUOUS-003）——只允许增长，缩水即 CI 红
-test_ac_gate_family 141
-test_ac_state_mig 188
-test_ac_deploy_release 167
+# 2026-10-15 重冻（R9-INFRA-MUT-GRANULARITY-002 逐点计分根修配套）：
+# 八专属文件补齐逐作用点 kill 腿（coverage 形状/收缩不变量/mode 漂移/
+# seal 形状/daily 调度/verify_envelope 形状/principal 归因/受管 keyring
+# 消费/解析器异常/OSError fail-closed 等），断言下限随之抬升冻结。
+test_ac_gate_family 145
+test_ac_state_mig 238
+test_ac_deploy_release 169
 test_ac_station_families 235
-test_ac_ops_families 251
-test_ac_ui_family 89
-test_ac_auth_cond 94
+test_ac_ops_families 255
+test_ac_ui_family 135
+test_ac_auth_cond 103
 test_ac_act_run 70

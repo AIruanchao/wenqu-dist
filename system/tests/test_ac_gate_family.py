@@ -1008,6 +1008,43 @@ def test_CI_09_recursive_aggregate_or_duplicate_publish_rejected(root: Optional[
         recursive["consumes_wenqu_required_gate"] = True  # S7 递归引用注入
         exc = _expect_raise(bo.StationResultValidationError, bo.validate_station_result, recursive)
         _ok("additional properties" in str(exc), "schema 必须拒绝非法输入引用（additionalProperties=false）")
+        # 腿一b（R9-INFRA-MUT-GRANULARITY-002 逐点补腿）：coverage 形状面与
+        # 收缩不变量——旧 mutation 门整函数批量翻转掩盖了这些作用点的行为
+        # 覆盖空洞，逐腿独立注入：
+        no_cov = {k: v for k, v in good.items() if k != "coverage"}
+        no_cov["policy_verdict"] = "NOT_APPLICABLE"  # PASS 判定才强制 coverage（schema if-then）
+        bo.validate_station_result(no_cov)  # 非 PASS 判定下 coverage 可缺省：正例必须通过
+        cov_extra = dict(good, coverage={"denominator": 3, "scanned": 3, "evil": 1})
+        exc = _expect_raise(bo.StationResultValidationError,
+                            bo.validate_station_result, cov_extra)
+        _ok("coverage additional properties" in str(exc),
+            f"coverage 额外键必须拒绝: {exc}")
+        cov_bad_int = dict(good, coverage={"denominator": "three", "scanned": 1})
+        exc = _expect_raise(bo.StationResultValidationError,
+                            bo.validate_station_result, cov_bad_int)
+        _ok("must be an int >= 0" in str(exc),
+            f"coverage 分量非整数必须拒绝: {exc}")
+        # 收缩不变量正例：scanned<denominator ⇒ BLOCKED + 非 PASS（合法）
+        shrink_ok = dict(good, coverage={"denominator": 3, "scanned": 2},
+                         execution_status="BLOCKED",
+                         policy_verdict="NOT_EVALUATED")
+        bo.validate_station_result(shrink_ok)  # 正例必须通过
+        # 收缩不变量负例：scanned<denominator 但 COMPLETED/PASS 洗白 → 拒
+        shrink_pass = dict(good, coverage={"denominator": 3, "scanned": 2},
+                           execution_status="COMPLETED", policy_verdict="PASS")
+        exc = _expect_raise(bo.StationResultValidationError,
+                            bo.validate_station_result, shrink_pass)
+        _ok("coverage shrink" in str(exc),
+            f"收缩扫描不得以 COMPLETED/PASS 洗白: {exc}")
+        # 非 COMPLETED 状态禁 PASS：正例（ERROR+NOT_EVALUATED 合法）+负例
+        err_ok = dict(good, execution_status="ERROR",
+                      policy_verdict="NOT_EVALUATED")
+        bo.validate_station_result(err_ok)
+        err_pass = dict(good, execution_status="ERROR", policy_verdict="PASS")
+        exc = _expect_raise(bo.StationResultValidationError,
+                            bo.validate_station_result, err_pass)
+        _ok("non-COMPLETED execution_status forbids policy_verdict=PASS" in str(exc),
+            f"ERROR 状态不得记 PASS: {exc}")
         # 腿二：递归聚合——聚合输出回灌聚合器（无 station 结构）→ malformed BLOCKED
         sha = "a" * 40
         agg_inner = GateAggregator({"1"}, target_sha=sha, environment="test")

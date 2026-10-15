@@ -30,7 +30,10 @@ D. data_config_hash 绑定与失效
      observer digest；配置内容变化 → run 指纹变化 + 心跳旧成功失效；
 E. scheduler health 区分 tick 存活与采样 PASS/FRESH
    - tick rc0 不得掩盖 sampler rc3：payload.sampler 显式携带
-     last_run_rc / policy_verdict / fresh；rc3 → CRITICAL 通知入队。
+     last_run_rc / policy_verdict / fresh；rc3 定性按 W12-03 分级
+     （容量经 capacity_sample 注入固定，不依赖宿主磁盘水位）：
+     rc3+容量OPEN → config_error/CRITICAL；rc3+容量BLOCKED →
+     environment_blocked/WARNING（sampler_environment_blocked）。
 
 纯标准库；`PYTHONPATH=system python3 -m pytest system/tests/test_w11_07_controlled_env.py -q`
 或 `python3 system/tests/test_w11_07_controlled_env.py`（exit 0=全绿）。
@@ -756,19 +759,48 @@ def test_config_change_invalidates_fingerprint_and_heartbeat(td):
 
 # ══════════════════════════════════════════════════════════════════════
 # E. scheduler health：tick 存活 vs 采样 PASS/FRESH
+#    （R10-INFRA-W1107-TEST-ENVCOUPLING-001 根修：断言按 W12-03 rc3 分级
+#     语义更新 + 容量态经 production_tick.capacity_sample 注入接缝固定，
+#     不再依赖宿主机真实磁盘水位——宿主容量 BLOCKED 下不再假红）
 # ══════════════════════════════════════════════════════════════════════
 
+def _open_capacity_sample():
+    """容量 OPEN 注入样本（ratio≈0.77 / 余量 30GiB——W12-03 同款接缝）。"""
+    from wenqu_core.capacity_monitor import injected_sample
+    gib = 1024 ** 3
+    return injected_sample(used_bytes=100 * gib, free_bytes=30 * gib,
+                           path="<w11-07-e-inject-open>")
+
+
+def _blocked_capacity_sample():
+    """容量 BLOCKED 注入样本（used_ratio≈0.94，不真塞盘）。"""
+    from wenqu_core.capacity_monitor import injected_sample
+    return injected_sample(used_bytes=94, free_bytes=6,
+                           path="<w11-07-e-inject-blocked>")
+
+
 def test_tick_alive_vs_sampler_freshness(td):
+    import inspect
+    import sqlite3
+    has_cap_seam = "capacity_sample" in inspect.signature(
+        sched.production_tick).parameters
+    _ck("E production_tick 暴露 capacity_sample 注入接缝（W12-03）",
+        has_cap_seam)
     wh = os.path.join(td, "wh-e")
     paths = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh,
                                    cas_root=os.path.join(td, "cas-e"))
     stub3 = _write_rc_sampler(td, 3)
     stub0 = _write_rc_sampler(td, 0)
     t0 = time.time()
+    cap_open = _open_capacity_sample() if has_cap_seam else None
+    cap_blocked = _blocked_capacity_sample() if has_cap_seam else None
+
+    # ---- 腿 1：rc3 + 容量 OPEN → 配置错定性（config_error/CRITICAL）----
     tick = sched.production_tick(
         paths=paths, now=t0,
         job_argv=(sys.executable, stub3, paths.samples_dir,
                   paths.shadow_dir),
+        capacity_sample=cap_open,
         macos_sender=_NO_MACOS)
     sampler = tick.get("sampler")
     _ck("E payload.sampler 显式块存在", isinstance(sampler, dict),
@@ -780,26 +812,67 @@ def test_tick_alive_vs_sampler_freshness(td):
         _ck("E sampler verdict 如实（BLOCKED/NOT_EVALUATED，统一退出码契约）",
             sampler.get("execution_status") == "BLOCKED"
             and sampler.get("policy_verdict") == "NOT_EVALUATED", str(sampler))
-        _ck("E sampler rc3 显式 config_error 标记",
-            sampler.get("config_error") is True, str(sampler))
+        if has_cap_seam:
+            # 容量态注入固定为 OPEN → rc3 定性=config_error（确定性，
+            # 与宿主机真实磁盘水位无关）
+            _ck("E 容量注入 OPEN（rc3 定性前置固定）",
+                tick.get("capacity_gate", {}).get("gate") == "OPEN",
+                str(tick.get("capacity_gate")))
+            _ck("E sampler rc3 显式 config_error 标记（容量 OPEN 定性）",
+                sampler.get("config_error") is True
+                and sampler.get("environment_blocked") is False, str(sampler))
         _ck("E sampler fresh=False（非 PASS 不算 FRESH）",
             sampler.get("fresh") is False, str(sampler))
     _ck("E rc3 → gate 非 PASS（tick 绿不冒充采样绿）",
         tick["gate"].get("policy_verdict") != "PASS",
         str(tick["gate"]))
     # CRITICAL 通知入队（fail-visible，不静默；tick rc0 不掩盖 rc3）
-    import sqlite3
     conn = sqlite3.connect(paths.scheduler_db)
     n_crit = conn.execute(
         "SELECT COUNT(*) FROM scheduler_outbox WHERE severity='CRITICAL'"
         " AND meta_json LIKE '%sampler_config_error%'").fetchone()[0]
     conn.close()
-    _ck("E sampler rc3 → CRITICAL 通知入队", n_crit >= 1, f"n={n_crit}")
-    # 对照：rc0 → PASS/FRESH
+    _ck("E sampler rc3+容量OPEN → CRITICAL 通知入队", n_crit >= 1, f"n={n_crit}")
+
+    # ---- 腿 2：rc3 + 容量 BLOCKED → 环境态分级（W12-03 rc3 新语义）----
+    if has_cap_seam:
+        wh2 = os.path.join(td, "wh-e2")
+        paths2 = sched.ProductionPaths(repo_root=ROOT, wenqu_home=wh2,
+                                       cas_root=os.path.join(td, "cas-e2"))
+        tick_b = sched.production_tick(
+            paths=paths2, now=t0,
+            job_argv=(sys.executable, stub3, paths2.samples_dir,
+                      paths2.shadow_dir),
+            capacity_sample=cap_blocked,
+            macos_sender=_NO_MACOS)
+        sampler_b = tick_b.get("sampler") or {}
+        _ck("E 腿2 容量注入 BLOCKED（分级前置固定）",
+            tick_b.get("capacity_gate", {}).get("gate") == "BLOCKED",
+            str(tick_b.get("capacity_gate")))
+        _ck("E 腿2 rc3+容量BLOCKED → environment_blocked=True（环境归因）",
+            sampler_b.get("last_run_rc") == 3
+            and sampler_b.get("environment_blocked") is True, str(sampler_b))
+        _ck("E 腿2 rc3+容量BLOCKED → config_error=False（非配置错定性）",
+            sampler_b.get("config_error") is False, str(sampler_b))
+        conn2 = sqlite3.connect(paths2.scheduler_db)
+        rows2 = conn2.execute(
+            "SELECT severity, meta_json FROM scheduler_outbox").fetchall()
+        conn2.close()
+        _ck("E 腿2 环境态 WARNING 入队（sampler_environment_blocked）",
+            any(sev == "WARNING"
+                and "sampler_environment_blocked" in str(meta)
+                for sev, meta in rows2), str(rows2)[:300])
+        _ck("E 腿2 无 sampler_config_error CRITICAL（W12-03 收窄不误报）",
+            not any(sev == "CRITICAL"
+                    and "sampler_config_error" in str(meta)
+                    for sev, meta in rows2), str(rows2)[:300])
+
+    # ---- 对照：rc0 → PASS/FRESH ----
     tick2 = sched.production_tick(
         paths=paths, now=t0 + 310,
         job_argv=(sys.executable, stub0, paths.samples_dir,
                   paths.shadow_dir),
+        capacity_sample=cap_open,
         macos_sender=_NO_MACOS)
     sampler2 = tick2.get("sampler")
     _ck("E rc0 → sampler PASS 且 FRESH",

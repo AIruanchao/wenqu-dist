@@ -328,6 +328,71 @@ def test_issue_payload_closed():
     store.close()
 
 
+def test_r10_ttl_window_issuance_cap():
+    """R10-AUTH-TTL-WINDOW-001：签发窗=消费窗耦合（签发侧预检拒超窗信封）。
+
+    旧缺陷：签发侧 _MAX_TTL_SECONDS=30 天与消费侧
+    MAX_CONSUMABLE_TTL_SECONDS=7 天互不耦合——8~30 天信封「签得出来、
+    消费必被拒」（浪费签发+TTL 窗口错觉）。根修后签发侧上限 =
+    min(30 天, 消费侧常量)（消费侧常量单一正源 import），超消费窗即
+    预检拒签（fail-closed 不落审计）。
+    """
+    from wenqu_core import approval_issue as ai
+
+    def _issue_reject_detail(issuer, base, ttl):
+        kw = {k: v for k, v in base.items() if k != "ttl_seconds"}
+        kw["ttl_seconds"] = ttl
+        try:
+            issuer.issue(**kw)
+        except IssuanceError as e:
+            return str(e)
+        raise AssertionError(f"ttl={ttl} 超消费窗必须被签发预检拒绝")
+
+    tmp, store, mgr, kr = fresh()
+    audit = os.path.join(tmp, "a.jsonl")
+    issuer = ApprovalIssuer(kr, audit)
+    merge_payload = {"repo_id": "qisemi-erp", "base_sha": "1" * 40,
+                     "head_sha": "2" * 40, "merge_method": "squash"}
+    base = dict(actor="chaoge", approval_type="merge", run_id="r1",
+                task_id="t1", stage="S1_REQUIREMENT", environment="staging",
+                authorized_scope="s", policy_hash="p", ruleset_hash="ru",
+                input_watermark="a" * 40, expected_state_version=1,
+                key_id="key_test_1", payload=dict(merge_payload))
+    assert ai._MAX_TTL_SECONDS == min(30 * 24 * 3600,
+                                      MAX_CONSUMABLE_TTL_SECONDS), \
+        "签发侧 TTL 顶必须与消费侧 MAX_CONSUMABLE_TTL_SECONDS 耦合（单一正源）"
+    cap = ai._MAX_TTL_SECONDS
+    # 恰在窗口边界（=消费侧硬顶）→ 放行签发；且该信封消费侧 TTL 腿放行
+    r_edge = issuer.issue(
+        ttl_seconds=cap,
+        **{k: v for k, v in base.items() if k != "ttl_seconds"})
+    ap = r_edge["approval"]
+    assert r_edge["audit_record"]["ttl_seconds"] == cap
+    # 信封体自身：expires-issued == cap（恰等于消费侧硬顶，消费 TTL 腿放行）
+    from datetime import datetime as _dt
+    span = (_dt.fromisoformat(ap["expires_at"].replace("Z", "+00:00"))
+            - _dt.fromisoformat(ap["issued_at"].replace("Z", "+00:00"))
+            ).total_seconds()
+    assert span == cap, f"信封 TTL span={span} 应等于签发顶 {cap}"
+    assert ApprovalBroker._ttl_cap_rejection(ap) is None, \
+        "边界 TTL 签出的信封在消费侧 TTL 硬顶腿必须放行（签发窗=消费窗）"
+    # 超消费窗（+1s / 8 天 / 30 天 / 十年）→ 签发预检拒（消息点名窗口耦合）
+    for bad_ttl in (cap + 1, 8 * 86400, 30 * 24 * 3600, 10 * 365 * 86400):
+        msg = _issue_reject_detail(issuer, base, bad_ttl)
+        assert "ttl_seconds" in msg and "MAX_CONSUMABLE_TTL_SECONDS" in msg, \
+            f"拒签消息须点名窗口耦合（ttl={bad_ttl}）: {msg}"
+    assert len(IssuanceAudit.read_records(audit)) == 1, \
+        "超窗拒签必须 fail-closed 不落审计（账本只有边界放行那一条）"
+    # 消费侧常量为部署策略正源：签发顶随其单调收敛（min 语义）
+    orig = ai._MAX_TTL_SECONDS
+    try:
+        ai._MAX_TTL_SECONDS = 24 * 3600
+        _issue_reject_detail(issuer, base, 7 * 86400)
+    finally:
+        ai._MAX_TTL_SECONDS = orig
+    store.close()
+
+
 def test_issue_key_selection():
     tmp, store, mgr, kr = fresh()
     issuer = ApprovalIssuer(kr, os.path.join(tmp, "a.jsonl"))
@@ -1753,6 +1818,7 @@ TESTS = [
     ("受管 keyring 目录：0700/0600/事件账本/过期", test_managed_keyring_dir_lifecycle),
     ("签发：结构预检+HMAC 自验+审计（谁/何时/批了什么/TTL）", test_issue_resume_structure_and_audit),
     ("签发：payload 判别封闭（多/缺/空/坏枚举/坏 TTL 全拒且不落审计）", test_issue_payload_closed),
+    ("R10-TTL-WINDOW：签发窗=消费窗耦合（超 7 天硬顶拒签+边界放行+正源收敛）", test_r10_ttl_window_issuance_cap),
     ("签发：key 选择（多 active 歧义拒/无 active 拒/rotated 拒）", test_issue_key_selection),
     ("高危双人规则：缺旗标/缺第二 key/缺第二人/同 key 假联签全拒+联签双验真", test_two_person_rule),
     ("全链：签发→消费→重放拒→哈希链完好", test_issue_consume_replay),

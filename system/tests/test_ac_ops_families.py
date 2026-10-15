@@ -49,7 +49,10 @@ evidence/00-baseline/codex-external/方案.md §20 表格）：
                                      .jsonl 事件日志（时间/文件/结果三要素逐事件记账）
 
 运行：python3 system/tests/test_ac_ops_families.py   （独立 exit 0 = 全绿）
-证据：evidence/04-unit-property-mutation/ac-ops-families.json（每次运行覆写）。
+证据：逐 ID 结果 JSON——缺省写临时目录（测试零污染，R9-INFRA-
+ACCEPT-POLLUTION-003 根修）；设 WENQU_EVIDENCE_OUT_DIR 显式指定输出
+目录（有意更新 tracked 快照
+evidence/04-unit-property-mutation/ac-ops-families.json 时的正门）。
 
 诚实边界（无法在本机沙箱真实注入、不以假绿硬凑的部分，另见证据 JSON
 not_implementable 字段）：
@@ -136,7 +139,26 @@ from wenqu_core.capacity_monitor import (                        # noqa: E402
 # 测试卫生：产品模块的 log.warning（如 spawn failed）不要打进测试输出
 logging.disable(logging.CRITICAL)
 
-EVIDENCE_PATH = REPO / "evidence" / "04-unit-property-mutation" / "ac-ops-families.json"
+
+def _artifact_out_dir() -> Path:
+    """证据工件输出目录（R9-INFRA-ACCEPT-POLLUTION-003 根修，2026-10-15）：
+
+    - 显式设 ``WENQU_EVIDENCE_OUT_DIR`` → 写该目录（有意更新 tracked
+      evidence 快照时的正门——人工跑、复核后另行入册；mutation 门沙箱
+      执行同走此通道，产物落在门自身临时目录）；
+    - 缺省 → 独立临时目录（mkdtemp）——测试输出零污染，绝不改写仓内
+      tracked evidence（generated_at/repo_head/演练时间戳等动态值不再被
+      每次运行覆写——单跑本件或全量 acceptance 后 ``git status`` 保持干净）。
+    """
+    env_dir = os.environ.get("WENQU_EVIDENCE_OUT_DIR")
+    if env_dir:
+        out = Path(env_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+    return Path(tempfile.mkdtemp(prefix="wenqu-artifact-ac-ops-families-"))
+
+
+EVIDENCE_PATH = _artifact_out_dir() / "ac-ops-families.json"
 
 _RESULTS: dict = {}
 _NOT_IMPLEMENTABLE = [
@@ -474,9 +496,27 @@ def test_SCH_03_sleep_missed_period_wakes_up_and_catches_up():
                 f"ALL 应补跑最近 3 次，实得 {[(o.scheduled_at, o.run, o.reason) for o in occ2]}"
             assert runs2 == sorted(runs2, key=lambda o: o.scheduled_at), "补跑按时间正序"
             assert overruns, "超出 max_catch_up_runs 的出现必须 overrun 落审计"
+
+            # daily 档：first_due_after 逐作用点腿（R9-INFRA-MUT-
+            # GRANULARITY-002）——daily 时刻搜索必须返回严格晚于 after 的
+            # 下一次出现（UTC 03:00 锚点，解析验算），不得陷入搜索失败。
+            from datetime import datetime, timezone as _tzmod
+            daily = ScheduleSpec.daily_at("03:00")
+            after = datetime(2026, 10, 15, 12, 0, tzinfo=_tzmod.utc).timestamp()
+            nxt = daily.first_due_after(after)
+            expect_dt = datetime(2026, 10, 16, 3, 0, tzinfo=_tzmod.utc)
+            assert abs(nxt - expect_dt.timestamp()) < 1e-3, \
+                f"daily 03:00 在 15 日 12:00 后的下一出现应为 16 日 03:00 UTC，实得 {nxt}"
+            # after 恰在出现时刻之前（同日 02:59）→ 当日 03:00 即下一出现
+            before_day = datetime(2026, 10, 15, 2, 59, tzinfo=_tzmod.utc).timestamp()
+            assert abs(daily.first_due_after(before_day)
+                       - datetime(2026, 10, 15, 3, 0, tzinfo=_tzmod.utc)
+                       .timestamp()) < 1e-3, "同日出现未过时必须返回当日"
             _record("SCH-03",
                     f"错过 9 周期唤醒：COALESCE 恰补最新 1 次（missed={runs[0].missed_count}），"
-                    f"跳过全落审计、消费后零重复；ALL 回填恰 3 次+overrun 审计")
+                    f"跳过全落审计、消费后零重复；ALL 回填恰 3 次+overrun 审计；"
+                    f"daily 03:00 UTC first_due_after 逐点腿：跨日（15 日 12:00→"
+                    f"16 日 03:00）与同日未过时（02:59→当日 03:00）双解析验算通过")
         finally:
             store.close()
 
@@ -1171,7 +1211,10 @@ def test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci():
     # 一致时放行（阴性对照）
     assert not checker(claimed_version=cli_version, actual_version=cli_version)["blocked"]
 
-    # 真实数量对账（如实记录，不硬凑）：README 宣称 N 项验收面 vs 机器实测检查单元数
+    # 真实数量对账（R9-INFRA-DOC-REALDRIFT-004 根修，2026-10-15：漂移必须红）：
+    # README 宣称 N 项验收面 vs 机器实测检查单元数——漂移即断言失败（按 §20
+    # 语义绑定 CI 阻断）。旧实现只打「观察项」继续走（fail-open），真实仓
+    # 66→74→75 漂移持续扩大无人修数——本断言把「宣称数≠机器数」变成必红。
     acc_text = _ACCEPTANCE.read_text(encoding="utf-8")
     ck_lines = [l for l in acc_text.splitlines()
                 if re.search(r"(^|;)\s*ck\s+\"", l) and not l.strip().startswith("#")]
@@ -1179,17 +1222,19 @@ def test_DOC_02_bug_skill_version_manifest_and_count_drift_blocks_ci():
                  if "PASS_N=$((PASS_N+1))" in l and not l.strip().startswith("#")]
     machine_units = len(ck_lines) + len(inc_lines)
     claim = re.search(r"(\d+)\s*项验收", readme_text)
-    claimed_n = int(claim.group(1)) if claim else None
+    assert claim, "README 必须含「N 项验收面」数量锚点（DOC-02 数量对账正源）"
+    claimed_n = int(claim.group(1))
     real = checker(claimed_count=claimed_n, actual_count=machine_units)
-    if real["blocked"]:
-        print(f"  [DOC-02 观察项] 真实仓存在验收数量漂移（未硬凑进断言）: "
-              f"README 宣称 {claimed_n} 项，机器实测 {machine_units} 检查单元"
-              f"（ck={len(ck_lines)} + inline={len(inc_lines)}）——按 §20 应 CI 阻断并修文档")
+    assert not real["blocked"], (
+        f"真实仓验收数量漂移（DOC-02 红探针命中，CI 必须阻断）: "
+        f"{real['problems']}——README 宣称 {claimed_n} 项，机器实测 {machine_units} "
+        f"检查单元（ck={len(ck_lines)} + inline={len(inc_lines)}）。"
+        f"修法：同步 README 数为机器真值（acceptance.sh 增删检查单元时同批改）")
     _record("DOC-02",
             f"版本对账绿（{cli_version} 三处一致）；三件基础探测器清单对账绿"
             f"（注册表 {len(stations)} 站）；版本/清单/数量三注入漂移全判 blocked；"
-            f"真实数量对账: 宣称 {claimed_n} vs 实测 {machine_units} "
-            f"{'一致' if not real['blocked'] else '漂移（观察项，已如实上报）'}")
+            f"真实数量对账: 宣称 {claimed_n} == 实测 {machine_units} "
+            f"（ck={len(ck_lines)} + inline={len(inc_lines)}，断言绑定——漂移即红）")
 
 
 def test_DOC_03_policy_forbidden_bypass_text_blocks_ci():
@@ -2051,7 +2096,8 @@ def main() -> int:
         }
         EVIDENCE_PATH.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"证据工件: {EVIDENCE_PATH.relative_to(REPO)}")
+        print(f"证据工件: {EVIDENCE_PATH}"
+              "（tmp 沙箱——tracked evidence 更新走 WENQU_EVIDENCE_OUT_DIR 正门）")
     except OSError as exc:
         print(f"证据工件写入失败（不影响判定）: {exc}")
     return 1 if failed else 0
