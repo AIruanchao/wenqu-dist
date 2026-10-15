@@ -226,6 +226,17 @@ def test_REL_01_manifest_missing_extra_hash_drift_deploy_fails(td: Path) -> None
     _ok(exc.report["missing"] == ["manifest.json"],
         f"manifest 缺失必须指认 manifest.json: {exc.report}")
 
+    # ---- 形态4b：mode 漂移（R9-INFRA-MUT-GRANULARITY-002 逐点补腿）----
+    # 内容字节不变、仅权限位漂移（0444→0644）——mode 对账腿必须独立指认
+    # （旧 mutation 门批量翻转掩盖了该作用点的覆盖空洞）
+    t_mode = td / "tamper-mode"
+    shutil.copytree(v1_dir, t_mode)
+    victim_m = t_mode / "app.py"
+    os.chmod(victim_m, 0o644)  # 内容不动，只漂移权限位
+    exc = _expect_raise(VerifyError, mgr.verify, str(t_mode))
+    _ok(exc.report["mode_drifted"] == ["app.py"] and exc.report["drifted"] == [],
+        f"mode 漂移必须精确指认且不与内容漂移混淆: {exc.report}")
+
     # ---- 部署失败腿（真实 deploy 调用链）----
     # release_id = UTC 秒时间戳 + 内容摘要；同秒同源重建命中幂等复用分支，
     # 复用前对既有 release 做完好性对账——注入多件后对账失败 → BuildError
@@ -599,6 +610,15 @@ def test_RB_01_no_preauth_rollback_and_wrong_previous_refused(td: Path) -> None:
         f"类型不符必须明确拒绝 rollback 预留: {exc}")
     _ok(store.head() == (None, 0), f"类型不符拒绝仍零落账: {store.head()}")
     store.close()
+
+    # ---- 腿A2（R9-INFRA-MUT-GRANULARITY-002 逐点补腿）：BackupProof.valid
+    # 的 OSError 分支——工件不可达（被清理/挂载丢失）时旧版完好性预检必须
+    # False（绝不放行回滚），fail-closed 不得以异常形态外泄为真值。
+    ghost = BackupProof("bk-rb01-ghost", str(td / "vanished-artifact.tar"),
+                        "0" * 64, None)
+    _ok(ghost.valid is False,
+        "工件不可达的 BackupProof.valid 必须 False（fail-closed，"
+        "回滚门 L1133 不得因 OSError 放行坏旧版）")
 
     # ---- 腿B：错误旧版本回滚一律拒绝（deploy_framework）----
     root = td / "rb01-root"

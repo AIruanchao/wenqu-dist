@@ -484,12 +484,19 @@ def test_UI_01_missing_closing_tag_fails_build_and_startup_gate():
     assert product_div_gate is True, "对照前提失败：span 注入不应扰动 div 计数"
     assert "missing-</span>" in caught and caught["missing-</span>"] == "UNCLOSED_TAG", \
         "探针必须抓到产品字符串门漏报的 </span> 缺失"
+    # R9-INFRA-MUT-GRANULARITY-002 逐点补腿：解析器异常面——喂非 str 输入
+    # （bytes）触发解析器 TypeError 时，构建门必须报 HTML_PARSE_ERROR
+    # finding（结构化失败），不得以异常外泄或返回非列表真值冒充通过。
+    parse_err = html_structural_gate(real_html.encode("utf-8"), "mut-bytes.html")
+    assert _codes(parse_err) == {"HTML_PARSE_ERROR"}, \
+        f"解析器异常必须报 HTML_PARSE_ERROR，实得 {[x.as_dict() for x in parse_err]}"
     # R7 修复对照：产品配对门现已覆盖 span（腿 1 对抗腿已实证删 </span> 必红）
     _record("UI-01",
             f"产品 --self-check 启动门：完整副本 rc=0，删一个 </div> 后 rc!=0（点名「div 平衡」），"
             f"删一个 </span> 后 rc!=0（R7 根修：配对门补全常见标签并点名 span）；"
             f"探针构建门：真件 0 发现，四种破损形态（</div>/</span>/游离</div>/</html>）全报，"
-            f"且抓到产品字符串计数门漏报的 </span> 缺失（parser 严格性 ⊇ 产品门）")
+            f"且抓到产品字符串计数门漏报的 </span> 缺失（parser 严格性 ⊇ 产品门）；"
+            f"解析器异常（bytes 输入）报 HTML_PARSE_ERROR（结构化失败不外泄）")
 
 
 def test_UI_02_xss_log_and_ledger_text_does_not_execute():

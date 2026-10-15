@@ -624,7 +624,7 @@
      "gh run view 37792468258 (实查)"
     ],
     "real_rc": "PR state=MERGED；CI run 37792468258 结论=success（双平台 macos+ubuntu 均 success，终态实查）",
-    "artifact_sha256": "5b699395797491f6771852fa7c0f8579acf71466d934ef20bd7f19dd3c7e545f",
+    "artifact_sha256": "6865c09521b51a3a39f20507df641cb32b87bd8eb6251f55390d73889aa4c30c",
     "evidence_path": "tests/p1f-assert-baseline.txt",
     "fresh_until": "2026-10-22",
     "verified_by": "ZCode 第七波终局建档（gh pr view/run view 实查合流与 CI 状态；测试全绿与棘轮通过引自 bac7148 提交记录，本轮未独立复跑测试套件）",

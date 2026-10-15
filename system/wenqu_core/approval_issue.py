@@ -85,6 +85,7 @@ from .wenqu_pipeline import (  # noqa: F401 —— 单一正源，杜绝规格�
     ApprovalBroker,
     ApprovalRejected,
     HIGH_RISK_APPROVAL_TYPES,
+    MAX_CONSUMABLE_TTL_SECONDS,
     SevenStageStateMachine,
     STOP_PRECONDITION_SPECS,
     STAGES,
@@ -133,7 +134,13 @@ PAYLOAD_FIELDS_FOR_TYPE = _APPROVAL_PAYLOAD_DISCRIMINATOR
 ISSUANCE_AUDIT_FILENAME = "issuance-audit.jsonl"
 
 _DEFAULT_TTL_SECONDS = 3600
-_MAX_TTL_SECONDS = 30 * 24 * 3600  # 30 天封顶（防手滑签出十年期审批）
+#: 签发侧 TTL 硬顶（R10-AUTH-TTL-WINDOW-001 根修，2026-10-15）：
+#: 与消费侧消费窗口耦合——旧实现签发顶 30 天而消费侧（受管 keyring）
+#: ``MAX_CONSUMABLE_TTL_SECONDS``=7 天硬顶，8~30 天的信封「签得出来、
+#: 消费必被拒」（签发端产出不可用审批的浪费+窗口错觉）。现以消费侧
+#: 常量为单一正源做 ``min(30 天, 消费侧顶)`` 耦合上限；消费侧常量按
+#: 部署策略调整时签发侧自动同幅收敛，不再出现两窗口漂移。
+_MAX_TTL_SECONDS = min(30 * 24 * 3600, MAX_CONSUMABLE_TTL_SECONDS)
 _AUDIT_FILE_MODE = 0o600
 _GENESIS = "0" * 64
 
@@ -372,7 +379,8 @@ class ApprovalIssuer:
         1. approval_type/decision/stop_type/stage 合法（消费端同款枚举）；
         2. payload 判别封闭（键集=该类型专属字段全集，非空；
            risk.finding_fingerprints 允许空列表）；
-        3. TTL 边界（1s ~ 30 天）；
+        3. TTL 边界（1s ~ min(30 天, 消费侧 7 天硬顶)——R10-AUTH-TTL-
+           WINDOW-001：签发窗与消费窗耦合，超消费窗即拒签）；
         4. 签发 key 资格：显式 key_id 或唯一 active key（歧义=拒）；
         5. 高危类型双人规则：--confirm-two-persons + 第二 key（≠主 key，
            且可签发）+ 第二签发人标识；非高危带双人参数=拒（防错觉）；
@@ -562,12 +570,16 @@ class ApprovalIssuer:
         # 2. payload 判别封闭
         payload = self._validate_payload(approval_type, payload)
 
-        # 3. TTL 边界
+        # 3. TTL 边界（R10-AUTH-TTL-WINDOW-001：签发窗=消费窗耦合，
+        #    上限 min(30 天, 消费侧 MAX_CONSUMABLE_TTL_SECONDS)——超窗拒签）
         if not (isinstance(ttl_seconds, int)
                 and not isinstance(ttl_seconds, bool)
                 and 1 <= ttl_seconds <= _MAX_TTL_SECONDS):
             raise IssuanceError(
-                f"ttl_seconds must be integer in [1, {_MAX_TTL_SECONDS}]")
+                f"ttl_seconds must be integer in [1, {_MAX_TTL_SECONDS}]"
+                f"（签发窗与消费窗耦合——消费侧 MAX_CONSUMABLE_TTL_SECONDS="
+                f"{MAX_CONSUMABLE_TTL_SECONDS}s 硬顶；超窗信封签得出"
+                "却消费必被拒，R10-AUTH-TTL-WINDOW-001 起签发端预检拒签）")
 
         # 4. 签发 key 资格
         chosen_key_id = self._pick_signing_key(key_id)

@@ -1327,7 +1327,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--key-id", default=None, dest="key_id",
                    help="签发 key（缺省=唯一 active key；多个 active 必须显式）")
     p.add_argument("--ttl", type=int, default=3600,
-                   help="审批有效期秒数（缺省 3600；上限 30 天）")
+                   help="审批有效期秒数（缺省 3600；上限 min(30 天, 消费侧 7 天硬顶)——R10-AUTH-TTL-WINDOW-001 签发窗=消费窗耦合）")
     p.add_argument("--payload", default=None, metavar="FILE",
                    help="payload 全量 JSON 文件（按类型判别封闭）")
     p.add_argument("--preconditions", default=None, metavar="FILE",

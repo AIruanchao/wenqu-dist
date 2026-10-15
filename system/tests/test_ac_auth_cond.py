@@ -565,6 +565,72 @@ def test_AUTH_04_canonical_payload_unicode_audience_byte_change_fails(root: Path
         # 键序/规范化漂移面：整信封重序列化不改值（canonical 化等价）→ 不属于字节改变，应仍可消费
         _ok(mgr.resume_waiting(run_id, copy.deepcopy(base), pre)["resumed"] is True,
             "对照组：未篡改的 Unicode 信封原样消费成功")
+
+        # ---- R9-INFRA-MUT-GRANULARITY-002 逐点补腿（行为覆盖空洞收口）----
+        # 腿五：verify_envelope 形状契约（直连单元面——消费路径经 schema
+        # 先拒形状破坏，本腿锚定验签函数自身契约：非 str/长度≠64 签名、
+        # 不可 canonical 化信封体一律 False，绝不抛错不冒真）
+        from wenqu_core.approval_keys import verify_envelope
+        env_body = {k: v for k, v in base.items() if k != "signature"}
+        _ok(verify_envelope(SECRET_A, env_body, base["signature"]) is True,
+            "对照组：形状正确的签名验签通过")
+        _ok(verify_envelope(SECRET_A, env_body, "deadbeef") is False,
+            "签名长度≠64 必须 False（形状契约）")
+        _ok(verify_envelope(SECRET_A, env_body, b"0" * 64) is False,
+            "签名非 str 必须 False（形状契约）")
+        unserializable = dict(env_body, run_id={"nested": {1, 2, 3}})  # set 不可 canonical 化
+        _ok(verify_envelope(SECRET_A, unserializable, "a" * 64) is False,
+            "信封体不可 canonical 化必须 False（不抛 TypeError 外泄）")
+
+        # 腿六：principal 冒用归因——登记 actors 的 key 被冒签（HMAC 真而
+        # actor 不在登记面）→ 拒绝消息必须点名 principal（失败归因分支：
+        # 密码学复核过=membership 因，不得误报为普通验签失败）
+        run2, w2 = _waiting_run(mgr, "task_auth04b", "prod-write", ID_STAGING)
+        v2 = mgr.get_run(run2).state_version
+        rogue_actor = _resume_approval(
+            run2, "task_auth04b", stop_event_id=w2["stop_event_id"],
+            stop_type="prod-write", version=v2, preconditions=pre,
+            actor="rogue-impersonator-not-registered")
+        _ok(rogue_actor["signature"] and rogue_actor["actor"] == "rogue-impersonator-not-registered",
+            "注入前提：冒签信封 HMAC 本身为真（登记密钥签名+冒用 actor）")
+        _raises(ApprovalRejected, lambda: mgr.resume_waiting(
+            run2, rogue_actor, pre), contains="principal")
+        _ok(mgr.get_run(run2).state == "WAITING", "principal 冒用不得恢复 run")
+
+        # 腿七：受管（目录型）keyring 真签发→真消费（receipt/TTL 执法面）——
+        # ApprovalIssuer 产 receipt 信封，消费链 _verify_signature 的
+        # receipt 门/TTL 硬顶门在合法输入上必须全放行（fail-closed 非
+        # fail-everything：受管面合法消费成功）
+        from wenqu_core.approval_issue import (ApprovalIssuer,
+                                               issue_from_preconditions_payload)
+        from wenqu_core.approval_keys import (generate_secret,
+                                              write_key_to_dir)
+        kdir = td / "managed-keyring"
+        write_key_to_dir(str(kdir), "key_managed_1", generate_secret(),
+                         {"status": "active", "owner": "chaoge",
+                          "actors": ["chaoge"]})
+        mkr = ApprovalKeyring.from_path(str(kdir))
+        mstore, mmgr = _mgr(td, "managed.db", keyring=mkr)
+        mrun, mw = _waiting_run(mmgr, "task_auth04m", "prod-write", ID_STAGING)
+        mv = mmgr.get_run(mrun).state_version
+        issuer = ApprovalIssuer(mkr, str(kdir / "issuance-audit.jsonl"))
+        issued = issuer.issue(
+            actor="chaoge", approval_type="resume", run_id=mrun,
+            task_id="task_auth04m", stop_type="prod-write",
+            stop_event_id=mw["stop_event_id"], stage="S1_REQUIREMENT",
+            environment=ID_STAGING["environment"],
+            authorized_scope=ID_STAGING["scope_hash"],
+            policy_hash=ID_STAGING["policy_hash"],
+            ruleset_hash=ID_STAGING["ruleset_hash"],
+            input_watermark=ID_STAGING["commit_sha"],
+            expected_state_version=mv,
+            payload=issue_from_preconditions_payload(
+                mw["stop_event_id"], "prod-write", pre),
+            key_id="key_managed_1", ttl_seconds=3600)
+        _ok(mmgr.resume_waiting(mrun, issued["approval"], pre)["resumed"] is True,
+            "受管 keyring 合法 receipt 信封必须可消费（receipt/TTL 门放行）")
+        mstore.close()
+
         _ok(store.verify_chain()["ok"], "事件链完整性保持")
         store.close()
 
@@ -1009,6 +1075,15 @@ def test_COND_03_authorized_conditional_action_gate_exactly_once(root: Path) -> 
         risk = _risk_approval(run_id, "task_cond03", version=v,
                               fingerprints=["fp-cond03"], severity="LOW")
         _ok(mgr.authorize_risk(run_id, risk)["consumed"] is True, "risk 类精确授权消费")
+        # R9-INFRA-MUT-GRANULARITY-002 逐点补腿：已消费未过期授权的正查询
+        # 面——has_unexpired_risk_authorization 必须返回授权行本体（approval_id
+        # 可对账），不得只以 None/非 None 单侧面断言掩盖「有授权判无」翻转。
+        held = mgr.broker.has_unexpired_risk_authorization(run_id)
+        _ok(held is not None and held.get("approval_id") == risk["approval_id"],
+            f"在位未过期 risk 授权必须可查得授权行: {held}")
+        _ok(held.get("unexpired") is True and
+            held.get("finding_fingerprints") == ["fp-cond03"],
+            f"授权行须携带未过期标记与指纹面: {held}")
 
         # action 类精确授权（prod_write 审批）→ Action Gate 全链恰一次
         # R7：prod_write 高危——补嵌入双联签 + exact descriptor（新消费契约）

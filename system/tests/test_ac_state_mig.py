@@ -1510,6 +1510,31 @@ def test_STATE_09_sha_scope_policy_change_forces_new_run():
         _wp._PipelineDb.append_event(
             mgr._db._conn, _wp._seal_event(run_id, forged))
         expect(PipelineCorruptionError, lambda: mgr.get_run(run_id))
+        # 1b) seal 形状面（R9-INFRA-MUT-GRANULARITY-002 逐点补腿）：
+        # otherwise-valid 控制事件但 seal 截断（len≠64，绕过写入守卫直插
+        # 事件流）→ 重放侧 seal 形状校验必须拒（CorruptionError 点名 seal）
+        run_id_seal = mgr.create_run("task_w6_seal_shape", W6_IDENT)["run_id"]
+        mgr.advance_stage(run_id_seal)
+        st_seal = mgr.get_run(run_id_seal)
+        forged_seal = mgr._base_event(
+            "STAGE_COMPLETED", st_seal, "COMPLETED", "PASS",
+            stage="S1_REQUIREMENT",
+            attempt_id=st_seal.stages["S1_REQUIREMENT"].current_attempt.attempt_id,
+            state_version=st_seal.state_version + 1, evidence_refs=[], findings=[])
+        sealed_short = _wp._seal_event(run_id_seal, forged_seal)
+        sealed_short["seal"] = "ab"  # 形状破坏（64hex→2 字符）
+        _wp._PipelineDb.append_event(mgr._db._conn, sealed_short)
+        try:
+            mgr.get_run(run_id_seal)
+            raise AssertionError("seal 形状破坏的事件必须被重放侧拒绝")
+        except PipelineCorruptionError as exc_seal:
+            assert "seal" in str(exc_seal), exc_seal
+        # 1c) seal 契约单元腿：_verify_seal 形状契约（空/非 str run_id、
+        # 非 64hex seal 一律 False——「缺失/形状不符/不匹配即 False」文档
+        # 契约的逐分支断言）
+        assert _wp._verify_seal("", {"seal": "a" * 64}) is False
+        assert _wp._verify_seal(None, {"seal": "a" * 64}) is False
+        assert _wp._verify_seal(run_id_seal, {"seal": "ab"}) is False
         # 3) 对照：identity 一致的正常折叠不受影响
         ok_run = mgr.create_run("task_w6_ident_ok", W6_IDENT)["run_id"]
         out = mgr.advance_stage(ok_run, execution_status="COMPLETED",

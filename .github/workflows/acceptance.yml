@@ -54,8 +54,9 @@ jobs:
           done
           popd >/dev/null
       # P1f2 mutation 真主门（G9-07）：已内嵌于 acceptance.sh 的 P1f2 节
-      # （required CI 的 acceptance 步即跑 18 冻结集 score 100% 门）——此处
-      # 不再独立重跑，避免 macOS 时长翻倍。
+      # （required CI 的 acceptance 步即跑 18 冻结集·逐作用点计分 score
+      # 100% 门——R9-INFRA-MUT-GRANULARITY-002 根修）——此处不再独立
+      # 重跑，避免 macOS 时长翻倍。
 
   # ---- W11-11（十轮 W2 扣分「受限容器腿缺」根治）：真实受限容器 required job ----
   # 在「固定 digest 镜像 + 非 root + 只读 rootfs + 仓库只读挂载 + /tmp 独立

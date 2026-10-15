@@ -412,8 +412,10 @@ echo "== P1f2. 断言语义棘轮（R7-TRC-VACUOUS-003：空壳化/恒真化专�
 # AST 形态抓不住非字面恒真 assert len(str(product_call())) >= 0 与等量
 # 假测试替换——只有「产品变异必杀测试」能证明断言对行为敏感）。
 # 三道闸并存，棘轮只增不减：
-#   主门  system/tests/p1f_mutation_gate.py（mutation score 100% 于
-#         tests/p1f-mutations.json 所选集；沙箱执行零工作树写入）；
+#   主门  system/tests/p1f_mutation_gate.py（逐作用点独立计分——
+#         R9-INFRA-MUT-GRANULARITY-002 根修：每作用点单独翻转+单独判死活，
+#         score=死点/总点，于 tests/p1f-mutations.json 所选集全部作用点
+#         须 100%；沙箱执行零工作树写入）；
 #   二闸  p1f_ast_gate.py AST 形态基线（tests/p1f-behavior-baseline.txt）；
 #   三闸  文本计数旧棘轮（tests/p1f-assert-baseline.txt）。
 P1F2_FAIL=0
