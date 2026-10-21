@@ -76,7 +76,7 @@ import re
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as _dc_replace
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from pathlib import Path
@@ -1633,7 +1633,13 @@ class EngineFiveTypesScanner(_Station2Scanner):
         **base_kwargs: Any,
     ) -> None:
         super().__init__(**base_kwargs)
-        self._state_path = Path(engine_state_path) if engine_state_path else DEFAULT_ENGINE_STATE_PATH
+        # M-01（迁移微工单 2026-10-19）：WENQU_ERP_ENGINE_STATE 环境变量覆写
+        # engine_state_path（生产参数化通道；缺省回落硬编码本机路径，行为不变）
+        self._state_path = Path(
+            engine_state_path
+            or os.environ.get("WENQU_ERP_ENGINE_STATE")
+            or DEFAULT_ENGINE_STATE_PATH
+        )
         self._engine_argv: Optional[List[str]] = list(engine_argv) if engine_argv else None
 
     # -- 解析（纯函数） ------------------------------------------------------
@@ -1731,7 +1737,7 @@ class EngineFiveTypesScanner(_Station2Scanner):
                 argv=argv, expected_exit_set=expected,
                 tool_version="engine-state/1",
             )
-        return self._verdict_from_state(
+        report = self._verdict_from_state(
             payload,
             argv_digest=_argv_digest(argv),
             argv_for_digest=argv,
@@ -1740,6 +1746,17 @@ class EngineFiveTypesScanner(_Station2Scanner):
             ended_at=_iso_z(_utc_now()),
             tool_version="engine-state/1",
         )
+        # M-01：快照时效标注——mtime 年龄 >86400s 时 note 留痕（不改变判定；
+        # 旧快照按内容判定的既有语义不变，时效硬闸留给 DOMAIN-OUT 8 选项）
+        try:
+            _age = time.time() - self._state_path.stat().st_mtime
+            if _age > 86400:
+                report = _dc_replace(report, note=(
+                    (report.note + "; " if report.note else "")
+                    + "engine_state stale: mtime age %ds > 86400s" % int(_age)))
+        except OSError:
+            pass
+        return report
 
     def _verdict_from_state(
         self,
@@ -2173,6 +2190,18 @@ class Station2Static:
              "finding_ids": [f.finding_id for f in all_findings]},
             separators=(",", ":"), ensure_ascii=False, sort_keys=True,
         ).encode("utf-8")
+        # M-01b（对抗审查发现 1 修复）：stale 等 scanner note 同步进 station_result
+        # 的 tool.warnings——持久化通道（dispatch 只透传 station_result，信封 notes
+        # 被丢弃；tool 额外键经 schema 白名单校验放行，零结构破坏）
+        _tool_warnings = [n for n in notes.values()
+                          if isinstance(n, str) and "stale" in n]
+        _tool_payload = {
+            "name": "wenqu_core.station2_static",
+            "version": STATION2_VERSION,
+            "digest": _hash_obj(argv_digest_map),
+        }
+        if _tool_warnings:
+            _tool_payload["warnings"] = list(_tool_warnings)
         aggregate = build_station_result(
             run_id=self._run_id,
             station_id=STATION_ID,
@@ -2180,11 +2209,7 @@ class Station2Static:
             execution_status=intended_status,
             policy_verdict=aggregate_verdict,
             identity=self._identity,
-            tool={
-                "name": "wenqu_core.station2_static",
-                "version": STATION2_VERSION,
-                "digest": _hash_obj(argv_digest_map),
-            },
+            tool=_tool_payload,
             execution={
                 "argv_digest": _hash_obj(argv_digest_map),
                 "cwd_digest": _sha256_hex(str(self._repo_dir.resolve()).encode("utf-8")),
